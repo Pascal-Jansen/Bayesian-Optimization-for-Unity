@@ -1,0 +1,154 @@
+{
+  "questionnaire_id": "0",
+  "page_background_color": [
+    "0.9245",
+    "0.9245",
+    "0.9245",
+    "0.8"
+  ],
+  "page_panel_color": [
+    "0.76",
+    "0.88",
+    "1",
+    "1"
+  ],
+  "highlight_color": [
+    "0",
+    "0.67",
+    "1",
+    "1"
+  ],
+  "background_transparency": "20",
+  "show_bottom_panel": "True",
+  "show_page_number": "True",
+  "show_prev_button": "False",
+  "qPages": [
+    {
+      "pId": "page1",
+      "show_fullscreen_text": "True",
+      "fullscreen_text": "Hello and welcome to the NASA TLX questionnaire.\n\nPlease answer the following question items.\n\nIf you have any questions, feel free to ask the study advisor.",
+      "show_instruction_panel": "True",
+      "instruction_text": "NASA TLX Workload Assessment",
+      "qItems": []
+    },
+    {
+      "pId": "page2",
+      "show_fullscreen_text": "False",
+      "fullscreen_text": "",
+      "show_instruction_panel": "True",
+      "instruction_text": "Please rate all 6 measures by clicking a point on the scale that best represents your experience with the task you just completed.",
+      "qItems": [
+        {
+          "qId": "q1",
+          "qType": "slider",
+          "question": "Mental Demand: How mentally demanding was the task?",
+          "header_name": "Item 1",
+          "mandatory": "True",
+          "min_value": "0",
+          "max_value": "20",
+          "whole_numbers": "True",
+          "show_panels": "True",
+          "show_intermediate_panels": "True",
+          "label_zero": "Low",
+          "label_quarter": "",
+          "label_half": "",
+          "label_three_quarters": "",
+          "label_full": "High"
+        },
+        {
+          "qId": "q2",
+          "qType": "slider",
+          "question": "Physical Demand: How physically demanding was the task?",
+          "header_name": "Item 2",
+          "mandatory": "True",
+          "min_value": "0",
+          "max_value": "20",
+          "whole_numbers": "True",
+          "show_panels": "True",
+          "show_intermediate_panels": "True",
+          "label_zero": "Low",
+          "label_quarter": "",
+          "label_half": "",
+          "label_three_quarters": "",
+          "label_full": "High"
+        },
+        {
+          "qId": "q3",
+          "qType": "slider",
+          "question": "Temporal Demand: How hurried or rushed was the pace of the task?",
+          "header_name": "Item 3",
+          "mandatory": "True",
+          "min_value": "0",
+          "max_value": "20",
+          "whole_numbers": "True",
+          "show_panels": "True",
+          "show_intermediate_panels": "True",
+          "label_zero": "Low",
+          "label_quarter": "",
+          "label_half": "",
+          "label_three_quarters": "",
+          "label_full": "High"
+        },
+        {
+          "qId": "q4",
+          "qType": "slider",
+          "question": "Performance: How succesfull were you in accomplishing what you were asked to do?",
+          "header_name": "Item 4",
+          "mandatory": "True",
+          "min_value": "0",
+          "max_value": "20",
+          "whole_numbers": "True",
+          "show_panels": "True",
+          "show_intermediate_panels": "True",
+          "label_zero": "Low",
+          "label_quarter": "",
+          "label_half": "",
+          "label_three_quarters": "",
+          "label_full": "High"
+        },
+        {
+          "qId": "q5",
+          "qType": "slider",
+          "question": "Effort: How hard did you have to work to accomplish your level of performance?",
+          "header_name": "Item 5",
+          "mandatory": "True",
+          "min_value": "0",
+          "max_value": "20",
+          "whole_numbers": "True",
+          "show_panels": "True",
+          "show_intermediate_panels": "True",
+          "label_zero": "Low",
+          "label_quarter": "",
+          "label_half": "",
+          "label_three_quarters": "",
+          "label_full": "High"
+        },
+        {
+          "qId": "q6",
+          "qType": "slider",
+          "question": "Frustration: How insecure; discouraged; irritated; stressed; and annoyed were you?",
+          "header_name": "Item 6",
+          "mandatory": "True",
+          "min_value": "0",
+          "max_value": "20",
+          "whole_numbers": "True",
+          "show_panels": "True",
+          "show_intermediate_panels": "True",
+          "label_zero": "Low",
+          "label_quarter": "",
+          "label_half": "",
+          "label_three_quarters": "",
+          "label_full": "High"
+        }
+      ]
+    },
+    {
+      "pId": "page3",
+      "show_fullscreen_text": "True",
+      "fullscreen_text": "You have completed the questionnaire.\nPress \"Finish\" to submit your responses.\n\nThank you very much for taking part in the experiment! \nWe appreciate your time!",
+      "show_instruction_panel": "True",
+      "instruction_text": "NASA TLX Workload Assessment",
+      "qItems": []
+    }
+  ]
+}

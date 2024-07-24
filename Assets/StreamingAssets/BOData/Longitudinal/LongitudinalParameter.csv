@@ -1,0 +1,4 @@
+Time;UserID;GroupID;LongitudinalID;Iteration;Longitudinal;TrajectoryNeed;TrajectoryAlpha;TrajectorySize;EgoTrajectoryNeed;EgoTrajectoryAlpha;EgoTrajectorySize;PedestrianIntentionNeed;PedestrianIntentionSize;SemanticSegmentationNeed;SemanticSegmentationAlpha;CarStatusNeed;CarStatusAlpha;CoveredAreaNeed;CoveredAreaAlpha;CoveredAreaSize;OccludedCarsNeed
+2024-04-11 17:46:46.731;;NoGroup;NoGroup;11;0;True;0.929;0.406;True;0.737;0.105;True;0.102;True;0.801;False;0.158;True;0.253;0.794;False;
+2024-04-11 18:02:23.988;;NoGroup;NoGroup;11;0;True;0.929;0.406;True;0.737;0.105;True;0.102;True;0.801;False;0.158;True;0.253;0.794;False;
+2024-04-26 17:57:43.485;;NoGroup;NoGroup;11;0;False;0.945;0.160;True;0.728;0.543;False;0.196;False;0.138;False;0.402;False;0.398;0.582;False;

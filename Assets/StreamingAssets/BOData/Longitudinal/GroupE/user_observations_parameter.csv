@@ -1,0 +1,3 @@
+Trajectory;TrajectoryAlpha;TrajectorySize;EgoTrajectory;EgoTrajectoryAlpha;EgoTrajectorySize;PedestrianIntention;PedestrianIntentionSize;SemanticSegmentation;SemanticSegmentationAlpha;CarStatus;CarStatusAlpha;CoveredArea;CoveredAreaAlpha;CoveredAreaSize;OccludedCars
+0.688;0.608;0.462;0.563;0.714;0.340;0.688;0.144;0.688;0.226;0.75;0.308;0.563;0.451;0.328;0.625
+0.688;0.608;0.462;0.563;0.714;0.340;0.688;0.144;0.688;0.226;0.75;0.308;0.563;0.451;0.328;0.625

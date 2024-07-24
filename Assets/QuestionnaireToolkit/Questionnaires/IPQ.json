@@ -1,0 +1,570 @@
+{
+  "questionnaire_id": "0",
+  "page_background_color": [
+    "0.9245",
+    "0.9245",
+    "0.9245",
+    "0.8"
+  ],
+  "page_panel_color": [
+    "0.76",
+    "0.88",
+    "1",
+    "1"
+  ],
+  "highlight_color": [
+    "0",
+    "0.67",
+    "1",
+    "1"
+  ],
+  "background_transparency": "20",
+  "show_bottom_panel": "True",
+  "show_page_number": "True",
+  "show_prev_button": "True",
+  "qPages": [
+    {
+      "pId": "page1",
+      "show_fullscreen_text": "True",
+      "fullscreen_text": "Hello and welcome to the IPQ questionnaire.\n\nPlease answer the following question items.\n\nIf you have any questions, feel free to ask the study advisor.",
+      "show_instruction_panel": "True",
+      "instruction_text": "IPQ Questionnaire",
+      "qItems": []
+    },
+    {
+      "pId": "page2",
+      "show_fullscreen_text": "False",
+      "fullscreen_text": "",
+      "show_instruction_panel": "True",
+      "instruction_text": "Please answer all 14 questions by clicking a point on the scale \nthat best represents your experience with the task in the virtual environment.",
+      "qItems": [
+        {
+          "qId": "q1",
+          "qType": "linear_scale",
+          "question": "In the computer generated world I had a sense of 'being there':",
+          "header_name": "Item 1",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Not at all"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Very much"
+            }
+          ]
+        },
+        {
+          "qId": "q2",
+          "qType": "linear_scale",
+          "question": "Somehow I felt that the virtual world surrounded me...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q3",
+          "qType": "linear_scale",
+          "question": "I felt like I was just perceiving pictures...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q4",
+          "qType": "linear_scale",
+          "question": "I did not feel present in the virtual space...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Did not feel"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Felt present"
+            }
+          ]
+        },
+        {
+          "qId": "q5",
+          "qType": "linear_scale",
+          "question": "I had a sense of acting in the virtual space; rather than operating something from outside...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q6",
+          "qType": "linear_scale",
+          "question": "I felt present in the virtual space...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q7",
+          "qType": "linear_scale",
+          "question": "How aware were you of the real world surrounding while navigating in the virtual world? (i.e. sounds; room temperature; other people; etc.)",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Not aware at all"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": "Moderately aware"
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Extremely aware"
+            }
+          ]
+        },
+        {
+          "qId": "q8",
+          "qType": "linear_scale",
+          "question": "I was not aware of my real environment...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q9",
+          "qType": "linear_scale",
+          "question": "I still paid attention to the real environment...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q10",
+          "qType": "linear_scale",
+          "question": "I was completely captivated by the virtual world...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        },
+        {
+          "qId": "q11",
+          "qType": "linear_scale",
+          "question": "How real did the virtual world seem to you?",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Not real at all"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Completely real"
+            }
+          ]
+        },
+        {
+          "qId": "q12",
+          "qType": "linear_scale",
+          "question": "How much did your experience in the virtual environment seem consistent with your real world experience?",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Not consistent"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": "Moderately consistent"
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Very consistent"
+            }
+          ]
+        },
+        {
+          "qId": "q13",
+          "qType": "linear_scale",
+          "question": "How real did the virtual world seem to you?",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "About as real as an imagined world"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Indistinguishable from the real world"
+            }
+          ]
+        },
+        {
+          "qId": "q14",
+          "qType": "linear_scale",
+          "question": "The virtual world seemed more realistic than the real world...",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "1",
+              "answer_option": "Fully disagree"
+            },
+            {
+              "answer_value": "2",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "3",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "4",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "5",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "6",
+              "answer_option": ""
+            },
+            {
+              "answer_value": "7",
+              "answer_option": "Fully agree"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pId": "page3",
+      "show_fullscreen_text": "True",
+      "fullscreen_text": "You have completed the questionnaire.\nPress Finish to submit your responses.\n\nThank you very much for taking part in the experiment! \nWe appreciate your time!",
+      "show_instruction_panel": "True",
+      "instruction_text": "IPQ Questionnaire",
+      "qItems": []
+    }
+  ]
+}

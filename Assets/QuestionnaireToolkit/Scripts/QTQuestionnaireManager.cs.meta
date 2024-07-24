@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 8cf4b7804dbb43a4a13ac09f04b4a7fb
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - qtMetaData: {fileID: 11400000, guid: b9a5630233ae1a442b2345df096b83b0, type: 2}
+  - lastViewedGameObject: {instanceID: 0}
+  executionOrder: 0
+  icon: {fileID: 2800000, guid: 36326c4fa19c4104c9358674491fd6e0, type: 3}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

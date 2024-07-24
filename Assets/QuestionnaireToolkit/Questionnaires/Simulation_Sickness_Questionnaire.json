@@ -1,0 +1,427 @@
+{
+  "questionnaire_id": "0",
+  "page_background_color": [
+    "0.9245",
+    "0.9245",
+    "0.9245",
+    "0.8"
+  ],
+  "page_panel_color": [
+    "0.76",
+    "0.88",
+    "1",
+    "1"
+  ],
+  "highlight_color": [
+    "0",
+    "0.67",
+    "1",
+    "1"
+  ],
+  "background_transparency": "20",
+  "show_bottom_panel": "True",
+  "show_page_number": "True",
+  "show_prev_button": "True",
+  "qPages": [
+    {
+      "pId": "page1",
+      "show_fullscreen_text": "True",
+      "fullscreen_text": "Hello and welcome to the Simulation Sickness questionnaire.\n\nPlease answer the following question items.\n\nIf you have any questions, feel free to ask the study advisor.",
+      "show_instruction_panel": "True",
+      "instruction_text": "Simulation Sickness Questionnaire",
+      "qItems": []
+    },
+    {
+      "pId": "page2",
+      "show_fullscreen_text": "False",
+      "fullscreen_text": "",
+      "show_instruction_panel": "True",
+      "instruction_text": "Select how much each of the following symptoms is affecting you right now.",
+      "qItems": [
+        {
+          "qId": "q1",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q2",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q3",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q4",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q5",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q6",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q7",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q8",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q9",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q10",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q11",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q12",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q13",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q14",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        },
+        {
+          "qId": "q15",
+          "qType": "linear_scale",
+          "question": "",
+          "header_name": "Item 1(Clone)",
+          "mandatory": "True",
+          "options": [
+            {
+              "answer_value": "q1",
+              "answer_option": "None"
+            },
+            {
+              "answer_value": "q2",
+              "answer_option": "Slight"
+            },
+            {
+              "answer_value": "q3",
+              "answer_option": "Moderate"
+            },
+            {
+              "answer_value": "q4",
+              "answer_option": "Severe"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pId": "page3",
+      "show_fullscreen_text": "True",
+      "fullscreen_text": "You have completed the questionnaire.\nPress Finish to submit your responses.\n\nThank you very much for taking part in the experiment! \nWe appreciate your time!",
+      "show_instruction_panel": "True",
+      "instruction_text": "Simulation Sickness Questionnaire",
+      "qItems": []
+    }
+  ]
+}
