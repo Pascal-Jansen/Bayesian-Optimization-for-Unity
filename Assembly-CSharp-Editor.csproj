@@ -12,7 +12,7 @@
     <ProductVersion>10.0.20506</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <RootNamespace></RootNamespace>
-    <ProjectGuid>{d8be83ef-87de-abb9-12fb-a9bcc5eed3d4}</ProjectGuid>
+    <ProjectGuid>{013724a1-71d3-5baa-4b9d-7718268c39f0}</ProjectGuid>
     <ProjectTypeGuids>{E097FAD1-6243-4DAD-9C02-E9B9EFC3FFC1};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -331,13 +331,13 @@
       <HintPath>/Applications/Unity/Hub/Editor/2022.3.21f1/PlaybackEngines/iOSSupport/UnityEditor.iOS.Extensions.dll</HintPath>
     </Reference>
     <Reference Include="Ookii.Dialogs">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Ookii.Dialogs.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Ookii.Dialogs.dll</HintPath>
     </Reference>
     <Reference Include="System.Windows.Forms">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/System.Windows.Forms.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/System.Windows.Forms.dll</HintPath>
     </Reference>
     <Reference Include="nunit.framework">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Library/PackageCache/com.unity.ext.nunit@1.0.6/net35/unity-custom/nunit.framework.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/PackageCache/com.unity.ext.nunit@1.0.6/net35/unity-custom/nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="UnityEditor.iOS.Extensions.Xcode">
       <HintPath>/Applications/Unity/Hub/Editor/2022.3.21f1/PlaybackEngines/iOSSupport/UnityEditor.iOS.Extensions.Xcode.dll</HintPath>
@@ -724,24 +724,24 @@
       <HintPath>/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/UnityReferenceAssemblies/unity-4.8-api/Facades/netstandard.dll</HintPath>
     </Reference>
     <Reference Include="Unity.TextMeshPro">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Library/ScriptAssemblies/Unity.TextMeshPro.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/Unity.TextMeshPro.dll</HintPath>
     </Reference>
     <Reference Include="UnityEditor.UI">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Library/ScriptAssemblies/UnityEditor.UI.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/UnityEditor.UI.dll</HintPath>
     </Reference>
     <Reference Include="Unity.TextMeshPro.Editor">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Library/ScriptAssemblies/Unity.TextMeshPro.Editor.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/Unity.TextMeshPro.Editor.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/UnityEngine.UI.dll</HintPath>
     </Reference>
     <Reference Include="Unity.Rider.Editor">
-      <HintPath>/Users/pjansen/Desktop/BO-for-Unity/Library/ScriptAssemblies/Unity.Rider.Editor.dll</HintPath>
+      <HintPath>/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/Unity.Rider.Editor.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="Assembly-CSharp.csproj">
-      <Project>{47d52669-6824-3722-0460-488380f15703}</Project>
+      <Project>{db70e26c-6e08-d248-d921-09c594ba0899}</Project>
       <Name>Assembly-CSharp</Name>
     </ProjectReference>
   </ItemGroup>

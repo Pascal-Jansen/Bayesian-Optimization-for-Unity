@@ -223,7 +223,7 @@ namespace BOforUnity.Scripts
                 //Debug.Log(ob.Value);
             }
 
-            //Letzte / von String a löschen
+            // Delete last / from string a
             a = a.Substring(0, a.Length - 1);
             // Vor _ Parameter info, nach _ Objectives info
             Debug.Log("Send Init Info to Python process: " + a);
@@ -238,13 +238,15 @@ namespace BOforUnity.Scripts
         /// Before sending the string, it sets the canRead flag of the Optimizer object to false, which
         /// may indicate that the program is waiting for a response from the server before continuing.
         /// </summary>
-        /// <param name="finalObjectives"></param>
         public void SendObjectives()
         {
             var finalObjectives = new List<float>();
             foreach (var ob in _bomanager.objectives)
             {
-                finalObjectives.Add(ob.value.values.Average());
+                var value = ob.value;
+                var tmpList = value.values;
+                tmpList.RemoveRange(0, value.values.Count - value.numberOfSubMeasures);
+                finalObjectives.Add(tmpList.Average());
             }
             
             var sendStr = "";

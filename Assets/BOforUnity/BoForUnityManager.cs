@@ -6,6 +6,7 @@ using QuestionnaireToolkit.Scripts;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Assertions.Must;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
@@ -38,8 +39,8 @@ namespace BOforUnity
         public bool perfectRatingStart;  // Flag indicating the start of perfect rating.
         public int perfectRatingIteration;
         public bool initialized = false;
+        public bool simulationFinished = false;
         private bool _waitingForPythonProcess = false;
-        private bool _waitingForSceneRelaod = false;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -60,7 +61,7 @@ namespace BOforUnity
             mainThreadDispatcher = gameObject.GetComponent<MainThreadDispatcher>();
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
 
-            currentIteration = 0;
+            currentIteration = 1;
             maxIterations = 15; // set how many iterations the optimizer should run for
         }
         
@@ -71,9 +72,9 @@ namespace BOforUnity
 
             initialized = false;
             _waitingForPythonProcess = true;
-            _waitingForSceneRelaod = false; // used to track if the questionnaire is present in the scene
             perfectRating = false;
             perfectRatingStart = false;
+            simulationFinished = false;
         }
         
         void Update()
@@ -108,25 +109,37 @@ namespace BOforUnity
                 optimizerStatePanel.SetActive(false);
                 return;
             }
+
+            var isPerfect = IsPerfectRating();
             
             // Check if there should be another iteration of the optimization
-            if (currentIteration < maxIterations && !IsPerfectRating())
+            if (currentIteration < maxIterations && !isPerfect)
             {
                 // hide the panel as the next iteration starts after scene is reloaded
                 optimizerStatePanel.SetActive(false);
                 
-                // wait for the questionnaire to load again
-                _waitingForSceneRelaod = true;
-                
-                Debug.Log("Current Iteration: " + currentIteration);
+                Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
                     
                 SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload current scene
             }
-            else if (currentIteration >= maxIterations || IsPerfectRating())
+            else if (currentIteration >= maxIterations || isPerfect)
             {
+                simulationFinished = true; // tell everyone that the simulation has finished
+                
+                if (isPerfect)
+                {
+                    Debug.Log(">>>>> Perfect Rating");
+                }
+                
+                Debug.Log("<<<<<<< Exiting the loop ... ");
+                Debug.Log("------------------------------------------------");
+                
                 socketNetwork.SocketQuit();
                 // load a final scene or...
                 // show the End Message
+                outputText.text = "The simulation has finished!\nYou can now close the application.";
+                loadingObj.SetActive(false);
+                nextButton.SetActive(false);
             }
         }
         
@@ -193,22 +206,24 @@ namespace BOforUnity
                 }
             }
             
-            if (!perfectRatingStart)
+            Debug.Log("Could be perfect rating ...");
+            
+            switch (perfectRatingStart)
             {
-                perfectRatingStart = true;
-                perfectRating = false;
-                perfectRatingIteration = currentIteration; // remember the current iteration for this perfect rating
-            }
-            else if (!perfectRatingStart && currentIteration - perfectRatingIteration == 1)
-            {
-                perfectRatingStart = false;
-                perfectRating = true; // the rating was perfect after two consecutive iterations
-                return true;
-            }
-            else
-            {
-                perfectRatingStart = false; // the perfect rating was more than one iteration ago
-                perfectRating = false;
+                case false:
+                    perfectRatingStart = true;
+                    perfectRating = false;
+                    perfectRatingIteration = currentIteration; // remember the current iteration for this perfect rating
+                    break;
+                case true when currentIteration - perfectRatingIteration == 1:
+                    Debug.Log("It is a perfect rating (i.e., perfect two times in a row)!");
+                    perfectRatingStart = false;
+                    perfectRating = true; // the rating was perfect after two consecutive iterations
+                    return true;
+                default:
+                    perfectRatingStart = false; // the perfect rating was more than one iteration ago
+                    perfectRating = false;
+                    break;
             }
             return false;
         }
@@ -301,7 +316,7 @@ namespace BOforUnity
             /// hasMultipleValues: a bool that specifies whether this objective should have multiple values.
             /// </summary>
             [HideInInspector] public int optSeqOrder;
-            public bool hasMultipleValues = false;
+            public int numberOfSubMeasures;
             public List<float> values = new List<float>();
             public float lowerBound = 0.0f;
             public float upperBound = 0.0f;
@@ -313,18 +328,6 @@ namespace BOforUnity
             public ObjectiveArgs() { }
 
             /// <summary>
-            /// ObjectiveArgs(lowerBound, upperBound): a constructor that creates an instance of the ObjectiveArgs class
-            /// and sets the lower and upper bounds of the acceptable range of values.
-            /// </summary>
-            /// <param name="lowerBound"></param>
-            /// <param name="upperBound"></param>
-            public ObjectiveArgs(float lowerBound, float upperBound)
-            {
-                this.lowerBound = lowerBound;
-                this.upperBound = upperBound;
-            }
-
-            /// <summary>
             /// ObjectiveArgs(lowerBound, upperBound, smallerIsBetter): a constructor that creates an instance of the
             /// ObjectiveArgs class and sets the lower and upper bounds of the acceptable range of values, as well as the
             /// smallerIsBetter flag.
@@ -332,42 +335,13 @@ namespace BOforUnity
             /// <param name="lowerBound"></param>
             /// <param name="upperBound"></param>
             /// <param name="smallerIsBetter"></param>
-            public ObjectiveArgs(float lowerBound, float upperBound, bool smallerIsBetter)
+            /// <param name="numberOfSubMeasures"></param>
+            public ObjectiveArgs(float lowerBound, float upperBound, bool smallerIsBetter, int numberOfSubMeasures)
             {
                 this.lowerBound = lowerBound;
                 this.upperBound = upperBound;
                 this.smallerIsBetter = smallerIsBetter;
-            }
-
-            /// <summary>
-            /// ObjectiveArgs(lowerBound, upperBound, smallerIsBetter, hasMultipleValues): a constructor that creates an instance of the
-            /// ObjectiveArgs class and sets the lower and upper bounds of the acceptable range of values, as well as the
-            /// smallerIsBetter and hasMultipleValues flags.
-            /// </summary>
-            /// <param name="lowerBound"></param>
-            /// <param name="upperBound"></param>
-            /// <param name="smallerIsBetter"></param>
-            /// <param name="hasMultipleValues"></param>
-            public ObjectiveArgs(float lowerBound, float upperBound, bool smallerIsBetter, bool hasMultipleValues)
-            {
-                this.lowerBound = lowerBound;
-                this.upperBound = upperBound;
-                this.smallerIsBetter = smallerIsBetter;
-                this.hasMultipleValues = hasMultipleValues;
-            }
-
-            /// <summary>
-            /// addTrial(value): a method that adds a new value to the list of values for this objective.
-            /// If hasMultipleValues is false, it replaces the existing value.
-            /// </summary>
-            /// <param name="value"></param>
-            public void AddValue(float value)
-            {
-                if (!hasMultipleValues)
-                {
-                    values.Clear();
-                }
-                values.Add(value);
+                this.numberOfSubMeasures = numberOfSubMeasures;
             }
 
             /// <summary>
@@ -377,7 +351,7 @@ namespace BOforUnity
             /// <returns></returns>
             public string GetInitInfoStr()
             {
-                return string.Format("{0},{1},{2},{3}/", lowerBound, upperBound, smallerIsBetter ? 1 : 0, hasMultipleValues ? 1 : 0);
+                return $"{lowerBound},{upperBound},{(smallerIsBetter ? 1 : 0)}/";
             }
         }
         // ------------------

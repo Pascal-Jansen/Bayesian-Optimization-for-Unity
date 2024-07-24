@@ -21,7 +21,7 @@ namespace BOforUnity.Scripts
         private List<Dictionary<string, object>> _csvData;
 
         private BoForUnityManager _bomanager;
-
+        
         public void Start()
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
@@ -237,35 +237,11 @@ namespace BOforUnity.Scripts
             {
                 if (name.Contains(ob.key))
                 {
-                    // if found in the list ... add the current value to the list of values
-                    ob.value.AddValue(currVal);
+                    // if name found in the list ... add the current value to the list of values
+                    ob.value.values.Add(currVal);
                     return;
                 }
             }
-        }
-
-        /// <summary>
-        /// The method addObjective(string name, float lowerBound, float upperBound) takes a string parameter name, a float parameter lowerBound,
-        /// and a float parameter upperBound. It creates a new ObjectiveArgs object with the lowerBound and upperBound values and adds the object
-        /// to the objectives dictionary with a key of name. If the key already exists in the dictionary, an error message is logged to the console.
-        /// </summary>
-        /// <param name="name"></param>
-        /// <param name="lowerBound"></param>
-        /// <param name="upperBound"></param>
-        public void AddObjective(string name, float lowerBound, float upperBound)
-        {
-            foreach (var ob in _bomanager.objectives)
-            {
-                if (ob.key == name)
-                {
-                    // if found in the list ... update the values
-                    ob.value.lowerBound = lowerBound;
-                    ob.value.upperBound = upperBound;
-                    return;
-                }
-            }
-            // if not found in the list ... add as new entry
-            _bomanager.objectives.Add(new ObjectiveEntry(name, new ObjectiveArgs(lowerBound, upperBound)));
         }
 
 
@@ -278,8 +254,9 @@ namespace BOforUnity.Scripts
         /// <param name="name"></param>
         /// <param name="lowerBound"></param>
         /// <param name="upperBound"></param>
+        /// <param name="numberOfSubMeasures"></param>
         /// <param name="smallerIsBetter"></param>
-        public void AddObjective(string name, float lowerBound, float upperBound, bool smallerIsBetter = false)
+        public void AddObjective(string name, float lowerBound, float upperBound, int numberOfSubMeasures, bool smallerIsBetter = false)
         {
             foreach (var ob in _bomanager.objectives)
             {
@@ -289,11 +266,12 @@ namespace BOforUnity.Scripts
                     ob.value.lowerBound = lowerBound;
                     ob.value.upperBound = upperBound;
                     ob.value.smallerIsBetter = smallerIsBetter;
+                    ob.value.numberOfSubMeasures = numberOfSubMeasures;
                     return;
                 }
             }
             // if not found in the list ... add as new entry
-            _bomanager.objectives.Add(new ObjectiveEntry(name, new ObjectiveArgs(lowerBound, upperBound, smallerIsBetter)));
+            _bomanager.objectives.Add(new ObjectiveEntry(name, new ObjectiveArgs(lowerBound, upperBound, smallerIsBetter,numberOfSubMeasures)));
         }
 
 
