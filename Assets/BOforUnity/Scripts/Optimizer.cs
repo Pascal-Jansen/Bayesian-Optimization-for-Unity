@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 
 // The Optimizer class manages optimization settings and parameters for the application.
@@ -32,6 +33,7 @@ namespace BOforUnity.Scripts
             Debug.Log("Debug: Add Parameters");
 
             // Add Parameters with value ranges and if it is discrete/continuous
+            /*
             AddParameter("Trajectory", 0f, 1f, Continuous);
             AddParameter("TrajectoryAlpha", 0.1f, 1f, Continuous);
             AddParameter("TrajectorySize", 0.1f, 0.6f, Continuous);
@@ -48,22 +50,7 @@ namespace BOforUnity.Scripts
             AddParameter("CoveredAreaAlpha", 0.1f, 1f, Continuous);
             AddParameter("CoveredAreaSize", 0.2f, 0.8f, Continuous);
             AddParameter("OccludedCars", 0f, 1f, Continuous);
-
-            // Add objectives with value ranges and optimization preferences.
-            //addObjective("Trust", 1f, 5f, BIGGER_IS_BETTER);
-            //addObjective("Understanding", 1f, 5f, BIGGER_IS_BETTER);
-            //addObjective("MentalLoad", 1f, 20f, SMALLER_IS_BETTER);
-            //addObjective("PerceivedSafety", -3f, 3f, BIGGER_IS_BETTER);
-            //addObjective("Aesthetics", 1f, 7f, BIGGER_IS_BETTER);
-            //addObjective("Acceptance", 1f, 7f, BIGGER_IS_BETTER);
-
-            //ParamController = GameObject.FindGameObjectWithTag("ParameterController");
-            //trajectoryParameter = ParamController.GetComponent<TrajectoryParameter>();
-            //egoTrajectoryParameter = ParamController.GetComponent<EgoTrajectoryParameter>();
-            //intentionParameter = ParamController.GetComponent<IntentionParameter>();
-            //semSegParameter = ParamController.GetComponent<SemanticSegmentationParameter>();
-            //carStatusParameter = ParamController.GetComponent<CarStatusParameter>();
-            //arcParameter = ParamController.GetComponent<ARC4ADController>();
+            */
         }
 
         /// <summary>
@@ -120,30 +107,6 @@ namespace BOforUnity.Scripts
             try
             {
                 _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound, (isDiscrete) ? step : 0)));
-            }
-            catch (ArgumentException)
-            {
-                //Debug.LogError($"An element with Key = {name} already exists.", Instance);
-            }
-        }
-    
-        /// <summary>
-        /// The third method, addParameter(string name, float lowerBound, float upperBound, bool isDiscrete, ref float reference),
-        /// is also similar to the first method, but additionally takes a ref float parameter called reference. This method stores
-        /// the ParameterArgs object in the parameters dictionary with a reference to the reference parameter, so that when the
-        /// parameter is updated during optimization, the corresponding reference value is also updated. "step" is always 1 if using this method.
-        /// </summary>
-        /// <param name="name"></param>
-        /// <param name="lowerBound"></param>
-        /// <param name="upperBound"></param>
-        /// <param name="isDiscrete"></param>
-        /// <param name="reference"></param>
-        public void AddParameter(string name, float lowerBound, float upperBound, bool isDiscrete, ref float reference)
-        {
-            int step = 1;
-            try
-            {
-                _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound, (isDiscrete) ? step : 0, ref reference)));
             }
             catch (ArgumentException)
             {
@@ -302,46 +265,56 @@ namespace BOforUnity.Scripts
         public void UpdateDesignParameters()
         {
             Debug.Log("Updating Parameters");
+
+            foreach (var pa in _bomanager.parameters)
+            {
+                if (pa.value.gameObjectName != null && pa.value.scriptName != null && !string.IsNullOrEmpty(pa.value.variableName))
+                {
+                    // Find the GameObject by its name
+                    GameObject obj = GameObject.Find(pa.value.gameObjectName);
+                    if (obj == null)
+                    {
+                        Debug.LogWarning("GameObject not found: " + pa.value.gameObjectName);
+                        continue;
+                    }
+                    // Get all MonoBehaviour components on the GameObject
+                    MonoBehaviour[] scripts = obj.GetComponents<MonoBehaviour>();
+                    // Find the script by its name
+                    MonoBehaviour script = scripts.FirstOrDefault(script => script.GetType().Name == pa.value.scriptName);
+
+                    // Apply discrete logic if applicable
+                    float value = pa.value.Value;
+
+                    if (pa.value.isDiscrete)
+                    {
+                        int steps = Mathf.RoundToInt((pa.value.upperBound - pa.value.lowerBound) / pa.value.step);
+                        if (steps <= 1)
+                        {
+                            bool boolValue = value >= (pa.value.lowerBound + pa.value.upperBound) / 2;
+                            SetBoolFieldOrProperty(script, pa.value.variableName, boolValue);
+                        }
+                        else
+                        {
+                            float stepSize = (pa.value.upperBound - pa.value.lowerBound) / steps;
+                            value = Mathf.Round(value / stepSize) * stepSize;
+                            SetFieldOrProperty(script, pa.value.variableName, value);
+                        }
+                    }
+                    else
+                    {
+                        SetFieldOrProperty(script, pa.value.variableName, value);
+                    }
+                }
+            }
+            
+            /*
             float trajectoryValue = GetParameterValue("Trajectory");
             float trajectoryAlphaValue = GetParameterValue("TrajectoryAlpha");
             float trajectorySizeValue = GetParameterValue("TrajectorySize");
-
-            float egoTrajectoryValue = GetParameterValue("EgoTrajectory");
-            float egoTrajectoryAlphaValue = GetParameterValue("EgoTrajectoryAlpha");
-            float egoTrajectorySizeValue = GetParameterValue("EgoTrajectorySize");
-
-            float intentionValue = GetParameterValue("PedestrianIntention");
-            float intentionSizeValue = GetParameterValue("PedestrianIntentionSize");
-
-            float semSegValue = GetParameterValue("SemanticSegmentation");
-            float semSegAlphaValue = GetParameterValue("SemanticSegmentationAlpha");
-
-            float carStatusValue = GetParameterValue("CarStatus");
-            float carStatusAlphaValue = GetParameterValue("CarStatusAlpha");
-
-            float coveredAreaValue = GetParameterValue("CoveredArea");
-            float coveredAreaAlphaValue = GetParameterValue("CoveredAreaAlpha");
-            float coveredAreaSizeValue = GetParameterValue("CoveredAreaSize");
-
-            float occludedCarsValue = GetParameterValue("OccludedCars");
             
-            /*
             trajectoryParameter.setTrajectoryAlpha(trajectoryAlphaValue);
             trajectoryParameter.setTrajectorySize(trajectorySizeValue);
-
-            egoTrajectoryParameter.setEgoTrajectoryAlpha(egoTrajectoryAlphaValue);
-            egoTrajectoryParameter.setEgoTrajectorySize(egoTrajectorySizeValue);
-
-            intentionParameter.setIntentionSize(intentionSizeValue);
-
-            semSegParameter.setSemSegAlpha(semSegAlphaValue);
-
-            carStatusParameter.setAlphaCarStatus(carStatusAlphaValue);
-
-            arcParameter.setCoveredAreaAlpha(coveredAreaAlphaValue);
-            arcParameter.setCoveredAreaSize(coveredAreaSizeValue);
-
-
+            
             if (trajectoryValue < 0.5f)
             {
                 trajectoryParameter.setTrajectory(false);
@@ -350,66 +323,57 @@ namespace BOforUnity.Scripts
             {
                 trajectoryParameter.setTrajectory(true);
             }
-
-            if (egoTrajectoryValue < 0.5f)
+            */
+        }
+        
+        private void SetFieldOrProperty(MonoBehaviour script, string variableName, float value)
+        {
+            if (script == null)
             {
-                egoTrajectoryParameter.setEgoTrajectory(false);
-            }
-            else if (egoTrajectoryValue >= 0.5f)
-            {
-                egoTrajectoryParameter.setEgoTrajectory(true);
-            }
-
-
-            if (intentionValue < 0.5f)
-            {
-                intentionParameter.setIntentionUI(false);
-            }
-            else if (intentionValue >= 0.5f)
-            {
-                intentionParameter.setIntentionUI(true);
-            }
-
-
-            if(semSegValue < 0.5f)
-            {
-                semSegParameter.setSemanticSegmentation(false);
-            }
-            else if (semSegValue >= 0.5f)
-            {
-                semSegParameter.setSemanticSegmentation(true);
-            }
-
-
-            if (carStatusValue < 0.5f)
-            {
-                carStatusParameter.setCarStatus(false);
-            }
-            else if (carStatusValue >= 0.5f)
-            {
-                carStatusParameter.setCarStatus(true);
-            }
-
-
-            if (coveredAreaValue < 0.5f)
-            {
-                arcParameter.setCoveredArea(false);
-            }
-            else if (coveredAreaValue >= 0.5f)
-            {
-                arcParameter.setCoveredArea(true);
+                Debug.LogWarning($"Script is null, cannot set {variableName}");
+                return;
             }
             
+            FieldInfo field = script.GetType().GetField(variableName, BindingFlags.Instance | BindingFlags.Public);
+            PropertyInfo property = script.GetType().GetProperty(variableName, BindingFlags.Instance | BindingFlags.Public);
 
-            if (occludedCarsValue < 0.5f)
+            if (field != null && field.FieldType == typeof(float))
             {
-                arcParameter.setOccludedCars(false);
+                field.SetValue(script, value);
             }
-            else if (occludedCarsValue >= 0.5f)
+            else if (property != null && property.PropertyType == typeof(float))
             {
-                arcParameter.setOccludedCars(true);
+                property.SetValue(script, value, null);
             }
-            */
+            else
+            {
+                Debug.LogWarning($"Variable {variableName} not found or not of type float in {script.name}");
+            }
+        }
+
+        private void SetBoolFieldOrProperty(MonoBehaviour script, string variableName, bool value)
+        {
+            if (script == null)
+            {
+                Debug.LogWarning($"Script is null, cannot set {variableName}");
+                return;
+            }
+            
+            FieldInfo field = script.GetType().GetField(variableName, BindingFlags.Instance | BindingFlags.Public);
+            PropertyInfo property = script.GetType().GetProperty(variableName, BindingFlags.Instance | BindingFlags.Public);
+
+            if (field != null && field.FieldType == typeof(bool))
+            {
+                field.SetValue(script, value);
+            }
+            else if (property != null && property.PropertyType == typeof(bool))
+            {
+                property.SetValue(script, value, null);
+            }
+            else
+            {
+                Debug.LogWarning($"Variable {variableName} not found or not of type bool in {script.name}");
+            }
         }
     }
 }

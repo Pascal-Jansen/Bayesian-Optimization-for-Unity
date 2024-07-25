@@ -6,7 +6,29 @@ import time
 import platform
 import csv
 
+# Define default values for global variables
+tkwargs = {
+    "dtype": torch.double,
+    "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+}
 
+N_INITIAL = 5
+N_ITERATIONS = 10  # Number of optimization iterations
+
+BATCH_SIZE = 1  # Number of design parameter points to query at next iteration
+NUM_RESTARTS = 10  # Used for the acquisition function number of restarts in optimization
+RAW_SAMPLES = 1024  # Durch höhere RawSamples kein OptimierungsFehler (Optimization failed within `scipy.optimize.minimize` with status 1.')
+MC_SAMPLES = 512  # Number of samples to approximate acquisition function
+SEED = 3  # Seed to initialize the initial samples obtained
+
+PROBLEM_DIM = 16 #dimension of the parameters x
+NUM_OBJS = 2 #dimension of the objectives y
+
+WARM_START = False #true if there is initial data (accsible from the following paths) that should be used before optimization restarts
+CSV_PATH_PARAMETERS = ""
+CSV_PATH_OBJECTIVES = ""
+
+### Init socket and start receiving data
 HOST = ''
 PORT = 56001
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -15,12 +37,24 @@ s.listen(1)
 print('Server starts, waiting for connection...', flush=True)
 conn, addr = s.accept()
 print('Connected by', addr)
+
+# wait for data ...
 data = conn.recv(1024)
 
+### Init hyperparameters received from Unity
+init_data = data.decode("utf-8").split('_')
+# Parse and update global variables
+param_list = init_data[0].split(',')
+BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, N_ITERATIONS, MC_SAMPLES, N_INITIAL, SEED, PROBLEM_DIM, NUM_OBJS = map(int, param_list)
+warm_start_settings = init_data[1].split(',')
+WARM_START = warm_start_settings[0].lower() in ("true", "1", "yes")
+CSV_PATH_PARAMETERS = str(warm_start_settings[1])
+CSV_PATH_OBJECTIVES = str(warm_start_settings[2])
+print("Initialization parameters received and set.")
+print(f"BATCH_SIZE: {BATCH_SIZE}, NUM_RESTARTS: {NUM_RESTARTS}, RAW_SAMPLES: {RAW_SAMPLES}, N_ITERATIONS: {N_ITERATIONS}, MC_SAMPLES: {MC_SAMPLES}, N_INITIAL: {N_INITIAL}, SEED: {SEED}, PROBLEM_DIM: {PROBLEM_DIM}, NUM_OBJS: {NUM_OBJS}")
 
 ### iter, init_sample, design_parameter_num, objective_num
-received = data.decode("utf-8").split('_')
-parameter_raw = received[0].split('/')
+parameter_raw = init_data[2].split('/')
 print('Parameter', parameter_raw)
 parameters_strinfo = []
 parameters_info = []
@@ -29,7 +63,7 @@ for i in range(len(parameter_raw) ):
 for strlist in parameters_strinfo:
     parameters_info.append(list(map(float, strlist)))
 
-objective_raw = received[1].split('/')
+objective_raw = init_data[3].split('/')
 print('Objective', objective_raw)
 objectives_strinfo = []
 objectives_info = []
@@ -40,21 +74,17 @@ for strlist in objectives_strinfo:
 
 print("Objectives info", len(objectives_info))
 
-problem_dim = 16 #dimension of the parameters x
-num_objs = 2 #dimension of the objectives y
-
 #device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Reference point in objective function space
 #ref_point = torch.tensor([-1. for _ in range(num_objs)]).cuda()
-ref_point = torch.tensor([-1. for _ in range(num_objs)]).to(device)
+ref_point = torch.tensor([-1. for _ in range(NUM_OBJS)]).to(device)
 #print("Ref_point", ref_point)
 
 # Design parameter bounds
-problem_bounds = torch.zeros(2, problem_dim, **tkwargs)
+problem_bounds = torch.zeros(2, PROBLEM_DIM, **tkwargs)
 #print("problem_bounds", problem_bounds)
-
 
 # initialize the problem bounds
 # for i in range(4):
@@ -66,8 +96,11 @@ problem_bounds[1] = 1
 
 start_time = time.strftime("%Y-%m-%d-%H-%M", time.localtime())
 
-
-# Sample objective function
+# -------------------------------------------------------
+# objective_function
+# -------------------------------------------------------
+# Sample current objective function from the Unity application
+#  in each iteration of the defined total optimization iterations (= n_samples + n_iterations)
 def objective_function(x_tensor):
     x = x_tensor.cpu().numpy()
     print("x", x)
@@ -88,11 +121,10 @@ def objective_function(x_tensor):
         print("data", received_objective)
     if len(data) == 0:
         print("unity end")
-    if (len(received_objective) != num_objs):
+    if (len(received_objective) != NUM_OBJS):
         print("recevied objective number not consist")
 
     print("received: ", received_objective)
-
 
     def limit_range(f):
         if (f > 1):
@@ -103,11 +135,9 @@ def objective_function(x_tensor):
 
     print("Received Objective", len(received_objective))
 
-
-
     fs = []
     # Normalization
-    for i in range(num_objs):
+    for i in range(NUM_OBJS):
         f = (received_objective[i] - objectives_info[i][0]) / (objectives_info[i][1] - objectives_info[i][0])
         f = f * 2 - 1
         if (objectives_info[i][2] == 1):
@@ -118,6 +148,9 @@ def objective_function(x_tensor):
     return torch.tensor(fs, dtype=torch.float64).to(device)
     #return torch.tensor(fs, dtype=torch.float64).cuda()
 
+# -------------------------------------------------------
+# generate_initial_data
+# -------------------------------------------------------
 #das hier heißt dass die Optimierungsfunktion immer random beginnt und deshalb direkt mit der Applikation verbunden sein muss
 # n_samples muss 2(d+1) wobei d = num_objs ist sein (https://botorch.org/tutorials/multi_objective_bo)
 def generate_initial_data(n_samples=12):
@@ -139,14 +172,34 @@ def generate_initial_data(n_samples=12):
     #return train_x, torch.tensor([item.cpu().detach().numpy() for item in train_obj], dtype=torch.float64).cuda()
     return train_x, torch.tensor(train_obj_array).to(device)
 
+# -------------------------------------------------------
+# load_data
+# -------------------------------------------------------
+def load_data():
+    # load the data from the provided file paths
+    data_objectives = pd.read_csv(CSV_PATH_OBJECTIVES,  delimiter=',')
+    data_parameter = pd.read_csv(CSV_PATH_PARAMETERS,  delimiter=',')
 
+    # Extrahieren Sie die Werte für y aus der letzten Zeile
+    y = torch.tensor(data_objectives.values, dtype=torch.float64).to(device)
+
+    # Extrahieren Sie die Werte für x aus den Spalten "Trajectory" bis "OccludedCars"
+    x = torch.tensor(data_parameter.values, dtype=torch.float64).to(device)
+
+    return x, y
+
+# -------------------------------------------------------
+# initialize_model
+# -------------------------------------------------------
 def initialize_model(train_x, train_obj):
     # define models for objective and constraint
     model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.shape[-1]))
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     return mll, model
 
-
+# -------------------------------------------------------
+# optimize_qehvi
+# -------------------------------------------------------
 def optimize_qehvi(model, train_obj, sampler):
     """Optimizes the qEHVI acquisition function, and returns a new candidate and observation."""
     # partition non-dominated space into disjoint rectangles
@@ -171,18 +224,9 @@ def optimize_qehvi(model, train_obj, sampler):
     new_x = unnormalize(candidates.detach(), bounds=problem_bounds)
     return new_x
 
-
-def load_data():
-    data = pd.read_csv('user_observations.csv')
-    y = torch.tensor(np.array([data["Trust"].values, data["Understanding"].values, data["MentalLoad"].values,
-                               data["PerceivedSafety"].values, data["Aesthetics"].values,
-                               data["Acceptance"].values]).T).to(device)
-
-    x = torch.tensor(
-        np.array(
-            [data["Trajectory"].values, data["TrajectoryAlpha"].values, data["TrajectorySize"].values, data["EgoTrajectory"].values, data["EgoTrajectoryAlpha"].values, data["EgoTrajectorySize"].values, data["PedestrianIntention"].values, data["PedestrianIntentionSize"].values, data["SemanticSegmentation"].values, data["SemanticSegmentationAlpha"].values, data["CarStatus"].values, data["CarStatusAlpha"].values, data["CoveredArea"].values, data["CoveredAreaAlpha"].values, data["CoveredSize"].values, data["OccludedCars"].value]).T).to(device)
-    return x, y
-
+# -------------------------------------------------------
+# create_csv_file
+# -------------------------------------------------------
 def create_csv_file(csv_file_path, fieldnames):
     try:
         if not os.path.exists(os.path.dirname(csv_file_path)):
@@ -195,19 +239,22 @@ def create_csv_file(csv_file_path, fieldnames):
             if write_header:
                 writer.writeheader()
     except Exception as e:
-        print("Fehler beim Erstellen der Datei:", str(e))
+        print("Error creating file:", str(e))
 
-
-
+# -------------------------------------------------------
+# write_data_to_csv
+# -------------------------------------------------------
 def write_data_to_csv(csv_file_path, fieldnames, data):
     try:
         with open(csv_file_path, 'a+', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
             writer.writerows(data)
     except Exception as e:
-        print("Fehler beim Schreiben der Datei:", str(e))
+        print("Error writing to file:", str(e))
 
-
+# -------------------------------------------------------
+# mobo_execute
+# -------------------------------------------------------
 def mobo_execute(seed, iterations, initial_samples):
     torch.manual_seed(seed)
 
@@ -215,9 +262,11 @@ def mobo_execute(seed, iterations, initial_samples):
     # Hypervolumes
     hvs_qehvi = []
 
-    # Initial Samples
-    # train_x_qehvi, train_obj_qehvi = load_data()
-    train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
+    # Should the optimizer explore first with initial data (warm-start) or random points in the parameter space
+    if WARM_START:
+        train_x_qehvi, train_obj_qehvi = load_data()
+    else:
+        train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
 
     #train_x_qehvi = train_x_qehvi.cpu()
     #train_obj_qehvi = train_obj_qehvi.cpu()
@@ -302,17 +351,21 @@ def mobo_execute(seed, iterations, initial_samples):
 
 
 
-
+# -------------------------------------------------------
+# -------------------------------------------------------
 def save_object(obj, filename):
     with open(filename, 'wb') as output:  # Overwrites any existing file.
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
-
+# -------------------------------------------------------
+# -------------------------------------------------------
 def load_object(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
     return data
 
+# -------------------------------------------------------
+# -------------------------------------------------------
 def save_iterations_to_csv1(csv_file_path, iteration):
     # Lese die vorhandene CSV-Datei ein
     df = pd.read_csv(csv_file_path, delimiter=';')
@@ -331,8 +384,8 @@ def save_iterations_to_csv1(csv_file_path, iteration):
     # Speichere den aktualisierten DataFrame in die CSV-Datei
     df.to_csv(csv_file_path, index=False, sep=';')
 
-
-
+# -------------------------------------------------------
+# -------------------------------------------------------
 def save_iterations_to_csv(csv_file_path, iteration):
     # Überprüfen, ob die Iteration bereits in der CSV-Datei vorhanden ist
     with open(csv_file_path, 'r') as file:
@@ -346,7 +399,9 @@ def save_iterations_to_csv(csv_file_path, iteration):
         writer = csv.writer(file, delimiter=';')
         writer.writerow([iteration])  # Nur die Iteration hinzufügen, weitere Spalten können angepasst werden
 
-
+# -------------------------------------------------------
+# save_xy
+# -------------------------------------------------------
 def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
     #directory = '../Data/LogData'
     #if not os.path.exists(directory):
@@ -499,6 +554,8 @@ def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
     #    np.savetxt(project_path + '/HypervolumePerEvaluation.csv', hypervolume_value, delimiter=';',
     #               header=header_volume, comments='')
     #    save_iterations_to_csv(project_path + '/HypervolumePerEvaluation.csv', iteration)
+# -------------------------------------------------------
+# -------------------------------------------------------
+
 
 hvs_qehvi, train_x_qehvi, train_obj_qehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)
-

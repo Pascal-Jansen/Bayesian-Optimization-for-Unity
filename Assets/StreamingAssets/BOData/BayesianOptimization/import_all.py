@@ -24,23 +24,23 @@ from botorch.utils.multi_objective.hypervolume import Hypervolume
 from botorch.fit import fit_gpytorch_mll
 
 
-tkwargs = {
-    "dtype": torch.double,
-    "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+#tkwargs = {
+#    "dtype": torch.double,
+#    "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     #"device": torch.device("cpu"),
-}
+#}
 
 # Global Variables
-BATCH_SIZE = 1 # Number of design parameter points to query at next iteration
-NUM_RESTARTS = 10 # Used for the acquisition function number of restarts in optimization
-RAW_SAMPLES = 1024 # Durch höhere RawSamples kein OptimierungsFehler (Optimization failed within `scipy.optimize.minimize` with status 1.')
-N_ITERATIONS = 10 # Number of optimization iterations
-MC_SAMPLES = 512 # Number of samples to approximate acquisition function
-N_INITIAL = 5
-SEED = 3 # Seed to initialize the initial samples obtained
+#BATCH_SIZE = 1 # Number of design parameter points to query at next iteration
+#NUM_RESTARTS = 10 # Used for the acquisition function number of restarts in optimization
+#RAW_SAMPLES = 1024 # Durch höhere RawSamples kein OptimierungsFehler (Optimization failed within `scipy.optimize.minimize` with status 1.')
+#N_ITERATIONS = 10 # Number of optimization iterations
+#MC_SAMPLES = 512 # Number of samples to approximate acquisition function
+#N_INITIAL = 5
+#SEED = 3 # Seed to initialize the initial samples obtained
 
 
-
+# old settings
 #BATCH_SIZE = 1 # Number of design parameter points to query at next iteration
 #NUM_RESTARTS = 10 # Used for the acquisition function number of restarts in optimization
 #RAW_SAMPLES = 1024 # Initial restart location candidates

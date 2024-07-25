@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -23,17 +26,31 @@ namespace BOforUnity.Editor
         private SerializedProperty welcomePanelProp;
         private SerializedProperty optimizerStatePanelProp;
         
+        private SerializedProperty batchSizeProp;
+        private SerializedProperty numRestartsProp;
+        private SerializedProperty rawSamplesProp;
+        private SerializedProperty nIterationsProp;
+        private SerializedProperty mcSamplesProp;
+        private SerializedProperty nInitialProp;
+        private SerializedProperty seedProp;
+        private SerializedProperty warmStartProp;
+        private SerializedProperty initialParametersDataPathProp;
+        private SerializedProperty initialObjectivesDataPathProp;
+        
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
 
         private void OnEnable()
         {
             SerializedProperty parametersProperty = serializedObject.FindProperty("parameters");
-            parameterList = new ReorderableList(serializedObject, parametersProperty, true, true, true, true);
+            // Initialize your ReorderableList and set the elementHeightCallback
+            parameterList = new ReorderableList(serializedObject, serializedObject.FindProperty("parameters"), true, true, true, true)
+            {
+                drawElementCallback = DrawParameterListItems,
+                elementHeightCallback = GetParameterListItemHeight
+            };
             parameterList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Parameters");
-            parameterList.drawElementCallback = DrawParameterListItems;
-            parameterList.elementHeightCallback = GetParameterElementHeight;
-
+            
             SerializedProperty objectivesProperty = serializedObject.FindProperty("objectives");
             objectiveList = new ReorderableList(serializedObject, objectivesProperty, true, true, true, true);
             objectiveList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Objectives");
@@ -46,6 +63,18 @@ namespace BOforUnity.Editor
             welcomePanelProp = serializedObject.FindProperty("welcomePanel");
             optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
             //endSimProp = serializedObject.FindProperty("endOfSimulation");
+            
+            batchSizeProp = serializedObject.FindProperty("batchSize");
+            numRestartsProp = serializedObject.FindProperty("numRestarts");
+            rawSamplesProp = serializedObject.FindProperty("rawSamples");
+            nIterationsProp = serializedObject.FindProperty("nIterations");
+            mcSamplesProp = serializedObject.FindProperty("mcSamples");
+            nInitialProp = serializedObject.FindProperty("nInitial");
+            seedProp = serializedObject.FindProperty("seed");
+            warmStartProp = serializedObject.FindProperty("warmStart");
+            initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
+            initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
+
         }
 
         public override void OnInspectorGUI()
@@ -54,6 +83,7 @@ namespace BOforUnity.Editor
 
             serializedObject.Update();
 
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(2));
             // Draw Parameter and Objective Lists first
             parameterList.DoLayoutList();
             EditorGUILayout.Space();
@@ -79,7 +109,9 @@ namespace BOforUnity.Editor
 
         private void DrawSettingsConfiguration(BoForUnityManager script)
         {
-            EditorGUILayout.LabelField("Settings Configuration", EditorStyles.largeLabel);
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+            
+            EditorGUILayout.LabelField("Settings Configuration", EditorStyles.boldLabel);
             // Server Client Connection settings
             //DrawServerClientConnectionSettings(script);
 
@@ -100,7 +132,38 @@ namespace BOforUnity.Editor
             //EditorGUILayout.PropertyField(endSimProp);
             
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("GameObject References", EditorStyles.largeLabel);
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+
+            EditorGUILayout.LabelField("Warm Start Options", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(warmStartProp);
+            EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped.", EditorStyles.helpBox);
+            EditorGUILayout.PropertyField(initialParametersDataPathProp);
+            EditorGUILayout.PropertyField(initialObjectivesDataPathProp);
+            
+            EditorGUILayout.Space();
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+
+            EditorGUILayout.LabelField("BO Hyper-parameters", EditorStyles.boldLabel);
+            if (!warmStartProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(nInitialProp);
+            }
+            EditorGUILayout.PropertyField(nIterationsProp);
+            EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations).", EditorStyles.helpBox);
+            // Calculate and display the sum of nInitial and nIterations
+            var totalIterations = (warmStartProp.boolValue ? 0 : nInitialProp.intValue) + nIterationsProp.intValue;
+            EditorGUILayout.LabelField("Total Iterations", totalIterations.ToString(), EditorStyles.boldLabel);
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(batchSizeProp);
+            EditorGUILayout.PropertyField(numRestartsProp);
+            EditorGUILayout.PropertyField(rawSamplesProp);
+            EditorGUILayout.PropertyField(mcSamplesProp);
+            EditorGUILayout.PropertyField(seedProp);
+            
+            EditorGUILayout.Space();
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+
+            EditorGUILayout.LabelField("GameObject References", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(outputTextProp);
             EditorGUILayout.PropertyField(loadingObjProp);
             EditorGUILayout.PropertyField(nextButtonProp);
@@ -188,21 +251,142 @@ namespace BOforUnity.Editor
             }
         }
 
-        private void DrawParameterListItems(Rect rect, int index, bool isActive, bool isFocused)
+private void DrawParameterListItems(Rect rect, int index, bool isActive, bool isFocused)
         {
             SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
             SerializedProperty key = element.FindPropertyRelative("key");
             SerializedProperty value = element.FindPropertyRelative("value");
 
-            float padding = 5f;
-            rect.y += padding / 2;
+            // Fields within ParameterArgs
+            SerializedProperty Value = value.FindPropertyRelative("Value");
+            SerializedProperty lowerBound = value.FindPropertyRelative("lowerBound");
+            SerializedProperty upperBound = value.FindPropertyRelative("upperBound");
+            SerializedProperty isDiscrete = value.FindPropertyRelative("isDiscrete");
+            SerializedProperty step = value.FindPropertyRelative("step");
+            SerializedProperty scriptReference = value.FindPropertyRelative("scriptReference");
+            SerializedProperty variableName = value.FindPropertyRelative("variableName");
 
-            EditorGUI.PropertyField(new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight), key, GUIContent.none);
-            EditorGUI.indentLevel++;
-            EditorGUI.PropertyField(new Rect(rect.x, rect.y + EditorGUIUtility.singleLineHeight + 2, rect.width, EditorGUI.GetPropertyHeight(value)), value, GUIContent.none, true);
-            EditorGUI.indentLevel--;
-            rect.y += padding;
+            float padding = 5f;
+            float singleLineHeight = EditorGUIUtility.singleLineHeight;
+            float fieldHeight = singleLineHeight + padding;
+            float yOffset = rect.y + padding / 2;
+
+            // Draw the key field
+            EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), key, GUIContent.none);
+            yOffset += fieldHeight;
+
+            // Draw foldout for ParameterArgs
+            value.isExpanded = EditorGUI.Foldout(new Rect(rect.x, yOffset, rect.width, singleLineHeight), value.isExpanded, "", true);
+            yOffset += fieldHeight;
+
+            if (value.isExpanded)
+            {
+                EditorGUI.indentLevel++;
+
+                // Draw the existing fields in ParameterArgs
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), Value);
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), lowerBound);
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), upperBound);
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), isDiscrete);
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), step);
+                yOffset += fieldHeight;
+                
+                // Draw script reference field
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), scriptReference, new GUIContent("Script Reference"));
+                yOffset += fieldHeight;
+
+                MonoBehaviour script = scriptReference.objectReferenceValue as MonoBehaviour;
+                float variableValue = 0.0f;
+
+                if (script != null)
+                {
+                    value.FindPropertyRelative("gameObjectName").stringValue = script.gameObject.name;
+                    value.FindPropertyRelative("scriptName").stringValue = script.GetType().Name;
+                    
+                    var variableNames = new List<string>();
+                    FieldInfo[] fields = script.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public);
+                    foreach (FieldInfo field in fields)
+                    {
+                        if (field.FieldType == typeof(float))
+                        {
+                            variableNames.Add(field.Name);
+                        }
+                    }
+
+                    PropertyInfo[] properties = script.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
+                    foreach (PropertyInfo property in properties)
+                    {
+                        if (property.PropertyType == typeof(float))
+                        {
+                            variableNames.Add(property.Name);
+                        }
+                    }
+
+                    if (variableNames.Count > 0)
+                    {
+                        // Get the current selected index
+                        int selectedIndex = Mathf.Max(0, variableNames.IndexOf(variableName.stringValue));
+
+                        // Show the popup to select a variable
+                        selectedIndex = EditorGUI.Popup(new Rect(rect.x, yOffset, rect.width, singleLineHeight), "Script Variable", selectedIndex, variableNames.ToArray());
+                        string selectedVariable = variableNames[selectedIndex];
+
+                        // Update the variable name property
+                        variableName.stringValue = selectedVariable;
+                        yOffset += fieldHeight;
+
+                        // Get and show the Value field from the selected variable
+                        FieldInfo selectedField = script.GetType().GetField(selectedVariable, BindingFlags.Instance | BindingFlags.Public);
+                        PropertyInfo selectedProperty = script.GetType().GetProperty(selectedVariable, BindingFlags.Instance | BindingFlags.Public);
+                        
+                        if (selectedField != null)
+                        {
+                            variableValue = (float)selectedField.GetValue(script);
+                        }
+                        else if (selectedProperty != null)
+                        {
+                            variableValue = (float)selectedProperty.GetValue(script);
+                        }
+                    }
+                }
+                else
+                {
+                    EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), variableName);
+                    yOffset += fieldHeight;
+                }
+
+                //EditorGUI.LabelField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), "Script Value: " + variableValue);
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), value.FindPropertyRelative("gameObjectName"));
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), value.FindPropertyRelative("scriptName"));
+                
+                EditorGUI.indentLevel--;
+            }
         }
+
+
+
+        private float GetParameterListItemHeight(int index)
+        {
+            SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty value = element.FindPropertyRelative("value");
+
+            float singleLineHeight = EditorGUIUtility.singleLineHeight;
+            float totalHeight = singleLineHeight * 2 + 10f; // Key + Foldout
+
+            if (value.isExpanded)
+            {
+                totalHeight += singleLineHeight * 9 + 5f * 9; // 5 fields + script reference + variable dropdown + value field
+            }
+
+            return totalHeight;
+        }
+
+
 
         private void DrawObjectiveListItems(Rect rect, int index, bool isActive, bool isFocused)
         {

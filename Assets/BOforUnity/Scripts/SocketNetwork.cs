@@ -198,7 +198,12 @@ namespace BOforUnity.Scripts
         /// </summary>
         void SendInitInfo()
         {
-            string a = ""; 
+            string a = "";
+            a += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
+                 $"{_bomanager.nIterations},{_bomanager.mcSamples},{_bomanager.nInitial},{_bomanager.seed}," +
+                 $"{_bomanager.parameters.Count},{_bomanager.objectives.Count}_" +
+                 
+                 $"{_bomanager.warmStart},{_bomanager.initialParametersDataPath},{_bomanager.initialObjectivesDataPath}_";
 
             int i = 0;
             foreach (var pa in _bomanager.parameters)
@@ -225,7 +230,7 @@ namespace BOforUnity.Scripts
 
             // Delete last / from string a
             a = a.Substring(0, a.Length - 1);
-            // Vor _ Parameter info, nach _ Objectives info
+            // Send string: Hyper-parameter info _ Parameter info _ Objectives info
             Debug.Log("Send Init Info to Python process: " + a);
             SocketSend(a);
         }

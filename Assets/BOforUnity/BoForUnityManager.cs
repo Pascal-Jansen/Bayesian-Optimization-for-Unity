@@ -31,7 +31,6 @@ namespace BOforUnity
         
         //-----------------------------------------------
         // ITERATION CONTROLLER
-        private int InitialSample;  // Initial sample value based on the group.
         [SerializeField]
         public int currentIteration;  // Current iteration value.
         public int maxIterations;
@@ -41,6 +40,19 @@ namespace BOforUnity
         public bool initialized = false;
         public bool simulationFinished = false;
         private bool _waitingForPythonProcess = false;
+        
+        // BO Hyper-parameters
+        public int batchSize = 1;
+        public int numRestarts = 10;
+        public int rawSamples = 1024;
+        public int nIterations = 10;
+        public int mcSamples = 512;
+        public int nInitial = 5; // in typical MOBO problems, this should be 2(d+1), where d is the number of objectives
+        public int seed = 3;
+        
+        public bool warmStart = false;
+        public string initialParametersDataPath;
+        public string initialObjectivesDataPath;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -62,7 +74,7 @@ namespace BOforUnity
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
 
             currentIteration = 1;
-            maxIterations = 15; // set how many iterations the optimizer should run for
+            maxIterations = numRestarts + nInitial; // set how many iterations the optimizer should run for
         }
         
         void Start()
@@ -184,7 +196,7 @@ namespace BOforUnity
         {
             Debug.Log("Python Process Initialization DONE");
             // Initialize the optimizer and socket connection ... only for Debug
-            optimizer.DebugOptimizer();
+            // optimizer.DebugOptimizer();
             // Start Optimization to receive the initialized parameter values for the first iteration
             socketNetwork.InitSocket();
         }
@@ -391,8 +403,12 @@ namespace BOforUnity
             public float step = 1.0f;
             public float Value = 0.0f;
 
-            public float reference;
-
+            // Reference to another GameObject's script
+            public MonoBehaviour scriptReference;
+            public string variableName;
+            public string gameObjectName;
+            public string scriptName;
+            
             /// <summary>
             /// ParameterArgs(): a constructor that creates an empty instance of the ParameterArgs class.
             /// </summary>
@@ -427,30 +443,13 @@ namespace BOforUnity
             }
 
             /// <summary>
-            /// ParameterArgs(lowerBound, upperBound, step, ref float reference): a constructor that creates an instance of the ParameterArgs
-            /// class and sets all the available fields, including the reference to the previous value of this parameter.
-            /// </summary>
-            /// <param name="lowerBound"></param>
-            /// <param name="upperBound"></param>
-            /// <param name="step"></param>
-            /// <param name="reference"></param>
-            public ParameterArgs(float lowerBound, float upperBound, float step, ref float reference)
-            {
-                this.lowerBound = lowerBound;
-                this.upperBound = upperBound;
-                this.step = step;
-                isDiscrete = true;
-                this.reference = reference;
-            }
-
-            /// <summary>
             /// GetInitInfoStr(): a method that returns a string representing the initial configuration of this parameter, including the lower
             /// and upper bounds and the step size.
             /// </summary>
             /// <returns></returns>
             public string GetInitInfoStr()
             {
-                return string.Format("{0},{1},{2}/", lowerBound, upperBound, step);
+                return $"{lowerBound},{upperBound},{step}/";
             }
         }
 }

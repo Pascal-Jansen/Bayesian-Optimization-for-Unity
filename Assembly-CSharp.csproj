@@ -58,6 +58,7 @@
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/VertexJitter.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/VertexShakeB.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/CameraController.cs" />
+    <Compile Include="Assets/BOforUnity/Examples/ObjectVariableExposer.cs" />
     <Compile Include="Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/TypeFamily.cs" />
     <Compile Include="Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/FilterAttribute.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/Benchmark01.cs" />
