@@ -15,6 +15,7 @@ tkwargs = {
 
 CURRENT_DIR = ""
 PROJECT_PATH = ""
+OBSERVATIONS_LOG_PATH = ""
 
 N_INITIAL = 5
 N_ITERATIONS = 10  # Number of optimization iterations
@@ -197,17 +198,16 @@ def write_data_to_csv(csv_file_path, fieldnames, data):
 #das hier heißt dass die Optimierungsfunktion immer random beginnt und deshalb direkt mit der Applikation verbunden sein muss
 # n_samples muss 2(d+1) wobei d = num_objs ist sein (https://botorch.org/tutorials/multi_objective_bo)
 def generate_initial_data(n_samples=12):
-    CURRENT_DIR = os.getcwd()  # Current working directory
-    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
-    os.makedirs(PROJECT_PATH, exist_ok=True)
-
+    
     # Define the CSV file path
-    observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
+    CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
 
     # Check if the file exists and write the header if it does not
-    if not os.path.exists(observations_csv_file_path):
-        header = np.array(objective_names + parameter_names + ['IsPareto', 'Run'])
-        with open(observations_csv_file_path, 'w', newline='') as file:
+    if not os.path.exists(OBSERVATIONS_LOG_PATH):
+        header = np.array(objective_names + parameter_names + ['IsPareto', 'Run', 'Phase'])
+        with open(OBSERVATIONS_LOG_PATH, 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(header)
 
@@ -226,10 +226,10 @@ def generate_initial_data(n_samples=12):
         # Convert objective and parameter values to numpy arrays for logging
         x_numpy = x.cpu().numpy()
         obj_numpy = obj.cpu().detach().numpy()
-
+        # Combine all records and pareto identification
+        all_record = np.concatenate((obj_numpy, x_numpy, ['FALSE'], [i], ['sampling']))
         # Log the values to the CSV file
-        all_record = np.concatenate((obj_numpy, x_numpy, np.array(['FALSE']), np.array([i]))).tolist()
-        with open(observations_csv_file_path, 'a', newline='') as file:
+        with open(OBSERVATIONS_LOG_PATH, 'a', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(all_record)
 
@@ -297,25 +297,12 @@ def optimize_qehvi(model, train_obj, sampler):
 def mobo_execute(seed, iterations, initial_samples):
     
     #-----------------------
-    # prepare logging into files 
+    # prepare file logging 
     #-----------------------
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
-    #parent_dir = os.path.dirname(os.path.dirname(current_dir))
-    parent_dir = os.path.dirname(CURRENT_DIR)
-
-    filename = 'ExecutionTimes.csv'
-    if platform.system() == "Windows":
-        if "UNITY_EDITOR" in os.environ:
-            # logdata_path = os.path.join(current_dir, "LogData")
-            logdata_path = os.path.join(CURRENT_DIR, "LogData")
-        else:
-            logdata_path = os.path.join(CURRENT_DIR, "Project_Data", "Data", "LogData")
-    elif platform.system() == "Darwin":  # macOS
-        logdata_path = os.path.join(parent_dir, "Data/LogData")
-
-    # Pfad zur CSV-Datei festlegen
-    csv_file_path = os.path.join(logdata_path, filename)
-    # CSV-Datei erstellen
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    os.makedirs(PROJECT_PATH, exist_ok=True)
+    csv_file_path = os.path.join(PROJECT_PATH, 'ExecutionTimes.csv')
     create_csv_file(csv_file_path, ['Optimization', 'Execution_Time'])
     #-----------------------
 
@@ -334,9 +321,6 @@ def mobo_execute(seed, iterations, initial_samples):
     else:
         train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
 
-    #train_x_qehvi = train_x_qehvi.cpu()
-    #train_obj_qehvi = train_obj_qehvi.cpu()
-
     # Initialize GP models
     mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
 
@@ -346,9 +330,8 @@ def mobo_execute(seed, iterations, initial_samples):
     volume = hv.compute(pareto_y)
     hvs_qehvi.append(volume)
 
-    # log before the optimization starts, i.e., the volumes after the sampling phase
+    # log before the optimization starts as iteration 0, i.e., the volumes after the sampling phase
     save_xy(train_x_qehvi, train_obj_qehvi, hvs_qehvi, 0)
-    print("Y:")
     #-----------------------
 
     #-----------------------
@@ -416,15 +399,10 @@ def load_object(filename):
 # Save X and Y samples, hypervolume values to CSV
 # -------------------------------------------------------
 def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
-    current_dir = os.getcwd()  # Current working directory
-
-    # Create project path for log data
-    if platform.system() == "Windows":
-        project_path = os.path.join(current_dir, "LogData")
-    elif platform.system() == "Darwin":  # macOS
-        project_path = os.path.join(current_dir, "Data", "LogData")
-
-    os.makedirs(project_path, exist_ok=True)
+    
+    # Define the CSV file path
+    CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
     print("Project Path:", PROJECT_PATH)
 
     # Detect pareto front points
@@ -442,19 +420,20 @@ def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
     # Combine the objective and parameter names
     header = np.array(objective_names + parameter_names + ['IsPareto'])
     header_run = np.append(header, "Run")  # Add the "Run" header
+    header_run = np.append(header, "Phase")  # Add the "Phase" header to track if Sampling or Optimization phase
 
     # Save observations per evaluation
-    observations_csv_file_path = os.path.join(project_path, "ObservationsPerEvaluation.csv")
+    observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     with open(observations_csv_file_path, 'a', newline='') as file:
         writer = csv.writer(file, delimiter=';')
         if os.path.getsize(observations_csv_file_path) == 0:
             writer.writerow(header_run)
-        writer.writerow([*all_record[-1], iteration])  # Only write the last record
+        writer.writerow([*all_record[-1], iteration, 'optimization'])  # Only write the last record
 
     # Save hypervolume per evaluation
     hypervolume_value = np.array(hvs_qehvi)
     header_volume = ["Hypervolume", "Run"]
-    hypervolume_csv_file_path = os.path.join(project_path, "HypervolumePerEvaluation.csv")
+    hypervolume_csv_file_path = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
     with open(hypervolume_csv_file_path, 'a', newline='') as file:
         writer = csv.writer(file, delimiter=';')
         if os.path.getsize(hypervolume_csv_file_path) == 0:

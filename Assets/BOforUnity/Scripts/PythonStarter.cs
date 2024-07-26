@@ -231,9 +231,9 @@ Debug.Log(Application.streamingAssetsPath);
 #if UNITY_EDITOR
             applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
 #elif UNITY_STANDALONE_WIN
-    applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
+            applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
 #elif UNITY_STANDALONE_OSX
-    applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
+            applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
 #endif
             return applicationPath;
         }
@@ -244,7 +244,7 @@ Debug.Log(Application.streamingAssetsPath);
             string pythonPath = "";
 
 #if UNITY_STANDALONE_WIN
-    pythonPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python311", "python.exe");
+            pythonPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python311", "python.exe");
 #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
             pythonPath = "/usr/local/bin/python3";
 #endif
