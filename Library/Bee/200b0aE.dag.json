@@ -169,8 +169,8 @@
       "DisplayName": "Writing UnityEngine.UI.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
       "PayloadOffset": 98,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/UnityEngine.UI.UnityAdditionalFile.txt"
@@ -181,7 +181,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEngine.UI.rsp",
       "DisplayName": "Writing UnityEngine.UI.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 236,
+      "PayloadOffset": 229,
       "PayloadLength": 39203,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -194,9 +194,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEngine.UI.rsp2",
       "DisplayName": "Writing UnityEngine.UI.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 39524,
-      "PayloadLength": 67,
-      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Deskt",
+      "PayloadOffset": 39517,
+      "PayloadLength": 60,
+      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Downl",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/UnityEngine.UI.rsp2"
@@ -1996,7 +1996,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEngine.UI.dll.mvfrm.rsp",
       "DisplayName": "Writing UnityEngine.UI.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 39685,
+      "PayloadOffset": 39671,
       "PayloadLength": 7618,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -2205,9 +2205,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.UnityAdditionalFile.txt",
       "DisplayName": "Writing UnityEditor.UI.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
-      "PayloadOffset": 47407,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadOffset": 47393,
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.UnityAdditionalFile.txt"
@@ -2218,7 +2218,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.rsp",
       "DisplayName": "Writing UnityEditor.UI.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 47545,
+      "PayloadOffset": 47524,
       "PayloadLength": 36218,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -2231,9 +2231,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.rsp2",
       "DisplayName": "Writing UnityEditor.UI.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 83848,
-      "PayloadLength": 67,
-      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Deskt",
+      "PayloadOffset": 83827,
+      "PayloadLength": 60,
+      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Downl",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.rsp2"
@@ -2571,7 +2571,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/UnityEditor.UI.dll.mvfrm.rsp",
       "DisplayName": "Writing UnityEditor.UI.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 84009,
+      "PayloadOffset": 83981,
       "PayloadLength": 7774,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -2784,9 +2784,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.Rider.Editor.UnityAdditionalFile.txt",
       "DisplayName": "Writing Unity.Rider.Editor.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
-      "PayloadOffset": 91891,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadOffset": 91863,
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Unity.Rider.Editor.UnityAdditionalFile.txt"
@@ -2797,7 +2797,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.Rider.Editor.rsp",
       "DisplayName": "Writing Unity.Rider.Editor.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 92033,
+      "PayloadOffset": 91998,
       "PayloadLength": 36932,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -2810,9 +2810,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.Rider.Editor.rsp2",
       "DisplayName": "Writing Unity.Rider.Editor.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 129054,
-      "PayloadLength": 67,
-      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Deskt",
+      "PayloadOffset": 129019,
+      "PayloadLength": 60,
+      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Downl",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Unity.Rider.Editor.rsp2"
@@ -3139,7 +3139,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.Rider.Editor.dll.mvfrm.rsp",
       "DisplayName": "Writing Unity.Rider.Editor.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 129219,
+      "PayloadOffset": 129177,
       "PayloadLength": 7849,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -3354,9 +3354,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.UnityAdditionalFile.txt",
       "DisplayName": "Writing Unity.TextMeshPro.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
-      "PayloadOffset": 137175,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadOffset": 137133,
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.UnityAdditionalFile.txt"
@@ -3367,7 +3367,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.rsp",
       "DisplayName": "Writing Unity.TextMeshPro.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 137316,
+      "PayloadOffset": 137267,
       "PayloadLength": 37354,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -3380,9 +3380,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.rsp2",
       "DisplayName": "Writing Unity.TextMeshPro.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 174758,
-      "PayloadLength": 67,
-      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Deskt",
+      "PayloadOffset": 174709,
+      "PayloadLength": 60,
+      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Downl",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.rsp2"
@@ -3706,7 +3706,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.dll.mvfrm.rsp",
       "DisplayName": "Writing Unity.TextMeshPro.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 174922,
+      "PayloadOffset": 174866,
       "PayloadLength": 7768,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -3919,9 +3919,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.Editor.UnityAdditionalFile.txt",
       "DisplayName": "Writing Unity.TextMeshPro.Editor.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
-      "PayloadOffset": 182804,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadOffset": 182748,
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.Editor.UnityAdditionalFile.txt"
@@ -3932,7 +3932,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.Editor.rsp",
       "DisplayName": "Writing Unity.TextMeshPro.Editor.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 182952,
+      "PayloadOffset": 182889,
       "PayloadLength": 37784,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -3945,9 +3945,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.Editor.rsp2",
       "DisplayName": "Writing Unity.TextMeshPro.Editor.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 220831,
-      "PayloadLength": 67,
-      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Deskt",
+      "PayloadOffset": 220768,
+      "PayloadLength": 60,
+      "PayloadDebugContentSnippet": "/pathmap:\"/Users/pjansen/Downl",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.Editor.rsp2"
@@ -4285,7 +4285,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Unity.TextMeshPro.Editor.dll.mvfrm.rsp",
       "DisplayName": "Writing Unity.TextMeshPro.Editor.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 221002,
+      "PayloadOffset": 220932,
       "PayloadLength": 7927,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -4502,9 +4502,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.UnityAdditionalFile.txt",
       "DisplayName": "Writing Assembly-CSharp.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
-      "PayloadOffset": 229034,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadOffset": 228964,
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.UnityAdditionalFile.txt"
@@ -4515,7 +4515,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.rsp",
       "DisplayName": "Writing Assembly-CSharp.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 229173,
+      "PayloadOffset": 229096,
       "PayloadLength": 37304,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -4528,7 +4528,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.rsp2",
       "DisplayName": "Writing Assembly-CSharp.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 266563,
+      "PayloadOffset": 266486,
       "PayloadLength": 0,
       "PayloadDebugContentSnippet": "",
       "Inputs": [],
@@ -4912,7 +4912,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp.dll.mvfrm.rsp",
       "DisplayName": "Writing Assembly-CSharp.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 266658,
+      "PayloadOffset": 266581,
       "PayloadLength": 7759,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -5125,9 +5125,9 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.UnityAdditionalFile.txt",
       "DisplayName": "Writing Assembly-CSharp-Editor.UnityAdditionalFile.txt",
       "ActionType": "WriteFile",
-      "PayloadOffset": 274529,
-      "PayloadLength": 54,
-      "PayloadDebugContentSnippet": "/Users/pjansen/Desktop/Bayesia",
+      "PayloadOffset": 274452,
+      "PayloadLength": 47,
+      "PayloadDebugContentSnippet": "/Users/pjansen/Downloads/BO-fo",
       "Inputs": [],
       "Outputs": [
         "Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.UnityAdditionalFile.txt"
@@ -5138,7 +5138,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.rsp",
       "DisplayName": "Writing Assembly-CSharp-Editor.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 274675,
+      "PayloadOffset": 274591,
       "PayloadLength": 35276,
       "PayloadDebugContentSnippet": "-target:library\n-out:\"Library/",
       "Inputs": [],
@@ -5151,7 +5151,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.rsp2",
       "DisplayName": "Writing Assembly-CSharp-Editor.rsp2",
       "ActionType": "WriteFile",
-      "PayloadOffset": 310044,
+      "PayloadOffset": 309960,
       "PayloadLength": 0,
       "PayloadDebugContentSnippet": "",
       "Inputs": [],
@@ -5454,7 +5454,7 @@
       "Annotation": "WriteText Library/Bee/artifacts/200b0aE.dag/Assembly-CSharp-Editor.dll.mvfrm.rsp",
       "DisplayName": "Writing Assembly-CSharp-Editor.dll.mvfrm.rsp",
       "ActionType": "WriteFile",
-      "PayloadOffset": 310146,
+      "PayloadOffset": 310062,
       "PayloadLength": 8091,
       "PayloadDebugContentSnippet": "Library/Bee/artifacts/mvdfrm/U",
       "Inputs": [],
@@ -5884,7 +5884,7 @@
     {
       "Annotation": "BuildPlayerDataGenerator Library/BuildPlayerData/Editor/TypeDb-All.json",
       "DisplayName": "BuildPlayerDataGenerator TypeDb-All",
-      "Action": "\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/netcorerun/netcorerun\" \"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/BuildPlayerDataGenerator/BuildPlayerDataGenerator.exe\" -a=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Ookii.Dialogs.dll\" -a=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/System.Windows.Forms.dll\" -a=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/Assembly-CSharp.dll\" -a=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/Unity.TextMeshPro.dll\" -a=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies/UnityEngine.UI.dll\" -a=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/PackageCache/com.unity.ext.nunit@1.0.6/net35/unity-custom/nunit.framework.dll\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Managed/UnityEngine\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/compat/2.1.0/shims/netfx\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/compat/2.1.0/shims/netstandard\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/Extensions/2.0.0\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/ref/2.1.0\" -s=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins\" -s=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/ScriptAssemblies\" -s=\"/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/PackageCache/com.unity.ext.nunit@1.0.6/net35/unity-custom\" -o=\"Library/BuildPlayerData/Editor\" -rn=\"\" -tn=\"TypeDb-All.json\"",
+      "Action": "\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/netcorerun/netcorerun\" \"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/BuildPlayerDataGenerator/BuildPlayerDataGenerator.exe\" -a=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Ookii.Dialogs.dll\" -a=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/System.Windows.Forms.dll\" -a=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/ScriptAssemblies/Assembly-CSharp.dll\" -a=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/ScriptAssemblies/Unity.TextMeshPro.dll\" -a=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/ScriptAssemblies/UnityEngine.UI.dll\" -a=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/PackageCache/com.unity.ext.nunit@1.0.6/net35/unity-custom/nunit.framework.dll\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Managed/UnityEngine\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/compat/2.1.0/shims/netfx\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/compat/2.1.0/shims/netstandard\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/Extensions/2.0.0\" -s=\"/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/NetStandard/ref/2.1.0\" -s=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins\" -s=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/ScriptAssemblies\" -s=\"/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/PackageCache/com.unity.ext.nunit@1.0.6/net35/unity-custom\" -o=\"Library/BuildPlayerData/Editor\" -rn=\"\" -tn=\"TypeDb-All.json\"",
       "Inputs": [
         "/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/netcorerun/netcorerun",
         "/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/BuildPlayerDataGenerator/BuildPlayerDataGenerator.exe",
@@ -6026,7 +6026,7 @@
   ],
   "StatSignatures": [
     {
-      "File": "/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/getconf"
+      "File": "/Users/pjansen/Downloads/BO-for-Unity-Asset-New/getconf"
     },
     {
       "File": "Assets/csc.rsp"
@@ -6094,6 +6094,6 @@
   "SharedResources": [],
   "Scanners": [],
   "Identifier": "Library/Bee/200b0aE.dag.json",
-  "PayloadsFile": "/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity/Library/Bee/200b0aE.dag.payloads",
+  "PayloadsFile": "/Users/pjansen/Downloads/BO-for-Unity-Asset-New/Library/Bee/200b0aE.dag.payloads",
   "RelativePathToRoot": "../.."
 }

@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 from import_all import *
 import socket
 import pickle
@@ -11,6 +12,9 @@ tkwargs = {
     "dtype": torch.double,
     "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
 }
+
+CURRENT_DIR = ""
+PROJECT_PATH = ""
 
 N_INITIAL = 5
 N_ITERATIONS = 10  # Number of optimization iterations
@@ -74,6 +78,18 @@ for strlist in objectives_strinfo:
 
 print("Objectives info", len(objectives_info))
 
+### Init the parameter and objective names
+parameter_names_raw = init_data[4].split(',')
+parameter_names = []
+for param_name in parameter_names_raw:
+    parameter_names.append(param_name)
+
+objective_names_raw = init_data[5].split(',')
+objective_names = []
+for obj_name in objective_names_raw:
+    objective_names.append(obj_name)
+
+### Init the device and other settings
 #device = torch.device("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -97,10 +113,9 @@ problem_bounds[1] = 1
 start_time = time.strftime("%Y-%m-%d-%H-%M", time.localtime())
 
 # -------------------------------------------------------
-# objective_function
-# -------------------------------------------------------
 # Sample current objective function from the Unity application
-#  in each iteration of the defined total optimization iterations (= n_samples + n_iterations)
+# -------------------------------------------------------
+#  do this in EACH iteration of the defined total optimization iterations (= n_samples + n_iterations)
 def objective_function(x_tensor):
     x = x_tensor.cpu().numpy()
     print("x", x)
@@ -122,7 +137,7 @@ def objective_function(x_tensor):
     if len(data) == 0:
         print("unity end")
     if (len(received_objective) != NUM_OBJS):
-        print("recevied objective number not consist")
+        print("recevied objective number not consistent")
 
     print("received: ", received_objective)
 
@@ -149,36 +164,88 @@ def objective_function(x_tensor):
     #return torch.tensor(fs, dtype=torch.float64).cuda()
 
 # -------------------------------------------------------
+# create_csv_file
+# -------------------------------------------------------
+def create_csv_file(csv_file_path, fieldnames):
+    try:
+        if not os.path.exists(os.path.dirname(csv_file_path)):
+            os.makedirs(os.path.dirname(csv_file_path))
+
+        write_header = not os.path.exists(csv_file_path)
+
+        with open(csv_file_path, 'a+', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
+            if write_header:
+                writer.writeheader()
+    except Exception as e:
+        print("Error creating file:", str(e))
+
+# -------------------------------------------------------
+# write_data_to_csv
+# -------------------------------------------------------
+def write_data_to_csv(csv_file_path, fieldnames, data):
+    try:
+        with open(csv_file_path, 'a+', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
+            writer.writerows(data)
+    except Exception as e:
+        print("Error writing to file:", str(e))
+
+# -------------------------------------------------------
 # generate_initial_data
 # -------------------------------------------------------
 #das hier heißt dass die Optimierungsfunktion immer random beginnt und deshalb direkt mit der Applikation verbunden sein muss
 # n_samples muss 2(d+1) wobei d = num_objs ist sein (https://botorch.org/tutorials/multi_objective_bo)
 def generate_initial_data(n_samples=12):
-    # generate training data
+    CURRENT_DIR = os.getcwd()  # Current working directory
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    os.makedirs(PROJECT_PATH, exist_ok=True)
+
+    # Define the CSV file path
+    observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
+
+    # Check if the file exists and write the header if it does not
+    if not os.path.exists(observations_csv_file_path):
+        header = np.array(objective_names + parameter_names + ['IsPareto', 'Run'])
+        with open(observations_csv_file_path, 'w', newline='') as file:
+            writer = csv.writer(file, delimiter=';')
+            writer.writerow(header)
+
+    # Generate training data
     train_x = draw_sobol_samples(
         bounds=problem_bounds, n=1, q=n_samples, seed=torch.randint(1000000, (1,)).item()
     ).squeeze(0)
-    # train_obj = objective_function(train_x)
 
+    # loop to sample objective values from the users to these training data
     train_obj = []
     for i, x in enumerate(train_x):
         print(f"initial sample: {i + 1}")
-        train_obj.append(objective_function(x))
+        obj = objective_function(x)
+        train_obj.append(obj)
+
+        # Convert objective and parameter values to numpy arrays for logging
+        x_numpy = x.cpu().numpy()
+        obj_numpy = obj.cpu().detach().numpy()
+
+        # Log the values to the CSV file
+        all_record = np.concatenate((obj_numpy, x_numpy, np.array(['FALSE']), np.array([i]))).tolist()
+        with open(observations_csv_file_path, 'a', newline='') as file:
+            writer = csv.writer(file, delimiter=';')
+            writer.writerow(all_record)
 
     train_obj_array = np.array([item.cpu().detach().numpy() for item in train_obj], dtype=np.float64)
-
-
     print("Shape der Arrays: ", train_x.shape, torch.tensor(train_obj_array).to(device).shape)
-    #return train_x, torch.tensor([item.cpu().detach().numpy() for item in train_obj], dtype=torch.float64).cuda()
+
     return train_x, torch.tensor(train_obj_array).to(device)
 
 # -------------------------------------------------------
-# load_data
+# load_data if there are prior observations
 # -------------------------------------------------------
+# (each row in the CSV represents one sampling iteration)
 def load_data():
     # load the data from the provided file paths
-    data_objectives = pd.read_csv(CSV_PATH_OBJECTIVES,  delimiter=',')
-    data_parameter = pd.read_csv(CSV_PATH_PARAMETERS,  delimiter=',')
+    data_objectives = pd.read_csv(CSV_PATH_OBJECTIVES,  delimiter=';')
+    data_parameter = pd.read_csv(CSV_PATH_PARAMETERS,  delimiter=';')
 
     # Extrahieren Sie die Werte für y aus der letzten Zeile
     y = torch.tensor(data_objectives.values, dtype=torch.float64).to(device)
@@ -225,44 +292,43 @@ def optimize_qehvi(model, train_obj, sampler):
     return new_x
 
 # -------------------------------------------------------
-# create_csv_file
-# -------------------------------------------------------
-def create_csv_file(csv_file_path, fieldnames):
-    try:
-        if not os.path.exists(os.path.dirname(csv_file_path)):
-            os.makedirs(os.path.dirname(csv_file_path))
-
-        write_header = not os.path.exists(csv_file_path)
-
-        with open(csv_file_path, 'a+', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
-            if write_header:
-                writer.writeheader()
-    except Exception as e:
-        print("Error creating file:", str(e))
-
-# -------------------------------------------------------
-# write_data_to_csv
-# -------------------------------------------------------
-def write_data_to_csv(csv_file_path, fieldnames, data):
-    try:
-        with open(csv_file_path, 'a+', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
-            writer.writerows(data)
-    except Exception as e:
-        print("Error writing to file:", str(e))
-
-# -------------------------------------------------------
-# mobo_execute
+# mobo_execute ... this is the main method that handles the sampling and optimization loops
 # -------------------------------------------------------
 def mobo_execute(seed, iterations, initial_samples):
+    
+    #-----------------------
+    # prepare logging into files 
+    #-----------------------
+    CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
+    #parent_dir = os.path.dirname(os.path.dirname(current_dir))
+    parent_dir = os.path.dirname(CURRENT_DIR)
+
+    filename = 'ExecutionTimes.csv'
+    if platform.system() == "Windows":
+        if "UNITY_EDITOR" in os.environ:
+            # logdata_path = os.path.join(current_dir, "LogData")
+            logdata_path = os.path.join(CURRENT_DIR, "LogData")
+        else:
+            logdata_path = os.path.join(CURRENT_DIR, "Project_Data", "Data", "LogData")
+    elif platform.system() == "Darwin":  # macOS
+        logdata_path = os.path.join(parent_dir, "Data/LogData")
+
+    # Pfad zur CSV-Datei festlegen
+    csv_file_path = os.path.join(logdata_path, filename)
+    # CSV-Datei erstellen
+    create_csv_file(csv_file_path, ['Optimization', 'Execution_Time'])
+    #-----------------------
+
+    #-----------------------
+    # init mobo
+    #-----------------------
     torch.manual_seed(seed)
 
     hv = Hypervolume(ref_point=ref_point)
     # Hypervolumes
     hvs_qehvi = []
 
-    # Should the optimizer explore first with initial data (warm-start) or random points in the parameter space
+    # Whether the optimizer explore first with initial data (warm-start) or random points in the parameter space...
     if WARM_START:
         train_x_qehvi, train_obj_qehvi = load_data()
     else:
@@ -279,32 +345,15 @@ def mobo_execute(seed, iterations, initial_samples):
     pareto_y = train_obj_qehvi[pareto_mask]
     volume = hv.compute(pareto_y)
     hvs_qehvi.append(volume)
+
+    # log before the optimization starts, i.e., the volumes after the sampling phase
     save_xy(train_x_qehvi, train_obj_qehvi, hvs_qehvi, 0)
-
     print("Y:")
+    #-----------------------
 
-    fieldnames = ['Exploitation', 'Execution_Time']
-
-    current_dir = os.getcwd()  # Aktuelles Arbeitsverzeichnis
-    #parent_dir = os.path.dirname(os.path.dirname(current_dir))
-    parent_dir = os.path.dirname(current_dir)
-
-    filename = 'ExecutionTimes.csv'
-    if platform.system() == "Windows":
-        if "UNITY_EDITOR" in os.environ:
-            # logdata_path = os.path.join(current_dir, "LogData")
-            logdata_path = os.path.join(current_dir, "LogData")
-        else:
-            logdata_path = os.path.join(current_dir, "Project_Data", "Data", "LogData")
-    elif platform.system() == "Darwin":  # macOS
-        logdata_path = os.path.join(parent_dir, "Data/LogData")
-
-    # Pfad zur CSV-Datei festlegen
-    csv_file_path = os.path.join(logdata_path, filename)
-    # CSV-Datei erstellen
-    create_csv_file(csv_file_path, fieldnames)
-
+    #-----------------------
     # Go through the iterations
+    #-----------------------
     for iteration in range(1, iterations + 1):
         print("Iteration: " + str(iteration))
         # Startzeitpunkt der Iteration von mobo
@@ -322,8 +371,8 @@ def mobo_execute(seed, iterations, initial_samples):
 
         # Ausführungszeit der Iteration berechnen
         execution_time = end_time - start_time
-        data = [{'Exploitation': iteration, 'Execution_Time': execution_time}]
-        write_data_to_csv(csv_file_path, fieldnames, data)
+        data = [{'Optimization': iteration, 'Execution_Time': execution_time}]
+        write_data_to_csv(csv_file_path, ['Optimization', 'Execution_Time'], data)
 
         new_obj_qehvi = objective_function(new_x_qehvi[0])
 
@@ -346,6 +395,7 @@ def mobo_execute(seed, iterations, initial_samples):
         # print("trianing obj", train_obj_qehvi)
 
         mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
+    #-----------------------
 
     return hvs_qehvi, train_x_qehvi, train_obj_qehvi
 
@@ -357,105 +407,100 @@ def save_object(obj, filename):
     with open(filename, 'wb') as output:  # Overwrites any existing file.
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
-# -------------------------------------------------------
-# -------------------------------------------------------
 def load_object(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
     return data
 
 # -------------------------------------------------------
-# -------------------------------------------------------
-def save_iterations_to_csv1(csv_file_path, iteration):
-    # Lese die vorhandene CSV-Datei ein
-    df = pd.read_csv(csv_file_path, delimiter=';')
-
-    # Überprüfe, ob der Header "Run" bereits vorhanden ist
-    if 'Run' not in df.columns:
-        # Füge den Header "Run" hinzu und fülle mit NaN-Werten
-        df['Run'] = pd.Series([pd.NA] * len(df))
-
-    # Iteriere über die Zeilen des DataFrames
-    for i, row in df.iterrows():
-        if pd.isna(row['Run']):
-            # Füge die Iteration in leere Zellen ein
-            df.at[i, 'Run'] = iteration[i] if i < len(iteration) else pd.NA
-
-    # Speichere den aktualisierten DataFrame in die CSV-Datei
-    df.to_csv(csv_file_path, index=False, sep=';')
-
-# -------------------------------------------------------
-# -------------------------------------------------------
-def save_iterations_to_csv(csv_file_path, iteration):
-    # Überprüfen, ob die Iteration bereits in der CSV-Datei vorhanden ist
-    with open(csv_file_path, 'r') as file:
-        reader = csv.reader(file, delimiter=';')
-        for row in reader:
-            if len(row) > 0 and row[0] == str(iteration):
-                return  # Iteration bereits vorhanden, nichts tun
-
-    # Wenn die Iteration nicht gefunden wurde, füge sie zur CSV-Datei hinzu
-    with open(csv_file_path, 'a', newline='') as file:
-        writer = csv.writer(file, delimiter=';')
-        writer.writerow([iteration])  # Nur die Iteration hinzufügen, weitere Spalten können angepasst werden
-
-# -------------------------------------------------------
-# save_xy
+# Save X and Y samples, hypervolume values to CSV
 # -------------------------------------------------------
 def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
-    #directory = '../Data/LogData'
-    #if not os.path.exists(directory):
-    #    os.makedirs(directory)
+    current_dir = os.getcwd()  # Current working directory
 
-    current_dir = os.getcwd()  # Aktuelles Arbeitsverzeichnis
-    #parent_dir = os.path.dirname(os.path.dirname(current_dir))
-    parent_dir = os.path.dirname(current_dir)
+    # Create project path for log data
     if platform.system() == "Windows":
-        if "UNITY_EDITOR" in os.environ:
-            # project_path = os.path.join(current_dir, "LogData")
-            project_path = os.path.join(current_dir, "LogData")
-        else:
-            # project_path = os.path.join(current_dir, "Project_Data\Data\LogData")
-            project_path = os.path.join(current_dir, "Project_Data", "Data", "LogData")
+        project_path = os.path.join(current_dir, "LogData")
     elif platform.system() == "Darwin":  # macOS
-        project_path = os.path.join(parent_dir, "Data/LogData")
+        project_path = os.path.join(current_dir, "Data", "LogData")
 
-    print("Project Path:", project_path)
+    os.makedirs(project_path, exist_ok=True)
+    print("Project Path:", PROJECT_PATH)
 
     # Detect pareto front points
     pareto_mask = is_non_dominated(y_sample)
-    pareto_obj = y_sample[pareto_mask]
 
+    # Convert tensors to numpy arrays
     x_sample = x_sample.cpu().numpy()
     y_sample = y_sample.cpu().numpy()
-    pareto_obj = pareto_obj.cpu().numpy()
-    pareto_front = x_sample[pareto_mask.cpu()]
 
+    # Combine all records and pareto identification
     all_record = np.concatenate((y_sample, x_sample), axis=1)
+    index_arr = ["TRUE" if i else "FALSE" for i in pareto_mask]
+    all_record = np.concatenate((all_record, np.array([index_arr]).T), axis=1)
 
-    f_values = y_sample.copy()
-    f_values = np.array([list(x) for x in f_values])
+    # Combine the objective and parameter names
+    header = np.array(objective_names + parameter_names + ['IsPareto'])
+    header_run = np.append(header, "Run")  # Add the "Run" header
 
-    x_all = f_values[:, 0]
-    y_all = f_values[:, 1]
-    pareto_obj = pareto_obj[pareto_obj[:, 0].argsort()]
-    x_pareto = pareto_obj[:, 0]
-    y_pareto = pareto_obj[:, 1]
+    # Save observations per evaluation
+    observations_csv_file_path = os.path.join(project_path, "ObservationsPerEvaluation.csv")
+    with open(observations_csv_file_path, 'a', newline='') as file:
+        writer = csv.writer(file, delimiter=';')
+        if os.path.getsize(observations_csv_file_path) == 0:
+            writer.writerow(header_run)
+        writer.writerow([*all_record[-1], iteration])  # Only write the last record
+
+    # Save hypervolume per evaluation
+    hypervolume_value = np.array(hvs_qehvi)
+    header_volume = ["Hypervolume", "Run"]
+    hypervolume_csv_file_path = os.path.join(project_path, "HypervolumePerEvaluation.csv")
+    with open(hypervolume_csv_file_path, 'a', newline='') as file:
+        writer = csv.writer(file, delimiter=';')
+        if os.path.getsize(hypervolume_csv_file_path) == 0:
+            writer.writerow(header_volume)
+        writer.writerow([hypervolume_value[-1], iteration])
+# -------------------------------------------------------
+# -------------------------------------------------------
+
+# Run the sampling and optimization loop, 
+#   after receiving the initialization data (see "data = conn.recv(1024)" blocker at the beginning of this file):
+hvs_qehvi, train_x_qehvi, train_obj_qehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)
+
+
+### The following code can be used to generate plots for the Pareto Front and Hypervolume (however, only supports two objectives)
+    # Detect pareto front points
+    #pareto_mask = is_non_dominated(y_sample)
+    #pareto_obj = y_sample[pareto_mask]
+
+    #x_sample = x_sample.cpu().numpy()
+    #y_sample = y_sample.cpu().numpy()
+    #pareto_obj = pareto_obj.cpu().numpy()
+    #pareto_front = x_sample[pareto_mask.cpu()]
+
+    #all_record = np.concatenate((y_sample, x_sample), axis=1)
+
+    #f_values = y_sample.copy()
+    #f_values = np.array([list(x) for x in f_values])
+
+    #x_all = f_values[:, 0]
+    #y_all = f_values[:, 1]
+    #pareto_obj = pareto_obj[pareto_obj[:, 0].argsort()]
+    #x_pareto = pareto_obj[:, 0]
+    #y_pareto = pareto_obj[:, 1]
 
     # Create parallel coordinates plot
+    #line_index = list(range(len(pareto_front)))
+    #pareto_design_parameters = np.concatenate((np.array([line_index]).T, pareto_front), axis=1)
 
-    line_index = list(range(len(pareto_front)))
-    pareto_design_parameters = np.concatenate((np.array([line_index]).T, pareto_front), axis=1)
-
-    columns_i = ["iter"]
-    for i in range(len(pareto_design_parameters[0]) - 1):
-        columns_i.append("x" + str(i + 1))
-
-    design_parameters_pd = pd.DataFrame(data=pareto_design_parameters, index=line_index, columns=columns_i)
-
+    #columns_i = ["iter"]
+    #for i in range(len(pareto_design_parameters[0]) - 1):
+    #    columns_i.append("x" + str(i + 1))
+    
+    #design_parameters_pd = pd.DataFrame(data=pareto_design_parameters, index=line_index, columns=columns_i)
+    
     #plt.rcParams['figure.max_open_warning'] = 50
     #plt.figure(figsize=(15, 6))
-    # plt.figure()
 
     #plt.subplot(121)
     #plt.title('Objective values')
@@ -465,97 +510,20 @@ def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
     #plt.ylabel('Accuracy')
     #plt.xlim(-1, 1)
     #plt.ylim(-1, 1)
-    # plt.savefig('../Assets/Resources/opt-process-parato-img', dpi=50)
+    #plt.savefig(os.path.join(project_path, 'opt-process-parato-img.png'), dpi=50)
 
-    # plt.clf()
-
-    # plt.figure()
+    #plt.clf()
 
     #plt.subplot(122)
     #plt.title('Design parameters')
     #pd.plotting.parallel_coordinates(design_parameters_pd, "iter")
-    # Save plot
-    #plt.savefig('../Assets/Resources/opt-process-design-parameter-img', dpi=50)
-    #plt.savefig('imgs/observations', dpi=50)
+    #plt.savefig(os.path.join(project_path, 'opt-process-design-parameter-img.png'), dpi=50)
     #plt.clf()
-    # plt.show()
+
     #plt.figure()
     #plt.plot(hvs_qehvi)
     #plt.title("Pareto Hypervolume Increase", fontsize=24)
     #plt.tick_params(axis='x', labelsize=16)
     #plt.tick_params(axis='y', labelsize=16)
-    #plt.savefig('../Assets/Resources/opt-process-hyper-img', dpi=50)
-    #plt.savefig('imgs/hypervolume', dpi=50)
+    #plt.savefig(os.path.join(project_path, 'opt-process-hyper-img.png'), dpi=50)
     #plt.clf()
-
-    # add new column to identify pareto points
-    index_arr = []
-    for i in pareto_mask:
-        temp = ""
-        if (i):
-            temp = "TRUE"
-        else:
-            temp = "FALSE"
-        index_arr.append(temp)
-    # np.savetxt('../Assets/Resources/VROptimizer.csv', all_record, delimiter=',', fmt="%s")
-
-    #QEHVI misst die Qualität der Lösung (QEHVI steht für Quality Estimate Hypervolume Improvement). Es gibt an, wie gut die aktuelle Lösung im Vergleich zu den bisherigen Lösungen ist.
-    #Zielfunktionswerte: Diese Werte repräsentieren die Leistung oder Qualität der Lösung basierend auf den Zielfunktionen.
-    #Designparameterwerte: Diese Werte repräsentieren die Einstellungen oder Konfigurationen der Parameter, die optimiert werden sollen.
-    #areto-Dominanz-Indikator: Dieser Wert gibt an, ob eine bestimmte Lösung Pareto-dominiert ist oder nicht. Pareto-Dominanz bedeutet, dass eine Lösung in mindestens einer Zielfunktion besser ist als eine andere Lösung, ohne in einer anderen Zielfunktion schlechter zu sein.
-    all_record = np.concatenate((all_record, np.array([index_arr]).T), axis=1)
-
-    header = np.array(['Trust QEHVI','Understanding QEHVI', 'MentalLoad QEHVI', 'PerceivedSafety QEHVI', 'Aesthetics QEHVI', 'Acceptance QEHVI', 'Trajectory', 'TrajectoryAlpha', 'TrajectorySize', 'EgoTrajectory', 'EgoTrajectoryAlpha', 'EgoTrajectorySize', 'PedestrianIntention ', 'PedestrianIntentionSize ', 'SemanticSegmentation', 'SemanticSegmentationAlpha', 'CarStatus', 'CarStatusAlpha', 'CoveredArea', 'CoveredAreaAlpha', 'CoveredAreaSize', 'OccludedCars', 'IsPareto'])
-
-    header_run = np.append(header, "Run")  # Fügt den Header "Run" hinzu
-    """
-    observations_csv_file_path = os.path.join(project_path, "ObservationsPerEvaluation.csv")
-    #np.savetxt(observations_csv_file_path, all_record_append, delimiter=';', fmt="%s")
-
-    # Hinzufügen der Daten zur CSV-Datei
-    with open(observations_csv_file_path, 'a', newline='') as file:
-        writer = csv.writer(file, delimiter=';')
-        if os.path.getsize(observations_csv_file_path) == 0:
-            writer.writerow(header_run)
-        if iteration == 0:
-            writer.writerows([[*row, iteration] for row in all_record])
-        else:
-            writer.writerow([*all_record[-1], iteration])
-    
-
-    #if platform.system() == "Windows":
-        #np.savetxt(project_path + '\ObservationsPerEvaluation.csv', all_record, delimiter=';', fmt="%s")
-        #save_iterations_to_csv(project_path + '\ObservationsPerEvaluation.csv', iteration)
-    #elif platform.system() == "Darwin":  # macOS
-    #    np.savetxt(project_path + '/ObservationsPerEvaluation.csv', all_record, delimiter=';', fmt="%s")
-
-    #save_iterations_to_csv(project_path + '/ObservationsPerEvaluation.csv', iteration)
-    #Die Variable hvs_qehvi enthält eine Liste von Werten, die den Hypervolume-Wert des Pareto-Fronts zu jedem Optimierungsschritt darstellen
-    #Der Hypervolume-Wert ist ein Maß für die Ausdehnung und Diversität des Pareto-Fronts im Zielraum.
-    #Ein höherer Hypervolume-Wert deutet auf eine bessere Qualität der gefundenen Pareto-Front hin.
-    hypervolume_value = np.array(hvs_qehvi)
-    header_volume = ["Hypervolume", "Run"]
-
-    # Save hypervolume values to CSV file
-    hypervolume_csv_file_path = os.path.join(project_path, "HypervolumePerEvaluation.csv")
-
-    # Hinzufügen der Hypervolume-Daten
-    with open(hypervolume_csv_file_path, 'a', newline='') as file:
-        writer = csv.writer(file, delimiter=';')
-        if os.path.getsize(hypervolume_csv_file_path) == 0:
-            writer.writerow(header_volume)
-        writer.writerow([hypervolume_value[-1], iteration])
-    """
-    #if platform.system() == "Windows":
-    #    np.savetxt(project_path + '\HypervolumePerEvaluation.csv', hypervolume_value, delimiter=';',
-    #               header=header_volume, comments='')
-    #    save_iterations_to_csv(project_path + '\HypervolumePerEvaluation.csv', iteration)
-    #elif platform.system() == "Darwin":  # macOS
-    #    np.savetxt(project_path + '/HypervolumePerEvaluation.csv', hypervolume_value, delimiter=';',
-    #               header=header_volume, comments='')
-    #    save_iterations_to_csv(project_path + '/HypervolumePerEvaluation.csv', iteration)
-# -------------------------------------------------------
-# -------------------------------------------------------
-
-
-hvs_qehvi, train_x_qehvi, train_obj_qehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)

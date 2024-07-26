@@ -199,11 +199,13 @@ namespace BOforUnity.Scripts
         void SendInitInfo()
         {
             string a = "";
-            a += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
+            string b = "";
+            string c = "";
+            
+            b += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
                  $"{_bomanager.nIterations},{_bomanager.mcSamples},{_bomanager.nInitial},{_bomanager.seed}," +
                  $"{_bomanager.parameters.Count},{_bomanager.objectives.Count}_" +
-                 
-                 $"{_bomanager.warmStart},{_bomanager.initialParametersDataPath},{_bomanager.initialObjectivesDataPath}_";
+                 $"{_bomanager.warmStart},{_bomanager.initialParametersDataPath},{_bomanager.initialObjectivesDataPath}";
 
             int i = 0;
             foreach (var pa in _bomanager.parameters)
@@ -211,12 +213,16 @@ namespace BOforUnity.Scripts
                 pa.value.optSeqOrder = i;
                 i++;
                 a += pa.value.GetInitInfoStr();
-                //Debug.Log("Param values A: " + a);
-                //Debug.Log(pa.Value.GetInitInfoStr());
+                
+                c += pa.key + ",";
             }
+            
             a = a.Substring(0, a.Length -1);
             a += "_";
             i = 0;
+           
+            c = c.Substring(0, c.Length - 1);
+            c += "_";
 
             //Debug.Log("Objective: " + Optimizer.objectives.Count);
             foreach (var ob in _bomanager.objectives)
@@ -224,15 +230,17 @@ namespace BOforUnity.Scripts
                 ob.value.optSeqOrder = i;
                 i++;
                 a += ob.value.GetInitInfoStr();
-                //Debug.Log("Obj Values A: "+ a);
-                //Debug.Log(ob.Value);
+                
+                c += ob.key + ",";
             }
 
-            // Delete last / from string a
+            // Delete last / from string a and c
             a = a.Substring(0, a.Length - 1);
+            c = c.Substring(0, c.Length - 1);
+            
             // Send string: Hyper-parameter info _ Parameter info _ Objectives info
-            Debug.Log("Send Init Info to Python process: " + a);
-            SocketSend(a);
+            Debug.Log("Send Init Info to Python process: " + b + "_" + a + "_" + c);
+            SocketSend(b + "_" + a + "_" + c);
         }
         
         /// <summary>

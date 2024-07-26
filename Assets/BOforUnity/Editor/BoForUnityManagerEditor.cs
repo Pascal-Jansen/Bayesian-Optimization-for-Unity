@@ -74,7 +74,6 @@ namespace BOforUnity.Editor
             warmStartProp = serializedObject.FindProperty("warmStart");
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
-
         }
 
         public override void OnInspectorGUI()
