@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -177,8 +178,8 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(nIterationsProp);
             EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations).", EditorStyles.helpBox);
             // Calculate and display the sum of nInitial and nIterations
-            var val = (warmStartProp.boolValue ? 0 : nInitialProp.intValue) + nIterationsProp.intValue;
-            totalIterationsProp.floatValue = val;
+            var val = (warmStartProp.boolValue ? 0: nInitialProp.intValue) + nIterationsProp.intValue;
+            totalIterationsProp.intValue = val;
             EditorGUILayout.LabelField("Total Iterations", val.ToString(), EditorStyles.boldLabel);
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(batchSizeProp);

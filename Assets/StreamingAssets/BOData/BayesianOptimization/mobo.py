@@ -258,14 +258,15 @@ def generate_initial_data(n_samples=12):
 # -------------------------------------------------------
 # (each row in the CSV represents one sampling iteration)
 def load_data():
+    # Define the CSV file path
+    CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
+    objective_path = os.path.join(CURRENT_DIR, "InitData", CSV_PATH_OBJECTIVES)
+    parameter_path = os.path.join(CURRENT_DIR, "InitData", CSV_PATH_PARAMETERS)
     # load the data from the provided file paths
-    data_objectives = pd.read_csv(CSV_PATH_OBJECTIVES,  delimiter=';')
-    data_parameter = pd.read_csv(CSV_PATH_PARAMETERS,  delimiter=';')
+    data_objectives = pd.read_csv(objective_path,  delimiter=';')
+    data_parameter = pd.read_csv(parameter_path,  delimiter=';')
 
-    # Extrahieren Sie die Werte für y aus der letzten Zeile
     y = torch.tensor(data_objectives.values, dtype=torch.float64).to(device)
-
-    # Extrahieren Sie die Werte für x aus den Spalten "Trajectory" bis "OccludedCars"
     x = torch.tensor(data_parameter.values, dtype=torch.float64).to(device)
 
     return x, y
@@ -396,8 +397,8 @@ def mobo_execute(seed, iterations, initial_samples):
     #-----------------------
     # Tell Unity that the optimization has finished
     #-----------------------
-    print("Send Data: ", 'optimization_finished' )
-    conn.sendall(bytes('optimization_finished', 'utf-8'))
+    print("Send Data: ", 'optimization_finished,' )
+    conn.sendall(bytes('optimization_finished,', 'utf-8'))
     #-----------------------
 
     return hvs_qehvi, train_x_qehvi, train_obj_qehvi
