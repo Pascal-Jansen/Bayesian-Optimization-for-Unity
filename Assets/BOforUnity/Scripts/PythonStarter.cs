@@ -104,7 +104,7 @@ Debug.Log(Application.streamingAssetsPath);
             {
                 _exitMessageShown = true;
                 Debug.Log(">>>>> Python Process has EXITED!");
-                if (!_bomanager.simulationFinished) // if the simulation was not finished show an error message
+                if (_bomanager.simulationRunning) // if the simulation is still running show an error message
                 {
                     _bomanager.outputText.text = "The system could not be started...\nPlease restart the application.";
                     _bomanager.loadingObj.SetActive(false);

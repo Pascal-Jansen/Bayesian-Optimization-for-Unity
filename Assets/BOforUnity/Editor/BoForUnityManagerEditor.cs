@@ -36,6 +36,9 @@ namespace BOforUnity.Editor
         private SerializedProperty warmStartProp;
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
+
+        private SerializedProperty userIdProp;
+        private SerializedProperty conditionIdProp;
         
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
@@ -74,6 +77,9 @@ namespace BOforUnity.Editor
             warmStartProp = serializedObject.FindProperty("warmStart");
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
+
+            userIdProp = serializedObject.FindProperty("userId");
+            conditionIdProp = serializedObject.FindProperty("conditionId");
         }
 
         public override void OnInspectorGUI()
@@ -110,7 +116,7 @@ namespace BOforUnity.Editor
         {
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
             
-            EditorGUILayout.LabelField("Settings Configuration", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Python Settings", EditorStyles.boldLabel);
             // Server Client Connection settings
             //DrawServerClientConnectionSettings(script);
 
@@ -132,8 +138,25 @@ namespace BOforUnity.Editor
             
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
-
-            EditorGUILayout.LabelField("Warm Start Options", EditorStyles.boldLabel);
+            
+            EditorGUILayout.LabelField("Study Settings", EditorStyles.boldLabel);
+            // Set default values if properties are not assigned
+            if (string.IsNullOrEmpty(script.userId))
+            {
+                script.userId = "-1";
+            }
+            if (string.IsNullOrEmpty(script.conditionId))
+            {
+                script.conditionId = "-1";
+            }
+            EditorGUILayout.PropertyField(userIdProp);
+            EditorGUILayout.PropertyField(conditionIdProp);
+            EditorGUILayout.LabelField("Default values for userID and conditionID is -1.", EditorStyles.helpBox);
+            
+            EditorGUILayout.Space();
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+            
+            EditorGUILayout.LabelField("Warm Start Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(warmStartProp);
             EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped.", EditorStyles.helpBox);
             EditorGUILayout.PropertyField(initialParametersDataPathProp);

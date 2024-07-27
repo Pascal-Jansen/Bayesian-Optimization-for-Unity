@@ -38,7 +38,7 @@ namespace BOforUnity
         public bool perfectRatingStart;  // Flag indicating the start of perfect rating.
         public int perfectRatingIteration;
         public bool initialized = false;
-        public bool simulationFinished = false;
+        public bool simulationRunning = false;
         private bool _waitingForPythonProcess = false;
         
         // BO Hyper-parameters
@@ -53,6 +53,9 @@ namespace BOforUnity
         public bool warmStart = false;
         public string initialParametersDataPath;
         public string initialObjectivesDataPath;
+
+        public string userId = "-1";
+        public string conditionId = "-1";
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -86,14 +89,16 @@ namespace BOforUnity
             _waitingForPythonProcess = true;
             perfectRating = false;
             perfectRatingStart = false;
-            simulationFinished = false;
+            simulationRunning = true; // the simulation to true to prevent 
         }
         
         void Update()
         {
-            if (!_waitingForPythonProcess || !pythonStarter.isPythonProcessRunning || !pythonStarter.isSystemStarted) return;
-            _waitingForPythonProcess = false;
-            PythonInitializationDone();
+            if (_waitingForPythonProcess && pythonStarter.isPythonProcessRunning && pythonStarter.isSystemStarted)
+            {
+                _waitingForPythonProcess = false;
+                PythonInitializationDone();
+            }
         }
         //-----------------------------------------------
         
@@ -131,13 +136,13 @@ namespace BOforUnity
                 optimizerStatePanel.SetActive(false);
                 
                 Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
-                    
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload current scene
+
+                simulationRunning = true; // waiting for the simulation to finish
+                
+                SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload scene
             }
             else if (currentIteration >= maxIterations || isPerfect)
             {
-                simulationFinished = true; // tell everyone that the simulation has finished
-                
                 if (isPerfect)
                 {
                     Debug.Log(">>>>> Perfect Rating");
@@ -145,6 +150,8 @@ namespace BOforUnity
                 
                 Debug.Log("<<<<<<< Exiting the loop ... ");
                 Debug.Log("------------------------------------------------");
+
+                simulationRunning = false; // the simulation must be finished
                 
                 socketNetwork.SocketQuit();
                 // load a final scene or...
@@ -160,6 +167,7 @@ namespace BOforUnity
             Debug.Log("Optimization START");
             socketNetwork.SendObjectives(); // send the current objective values to the Python process
             optimizationRunning = true;
+            simulationRunning = false;
 
             optimizerStatePanel.SetActive(true); // show that the optimizer is running
             loadingObj.SetActive(true);

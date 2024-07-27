@@ -1,3 +1,4 @@
+using QuestionnaireToolkit.Scripts;
 using UnityEngine;
 
 namespace BOforUnity.Examples
@@ -70,6 +71,12 @@ namespace BOforUnity.Examples
             _renderer.material.color = new Color(colorR, colorG, colorB, colorA);
 
             _renderer.enabled = isActive;
+        }
+        
+        public void StartQuestionnaire()
+        {
+            GameObject.FindWithTag("QTQuestionnaireManager").GetComponent<QTQuestionnaireManager>()
+                .StartQuestionnaire();
         }
     }
 }

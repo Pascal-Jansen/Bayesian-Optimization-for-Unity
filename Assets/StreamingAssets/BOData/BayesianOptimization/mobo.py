@@ -33,6 +33,9 @@ WARM_START = False #true if there is initial data (accsible from the following p
 CSV_PATH_PARAMETERS = ""
 CSV_PATH_OBJECTIVES = ""
 
+USER_ID = ""
+CONDITION_ID = ""
+
 ### Init socket and start receiving data
 HOST = ''
 PORT = 56001
@@ -89,6 +92,11 @@ objective_names_raw = init_data[5].split(',')
 objective_names = []
 for obj_name in objective_names_raw:
     objective_names.append(obj_name)
+
+### Init user_id and condition_id
+study_info_raw = init_data[6].split(',')
+USER_ID = study_info_raw[0]
+CONDITION_ID = study_info_raw[1]
 
 ### Init the device and other settings
 #device = torch.device("cpu")
@@ -164,6 +172,10 @@ def objective_function(x_tensor):
     return torch.tensor(fs, dtype=torch.float64).to(device)
     #return torch.tensor(fs, dtype=torch.float64).cuda()
 
+
+def denormalize_to_original(value, lower_bound, upper_bound):
+    return lower_bound + (value + 1) / 2 * (upper_bound - lower_bound)
+
 # -------------------------------------------------------
 # create_csv_file
 # -------------------------------------------------------
@@ -206,7 +218,7 @@ def generate_initial_data(n_samples=12):
 
     # Check if the file exists and write the header if it does not
     if not os.path.exists(OBSERVATIONS_LOG_PATH):
-        header = np.array(objective_names + parameter_names + ['IsPareto', 'Run', 'Phase'])
+        header = np.array(['User_ID', 'Condition_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
         with open(OBSERVATIONS_LOG_PATH, 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(header)
@@ -226,8 +238,11 @@ def generate_initial_data(n_samples=12):
         # Convert objective and parameter values to numpy arrays for logging
         x_numpy = x.cpu().numpy()
         obj_numpy = obj.cpu().detach().numpy()
+        # Denormalize x_numpy and obj_numpy
+        x_denormalized = np.array([denormalize_to_original(x_numpy[i], parameters_info[i][0], parameters_info[i][1]) for i in range(len(x_numpy))])
+        obj_denormalized = np.array([denormalize_to_original(obj_numpy[i], objectives_info[i][0], objectives_info[i][1]) for i in range(len(obj_numpy))])
         # Combine all records and pareto identification
-        all_record = np.concatenate((obj_numpy, x_numpy, ['FALSE'], [i], ['sampling']))
+        all_record = np.concatenate(([USER_ID], [CONDITION_ID], [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())], [i+1], ['sampling'], ['FALSE'], obj_denormalized, x_denormalized))
         # Log the values to the CSV file
         with open(OBSERVATIONS_LOG_PATH, 'a', newline='') as file:
             writer = csv.writer(file, delimiter=';')
@@ -295,7 +310,6 @@ def optimize_qehvi(model, train_obj, sampler):
 # mobo_execute ... this is the main method that handles the sampling and optimization loops
 # -------------------------------------------------------
 def mobo_execute(seed, iterations, initial_samples):
-    
     #-----------------------
     # prepare file logging 
     #-----------------------
@@ -309,29 +323,27 @@ def mobo_execute(seed, iterations, initial_samples):
     #-----------------------
     # init mobo
     #-----------------------
-    torch.manual_seed(seed)
-
-    hv = Hypervolume(ref_point=ref_point)
-    # Hypervolumes
-    hvs_qehvi = []
-
     # Whether the optimizer explore first with initial data (warm-start) or random points in the parameter space...
     if WARM_START:
         train_x_qehvi, train_obj_qehvi = load_data()
     else:
         train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
 
+    torch.manual_seed(seed)
+
+    hv = Hypervolume(ref_point=ref_point)
+    # Hypervolumes
+    hvs_qehvi = []
+
     # Initialize GP models
     mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
 
-    # Compute Pareto front and hypervolume
+    # Compute and save hypervolume for the sampling phase before optimization
     pareto_mask = is_non_dominated(train_obj_qehvi)
     pareto_y = train_obj_qehvi[pareto_mask]
     volume = hv.compute(pareto_y)
     hvs_qehvi.append(volume)
-
-    # log before the optimization starts as iteration 0, i.e., the volumes after the sampling phase
-    save_xy(train_x_qehvi, train_obj_qehvi, hvs_qehvi, 0)
+    save_hypervolume_to_file(hvs_qehvi, 0)
     #-----------------------
 
     #-----------------------
@@ -369,7 +381,8 @@ def mobo_execute(seed, iterations, initial_samples):
         volume = hv.compute(pareto_y)
         hvs_qehvi.append(volume)
 
-        save_xy(train_x_qehvi, train_obj_qehvi, hvs_qehvi, iteration)
+        save_xy(train_x_qehvi, train_obj_qehvi, iteration)
+        save_hypervolume_to_file(hvs_qehvi, iteration)
         # print("mask", pareto_mask)
         # print("pareto y", pareto_y)
         # print("volume", volume)
@@ -396,10 +409,9 @@ def load_object(filename):
     return data
 
 # -------------------------------------------------------
-# Save X and Y samples, hypervolume values to CSV
+# Save X and Y samples to CSV
 # -------------------------------------------------------
-def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
-    
+def save_xy(x_sample, y_sample, iteration):
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
     PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
@@ -412,24 +424,39 @@ def save_xy(x_sample, y_sample, hvs_qehvi, iteration):
     x_sample = x_sample.cpu().numpy()
     y_sample = y_sample.cpu().numpy()
 
+    # Denormalize parameter values for the last row
+    for i in range(len(x_sample[-1])):
+        x_sample[-1][i] = denormalize_to_original(x_sample[-1][i], parameters_info[i][0], parameters_info[i][1])
+
+    # Denormalize objective values for the last row
+    for i in range(len(y_sample[-1])):
+        y_sample[-1][i] = denormalize_to_original(y_sample[-1][i], objectives_info[i][0], objectives_info[i][1])
+
     # Combine all records and pareto identification
     all_record = np.concatenate((y_sample, x_sample), axis=1)
     index_arr = ["TRUE" if i else "FALSE" for i in pareto_mask]
-    all_record = np.concatenate((all_record, np.array([index_arr]).T), axis=1)
-
-    # Combine the objective and parameter names
-    header = np.array(objective_names + parameter_names + ['IsPareto'])
-    header_run = np.append(header, "Run")  # Add the "Run" header
-    header_run = np.append(header, "Phase")  # Add the "Phase" header to track if Sampling or Optimization phase
+    all_record = np.concatenate((np.array([index_arr]).T, all_record), axis=1)
 
     # Save observations per evaluation
     observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
+    header = np.array(['User_ID', 'Condition_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
     with open(observations_csv_file_path, 'a', newline='') as file:
         writer = csv.writer(file, delimiter=';')
         if os.path.getsize(observations_csv_file_path) == 0:
-            writer.writerow(header_run)
-        writer.writerow([*all_record[-1], iteration, 'optimization'])  # Only write the last record
+            writer.writerow(header)
+        writer.writerow([USER_ID, CONDITION_ID, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), iteration, 'optimization', *all_record[-1]])  # Only write the last record
+# -------------------------------------------------------
+# -------------------------------------------------------
 
+# -------------------------------------------------------
+# Save hypervolume values to CSV
+# -------------------------------------------------------
+def save_hypervolume_to_file(hvs_qehvi, iteration):
+    # Define the CSV file path
+    CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    print("Project Path:", PROJECT_PATH)
+    
     # Save hypervolume per evaluation
     hypervolume_value = np.array(hvs_qehvi)
     header_volume = ["Hypervolume", "Run"]

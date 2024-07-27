@@ -201,8 +201,9 @@ namespace BOforUnity.Scripts
             string a = "";
             string b = "";
             string c = "";
+            string d = "";
             
-            b += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
+            a += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
                  $"{_bomanager.nIterations},{_bomanager.mcSamples},{_bomanager.nInitial},{_bomanager.seed}," +
                  $"{_bomanager.parameters.Count},{_bomanager.objectives.Count}_" +
                  $"{_bomanager.warmStart},{_bomanager.initialParametersDataPath},{_bomanager.initialObjectivesDataPath}";
@@ -212,13 +213,13 @@ namespace BOforUnity.Scripts
             {
                 pa.value.optSeqOrder = i;
                 i++;
-                a += pa.value.GetInitInfoStr();
+                b += pa.value.GetInitInfoStr();
                 
                 c += pa.key + ",";
             }
             
-            a = a.Substring(0, a.Length -1);
-            a += "_";
+            b = b.Substring(0, b.Length -1);
+            b += "_";
             i = 0;
            
             c = c.Substring(0, c.Length - 1);
@@ -229,18 +230,20 @@ namespace BOforUnity.Scripts
             {
                 ob.value.optSeqOrder = i;
                 i++;
-                a += ob.value.GetInitInfoStr();
+                b += ob.value.GetInitInfoStr();
                 
                 c += ob.key + ",";
             }
 
             // Delete last / from string a and c
-            a = a.Substring(0, a.Length - 1);
+            b = b.Substring(0, b.Length - 1);
             c = c.Substring(0, c.Length - 1);
+
+            d += $"{_bomanager.userId},{_bomanager.conditionId}";
             
             // Send string: Hyper-parameter info _ Parameter info _ Objectives info
-            Debug.Log("Send Init Info to Python process: " + b + "_" + a + "_" + c);
-            SocketSend(b + "_" + a + "_" + c);
+            Debug.Log("Send Init Info to Python process: " + a + "_" + b + "_" + c + "_" + d);
+            SocketSend(a + "_" + b + "_" + c + "_" + d);
         }
         
         /// <summary>
