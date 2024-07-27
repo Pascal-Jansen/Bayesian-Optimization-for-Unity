@@ -315,7 +315,7 @@ MonoBehaviour:
       upperBound: 5
       smallerIsBetter: 0
   currentIteration: 0
-  maxIterations: 0
+  totalIterations: 0
   perfectRating: 0
   perfectRatingStart: 0
   perfectRatingIteration: 0
@@ -339,6 +339,7 @@ MonoBehaviour:
   welcomePanel: {fileID: 1276450039}
   optimizerStatePanel: {fileID: 1932985613}
   optimizationRunning: 0
+  optimizationFinished: 0
   localPython: 1
   pythonPath: /usr/local/bin/python3
 --- !u!114 &8152307

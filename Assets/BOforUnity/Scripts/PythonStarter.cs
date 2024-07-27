@@ -137,7 +137,7 @@ Debug.Log(Application.streamingAssetsPath);
                 {
                     outputFileWriter.WriteLine(e.Data);
                     outputFileWriter.Flush();
-                    Debug.Log("Python Output: " + e.Data);
+                    Debug.LogWarning("Python Output: " + e.Data);
 
                     if (e.Data.IndexOf("Server starts, waiting for connection...", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
@@ -157,7 +157,7 @@ Debug.Log(Application.streamingAssetsPath);
                     
                 }*/
             };
-            pythonProcess.Exited += (sender, args) => Debug.Log("Python process exited with code: " + pythonProcess.ExitCode);
+            pythonProcess.Exited += (sender, args) => Debug.LogWarning("Python process exited with code: " + pythonProcess.ExitCode);
 
             try
             {
@@ -175,7 +175,7 @@ Debug.Log(Application.streamingAssetsPath);
             }
         }
 
-        private void StopPythonProcess()
+        public void StopPythonProcess()
         {
             if (pythonProcess != null)
             {

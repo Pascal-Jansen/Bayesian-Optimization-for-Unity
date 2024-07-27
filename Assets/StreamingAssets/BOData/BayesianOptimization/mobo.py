@@ -142,13 +142,13 @@ def objective_function(x_tensor):
     received_objective = []
     if data:
         received_objective = list(map(float, data.decode("utf-8").split(',')))
-        print("data", received_objective)
+        #print("data", received_objective)
     if len(data) == 0:
         print("unity end")
     if (len(received_objective) != NUM_OBJS):
         print("recevied objective number not consistent")
 
-    print("received: ", received_objective)
+    print("Received Objective Values: ", received_objective)
 
     def limit_range(f):
         if (f > 1):
@@ -157,7 +157,7 @@ def objective_function(x_tensor):
             f = -1
         return f
 
-    print("Received Objective", len(received_objective))
+    print("Received Number of Objectives", len(received_objective))
 
     fs = []
     # Normalization
@@ -231,7 +231,7 @@ def generate_initial_data(n_samples=12):
     # loop to sample objective values from the users to these training data
     train_obj = []
     for i, x in enumerate(train_x):
-        print(f"initial sample: {i + 1}")
+        print(f"----------------------Initial Sample: {i + 1}")
         obj = objective_function(x)
         train_obj.append(obj)
 
@@ -249,7 +249,7 @@ def generate_initial_data(n_samples=12):
             writer.writerow(all_record)
 
     train_obj_array = np.array([item.cpu().detach().numpy() for item in train_obj], dtype=np.float64)
-    print("Shape der Arrays: ", train_x.shape, torch.tensor(train_obj_array).to(device).shape)
+    #print("Shape der Arrays: ", train_x.shape, torch.tensor(train_obj_array).to(device).shape)
 
     return train_x, torch.tensor(train_obj_array).to(device)
 
@@ -323,17 +323,17 @@ def mobo_execute(seed, iterations, initial_samples):
     #-----------------------
     # init mobo
     #-----------------------
-    # Whether the optimizer explore first with initial data (warm-start) or random points in the parameter space...
-    if WARM_START:
-        train_x_qehvi, train_obj_qehvi = load_data()
-    else:
-        train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
-
     torch.manual_seed(seed)
 
     hv = Hypervolume(ref_point=ref_point)
     # Hypervolumes
     hvs_qehvi = []
+
+    # Whether the optimizer explore first with initial data (warm-start) or random points in the parameter space...
+    if WARM_START:
+        train_x_qehvi, train_obj_qehvi = load_data()
+    else:
+        train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
 
     # Initialize GP models
     mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
@@ -350,7 +350,7 @@ def mobo_execute(seed, iterations, initial_samples):
     # Go through the iterations
     #-----------------------
     for iteration in range(1, iterations + 1):
-        print("Iteration: " + str(iteration))
+        print("----------------------Iteration: " + str(iteration))
         # Startzeitpunkt der Iteration von mobo
         start_time = time.time()
         # Fit Models
@@ -393,6 +393,13 @@ def mobo_execute(seed, iterations, initial_samples):
         mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
     #-----------------------
 
+    #-----------------------
+    # Tell Unity that the optimization has finished
+    #-----------------------
+    print("Send Data: ", 'optimization_finished' )
+    conn.sendall(bytes('optimization_finished', 'utf-8'))
+    #-----------------------
+
     return hvs_qehvi, train_x_qehvi, train_obj_qehvi
 
 
@@ -415,7 +422,7 @@ def save_xy(x_sample, y_sample, iteration):
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
     PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
-    print("Project Path:", PROJECT_PATH)
+    print("Project Path for Observations:", PROJECT_PATH)
 
     # Detect pareto front points
     pareto_mask = is_non_dominated(y_sample)
@@ -455,7 +462,7 @@ def save_hypervolume_to_file(hvs_qehvi, iteration):
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
     PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
-    print("Project Path:", PROJECT_PATH)
+    print("Project Path for Hypervolumes:", PROJECT_PATH)
     
     # Save hypervolume per evaluation
     hypervolume_value = np.array(hvs_qehvi)

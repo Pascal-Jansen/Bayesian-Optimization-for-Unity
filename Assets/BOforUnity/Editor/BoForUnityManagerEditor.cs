@@ -37,6 +37,8 @@ namespace BOforUnity.Editor
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
 
+        private SerializedProperty totalIterationsProp;
+
         private SerializedProperty userIdProp;
         private SerializedProperty conditionIdProp;
         
@@ -78,6 +80,8 @@ namespace BOforUnity.Editor
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
 
+            totalIterationsProp = serializedObject.FindProperty("totalIterations");
+            
             userIdProp = serializedObject.FindProperty("userId");
             conditionIdProp = serializedObject.FindProperty("conditionId");
         }
@@ -173,8 +177,9 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(nIterationsProp);
             EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations).", EditorStyles.helpBox);
             // Calculate and display the sum of nInitial and nIterations
-            var totalIterations = (warmStartProp.boolValue ? 0 : nInitialProp.intValue) + nIterationsProp.intValue;
-            EditorGUILayout.LabelField("Total Iterations", totalIterations.ToString(), EditorStyles.boldLabel);
+            var val = (warmStartProp.boolValue ? 0 : nInitialProp.intValue) + nIterationsProp.intValue;
+            totalIterationsProp.floatValue = val;
+            EditorGUILayout.LabelField("Total Iterations", val.ToString(), EditorStyles.boldLabel);
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(batchSizeProp);
             EditorGUILayout.PropertyField(numRestartsProp);

@@ -1,60 +1,59 @@
 Server starts, waiting for connection...
-Connected by ('127.0.0.1', 50863)
+Connected by ('127.0.0.1', 56985)
 Initialization parameters received and set.
 BATCH_SIZE: 1, NUM_RESTARTS: 10, RAW_SAMPLES: 1024, N_ITERATIONS: 4, MC_SAMPLES: 512, N_INITIAL: 2, SEED: 3, PROBLEM_DIM: 10, NUM_OBJS: 2
 Parameter ['0,1,0', '0,1,0', '0,1,0', '0,1,0', '0,1,1', '0,1,0', '0,1,0', '0,1,0', '0,1,0', '0,1,1']
 Objective ['1,5,0', '1,5,0']
 Objectives info 2
-initial sample: 1
-x [0.29695213 0.79092515 0.7190637  0.39251211 0.58363831 0.15552779
- 0.0159951  0.22017597 0.34342939 0.19404118]
+----------------------Initial Sample: 1
+x [0.14243291 0.36844033 0.70332623 0.20532617 0.63852125 0.52481991
+ 0.68973392 0.07034031 0.38787931 0.34785751]
 Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,0.297,0.791,0.719,0.393,0.584,0.156,0.016,0.22,0.343,0.19
-data [2.0, 2.5]
-received:  [2.0, 2.5]
-Received Objective 2
-initial sample: 2
-x [0.98620325 0.70879281 0.34999532 0.67227048 0.76096433 0.0931553
- 0.29982468 0.62878007 0.47427461 0.97714096]
+Send Data:  parameters,0.142,0.368,0.703,0.205,0.639,0.525,0.69,0.07,0.388,0.34
+Received Objective Values:  [1.666667, 2.0]
+Received Number of Objectives 2
+----------------------Initial Sample: 2
+x [0.89206231 0.21788758 0.23673037 0.41828528 0.23814434 0.49717891
+ 0.41901419 0.59689951 0.72850019 0.36918586]
 Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,0.986,0.709,0.35,0.672,0.761,0.093,0.3,0.629,0.474,0.97
-data [2.666667, 3.0]
-received:  [2.666667, 3.0]
-Received Objective 2
-Shape der Arrays:  torch.Size([2, 10]) torch.Size([2, 2])
-Iteration: 1
-x [1.         0.67081457 0.18033689 0.80086051 0.84257347 0.06473986
- 0.43045178 0.8165828  0.53478197 1.        ]
+Send Data:  parameters,0.892,0.218,0.237,0.418,0.238,0.497,0.419,0.597,0.729,0.36
+Received Objective Values:  [2.666667, 2.5]
+Received Number of Objectives 2
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+----------------------Iteration: 1
+x [1.         0.17087665 0.09103262 0.48482555 0.11312959 0.48855087
+ 0.33449514 0.76131223 0.83485724 0.37585022]
 Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,1.0,0.671,0.18,0.801,0.843,0.065,0.43,0.817,0.535,1.
-data [1.0, 1.5]
-received:  [1.0, 1.5]
-Received Objective 2
-Project Path: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Iteration: 2
-x [1.         0.86604474 0.64756947 0.95713898 0.961068   0.63932086
- 0.81760199 0.97800502 0.83945077 1.        ]
+Send Data:  parameters,1.0,0.171,0.091,0.485,0.113,0.489,0.334,0.761,0.835,0.37
+Received Objective Values:  [2.333333, 2.5]
+Received Number of Objectives 2
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+----------------------Iteration: 2
+x [1.         0.66483044 0.60776843 0.81698877 0.62181414 0.79863599
+ 0.71867059 0.95043457 0.96376826 0.75879929]
 Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,1.0,0.866,0.648,0.957,0.961,0.639,0.818,0.978,0.839,1.
-data [2.0, 2.0]
-received:  [2.0, 2.0]
-Received Objective 2
-Project Path: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Iteration: 3
-x [1.         0.8463886  0.66853919 1.         1.         0.79716439
- 0.95958774 1.         0.91304663 1.        ]
+Send Data:  parameters,1.0,0.665,0.608,0.817,0.622,0.799,0.719,0.95,0.964,0.75
+Received Objective Values:  [1.333333, 2.0]
+Received Number of Objectives 2
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+----------------------Iteration: 3
+x [1.         0.66528652 0.61126201 0.81496687 0.62474039 0.79944416
+ 0.72165666 0.94507971 0.96043154 0.75858765]
 Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,1.0,0.846,0.669,1.0,1.0,0.797,0.96,1.0,0.913,1.
-data [2.666667, 2.5]
-received:  [2.666667, 2.5]
-Received Objective 2
-Project Path: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Iteration: 4
-x [1.         0.80601563 0.82385934 1.         1.         1.
- 1.         1.         1.         1.        ]
+Send Data:  parameters,1.0,0.665,0.611,0.815,0.625,0.799,0.722,0.945,0.96,0.75
+Received Objective Values:  [4.0, 3.5]
+Received Number of Objectives 2
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+----------------------Iteration: 4
+x [1.         0.70790548 0.74330295 0.77779142 0.73997835 0.84381534
+ 0.83340201 0.80184455 0.87214513 0.77691535]
 Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,1.0,0.806,0.824,1.0,1.0,1.0,1.0,1.0,1.0,1.
-data [1.666667, 2.5]
-received:  [1.666667, 2.5]
-Received Objective 2
-Project Path: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+Send Data:  parameters,1.0,0.708,0.743,0.778,0.74,0.844,0.833,0.802,0.872,0.77
+Received Objective Values:  [2.333333, 3.0]
+Received Number of Objectives 2
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
+Send Data:  optimization_finished

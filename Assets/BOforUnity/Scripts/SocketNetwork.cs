@@ -126,6 +126,18 @@ namespace BOforUnity.Scripts
                         }
                     }, floatList);
                 }
+                else if (strArr[0] == "optimization_finished")
+                {
+                    MainThreadDispatcher.Execute(() =>
+                    {
+                        Debug.Log(">>>>>> Optimization finished!");
+                        
+                        _bomanager = gameObject.GetComponent<BoForUnityManager>();
+                        
+                        _bomanager.optimizationFinished = true;
+                        _bomanager.OptimizationDone();
+                    });
+                }
                 else if (strArr[0] == "coverage")
                 {
                     coverage = Convert.ToSingle(strArr[1]);
@@ -314,6 +326,10 @@ namespace BOforUnity.Scripts
             if (_serverSocket != null) { 
                 _serverSocket.Close();
             }
+            
+            //stop the mobo.py
+            _bomanager.pythonStarter.StopPythonProcess();
+            
             Debug.Log("Unity disconnected socket");
         }
     }

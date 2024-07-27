@@ -33,7 +33,7 @@ namespace BOforUnity
         // ITERATION CONTROLLER
         [SerializeField]
         public int currentIteration;  // Current iteration value.
-        public int maxIterations;
+        public int totalIterations;
         public bool perfectRating;   // Flag indicating perfect rating.
         public bool perfectRatingStart;  // Flag indicating the start of perfect rating.
         public int perfectRatingIteration;
@@ -77,7 +77,7 @@ namespace BOforUnity
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
 
             currentIteration = 1;
-            maxIterations = numRestarts + nInitial; // set how many iterations the optimizer should run for
+            totalIterations = nInitial + nIterations; // set how many iterations the optimizer should run for
         }
         
         void Start()
@@ -113,6 +113,7 @@ namespace BOforUnity
         public GameObject optimizerStatePanel;
         
         public bool optimizationRunning = false;
+        public bool optimizationFinished = false;
 
         //Starts a new iteration
         public void ButtonNextIteration()
@@ -130,7 +131,7 @@ namespace BOforUnity
             var isPerfect = IsPerfectRating();
             
             // Check if there should be another iteration of the optimization
-            if (currentIteration < maxIterations && !isPerfect)
+            if (currentIteration <= totalIterations && !isPerfect)
             {
                 // hide the panel as the next iteration starts after scene is reloaded
                 optimizerStatePanel.SetActive(false);
@@ -141,7 +142,7 @@ namespace BOforUnity
                 
                 SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload scene
             }
-            else if (currentIteration >= maxIterations || isPerfect)
+            else if (currentIteration > totalIterations || isPerfect)
             {
                 if (isPerfect)
                 {
