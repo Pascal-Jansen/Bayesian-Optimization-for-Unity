@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -46,6 +47,8 @@ namespace BOforUnity.Editor
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
 
+        private string initDataPath;
+        
         private void OnEnable()
         {
             SerializedProperty parametersProperty = serializedObject.FindProperty("parameters");
@@ -85,6 +88,8 @@ namespace BOforUnity.Editor
             
             userIdProp = serializedObject.FindProperty("userId");
             conditionIdProp = serializedObject.FindProperty("conditionId");
+            
+            initDataPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData", "InitData");
         }
 
         public override void OnInspectorGUI()
@@ -164,8 +169,14 @@ namespace BOforUnity.Editor
             EditorGUILayout.LabelField("Warm Start Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(warmStartProp);
             EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped.", EditorStyles.helpBox);
-            EditorGUILayout.PropertyField(initialParametersDataPathProp);
-            EditorGUILayout.PropertyField(initialObjectivesDataPathProp);
+            if (warmStartProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(initialParametersDataPathProp);
+                EditorGUILayout.LabelField(initDataPath + "/" + initialParametersDataPathProp.stringValue, EditorStyles.label);
+                EditorGUILayout.PropertyField(initialObjectivesDataPathProp);
+                EditorGUILayout.LabelField(initDataPath + "/" + initialObjectivesDataPathProp.stringValue, EditorStyles.label);
+                EditorGUILayout.LabelField("Remember: You only need to provide the file name. No '_' or ',' allowed in the file name.", EditorStyles.helpBox);
+            }
             
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));

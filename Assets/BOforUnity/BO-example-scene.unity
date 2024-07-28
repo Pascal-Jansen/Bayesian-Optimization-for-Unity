@@ -315,7 +315,7 @@ MonoBehaviour:
       upperBound: 5
       smallerIsBetter: 0
   currentIteration: 0
-  totalIterations: 4
+  totalIterations: 6
   perfectRating: 0
   perfectRatingStart: 0
   perfectRatingIteration: 0
@@ -328,7 +328,7 @@ MonoBehaviour:
   mcSamples: 512
   nInitial: 2
   seed: 3
-  warmStart: 1
+  warmStart: 0
   initialParametersDataPath: ExampleInitDataParameters.csv
   initialObjectivesDataPath: ExampleInitDataObjectives.csv
   userId: 1
