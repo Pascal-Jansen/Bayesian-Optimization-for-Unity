@@ -4,17 +4,21 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en)
 
 ### About
 
-Unity asset that enables eased access to a Bayesian Optimization process (based on botorch.py) within any project.
-It can optimize design parameter values to maximize (or minimize) design objective values. 
+This Unity asset integrates Bayesian Optimization (based on [botorch.org](https://botorch.org/)) into your projects, enabling the optimization of design parameters to maximize or minimize objective values. It utilizes a **Human-in-the-Loop** approach, iteratively querying user feedback on designs to refine parameter values.
 
-The asset uses a **Human-in-the-Loop** approach that iteratively queries user feedback (i.e., objective values) to designs (i.e., parameter values).
-
-The hyperparameters for the optimization can be freely set in Unity.
-The communication between Unity and the Python process running the botorch-based implementation is handled automatically.
+Key features include:
+- Set optimization hyperparameters directly in Unity.
+- Automatic communication between Unity and the Python process running the botorch-based implementation.
 
 ### Usage
 
-- The *explicit* Human-in-the-Loop process currently requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to receive explicit subjective feedback by users (e.g., measuring the usability of a design using the System Usability Scale).
-This feedback is used as design objective value in the optimization process.
+#### Human-in-the-Loop Process
 
-- There is currently no *implicit* variant of this asset that can, for example, process the user's physiology as input for the design target values.
+To utilize the Human-in-the-Loop optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for collecting explicit subjective feedback from users. This feedback serves as the design objective value in the optimization process. 
+
+Example use case:
+- Measure the usability of a design using the System Usability Scale (SUS) and use this data for optimization.
+
+#### Limitations
+
+Currently, there is no *implicit* feedback variant of this asset. It cannot, for example, process physiological data from users as input for design objective values.
