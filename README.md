@@ -22,3 +22,16 @@ Example use case:
 #### Limitations
 
 Currently, there is no *implicit* feedback variant of this asset. It cannot, for example, process physiological data from users as input for design objective values.
+
+
+### Installation
+
+
+### Prerequisites
+This package requires Python. We recommend using the latest 3.11 version (3.12 should also work).
+
+#### Install using pip
+After downloading, install requirements (could also work with older versions but kept up-to-date for performance reasons):
+```
+pip install -r requirements.txt
+```
