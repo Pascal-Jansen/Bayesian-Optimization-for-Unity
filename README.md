@@ -25,13 +25,5 @@ Currently, there is no *implicit* feedback variant of this asset. It cannot, for
 
 
 ### Installation
-
-
-### Prerequisites
-This package requires Python. We recommend using the latest 3.11 version (3.12 should also work).
-
-#### Install using pip
-After downloading, install requirements (could also work with older versions but kept up-to-date for performance reasons):
-```
-pip install -r requirements.txt
-```
+Launch the installation_python.bat (or the install_python.sh for MacOS) to install Python and the library requirements.
+These files are located in *Assets/StreamingAssets/BOData/Installation*
