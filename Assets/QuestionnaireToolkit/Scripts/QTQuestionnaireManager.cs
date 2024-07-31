@@ -1254,28 +1254,10 @@ namespace QuestionnaireToolkit.Scripts
                 {
                     foreach (var question in page.GetComponent<QTQuestionPageManager>().questionItems)
                     {
-                        if (question.CompareTag("QTText") || question.CompareTag("QTImage") || question.CompareTag("QTButton") || question.CompareTag("QTVideo")) continue;
-
-                        if (question.CompareTag("QTCheckboxesGrid") || question.CompareTag("QTMultipleChoiceGrid"))
+                        var headerName = GetHeaderName(question);
+                        if (headerName != "NULL")
                         {
-                            var grid = question.transform.GetChild(1);
-                            for (var i = 0; i < grid.childCount; i++)
-                            {
-                                if (grid.GetChild(i).CompareTag("QTGridRowHeader"))
-                                {
-                                    resultsHeaderItems.Add(TryHeaderName("[" + grid.GetChild(i).GetChild(0).GetComponent<TextMeshProUGUI>().text + "]"));
-                                }
-                            }
-                        }
-                        else
-                        {
-                            var headerItem = "";
-                            var nameComponents = question.name.Split('_');
-                            for (var i = 1; i < nameComponents.Length; i++)
-                            {
-                                headerItem += nameComponents[i] + "_";
-                            }
-                            resultsHeaderItems.Add(TryHeaderName(headerItem.TrimEnd('_')));
+                            resultsHeaderItems.Add(headerName);
                         }
                     }
                 }
@@ -1286,6 +1268,35 @@ namespace QuestionnaireToolkit.Scripts
             }
         }
 
+        private string GetHeaderName(GameObject question)
+        {
+            if (question.CompareTag("QTText") || question.CompareTag("QTImage") || question.CompareTag("QTButton") || question.CompareTag("QTVideo")) return "NULL";
+
+            if (question.CompareTag("QTCheckboxesGrid") || question.CompareTag("QTMultipleChoiceGrid"))
+            {
+                var grid = question.transform.GetChild(1);
+                for (var i = 0; i < grid.childCount; i++)
+                {
+                    if (grid.GetChild(i).CompareTag("QTGridRowHeader"))
+                    {
+                        return TryHeaderName("[" + grid.GetChild(i).GetChild(0).GetComponent<TextMeshProUGUI>().text + "]");
+                    }
+                }
+            }
+            else
+            {
+                var headerItem = "";
+                var nameComponents = question.name.Split('_');
+                for (var i = 1; i < nameComponents.Length; i++)
+                {
+                    headerItem += nameComponents[i] + "_";
+                }
+                return TryHeaderName(headerItem.TrimEnd('_'));
+            }
+
+            return "NULL";
+        }
+        
         /// <summary>
         /// Writes the results of the current questionnaire run in the specified results file.
         /// </summary>
@@ -1320,7 +1331,6 @@ namespace QuestionnaireToolkit.Scripts
             {
                 boManager = true;
             }
-            var boCounter = 0; // count which item we are currently looking at to find the header name
             //-----------
             
             var currVal = ""; // this is the value that is assigned to each question item value in the following
@@ -1425,8 +1435,9 @@ namespace QuestionnaireToolkit.Scripts
                     
                     // add the current question item value as objective function value
                     // addObjectiveValue("Trust", 3f);
-                    if (boManager) { boForUnity.optimizer.AddObjectiveValue(resultsHeaderItems[boCounter], float.Parse(currVal)); }
-                    boCounter++;
+                    var hName = GetHeaderName(question);
+                    if (hName == "AttentionCheck" || hName == "NULL") continue;
+                    if (boManager) { boForUnity.optimizer.AddObjectiveValue(hName, float.Parse(currVal)); }
                 }
             }
 
@@ -1438,8 +1449,8 @@ namespace QuestionnaireToolkit.Scripts
                     line += "\"" + currVal + "\",";
                     
                     // also add the additional csv item values defined in the inspector of the QTQuestionnaireManager
-                    if (boManager) { boForUnity.optimizer.AddObjectiveValue(resultsHeaderItems[boCounter], float.Parse(currVal)); }
-                    boCounter++;
+                    if (aci.headerName == "AttentionCheck" || aci.headerName == "NULL") continue;
+                    if (boManager) { boForUnity.optimizer.AddObjectiveValue(aci.headerName, float.Parse(currVal)); }
                 }
                 else
                 {

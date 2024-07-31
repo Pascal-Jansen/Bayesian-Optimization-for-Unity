@@ -1,5 +1,6 @@
 using QuestionnaireToolkit.Scripts;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace BOforUnity.Examples
 {
@@ -77,6 +78,11 @@ namespace BOforUnity.Examples
         {
             GameObject.FindWithTag("QTQuestionnaireManager").GetComponent<QTQuestionnaireManager>()
                 .StartQuestionnaire();
+        }
+        
+        public void NextScene()
+        {
+            SceneManager.LoadSceneAsync("QuestionnaireScene");
         }
     }
 }

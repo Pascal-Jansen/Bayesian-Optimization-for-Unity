@@ -21,6 +21,11 @@ namespace BOforUnity
         public MainThreadDispatcher mainThreadDispatcher;
         public SocketNetwork socketNetwork;
 
+        public SceneAsset optimizerScene;
+        public SceneAsset simulationScene;
+        public SceneAsset questionnaireScene;
+        public SceneAsset finalScene;
+        
         private static BoForUnityManager _instance;
         
         //-----------------------------------------------
@@ -76,7 +81,7 @@ namespace BOforUnity
             mainThreadDispatcher = gameObject.GetComponent<MainThreadDispatcher>();
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
 
-            currentIteration = 1;
+            currentIteration = 1; // starting to count at 1
             totalIterations = nInitial + nIterations; // set how many iterations the optimizer should run for
         }
         
@@ -96,8 +101,8 @@ namespace BOforUnity
         {
             if (_waitingForPythonProcess && pythonStarter.isPythonProcessRunning && pythonStarter.isSystemStarted)
             {
+                SwitchLoading(false, true);
                 _waitingForPythonProcess = false;
-                PythonInitializationDone();
             }
         }
         //-----------------------------------------------
@@ -110,7 +115,6 @@ namespace BOforUnity
         public GameObject nextButton;
 
         public GameObject welcomePanel;
-        public GameObject optimizerStatePanel;
         
         public bool optimizationRunning = false;
         public bool optimizationFinished = false;
@@ -118,14 +122,20 @@ namespace BOforUnity
         //Starts a new iteration
         public void ButtonNextIteration()
         {
-            loadingObj.SetActive(true); // show loading
-            nextButton.SetActive(false); // hide next button
+            SwitchLoading(true, false);
 
-            if (currentIteration == 0)
+            switch (_waitingForPythonProcess)
             {
-                welcomePanel.SetActive(false);
-                optimizerStatePanel.SetActive(false);
-                return;
+                // Do nothing if Python process did not yet started
+                case true:
+                    return;
+                // Check if the button should trigger the initialization
+                case false when !initialized:
+                    // initialize the Socket to receive the first parameter values
+                    PythonInitializationDone();
+                    // load the optimizing scene after the button in the welcome scene was pressed
+                    SceneManager.LoadSceneAsync(optimizerScene.name);
+                    return;
             }
 
             var isPerfect = IsPerfectRating();
@@ -133,14 +143,11 @@ namespace BOforUnity
             // Check if there should be another iteration of the optimization
             if (currentIteration <= totalIterations && !isPerfect)
             {
-                // hide the panel as the next iteration starts after scene is reloaded
-                optimizerStatePanel.SetActive(false);
-                
                 Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
 
                 simulationRunning = true; // waiting for the simulation to finish
                 
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload scene
+                SceneManager.LoadSceneAsync(simulationScene.name); // reload scene
             }
             else if (currentIteration > totalIterations || isPerfect)
             {
@@ -155,11 +162,11 @@ namespace BOforUnity
                 simulationRunning = false; // the simulation must be finished
                 
                 socketNetwork.SocketQuit();
-                // load a final scene or...
-                // show the End Message
-                outputText.text = "The simulation has finished!\nYou can now close the application.";
-                loadingObj.SetActive(false);
-                nextButton.SetActive(false);
+
+                SceneManager.LoadSceneAsync(finalScene.name);
+                
+                SetInfoText("The simulation has finished!\nYou can now close the application.");
+                SwitchLoading(false, false);
             }
         }
         
@@ -170,21 +177,20 @@ namespace BOforUnity
             optimizationRunning = true;
             simulationRunning = false;
 
-            optimizerStatePanel.SetActive(true); // show that the optimizer is running
-            loadingObj.SetActive(true);
-            nextButton.SetActive(false);
-            outputText.text = "The system is loading, please wait ...";
+            SwitchLoading(true, false);
+            SetInfoText("The system is loading, please wait ...");
+
+            SceneManager.LoadSceneAsync(optimizerScene.name); // change scene to the loading scene
         }
         
         public void OptimizationDone()
         {
             Debug.Log("Optimization DONE");
-            optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
+            //optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
             optimizationRunning = false;
             
-            loadingObj.SetActive(false); // hide as the optimizer has finished running
-            nextButton.SetActive(true);
-            outputText.text = "The system has finished loading.\nYou can now proceed.";
+            SwitchLoading(false, true);
+            SetInfoText("The system has finished loading.\nYou can now proceed.");
             
             currentIteration++; // increase iteration counter
         }
@@ -192,13 +198,12 @@ namespace BOforUnity
         public void InitializationDone()
         {
             Debug.Log("Initialization DONE");
-            optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
+            //optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
             optimizationRunning = false;
             
             initialized = true;
-            loadingObj.SetActive(false); // hide loading circle
-            nextButton.SetActive(true); // show next button
-            outputText.text = "The system has been started successfully!\nYou can now start the study.";
+            SwitchLoading(false, true);
+            SetInfoText("The system has been started successfully!\nYou can now start the study.");
         }
         
         private void PythonInitializationDone()
@@ -207,6 +212,7 @@ namespace BOforUnity
             // Initialize the optimizer and socket connection ... only for Debug
             // optimizer.DebugOptimizer();
             // Start Optimization to receive the initialized parameter values for the first iteration
+            userId = welcomePanel.transform.GetChild(0).GetChild(3).GetChild(1).GetComponent<TMP_InputField>().text;
             socketNetwork.InitSocket();
         }
         
@@ -247,6 +253,31 @@ namespace BOforUnity
                     break;
             }
             return false;
+        }
+        
+        private void SetInfoText(string infoText)
+        {
+            try
+            {
+                outputText.text = infoText;
+            }
+            catch (Exception e)
+            {
+                // ignored
+            }
+        }
+        
+        private void SwitchLoading(bool loadingActive, bool buttonActive)
+        {
+            try
+            {
+                loadingObj.SetActive(loadingActive);
+                nextButton.SetActive(buttonActive);
+            }
+            catch (Exception e)
+            {
+                // ignored
+            }
         }
         
         public void EndApplication()

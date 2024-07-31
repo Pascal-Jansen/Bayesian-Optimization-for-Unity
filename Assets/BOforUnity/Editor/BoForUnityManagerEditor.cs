@@ -26,7 +26,7 @@ namespace BOforUnity.Editor
         private SerializedProperty nextButtonProp;
         //private SerializedProperty endSimProp;
         private SerializedProperty welcomePanelProp;
-        private SerializedProperty optimizerStatePanelProp;
+        //private SerializedProperty optimizerStatePanelProp;
         
         private SerializedProperty batchSizeProp;
         private SerializedProperty numRestartsProp;
@@ -46,6 +46,11 @@ namespace BOforUnity.Editor
         
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
+
+        private SerializedProperty optScene;
+        private SerializedProperty simScene;
+        private SerializedProperty questScene;
+        private SerializedProperty finScene;
 
         private string initDataPath;
         
@@ -70,7 +75,7 @@ namespace BOforUnity.Editor
             loadingObjProp = serializedObject.FindProperty("loadingObj");
             nextButtonProp = serializedObject.FindProperty("nextButton");
             welcomePanelProp = serializedObject.FindProperty("welcomePanel");
-            optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
+            //optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
             //endSimProp = serializedObject.FindProperty("endOfSimulation");
             
             batchSizeProp = serializedObject.FindProperty("batchSize");
@@ -88,6 +93,11 @@ namespace BOforUnity.Editor
             
             userIdProp = serializedObject.FindProperty("userId");
             conditionIdProp = serializedObject.FindProperty("conditionId");
+
+            optScene = serializedObject.FindProperty("optimizerScene");
+            simScene = serializedObject.FindProperty("simulationScene");
+            questScene = serializedObject.FindProperty("questionnaireScene");
+            finScene = serializedObject.FindProperty("finalScene");
             
             initDataPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData", "InitData");
         }
@@ -202,12 +212,20 @@ namespace BOforUnity.Editor
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
 
+            EditorGUILayout.LabelField("Scene References", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(optScene);
+            EditorGUILayout.PropertyField(simScene);
+            EditorGUILayout.PropertyField(questScene);
+            EditorGUILayout.PropertyField(finScene);
+            
+            EditorGUILayout.Space();
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+            
             EditorGUILayout.LabelField("GameObject References", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(outputTextProp);
             EditorGUILayout.PropertyField(loadingObjProp);
             EditorGUILayout.PropertyField(nextButtonProp);
             EditorGUILayout.PropertyField(welcomePanelProp);
-            EditorGUILayout.PropertyField(optimizerStatePanelProp);
         }
         /*
         private void DrawServerClientConnectionSettings(BoForUnityManager script)

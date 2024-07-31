@@ -4,5 +4,20 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/BOforUnity/Scenes/StartScene.unity
+    guid: c86d11300043f478bab599486111339a
+  - enabled: 1
+    path: Assets/BOforUnity/Scenes/OptimizingScene.unity
+    guid: 28cbc716242414ef580d42f259179e17
+  - enabled: 1
+    path: Assets/BOforUnity/Examples/SimulatorSceneExample.unity
+    guid: 03c45f6adf91e4af4b19aaf8562fc873
+  - enabled: 1
+    path: Assets/BOforUnity/Scenes/QuestionnaireScene.unity
+    guid: 32b87705161e96b47b98a277e6e2aa11
+  - enabled: 1
+    path: Assets/BOforUnity/Scenes/FinalScene.unity
+    guid: 89bf61586f8b64dc29a4abbf4156da48
   m_configObjects: {}

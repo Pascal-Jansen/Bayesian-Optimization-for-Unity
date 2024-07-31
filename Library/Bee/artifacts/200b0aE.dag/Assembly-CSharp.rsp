@@ -338,6 +338,8 @@
 "Assets/BOforUnity/BoForUnityManager.cs"
 "Assets/BOforUnity/Examples/ObjectVariableExposer.cs"
 "Assets/BOforUnity/Scripts/AnimatedImage.cs"
+"Assets/BOforUnity/Scripts/ButtonController.cs"
+"Assets/BOforUnity/Scripts/CursorManager.cs"
 "Assets/BOforUnity/Scripts/MainThreadDispatcher.cs"
 "Assets/BOforUnity/Scripts/Optimizer.cs"
 "Assets/BOforUnity/Scripts/PythonStarter.cs"
