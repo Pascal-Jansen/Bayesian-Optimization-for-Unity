@@ -27,6 +27,9 @@ namespace BOforUnity.Editor
         //private SerializedProperty endSimProp;
         private SerializedProperty welcomePanelProp;
         //private SerializedProperty optimizerStatePanelProp;
+
+        private SerializedProperty localPythonBoolProp;
+        private SerializedProperty localPythonPathProp;
         
         private SerializedProperty batchSizeProp;
         private SerializedProperty numRestartsProp;
@@ -77,6 +80,9 @@ namespace BOforUnity.Editor
             welcomePanelProp = serializedObject.FindProperty("welcomePanel");
             //optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
             //endSimProp = serializedObject.FindProperty("endOfSimulation");
+
+            localPythonBoolProp = serializedObject.FindProperty("localPython");
+            localPythonPathProp = serializedObject.FindProperty("pythonPath");
             
             batchSizeProp = serializedObject.FindProperty("batchSize");
             numRestartsProp = serializedObject.FindProperty("numRestarts");
@@ -121,12 +127,7 @@ namespace BOforUnity.Editor
             {
                 BackupServerClientCommunicationValues(script);
             }*/
-
-            if (script.getLocalPython())
-            {
-                originalPythonPath = script.getPythonPath();
-            }
-
+            
             DrawSettingsConfiguration(script);
 
             serializedObject.ApplyModifiedProperties();
@@ -141,14 +142,13 @@ namespace BOforUnity.Editor
             //DrawServerClientConnectionSettings(script);
 
             //EditorGUILayout.LabelField("Location of Python Executable", EditorStyles.boldLabel);
-            GUIContent manuallyInstalledPythonLabel = new GUIContent("Manually Installed Python", "Python was manually installed and not through the project's installation program");
-            script.setLocalPython(EditorGUILayout.Toggle(manuallyInstalledPythonLabel, script.getLocalPython()));
+            var guiContent = new GUIContent("Manually Installed Python", "Python was manually installed and not through the project's installation program");
+            EditorGUILayout.PropertyField(localPythonBoolProp);
             EditorGUILayout.Space();
-
-            if (script.getLocalPython())
+            if (script.localPython)
             {
                 // Show the Python path input field only if Python is locally installed
-                script.setPythonPath(EditorGUILayout.TextField("Path of Python Executable:", originalPythonPath));
+                EditorGUILayout.PropertyField(localPythonPathProp);
                 EditorGUILayout.LabelField("Attention! There are differences between macOS and Windows path. Please ensure you provide the correct path for your operating system.", EditorStyles.helpBox);
             }
             
@@ -301,11 +301,6 @@ namespace BOforUnity.Editor
                 script.setLockFileUrl("https://barakuda.de/longitudinal_uploads/S_Lock_file.lock");
             }
             */
-
-            if (string.IsNullOrEmpty(script.getPythonPath()))
-            {
-                script.setPythonPath("/usr/local/bin/python3");
-            }
         }
 
 private void DrawParameterListItems(Rect rect, int index, bool isActive, bool isFocused)

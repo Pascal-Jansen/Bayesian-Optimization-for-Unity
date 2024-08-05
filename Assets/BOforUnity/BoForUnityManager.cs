@@ -332,13 +332,8 @@ namespace BOforUnity
         public string getLockFileName() { return lockFileName; }
         public void setLockFileName(string a) { lockFileName = a; }
         */
-        public bool getLocalPython() { return localPython; }
-        public void setLocalPython(bool a) { localPython = a; }
-        
-        public string getPythonPath() { return pythonPath; }
-        public void setPythonPath(string newPath) { pythonPath = newPath; }
-        
-        //-----------------------------------------------
+
+       //-----------------------------------------------
     }
     
             // ------------------

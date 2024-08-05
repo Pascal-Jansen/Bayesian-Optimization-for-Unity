@@ -43,14 +43,7 @@ namespace BOforUnity.Scripts
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
             
-            if(_bomanager.getLocalPython() == true)
-            {
-                pythonExecutable = _bomanager.getPythonPath();
-            }
-            else
-            {
-                pythonExecutable = GetPythonExecutablePath();
-            }
+            pythonExecutable = _bomanager.localPython ? _bomanager.pythonPath : GetPythonExecutablePath();
 
             Debug.Log("Python Executable Path: " + pythonExecutable);
             Debug.Log("Python Executable Exists: " + File.Exists(GetPythonExecutablePath()));
