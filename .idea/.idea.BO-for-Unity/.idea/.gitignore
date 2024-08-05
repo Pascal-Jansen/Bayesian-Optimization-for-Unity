@@ -1,0 +1,13 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Rider ignored files
+/modules.xml
+/projectSettingsUpdater.xml
+/.idea.BO-for-Unity.iml
+/contentModel.xml
+# Datasource local storage ignored files
+/../../../../../../../../:\Users\SunyyPC\Desktop\BO-for-Unity\.idea\.idea.BO-for-Unity\.idea/dataSources/
+/dataSources.local.xml
+# Editor-based HTTP Client requests
+/httpRequests/

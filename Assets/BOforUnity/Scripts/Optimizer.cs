@@ -258,33 +258,41 @@ namespace BOforUnity.Scripts
             return value;
         }
 
-
-        // Update design parameters based on the current optimization values.
-        // Retrieve parameter values from the optimizer and set them in related components.
-        // Control various design features based on parameter values.
-        public void UpdateDesignParameters()
+        public void UpdateDesignParameters(GameObject caller = null) // the gameObjects call this method to update their parameters
         {
-            Debug.Log("Updating Parameters");
+            //Debug.Log("Updating Parameters");
 
             foreach (var pa in _bomanager.parameters)
             {
                 if (pa.value.gameObjectName != null && pa.value.scriptName != null && !string.IsNullOrEmpty(pa.value.variableName))
                 {
-                    // Find the GameObject by its name
-                    GameObject obj = GameObject.Find(pa.value.gameObjectName);
-                    if (obj == null)
+                    MonoBehaviour script;
+                    
+                    if (caller != null)
                     {
-                        Debug.LogWarning("GameObject not found: " + pa.value.gameObjectName);
-                        continue;
+                        // Get all MonoBehaviour components on the GameObject
+                        MonoBehaviour[] scripts = caller.GetComponents<MonoBehaviour>();
+                        // Find the script by its name
+                        script = scripts.FirstOrDefault(behaviour => behaviour.GetType().Name == pa.value.scriptName);
                     }
-                    // Get all MonoBehaviour components on the GameObject
-                    MonoBehaviour[] scripts = obj.GetComponents<MonoBehaviour>();
-                    // Find the script by its name
-                    MonoBehaviour script = scripts.FirstOrDefault(script => script.GetType().Name == pa.value.scriptName);
+                    else
+                    {
+                        // Find the GameObject by its name
+                        GameObject obj = GameObject.Find(pa.value.gameObjectName);
+                        if (obj == null)
+                        {
+                            Debug.LogWarning("GameObject not found: " + pa.value.gameObjectName);
+                            continue;
+                        }
+                        // Get all MonoBehaviour components on the GameObject
+                        MonoBehaviour[] scripts = obj.GetComponents<MonoBehaviour>();
+                        // Find the script by its name
+                        script = scripts.FirstOrDefault(behaviour => behaviour.GetType().Name == pa.value.scriptName);
+                    }
 
                     // Apply discrete logic if applicable
                     float value = pa.value.Value;
-
+                    
                     if (pa.value.isDiscrete)
                     {
                         int steps = Mathf.RoundToInt((pa.value.upperBound - pa.value.lowerBound) / pa.value.step);
@@ -306,25 +314,8 @@ namespace BOforUnity.Scripts
                     }
                 }
             }
-            
-            /*
-            float trajectoryValue = GetParameterValue("Trajectory");
-            float trajectoryAlphaValue = GetParameterValue("TrajectoryAlpha");
-            float trajectorySizeValue = GetParameterValue("TrajectorySize");
-            
-            trajectoryParameter.setTrajectoryAlpha(trajectoryAlphaValue);
-            trajectoryParameter.setTrajectorySize(trajectorySizeValue);
-            
-            if (trajectoryValue < 0.5f)
-            {
-                trajectoryParameter.setTrajectory(false);
-            }
-            else if (trajectoryValue >= 0.5f)
-            {
-                trajectoryParameter.setTrajectory(true);
-            }
-            */
         }
+
         
         private void SetFieldOrProperty(MonoBehaviour script, string variableName, float value)
         {
