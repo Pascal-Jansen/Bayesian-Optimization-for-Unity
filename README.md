@@ -134,8 +134,6 @@ Here you can set the path to Python manually. To do so you have to get the local
 After that you can tick the box in the *Python Settings* section in the *BOforUnityManager* and paste the copied path in the upcoming text field. You do not need to strip anything of the path.
 If you downloaded python via the installation script, you can simply uncheck the box.
 
-TODO: Wie man die settings safet
-
 #### Study Settings
 Here you can fill in the ID of the user as well as the ID of the current condition you are running th eexperiment on. This ensures sortable results.
 
