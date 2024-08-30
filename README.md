@@ -47,18 +47,46 @@ In this chapter this Asset is explained by going through the Demo experiment ste
 5. Answer the questions accordingly and press `Finish` if you are done. Now the optimizer will save these inputs and change the simulation parameters.
 6. Press next to start a new iteration. Now the process will start from step `3.` again until the set number of iterations is reached. Then the system tells you, that you can close the application now.
 
-+ **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
+* **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
 
 ### Configuration
-All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BOforUnityManager* Prefab Asset. In this Asset, all the possible configurations can be made. The different possibilities are explained from top to bottom below.
+All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly. In this Object, all the possible configurations can be made. The different possibilities are explained from top to bottom below.
 
 #### Parameters
 The parameters get optimized by the optimizer. In this configuration section you can create, change or remove such parameters.
 
 ##### Create parameter
-TODO
+Click on the `+`-symbol at the bottom of the parameter collection. A new prefilled parameter appeares which has to be edited accordingly. How it can be edited is explained [here](#change-parameter).
+
+* **Note:** Make sure, the added parameter is used i your simulation.
+
 ##### Change parameter
+Settable options are explained from top to bottom.
+
+###### Value
+Here the value, that the optimizer gave the parameter after optimization, can be seen.
+
+###### Lower/Upper Bound
+Caps the values of the objective to a range.
+
+###### Is Discrete
+If this box is checked, a the optimizer generates discrete values for this parameter.
+
+###### Step
+Only important, if the parameter is discrete. This sets the step size of the value (for example 1 means, that every number is valid, 2 means just every even number is valid, 3 very third number and so on).
+
+###### Script Reference
 TODO
+
+###### Variable Name 
+TODO
+
+###### Game Object Name
+If there are more game objects that are optimized, the game object that the parameter refers to can be set here.
+
+###### Script Name
+TODO
+
 ##### Remove parameter
 Select the parameter you want to delete, by clicking on the `=`-symbol at the top left corner of the parameter. Make sure it is higlighted blue as shown in the image. Then click on the `-`-symbol at the bottom of the parameter-collection.
 
@@ -68,21 +96,45 @@ Select the parameter you want to delete, by clicking on the `=`-symbol at the to
 The objectives are the inputs that the optimizer receives. In this configuration section you can create, change or remove such objectives.
 
 ##### Create objective
-TODO
+Click on the `+`-symbol at the bottom of the objective collection. A new prefilled objective appeares which has to be edited accordingly. How it can be edited is explained [here](#change-objective).
+
+* **Note:** An objective needs to receive a value before the optimization step to make it work. In this demo this can be achieved, by creating a new question in the questionnaire or by changing one question for a different objective to the new objective. How you do this, is explained below.
+
+###### Create question
+In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1*. Then on the right you can see *Question Item Creation*. Choose the inputs as needed (the *Header Name* needs tobe the same as the according objective name). After that click on *Create Item* and the question gets added. Now you can edit the question by following the next paragraph.
+
+###### Change existing question
+In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/* and select the question, you want to change. To make the question count for the new objective the *Header Name* of the question needs to be the same as th eobjective name.
+
 ##### Change objective
-TODO
+Settable options are explained from top to bottom.
+
+###### Number of Sub
+This setting says, how many values exist for this object (in this case how many questions). The number has to be at least 1.
+
+###### Values
+Here the values can be seen, after the questionnaire is complete.
+
+###### Lower/Upper Bound
+Caps the values of the objective to a range.
+
+###### Smaller is Better
+If this box is checked, a small value is better than a high one (default: Higher is better).
+
 ##### Remove objective
-Select the objective you want to delete, by clicking on the `=`-symbol at the top left corner of the objective. Make sure it is higlighted blue as shown in the image. Then click on the `-`-symbol at the bottom of the parameter-collection.
+Select the objective you want to delete, by clicking on the `=`-symbol at the top left corner of the objective. Make sure it is higlighted blue as shown in the image. Then click on the `-`-symbol at the bottom of the objective-collection.
 
 ![Remove objective](./images/remove_objective.png)
 
 #### Python Settings
 Here you can set the path to Python manually. To do so you have to get the local path of Python 3.11.3 .
-* for Windows you can go into a cmd terminal and type *where python*. This will list all installed Python versions. Now you can copy the path of the correct version.
+* for Windows you can go into a cmd terminal and type `where python`. This will list all installed Python versions. Now you can copy the path of the correct version.
 * for Linux you can go into the terminal and type `whereis python3.11` or `which python3.11`. Now you can copy the path.
 
 After that you can tick the box in the *Python Settings* section in the *BOforUnityManager* and paste the copied path in the upcoming text field. You do not need to strip anything of the path.
 If you downloaded python via the installation script, you can simply uncheck the box.
+
+TODO: Wie man die settings safet
 
 #### Study Settings
 Here you can fill in the ID of the user as well as the ID of the current condition you are running th eexperiment on. This ensures sortable results.
