@@ -29,7 +29,7 @@ SEED = 3  # Seed to initialize the initial samples obtained
 PROBLEM_DIM = 16 #dimension of the parameters x
 NUM_OBJS = 2 #dimension of the objectives y
 
-WARM_START = False #true if there is initial data (accsible from the following paths) that should be used before optimization restarts
+WARM_START = False #true if there is initial data (accessible from the following paths) that should be used before optimization restarts
 CSV_PATH_PARAMETERS = ""
 CSV_PATH_OBJECTIVES = ""
 
@@ -448,11 +448,17 @@ def save_xy(x_sample, y_sample, iteration):
     # Save observations per evaluation
     observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     header = np.array(['User_ID', 'Condition_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
-    with open(observations_csv_file_path, 'a', newline='') as file:
+    
+    # Prepare all records for writing
+    records_to_write = [[USER_ID, CONDITION_ID, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), iteration, 'optimization', *record] for record in all_record]
+    
+    # Open the file in write mode to override the existing content
+    with open(observations_csv_file_path, 'w', newline='') as file:
         writer = csv.writer(file, delimiter=';')
-        if os.path.getsize(observations_csv_file_path) == 0:
-            writer.writerow(header)
-        writer.writerow([USER_ID, CONDITION_ID, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), iteration, 'optimization', *all_record[-1]])  # Only write the last record
+        # Write the header
+        writer.writerow(header)
+        # Write all records
+        writer.writerows(records_to_write)
 # -------------------------------------------------------
 # -------------------------------------------------------
 
@@ -483,7 +489,7 @@ hvs_qehvi, train_x_qehvi, train_obj_qehvi = mobo_execute(SEED, N_ITERATIONS, N_I
 
 
 ### The following code can be used to generate plots for the Pareto Front and Hypervolume (however, only supports two objectives)
-    # Detect pareto front points
+    # Detect Pareto front points
     #pareto_mask = is_non_dominated(y_sample)
     #pareto_obj = y_sample[pareto_mask]
 
