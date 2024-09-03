@@ -30,7 +30,7 @@ Currently there are two example versions of the bayesian optimization for unity 
 In this version, the example is based on one unity-scene, meaning there is no real change of scenes. The interface gets replaced by the next one in the same unity-scene instead.
 
 #### Multi-Scene-Branch
-In this version, the example is based on multiple unity-scenes. This means, everytime you see a new interface, unity switched to another scene.
+In this version, the example is based on multiple unity-scenes. This means, everytime you see a new interface, unity switched to another scene. To make this work, there is a loading scene during the optimization process and the *BOforUnityManager* is marked as *DontDestroyOnLoad*.
 
 ### Installation
 This is a step-by-step explanation how you get this asset running on your system.
