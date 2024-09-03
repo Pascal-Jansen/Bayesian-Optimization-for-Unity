@@ -169,7 +169,7 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(userIdProp);
             EditorGUILayout.PropertyField(conditionIdProp);
             EditorGUILayout.PropertyField(groupIdProp);
-            EditorGUILayout.LabelField("Default values for userID, conditionID and groupId is -1.", EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Default values for userID, conditionID and groupID is -1.", EditorStyles.helpBox);
             
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
