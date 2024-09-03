@@ -23,6 +23,14 @@ Example use case:
 
 Currently, there is no *implicit* feedback variant of this asset. It cannot, for example, process physiological data from users as input for design objective values.
 
+### Versions
+Currently there are two example versions of the bayesian optimization for unity project. They are separated in branches.
+
+#### Main-Branch
+In this version, the example is based on one unity-scene, meaning there is no real change of scenes. The interface gets replaced by the next one in the same unity-scene instead.
+
+#### Multi-Scene-Branch
+In this version, the example is based on multiple unity-scenes. This means, everytime you see a new interface, unity switched to another scene.
 
 ### Installation
 This is a step-by-step explanation how you get this asset running on your system.
@@ -58,7 +66,8 @@ The parameters get optimized by the optimizer. In this configuration section you
 ##### Create parameter
 Click on the `+`-symbol at the bottom of the parameter collection. A new prefilled parameter appeares which has to be edited accordingly. How it can be edited is explained [here](#change-parameter).
 
-* **Note:** Make sure, the added parameter is used i your simulation.
+* **Note:** Make sure, the added parameter is used in your simulation.
+* **Note:** It is recommended, to store the previous *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* and delete it in this folder afterwards, to make sure the header is correct.
 
 ##### Change parameter
 Settable options are explained from top to bottom.
@@ -76,16 +85,18 @@ If this box is checked, a the optimizer generates discrete values for this param
 Only important, if the parameter is discrete. This sets the step size of the value (for example 1 means, that every number is valid, 2 means just every even number is valid, 3 very third number and so on).
 
 ###### Script Reference
-TODO
+Used to automatically find the correct parameter in unity by the `UpdateParameter`-method in the *Optimizer.cs*-file.
 
 ###### Variable Name 
-TODO
+Used to automatically find the correct parameter in unity by the `UpdateParameter`-method in the *Optimizer.cs*-file.
 
 ###### Game Object Name
 If there are more game objects that are optimized, the game object that the parameter refers to can be set here.
 
 ###### Script Name
-TODO
+Used to automatically find the correct parameter in unity by the `UpdateParameter`-method in the *Optimizer.cs*-file.
+
+* **Note:** The `UpdateParameter`-method shouldn't be used if possible, because it often happens, that the exact script can't be found even with setting the above parameters. Instead get the needed value through the parameter list in the *BOforUnityManager* by selecting the correct index.
 
 ##### Remove parameter
 Select the parameter you want to delete, by clicking on the `=`-symbol at the top left corner of the parameter. Make sure it is higlighted blue as shown in the image. Then click on the `-`-symbol at the bottom of the parameter-collection.
@@ -99,6 +110,7 @@ The objectives are the inputs that the optimizer receives. In this configuration
 Click on the `+`-symbol at the bottom of the objective collection. A new prefilled objective appeares which has to be edited accordingly. How it can be edited is explained [here](#change-objective).
 
 * **Note:** An objective needs to receive a value before the optimization step to make it work. In this demo this can be achieved, by creating a new question in the questionnaire or by changing one question for a different objective to the new objective. How you do this, is explained below.
+* **Note:** It is recommended, to store the previous *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* and delete it in this folder afterwards, to make sure the header is correct.
 
 ###### Create question
 In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1*. Then on the right you can see *Question Item Creation*. Choose the inputs as needed (the *Header Name* needs tobe the same as the according objective name). After that click on *Create Item* and the question gets added. Now you can edit the question by following the next paragraph.
@@ -145,7 +157,7 @@ Not checking the box results into the default start. Then the optimizer uses spe
 In this section you can configure, how many iterations the experiment should have. The total amount of iterations is the sum of the amount of intial rounds and the amount of normal iterations. You can set both of these values.
 
 ### Portability to your own Project
-TODO
+If you want to use this optimization tool in your own project, you can simply export it as a unity package and import it in your project. To do so, make sure, you are in the *Asset/BOforUnity* Folder in the Unity project hierarchy. If this is the case, click on *Assets* in the top menu and then click on *Export package*. Now select all files you want to include in your own project. Click on *Export* and save the package. To include it in your project, simply click on *Import package -> Custom package* in the *Assets* menu and select the saved package.
 
 ### Known issues
 #### Python Warnings
