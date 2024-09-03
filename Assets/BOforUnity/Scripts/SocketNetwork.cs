@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -103,7 +104,7 @@ namespace BOforUnity.Scripts
                 {
                     List<string> strList = strArr.ToList();
                     strList.RemoveAt(0);
-                    List<float> floatList = strList.Select(float.Parse).ToList();
+                    List<float> floatList = strList.Select(s => float.Parse(s, CultureInfo.InvariantCulture)).ToList();
                     
                     MainThreadDispatcher.Execute((flist) =>
                     {
@@ -251,7 +252,7 @@ namespace BOforUnity.Scripts
             b = b.Substring(0, b.Length - 1);
             c = c.Substring(0, c.Length - 1);
 
-            d += $"{_bomanager.userId},{_bomanager.conditionId}";
+            d += $"{_bomanager.userId},{_bomanager.conditionId},{_bomanager.groupId}";
             
             // Send string: Hyper-parameter info _ Parameter info _ Objectives info
             Debug.Log("Send Init Info to Python process: " + a + "_" + b + "_" + c + "_" + d);
@@ -280,8 +281,10 @@ namespace BOforUnity.Scripts
             var sendStr = "";
             foreach (var t in finalObjectives)
             {
-                sendStr += t + ",";
+                sendStr += t.ToString(CultureInfo.InvariantCulture) + ",";
             }
+            
+            // remove unneeded , from the string's end
             if (sendStr != "")
             {
                 sendStr = sendStr.Remove(sendStr.Length - 1);

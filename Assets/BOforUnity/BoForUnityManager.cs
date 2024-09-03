@@ -56,6 +56,7 @@ namespace BOforUnity
 
         public string userId = "-1";
         public string conditionId = "-1";
+        public string groupId = "-1";
         //-----------------------------------------------
         
         //-----------------------------------------------

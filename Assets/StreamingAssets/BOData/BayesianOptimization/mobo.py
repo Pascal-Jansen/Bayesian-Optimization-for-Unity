@@ -35,6 +35,7 @@ CSV_PATH_OBJECTIVES = ""
 
 USER_ID = ""
 CONDITION_ID = ""
+GROUP_ID = ""
 
 ### Init socket and start receiving data
 HOST = ''
@@ -44,7 +45,7 @@ s.bind((HOST, PORT))
 s.listen(1)
 print('Server starts, waiting for connection...', flush=True)
 conn, addr = s.accept()
-print('Connected by', addr)
+print('Connected by', addr, flush=True)
 
 # wait for data ...
 data = conn.recv(1024)
@@ -58,8 +59,8 @@ warm_start_settings = init_data[1].split(',')
 WARM_START = warm_start_settings[0].lower() in ("true", "1", "yes")
 CSV_PATH_PARAMETERS = str(warm_start_settings[1])
 CSV_PATH_OBJECTIVES = str(warm_start_settings[2])
-print("Initialization parameters received and set.")
-print(f"BATCH_SIZE: {BATCH_SIZE}, NUM_RESTARTS: {NUM_RESTARTS}, RAW_SAMPLES: {RAW_SAMPLES}, N_ITERATIONS: {N_ITERATIONS}, MC_SAMPLES: {MC_SAMPLES}, N_INITIAL: {N_INITIAL}, SEED: {SEED}, PROBLEM_DIM: {PROBLEM_DIM}, NUM_OBJS: {NUM_OBJS}")
+print("Initialization parameters received and set.", flush=True)
+print(f"BATCH_SIZE: {BATCH_SIZE}, NUM_RESTARTS: {NUM_RESTARTS}, RAW_SAMPLES: {RAW_SAMPLES}, N_ITERATIONS: {N_ITERATIONS}, MC_SAMPLES: {MC_SAMPLES}, N_INITIAL: {N_INITIAL}, SEED: {SEED}, PROBLEM_DIM: {PROBLEM_DIM}, NUM_OBJS: {NUM_OBJS}", flush=True)
 
 ### iter, init_sample, design_parameter_num, objective_num
 parameter_raw = init_data[2].split('/')
@@ -93,10 +94,11 @@ objective_names = []
 for obj_name in objective_names_raw:
     objective_names.append(obj_name)
 
-### Init user_id and condition_id
+### Init user information
 study_info_raw = init_data[6].split(',')
 USER_ID = study_info_raw[0]
 CONDITION_ID = study_info_raw[1]
+GROUP_ID = study_info_raw[2]
 
 ### Init the device and other settings
 #device = torch.device("cpu")
@@ -130,13 +132,18 @@ def objective_function(x_tensor):
     print("x", x)
     print("Parameters_info:", parameters_info)
     send_data = "parameters,"
-    for i in range(len(x)):
+    # Denormalize x_numpy and obj_numpy
+    x_denormalized = np.array([denormalize_to_original(x[i], parameters_info[i][0], parameters_info[i][1]) for i in range(len(x))])
+    # prepare parameter string parameters:
+    for i in range(len(x_denormalized)):
         send_data += str(
-            round((x[i]) * (parameters_info[i][1] - parameters_info[i][0]) + parameters_info[i][0], 3)) + ","
-
+            round((x_denormalized[i]) * (parameters_info[i][1] - parameters_info[i][0]) + parameters_info[i][0], 3)) + ","
+    # send parameter data to Unity:
     send_data = send_data[:-2]
     print("Send Data: ", send_data )
     conn.sendall(bytes(send_data, 'utf-8'))
+
+    # wait for Unity to respond ...
 
     data = conn.recv(1024)
     received_objective = []
@@ -209,7 +216,7 @@ def write_data_to_csv(csv_file_path, fieldnames, data):
 # -------------------------------------------------------
 #das hier heißt dass die Optimierungsfunktion immer random beginnt und deshalb direkt mit der Applikation verbunden sein muss
 # n_samples muss 2(d+1) wobei d = num_objs ist sein (https://botorch.org/tutorials/multi_objective_bo)
-def generate_initial_data(n_samples=12):
+def generate_initial_data(n_samples=14):
     
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
@@ -218,7 +225,7 @@ def generate_initial_data(n_samples=12):
 
     # Check if the file exists and write the header if it does not
     if not os.path.exists(OBSERVATIONS_LOG_PATH):
-        header = np.array(['User_ID', 'Condition_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
+        header = np.array(['User_ID', 'Condition_ID', 'Group_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
         with open(OBSERVATIONS_LOG_PATH, 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(header)
@@ -242,7 +249,7 @@ def generate_initial_data(n_samples=12):
         x_denormalized = np.array([denormalize_to_original(x_numpy[i], parameters_info[i][0], parameters_info[i][1]) for i in range(len(x_numpy))])
         obj_denormalized = np.array([denormalize_to_original(obj_numpy[i], objectives_info[i][0], objectives_info[i][1]) for i in range(len(obj_numpy))])
         # Combine all records and pareto identification
-        all_record = np.concatenate(([USER_ID], [CONDITION_ID], [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())], [i+1], ['sampling'], ['FALSE'], obj_denormalized, x_denormalized))
+        all_record = np.concatenate(([USER_ID], [CONDITION_ID], [GROUP_ID], [time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())], [i+1], ['sampling'], ['FALSE'], obj_denormalized, x_denormalized))
         # Log the values to the CSV file
         with open(OBSERVATIONS_LOG_PATH, 'a', newline='') as file:
             writer = csv.writer(file, delimiter=';')
@@ -370,7 +377,7 @@ def mobo_execute(seed, iterations, initial_samples):
         data = [{'Optimization': iteration, 'Execution_Time': execution_time}]
         write_data_to_csv(csv_file_path, ['Optimization', 'Execution_Time'], data)
 
-        new_obj_qehvi = objective_function(new_x_qehvi[0])
+        new_obj_qehvi = objective_function(new_x_qehvi[0]) # data will be sent to Unity in this function
 
         # Update training points
         train_x_qehvi = torch.cat([train_x_qehvi, new_x_qehvi])
@@ -447,12 +454,12 @@ def save_xy(x_sample, y_sample, iteration):
 
     # Save observations per evaluation
     observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
-    header = np.array(['User_ID', 'Condition_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
+    header = np.array(['User_ID', 'Condition_ID', 'Group_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
     with open(observations_csv_file_path, 'a', newline='') as file:
         writer = csv.writer(file, delimiter=';')
         if os.path.getsize(observations_csv_file_path) == 0:
             writer.writerow(header)
-        writer.writerow([USER_ID, CONDITION_ID, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), iteration, 'optimization', *all_record[-1]])  # Only write the last record
+        writer.writerow([USER_ID, CONDITION_ID, GROUP_ID, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), iteration, 'optimization', *all_record[-1]])  # Only write the last record
 # -------------------------------------------------------
 # -------------------------------------------------------
 

@@ -122,7 +122,7 @@ In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/Questio
 Settable options are explained from top to bottom.
 
 ###### Number of Sub
-This setting says, how many values exist for this object (in this case how many questions). The number has to be at least 1.
+This setting says, how many values exist for this object (in this case: how many questions). The number has to be at least 1.
 
 ###### Values
 Here the values can be seen, after the questionnaire is complete.
