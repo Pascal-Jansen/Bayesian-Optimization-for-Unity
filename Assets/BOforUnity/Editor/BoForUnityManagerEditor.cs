@@ -46,6 +46,7 @@ namespace BOforUnity.Editor
 
         private SerializedProperty userIdProp;
         private SerializedProperty conditionIdProp;
+        private SerializedProperty groupIdProp;
         
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
@@ -99,6 +100,7 @@ namespace BOforUnity.Editor
             
             userIdProp = serializedObject.FindProperty("userId");
             conditionIdProp = serializedObject.FindProperty("conditionId");
+            groupIdProp = serializedObject.FindProperty("groupId");
 
             optScene = serializedObject.FindProperty("optimizerScene");
             simScene = serializedObject.FindProperty("simulationScene");
@@ -169,9 +171,14 @@ namespace BOforUnity.Editor
             {
                 script.conditionId = "-1";
             }
+            if (string.IsNullOrEmpty(script.groupId))
+            {
+                script.groupId = "-1";
+            }
+
             EditorGUILayout.PropertyField(userIdProp);
-            EditorGUILayout.PropertyField(conditionIdProp);
-            EditorGUILayout.LabelField("Default values for userID and conditionID is -1.", EditorStyles.helpBox);
+            EditorGUILayout.PropertyField(conditionIdProp);EditorGUILayout.PropertyField(groupIdProp);
+            EditorGUILayout.LabelField("Default values for userID, conditionID and groupID is -1.", EditorStyles.helpBox);
             
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
