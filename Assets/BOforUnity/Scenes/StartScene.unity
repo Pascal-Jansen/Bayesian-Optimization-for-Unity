@@ -2451,6 +2451,7 @@ MonoBehaviour:
   initialObjectivesDataPath: ExampleInitDataObjectives.csv
   userId: 1
   conditionId: 1
+  groupId: 1
   outputText: {fileID: 668748333}
   loadingObj: {fileID: 1118502763}
   nextButton: {fileID: 169171295}
