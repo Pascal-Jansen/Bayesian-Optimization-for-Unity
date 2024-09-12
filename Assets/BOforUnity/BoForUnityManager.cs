@@ -51,6 +51,7 @@ namespace BOforUnity
         public int seed = 3;
         
         public bool warmStart = false;
+        public bool perfectRatingInInitialRounds = false;
         public string initialParametersDataPath;
         public string initialObjectivesDataPath;
 
@@ -129,7 +130,17 @@ namespace BOforUnity
                 return;
             }
 
-            var isPerfect = IsPerfectRating();
+            var isPerfect = false;
+            // Check if perfect rating can be achieved in the initial rounds (also known as: "sampling phase")
+            if(perfectRatingInInitialRounds == true)
+            {
+                isPerfect = IsPerfectRating();
+            }
+            // Else wait until the initial rounds are over and then check for perfect rating
+            else if (perfectRatingInInitialRounds == false && currentIteration > nInitial)
+            {
+                isPerfect = IsPerfectRating();
+            }
             
             // Check if there should be another iteration of the optimization
             if (currentIteration <= totalIterations && !isPerfect)

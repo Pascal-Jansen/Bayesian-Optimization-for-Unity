@@ -722,6 +722,7 @@ MonoBehaviour:
   nInitial: 2
   seed: 3
   warmStart: 0
+  perfectRatingInInitialRounds: 0
   initialParametersDataPath: ExampleInitDataParameters.csv
   initialObjectivesDataPath: ExampleInitDataObjectives.csv
   userId: 1
