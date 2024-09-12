@@ -149,12 +149,18 @@ If you downloaded python via the installation script, you can simply uncheck the
 #### Study Settings
 Here you can fill in the ID of the user as well as the ID of the current condition you are running th eexperiment on. This ensures sortable results.
 
-#### Warm Start Settings
+#### Warm Start & Perfect Rating Settings
+
+##### Warm Start Setting
 If you check the box for warm start, the initial rounds are skipped. This means, the optimizer will start to optimize from the first iteration on. 
-Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start optimizing. 
+Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start optimizing.
+
+##### Perfect Rating Setting
+If you check this box, the check for a perfect rating is performed in the initial rounds (sampling phase) as well. If unchecked, a perfect rating can only be achieved in the optimization phase.
 
 #### BO-Hyper-parameters 
 In this section you can configure, how many iterations the experiment should have. The total amount of iterations is the sum of the amount of intial rounds and the amount of normal iterations. You can set both of these values.
+* **Note:** The amount of initial rounds cannot be zero! Use the warm start option instead, if you want to skip the initial rounds.
 
 ### Portability to your own Project
 If you want to use this optimization tool in your own project, you can simply export it as a unity package and import it in your project. To do so, make sure, you are in the *Asset/BOforUnity* Folder in the Unity project hierarchy. If this is the case, click on *Assets* in the top menu and then click on *Export package*. Now select all files you want to include in your own project. Click on *Export* and save the package. To include it in your project, simply click on *Import package -> Custom package* in the *Assets* menu and select the saved package.
