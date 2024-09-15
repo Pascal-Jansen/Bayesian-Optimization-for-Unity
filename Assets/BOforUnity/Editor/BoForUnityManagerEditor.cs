@@ -39,6 +39,7 @@ namespace BOforUnity.Editor
         private SerializedProperty nInitialProp;
         private SerializedProperty seedProp;
         private SerializedProperty warmStartProp;
+        private SerializedProperty perfectRatingInInitialRoundsProp;
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
 
@@ -93,6 +94,7 @@ namespace BOforUnity.Editor
             nInitialProp = serializedObject.FindProperty("nInitial");
             seedProp = serializedObject.FindProperty("seed");
             warmStartProp = serializedObject.FindProperty("warmStart");
+            perfectRatingInInitialRoundsProp = serializedObject.FindProperty("perfectRatingInInitialRounds");
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
 
@@ -183,9 +185,10 @@ namespace BOforUnity.Editor
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
             
-            EditorGUILayout.LabelField("Warm Start Settings", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Warm Start & Perfect Rating Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(warmStartProp);
-            EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped.", EditorStyles.helpBox);
+            EditorGUILayout.PropertyField(perfectRatingInInitialRoundsProp);
+            EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped. If perfect rating in inital rounds is TRUE, perfect rating can be achieved in the sampling phase.", EditorStyles.helpBox);
             if (warmStartProp.boolValue)
             {
                 EditorGUILayout.PropertyField(initialParametersDataPathProp);
@@ -193,6 +196,9 @@ namespace BOforUnity.Editor
                 EditorGUILayout.PropertyField(initialObjectivesDataPathProp);
                 EditorGUILayout.LabelField(initDataPath + "/" + initialObjectivesDataPathProp.stringValue, EditorStyles.label);
                 EditorGUILayout.LabelField("Remember: You only need to provide the file name. No '_' or ',' allowed in the file name.", EditorStyles.helpBox);
+
+                // This is necessary to get the correct number of iterations in the BoForUnityManager.cs in order to make the Perfect Rating settings work.
+                script.nInitial = 0;
             }
             
             EditorGUILayout.Space();
@@ -204,7 +210,7 @@ namespace BOforUnity.Editor
                 EditorGUILayout.PropertyField(nInitialProp);
             }
             EditorGUILayout.PropertyField(nIterationsProp);
-            EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations).", EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations). N Initial cannot be 0! Use the Warm Start option instead to skip the initial rounds", EditorStyles.helpBox);
             // Calculate and display the sum of nInitial and nIterations
             var val = (warmStartProp.boolValue ? 0: nInitialProp.intValue) + nIterationsProp.intValue;
             totalIterationsProp.intValue = val;
