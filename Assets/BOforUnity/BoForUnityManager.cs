@@ -84,6 +84,12 @@ namespace BOforUnity
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
 
             currentIteration = 1; // starting to count at 1
+            
+            if(warmStart)
+            {
+                // This is necessary to get the correct number of initial iterations in order to make the Perfect Rating settings work.
+                nInitial = 0;
+            }
             totalIterations = nInitial + nIterations; // set how many iterations the optimizer should run for
         }
         

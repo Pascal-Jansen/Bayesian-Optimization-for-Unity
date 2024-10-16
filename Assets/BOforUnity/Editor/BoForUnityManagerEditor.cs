@@ -196,9 +196,6 @@ namespace BOforUnity.Editor
                 EditorGUILayout.PropertyField(initialObjectivesDataPathProp);
                 EditorGUILayout.LabelField(initDataPath + "/" + initialObjectivesDataPathProp.stringValue, EditorStyles.label);
                 EditorGUILayout.LabelField("Remember: You only need to provide the file name. No '_' or ',' allowed in the file name.", EditorStyles.helpBox);
-
-                // This is necessary to get the correct number of iterations in the BoForUnityManager.cs in order to make the Perfect Rating settings work.
-                script.nInitial = 0;
             }
             
             EditorGUILayout.Space();
