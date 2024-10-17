@@ -39,6 +39,7 @@ namespace BOforUnity.Editor
         private SerializedProperty nInitialProp;
         private SerializedProperty seedProp;
         private SerializedProperty warmStartProp;
+        private SerializedProperty perfectRatingActiveProp;
         private SerializedProperty perfectRatingInInitialRoundsProp;
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
@@ -94,6 +95,7 @@ namespace BOforUnity.Editor
             nInitialProp = serializedObject.FindProperty("nInitial");
             seedProp = serializedObject.FindProperty("seed");
             warmStartProp = serializedObject.FindProperty("warmStart");
+            perfectRatingActiveProp = serializedObject.FindProperty("perfectRatingActive");
             perfectRatingInInitialRoundsProp = serializedObject.FindProperty("perfectRatingInInitialRounds");
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
@@ -187,8 +189,13 @@ namespace BOforUnity.Editor
             
             EditorGUILayout.LabelField("Warm Start & Perfect Rating Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(warmStartProp);
-            EditorGUILayout.PropertyField(perfectRatingInInitialRoundsProp);
-            EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped. If perfect rating in inital rounds is TRUE, perfect rating can be achieved in the sampling phase.", EditorStyles.helpBox);
+            EditorGUILayout.PropertyField(perfectRatingActiveProp);
+            if(perfectRatingActiveProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(perfectRatingInInitialRoundsProp);
+            }
+
+            EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped. If perfect rating is TRUE, the BO stop when it achieves a perfect rating. If perfect rating in inital rounds is TRUE, perfect rating can be achieved in the sampling phase.", EditorStyles.helpBox);
             if (warmStartProp.boolValue)
             {
                 EditorGUILayout.PropertyField(initialParametersDataPathProp);
