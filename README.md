@@ -153,7 +153,8 @@ Here you can fill in the ID of the user as well as the ID of the current conditi
 
 ##### Warm Start Setting
 If you check the box for warm start, the initial rounds are skipped. This means, the optimizer will start to optimize from the first iteration on. 
-Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start optimizing.
+Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start the optimization process.
+* **Note:** In order to work, the number of parameters and objectives in the csv-files, provided for the warm start, must match with the number used for the optimization afterwards. This automatically is the case, if you use the log-data of a previous study(with the same settings!) as input-files.
 
 ##### Perfect Rating Setting
 If you check this box, the check for a perfect rating is performed in the initial rounds (sampling phase) as well. If unchecked, a perfect rating can only be achieved in the optimization phase.
