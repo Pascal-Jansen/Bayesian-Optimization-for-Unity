@@ -48,6 +48,8 @@ These files are located in *Assets/StreamingAssets/BOData/Installation*
 
 ### Example Usage
 In this chapter this Asset is explained by going through the Demo experiment step-by-step once.
+* **Note:** In order to work, the *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* has to be empty (except of the header row). You can also delete the file completely, which will generate a new clean file in the process.
+
 1. Press the play button in the top middle of the screen
 2. Press the next button in the screen and wait for the system to load. Then press next again.
 3. Now, the simulation is shown. In this case you can see two shapes with colors to evaluate.
@@ -67,7 +69,7 @@ The parameters get optimized by the optimizer. In this configuration section you
 Click on the `+`-symbol at the bottom of the parameter collection. A new prefilled parameter appeares which has to be edited accordingly. How it can be edited is explained [here](#change-parameter).
 
 * **Note:** Make sure, the added parameter is used in your simulation.
-* **Note:** It is recommended, to store the previous *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* and delete it in this folder afterwards, to make sure the header is correct.
+* **Note:** It is recommended, to store the previous *ObservationPerEvaluation.csv* from *Assets/BOforUnity/BOData/BayesianOptimization/LogData* somewhere else and delete it in this folder afterwards, to make sure the header is correct.
 
 ##### Change parameter
 Settable options are explained from top to bottom.
@@ -152,9 +154,12 @@ Here you can fill in the ID of the user as well as the ID of the current conditi
 #### Warm Start & Perfect Rating Settings
 
 ##### Warm Start Setting
-If you check the box for warm start, the initial rounds are skipped. This means, the optimizer will start to optimize from the first iteration on. 
-Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start the optimization process.
+* If you check the box for warm start, the initial rounds are skipped. This means, the optimizer will start to optimize from the first iteration on using the results from a previous study. The results of the previous study must be given as .csv files. They have to match a certain shape, which can be seen in the example data in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. Additionally the *ObservationsPerEvaluation.csv* of the previous study has to be copied in the LogData of the new study (For the example warm start you can copy the content of the *ExampleObservationsPerEvaluation.csv* located in the *InitData*-folder into the *ObservationsPerEvaluation.csv*).
+
+* Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start the optimization process.
 * **Note:** In order to work, the number of parameters and objectives in the csv-files, provided for the warm start, must match with the number used for the optimization afterwards. This automatically is the case, if you use the log-data of a previous study(with the same settings!) as input-files.
+
+* **Note:** If you go back to default start, make sure the number of init rounds is not **0**!
 
 ##### Perfect Rating Setting
 If you check this box, the check for a perfect rating is performed in the initial rounds (sampling phase) as well. If unchecked, a perfect rating can only be achieved in the optimization phase.
