@@ -2,7 +2,7 @@
 
 by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en)
 
-### About
+## About
 
 This Unity asset integrates Bayesian Optimization (based on [botorch.org](https://botorch.org/)) into your projects, enabling the optimization of design parameters to maximize or minimize objective values. It utilizes a **Human-in-the-Loop** approach, iteratively querying user feedback on designs to refine parameter values.
 
@@ -10,7 +10,7 @@ Key features include:
 - Set optimization hyperparameters directly in Unity.
 - Automatic communication between Unity and the Python process running the botorch-based implementation.
 
-### Usage
+## Usage
 
 #### Human-in-the-Loop Process
 
@@ -23,7 +23,7 @@ Example use case:
 
 Currently, there is no *implicit* feedback variant of this asset. It cannot, for example, process physiological data from users as input for design objective values.
 
-### Versions
+## Versions
 Currently there are two example versions of the bayesian optimization for unity project. They are separated in branches.
 
 #### Main-Branch
@@ -32,7 +32,7 @@ In this version, the example is based on one unity-scene, meaning there is no re
 #### Multi-Scene-Branch
 In this version, the example is based on multiple unity-scenes. This means, everytime you see a new interface, unity switched to another scene. To make this work, there is a loading scene during the optimization process and the *BOforUnityManager* is marked as *DontDestroyOnLoad*.
 
-### Installation
+## Installation
 This is a step-by-step explanation how you get this asset running on your system.
 1. Clone the repository 
 2. Launch the installation_python.bat (or the install_python.sh for MacOS) to install Python and the library requirements.
@@ -46,21 +46,23 @@ These files are located in *Assets/StreamingAssets/BOData/Installation*
 6. Add the project in the Unity Hub by selecting the repository folder
 7. Open the project and set the [Python Settings](#python-settings) accordingly
 
-### Example Usage
+## Example Usage
 In this chapter this Asset is explained by going through the Demo experiment step-by-step once.
+This assusmes that you installed the Asset correctly and set the python path if needed.
 * **Note:** In order to work, the *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* has to be empty (except of the header row). You can also delete the file completely, which will generate a new clean file in the process.
 
-1. Press the play button in the top middle of the screen
-2. Press the next button in the screen and wait for the system to load. Then press next again.
-3. Now, the simulation is shown. In this case you can see two shapes with colors to evaluate.
-4. If you are done, you can press the `End Simulation` button. Now a questionnaire appears, where you have to evaluate the simulation.
-5. Answer the questions accordingly and press `Finish` if you are done. Now the optimizer will save these inputs and change the simulation parameters.
-6. Press next to start a new iteration. Now the process will start from step `3.` again until the set number of iterations is reached. Then the system tells you, that you can close the application now.
+1. Open the folder *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene.
+2. Press the play button in the top middle of the screen
+3. Press the next button in the screen and wait for the system to load. Then press next again.
+4. Now, the simulation is shown. In this case you can see two shapes with colors to evaluate.
+5. If you are done, you can press the `End Simulation` button. Now a questionnaire appears, where you have to evaluate the simulation.
+6. Answer the questions accordingly and press `Finish` if you are done. Now the optimizer will save these inputs and change the simulation parameters.
+7. Press next to start a new iteration. Now the process will start from step `3.` again until the set number of iterations is reached. Then the system tells you, that you can close the application now.
 
 * **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
 
-### Configuration
-All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly. In this Object, all the possible configurations can be made. The different possibilities are explained from top to bottom below.
+## Configuration
+All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly. (Make sure you save the scene after you made your changes!) In this Object, all the possible configurations can be made. The different possibilities are explained from top to bottom below.
 
 #### Parameters
 The parameters get optimized by the optimizer. In this configuration section you can create, change or remove such parameters.
@@ -141,7 +143,7 @@ Select the objective you want to delete, by clicking on the `=`-symbol at the to
 ![Remove objective](./images/remove_objective.png)
 
 #### Python Settings
-Here you can set the path to Python manually. To do so you have to get the local path of Python 3.11.3 .
+Here you can set the path to Python manually. To do so you have to get the local path of **Python 3.11.3** .
 * for Windows you can go into a cmd terminal and type `where python`. This will list all installed Python versions. Now you can copy the path of the correct version.
 * for Linux you can go into the terminal and type `whereis python3.11` or `which python3.11`. Now you can copy the path.
 
@@ -149,7 +151,7 @@ After that you can tick the box in the *Python Settings* section in the *BOforUn
 If you downloaded python via the installation script, you can simply uncheck the box.
 
 #### Study Settings
-Here you can fill in the ID of the user as well as the ID of the current condition you are running th eexperiment on. This ensures sortable results.
+Here you can fill in the ID of the user (User ID), the ID of the current condition you are running the experiment on (Condition ID), as well as the ID of the current group (Group ID). This ensures sortable results.
 
 #### Warm Start & Perfect Rating Settings
 
@@ -157,23 +159,40 @@ Here you can fill in the ID of the user as well as the ID of the current conditi
 * If you check the box for warm start, the initial rounds are skipped. This means, the optimizer will start to optimize from the first iteration on using the results from a previous study. The results of the previous study must be given as .csv files. They have to match a certain shape, which can be seen in the example data in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. Additionally the *ObservationsPerEvaluation.csv* of the previous study has to be copied in the LogData of the new study (For the example warm start you can copy the content of the *ExampleObservationsPerEvaluation.csv* located in the *InitData*-folder into the *ObservationsPerEvaluation.csv*).
 
 * Not checking the box results into the default start. Then the optimizer uses specific parameter-values and collects the objective values without optimizing. after the set amount if inital iterations the optimizer uses all of the collected values to start the optimization process.
-* **Note:** In order to work, the number of parameters and objectives in the csv-files, provided for the warm start, must match with the number used for the optimization afterwards. This automatically is the case, if you use the log-data of a previous study(with the same settings!) as input-files.
+* **Note:** In order to work, the format of the csv-files, which are needed for the warm start MUST be the same as in the example csv-files! Check the header to know what values are needed. This also means, the number of parameters and objectives in the csv-files, provided for the warm start, must match with the number used for the optimization afterwards. This automatically is the case, if you use the log-data of a previous study(with the same settings!) as input-files.
 
 * **Note:** If you go back to default start, make sure the number of init rounds is not **0**!
 
 ##### Perfect Rating Setting
-If you check this box, the check for a perfect rating is performed in the initial rounds (sampling phase) as well. If unchecked, a perfect rating can only be achieved in the optimization phase.
+
+* The perfect rating is deactivated by default (unchecked box).
+* The perfect rating is activated by checking the box. This means the check for a perfect rating is performed and the system will terminated if perfect rating is achieved.
+* If *Perfect Rating In initial Rounds* is checked as well (only appears with active perfect rating) perfect rating can be achieved in the initial rounds (sampling phase) as well.
 
 #### BO-Hyper-parameters 
 In this section you can configure, how many iterations the experiment should have. The total amount of iterations is the sum of the amount of intial rounds and the amount of normal iterations. You can set both of these values.
 * **Note:** The amount of initial rounds cannot be zero! Use the warm start option instead, if you want to skip the initial rounds.
 
-### Portability to your own Project
-If you want to use this optimization tool in your own project, you can simply export it as a unity package and import it in your project. To do so, make sure, you are in the *Asset/BOforUnity* Folder in the Unity project hierarchy. If this is the case, click on *Assets* in the top menu and then click on *Export package*. Now select all files you want to include in your own project. Click on *Export* and save the package. To include it in your project, simply click on *Import package -> Custom package* in the *Assets* menu and select the saved package.
+## Portability to your own Project
+If you want to use this optimization tool in your own project, you can simply export it as a unity package and import it in your project. To do so, follow these steps: 
+1. Make sure, you are in the *Assets* Folder in the Unity project hierarchy. 
+2. Click on *Assets* in the top menu and then click on *Export package*. 
+3. Click on None, to deselect all files.
+4. Select these three folders: *BOforUnity*, *QuestionnaireToolkit*, *StreamingAssets*  
+5. Click on *Export* and save the package. 
 
-### Known issues
+To include it in your project, simply click on *Import package -> Custom package* in the *Assets* menu and choose the saved package. Then keep everything selected and press *Import*.
+
+* **Note:** Make sure, your project path does not have any spaces in it. Otherwise, the python script cannot find the correct paths.
+
+* **Note:** If this is a new project, or you never used *TextMeshPro* in your project a pop-up will appear to install *TextMeshPro-Essentials*. Install this as well, to make the textboxes work. Refresh the scene afterwards, if needed.
+
+## Known issues
 #### Python Warnings
 During the experiment, it can happen, that the mobo python script throws warnings about the normalization of the input objectives. Unity treats these warnings as Errors. But these warnings can be ignored and wont affect the result of the optimizer as far as we know.
 
-### License
+#### Multi-Scene - Warm-Start
+If warm start is activated in the multi-scene branch, the next-button before the first simulation appears too soon. This is no major issue, you just have to wait until the initialisation of the warm-start data is processed. CLick the button a couple of seconds after its appearance. If it still does not work try again after a few more seconds.
+
+## License
 This project underlies the **MIT License** which can be found in the folder this README is in.
