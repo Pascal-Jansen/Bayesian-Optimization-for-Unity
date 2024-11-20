@@ -208,7 +208,7 @@ namespace BOforUnity.Editor
                 EditorGUILayout.PropertyField(nInitialProp);
             }
             EditorGUILayout.PropertyField(nIterationsProp);
-            EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations). N Initial cannot be 0! Use the Warm Start option instead to skip the initial rounds", EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations). N Initial must at least be 2! Use the Warm Start option instead to skip the initial rounds", EditorStyles.helpBox);
             // Calculate and display the sum of nInitial and nIterations
             var val = (warmStartProp.boolValue ? 0: nInitialProp.intValue) + nIterationsProp.intValue;
             totalIterationsProp.intValue = val;

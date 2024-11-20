@@ -38,10 +38,10 @@ This is a step-by-step explanation how you get this asset running on your system
 2. Launch the installation_python.bat (or the install_python.sh for MacOS) to install Python and the library requirements.
 These files are located in *Assets/StreamingAssets/BOData/Installation*
 
-* **Note:** If you have Python already installed locally you have to set the path to python manually. This is explained in the [Python Settings](#python-settings) chapter.
+* **Note:** If you have Python already installed locally you have to set the path to python manually. This is explained in the [Python Settings](#python-settings) chapter. Make sure to also read the first section of [Configuration](#configuration) to make sure you safe the python setting correctly
 
 3. Download Unity Hub
-4. Create or Login to your student-licensed Unity-account
+4. Create or Login to your (student-)licensed Unity-account
 5. Install Unity 2022.3.21f1
 6. Add the project in the Unity Hub by selecting the repository folder
 7. Open the project and set the [Python Settings](#python-settings) accordingly
@@ -61,8 +61,17 @@ This assusmes that you installed the Asset correctly and set the python path if 
 
 * **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
 
+## Demo Video
+This is a short demo video, that shows the export of the BO-for-Unity-package (Main-branch) and how you import it into a new Unity project. It shows what you have to do after importing, if you have python 3.11.3 locally installed and are using a Windows computer.
+
+<iframe width="560" height="315" src="https://youtu.be/J1hrFuiGiRI" 
+frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
+gyroscope; picture-in-picture" allowfullscreen></iframe>
+
 ## Configuration
-All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly (Make sure you save the scene after you made your changes!).
+All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly. 
+
+Make sure you save the scene after you made your changes! Please recheck if your settings were saved by clicking on the *BOforUnityManager* Object on the left (blue) again and check the changed parameter.
 
 * **Note:** In this Object, all the possible configurations can be made. The different possibilities are explained from top to bottom below. SO you can simply follow along by scrolling down in the inspector on the right side of Unity.
 
@@ -179,7 +188,7 @@ BO-Hyper-Parameters control the behavior of the optimization process, such as th
 | **Seed**        | 3                 | Seed value for random number generation to ensure reproducibility of optimization runs.           | [Seed Explanation](https://en.wikipedia.org/wiki/Random_seed)                                                          |
 
 
-* **Note:** The amount of initial rounds **cannot be zero!** Use the warm start option instead, if you want to skip the initial rounds.
+* **Note:** The amount of initial rounds have to be **2 at least!** Use the warm start option instead, if you want to skip the initial rounds.
 <a id="BO_hyper_settings"></a>
 
 ![BO Hyperprameter settings](./images/BO_hyperparameter_settings.png)
