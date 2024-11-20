@@ -708,7 +708,7 @@ MonoBehaviour:
       upperBound: 5
       smallerIsBetter: 0
   currentIteration: 0
-  totalIterations: 6
+  totalIterations: 15
   perfectRating: 0
   perfectRatingStart: 0
   perfectRatingIteration: 0
@@ -717,18 +717,18 @@ MonoBehaviour:
   batchSize: 1
   numRestarts: 10
   rawSamples: 1024
-  nIterations: 4
+  nIterations: 10
   mcSamples: 512
-  nInitial: 2
+  nInitial: 5
   seed: 3
   warmStart: 0
-  perfectRatingActive: 0
+  perfectRatingActive: 1
   perfectRatingInInitialRounds: 0
   initialParametersDataPath: ExampleInitDataParameters.csv
   initialObjectivesDataPath: ExampleInitDataObjectives.csv
-  userId: 1
-  conditionId: 1
-  groupId: 1
+  userId: -1
+  conditionId: -1
+  groupId: -1
   outputText: {fileID: 216295282890673177}
   loadingObj: {fileID: 8959989392408035983}
   nextButton: {fileID: 8856273073719078166}

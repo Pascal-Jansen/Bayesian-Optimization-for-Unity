@@ -62,7 +62,9 @@ This assusmes that you installed the Asset correctly and set the python path if 
 * **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
 
 ## Configuration
-All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly. (Make sure you save the scene after you made your changes!) In this Object, all the possible configurations can be made. The different possibilities are explained from top to bottom below.
+All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly (Make sure you save the scene after you made your changes!).
+
+* **Note:** In this Object, all the possible configurations can be made. The different possibilities are explained from top to bottom below. SO you can simply follow along by scrolling down in the inspector on the right side of Unity.
 
 #### Parameters
 The parameters get optimized by the optimizer. In this configuration section you can create, change or remove such parameters.
@@ -71,39 +73,29 @@ The parameters get optimized by the optimizer. In this configuration section you
 Click on the `+`-symbol at the bottom of the parameter collection. A new prefilled parameter appeares which has to be edited accordingly. How it can be edited is explained [here](#change-parameter).
 
 * **Note:** Make sure, the added parameter is used in your simulation.
-* **Note:** It is recommended, to store the previous *ObservationPerEvaluation.csv* from *Assets/BOforUnity/BOData/BayesianOptimization/LogData* somewhere else and delete it in this folder afterwards, to make sure the header is correct.
+* **Note:** It is recommended, to store the previous *ObservationPerEvaluation.csv* from *Assets/BOforUnity/BOData/BayesianOptimization/LogData* somewhere else and delete it in this folder afterwards, to make sure the header is correct. This is also important if you make use of the warm start option!
 
 ##### Change parameter
-Settable options are explained from top to bottom.
+Settable options of each parameter are explained from top to bottom. You can see them in the inspector by clicking on the drop-down arrow of a parameter as shown in the [picture](#parameter_settings) below.
 
-###### Value
-Here the value, that the optimizer gave the parameter after optimization, can be seen.
-
-###### Lower/Upper Bound
-Caps the values of the objective to a range.
-
-###### Is Discrete
-If this box is checked, a the optimizer generates discrete values for this parameter.
-
-###### Step
-Only important, if the parameter is discrete. This sets the step size of the value (for example 1 means, that every number is valid, 2 means just every even number is valid, 3 very third number and so on).
-
-###### Script Reference
-Used to automatically find the correct parameter in unity by the `UpdateParameter`-method in the *Optimizer.cs*-file.
-
-###### Variable Name 
-Used to automatically find the correct parameter in unity by the `UpdateParameter`-method in the *Optimizer.cs*-file.
-
-###### Game Object Name
-If there are more game objects that are optimized, the game object that the parameter refers to can be set here.
-
-###### Script Name
-Used to automatically find the correct parameter in unity by the `UpdateParameter`-method in the *Optimizer.cs*-file.
+| **Name**              | **Description**                                                                   |
+|-----------------------|-----------------------------------------------------------------------------------|
+| **Value**             | Displays the value assigned to the parameter by the optimizer after optimization. |
+| **Lower/Upper Bound** | Defines the range within which the objective values are constrained.              |
+| **Is Discrete**       | Indicates if the optimizer generates only discrete values for this parameter.     |
+| **Step**              | Relevant only for discrete parameters; sets the step size (e.g., 1 allows all numbers, 2 allows even numbers, 3 allow every third number, etc.). |
+| **Script Reference**  | Links to the parameter in Unity via the `UpdateParameter` method in the *Optimizer.cs* file. |
+| **Variable Name**     | Identifies the correct parameter in Unity using the `UpdateParameter` method in the *Optimizer.cs* file. |
+| **Game Object Name**  | Specifies the game object associated with the parameter when multiple game objects are optimized. |
+| **Script Name**       | References the Unity script for locating the parameter through the `UpdateParameter` method in *Optimizer.cs*. |
 
 * **Note:** The `UpdateParameter`-method shouldn't be used if possible, because it often happens, that the exact script can't be found even with setting the above parameters. Instead get the needed value through the parameter list in the *BOforUnityManager* by selecting the correct index.
+<a id="parameter_settings"></a>
+
+![Parameter settings](./images/parameter_settings.png)
 
 ##### Remove parameter
-Select the parameter you want to delete, by clicking on the `=`-symbol at the top left corner of the parameter. Make sure it is higlighted blue as shown in the image. Then click on the `-`-symbol at the bottom of the parameter-collection.
+Select the parameter you want to delete, by clicking on the `=`-symbol at the top left corner of the parameter. Make sure it is higlighted blue as shown in the image below. Then click on the `-`-symbol at the bottom of the parameter-collection.
 
 ![Remove parameter](./images/remove_parameter.png)
 
@@ -123,27 +115,25 @@ In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/Questio
 In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/* and select the question, you want to change. To make the question count for the new objective the *Header Name* of the question needs to be the same as th eobjective name.
 
 ##### Change objective
-Settable options are explained from top to bottom.
+Settable options are explained from top to bottom. You can see them in the inpsector by clicking on the drop-down arrow of a objective as shown in the [picture](#objective_settings) below.
 
-###### Number of Sub
-This setting says, how many values exist for this object (in this case: how many questions). The number has to be at least 1.
+| **Name**                       | **Description**                                                                                      |
+|--------------------------------|------------------------------------------------------------------------------------------------------|
+| **Number of Sub Measures**     | Specifies how many values exist for this object (e.g., the number of questions). Must be at least 1. |
+| **Values**                     | Displays the values after the questionnaire is completed.                                            |
+| **Lower/Upper Bound**          | Sets a range to constrain the values of the objective.                                               |
+| **Smaller is Better**          | Indicates whether smaller values are preferable (default is that higher values are better).          |
+<a id="objective_settings"></a>
 
-###### Values
-Here the values can be seen, after the questionnaire is complete.
-
-###### Lower/Upper Bound
-Caps the values of the objective to a range.
-
-###### Smaller is Better
-If this box is checked, a small value is better than a high one (default: Higher is better).
+![Objective settings](./images/objective_settings.png)
 
 ##### Remove objective
-Select the objective you want to delete, by clicking on the `=`-symbol at the top left corner of the objective. Make sure it is higlighted blue as shown in the image. Then click on the `-`-symbol at the bottom of the objective-collection.
+Select the objective you want to delete, by clicking on the `=`-symbol at the top left corner of the objective. Make sure it is higlighted blue as shown in the image below. Then click on the `-`-symbol at the bottom of the objective-collection.
 
 ![Remove objective](./images/remove_objective.png)
 
 #### Python Settings
-Here you can set the path to Python manually. To do so you have to get the local path of **Python 3.11.3** .
+In this section which is seen in this [image](#py_st_ws_pr_settings) you can set the path to Python manually. To do so you have to get the local path of **Python 3.11.3** .
 * for Windows you can go into a cmd terminal and type `where python`. This will list all installed Python versions. Now you can copy the path of the correct version.
 * for Linux you can go into the terminal and type `whereis python3.11` or `which python3.11`. Now you can copy the path.
 
@@ -151,9 +141,10 @@ After that you can tick the box in the *Python Settings* section in the *BOforUn
 If you downloaded python via the installation script, you can simply uncheck the box.
 
 #### Study Settings
-Here you can fill in the ID of the user (User ID), the ID of the current condition you are running the experiment on (Condition ID), as well as the ID of the current group (Group ID). This ensures sortable results.
+In the next section of the [image](#py_st_ws_pr_settings) you can set individual study settings. Here you can fill in the ID of the user (User ID), the ID of the current condition you are running the experiment on (Condition ID), as well as the ID of the current group (Group ID). This ensures sortable results.
 
 #### Warm Start & Perfect Rating Settings
+The following explanations refer to the bottom part of this [image](#py_st_ws_pr_settings).
 
 ##### Warm Start Setting
 * If you check the box for warm start, the initial rounds are skipped. This means, the optimizer will start to optimize from the first iteration on using the results from a previous study. The results of the previous study must be given as .csv files. They have to match a certain shape, which can be seen in the example data in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. Additionally the *ObservationsPerEvaluation.csv* of the previous study has to be copied in the LogData of the new study (For the example warm start you can copy the content of the *ExampleObservationsPerEvaluation.csv* located in the *InitData*-folder into the *ObservationsPerEvaluation.csv*).
@@ -167,11 +158,31 @@ Here you can fill in the ID of the user (User ID), the ID of the current conditi
 
 * The perfect rating is deactivated by default (unchecked box).
 * The perfect rating is activated by checking the box. This means the check for a perfect rating is performed and the system will terminated if perfect rating is achieved.
-* If *Perfect Rating In initial Rounds* is checked as well (only appears with active perfect rating) perfect rating can be achieved in the initial rounds (sampling phase) as well.
+* If *Perfect Rating In Initial Rounds* is checked as well (only appears with active perfect rating) perfect rating can be achieved in the initial rounds (sampling phase) as well.
+<a id="py_st_ws_pr_settings"></a>
+
+![Python, Study, Warm Start & Perfect Rating Settings](./images/python_study_ws_pr_settings.png)
 
 #### BO-Hyper-parameters 
-In this section you can configure, how many iterations the experiment should have. The total amount of iterations is the sum of the amount of intial rounds and the amount of normal iterations. You can set both of these values.
-* **Note:** The amount of initial rounds cannot be zero! Use the warm start option instead, if you want to skip the initial rounds.
+
+BO-Hyper-Parameters control the behavior of the optimization process, such as the number of iterations, sampling strategies, and evaluation settings. These parameters influence how efficiently and effectively the optimizer searches for the best solution within the defined space. The settable hyper-parameters can be seen in this [image](#BO_hyper_settings)
+
+| **Name**       | **Default Value** | **Description**                                                                                   | **More Information**                                                                                                   |
+|-----------------|-------------------|---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| **N Initial**   | 5                 | Number of initial evaluations to gather before optimization begins.                              |                                                                                                                        |
+| **N Iterations**| 10                | Number of iterations the optimizer will run to refine the results.                                |                                                                                                                        |
+| **Total Iterations** | 15           | Sum of `N Initial` and `N Iterations`, representing the total rounds of evaluation.               |                                                                                                                        |
+| **Batch Size**  | 1                 | Number of evaluations performed in parallel during optimization.                                  | [Batch Size Explanation](https://mljourney.com/how-does-batch-size-affect-training/)                                      |
+| **Num Restarts**| 10                | Number of restarts for optimization to escape local optima and ensure better results.             |                 |
+| **Raw Samples** | 1024              | Number of random samples drawn to initialize the optimization process.                           |                                             |
+| **MC Samples**  | 512               | Number of Monte Carlo samples used to approximate expected utility in Bayesian optimization.      | [MC Samples Explanation](https://www.sciencedirect.com/topics/mathematics/monte-carlo-simulation)                      |
+| **Seed**        | 3                 | Seed value for random number generation to ensure reproducibility of optimization runs.           | [Seed Explanation](https://en.wikipedia.org/wiki/Random_seed)                                                          |
+
+
+* **Note:** The amount of initial rounds **cannot be zero!** Use the warm start option instead, if you want to skip the initial rounds.
+<a id="BO_hyper_settings"></a>
+
+![BO Hyperprameter settings](./images/BO_hyperparameter_settings.png)
 
 ## Portability to your own Project
 If you want to use this optimization tool in your own project, you can simply export it as a unity package and import it in your project. To do so, follow these steps: 
