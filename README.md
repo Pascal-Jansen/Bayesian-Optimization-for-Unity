@@ -62,11 +62,9 @@ This assusmes that you installed the Asset correctly and set the python path if 
 * **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
 
 ## Demo Video
-This is a short demo video, that shows the export of the BO-for-Unity-package (Main-branch) and how you import it into a new Unity project. It shows what you have to do after importing, if you have python 3.11.3 locally installed and are using a Windows computer.
+You can click on the thumbnail below, to watch a short demo video, that shows the export of the BO-for-Unity-package (Main-branch) and how you import it into a new Unity project. It shows what you have to do after importing, if you have python 3.11.3 locally installed and are using a Windows computer.
 
-<iframe width="560" height="315" src="https://youtu.be/J1hrFuiGiRI" 
-frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; 
-gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![Watch the video](https://img.youtube.com/vi/J1hrFuiGiRI/0.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
 ## Configuration
 All the configurations, that are neccessary can be made in Unity. To do so, you have to open the folder of the Unity scene which is *Assets/BOforUnity*. Here you click on the *BO-example-scene.unity* and open the scene. After that, select the *BOforUnityManager* Object on the left (blue) and click on *select* in the top of the inspector. Now you can change the settings accordingly. 
