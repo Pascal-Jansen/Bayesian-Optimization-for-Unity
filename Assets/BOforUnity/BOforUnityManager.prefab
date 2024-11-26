@@ -736,7 +736,7 @@ MonoBehaviour:
   optimizerStatePanel: {fileID: 8680556307261963827}
   optimizationRunning: 0
   optimizationFinished: 0
-  localPython: 0
+  localPython: 1
   pythonPath: /usr/local/bin/python3
 --- !u!114 &8333122899715132410
 MonoBehaviour:

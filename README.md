@@ -2,6 +2,23 @@
 
 by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en)
 
+## Table of contents
+* [About](#about)
+* [Usage](#usage)
+* [Versions](#versions)
+* [Installation](#installation)
+* [Example Usage](#example-usage)
+* [Demo Video](#demo-video)
+* [Configuration](#configuration)
+    * [Parameters](#parameters)
+    * [Objectives](#objectives)
+    * [Python Settings](#python-settings)
+    * [Study Settings](#study-settings)
+    * [Warm Start & Perfect Rating Settings](#warm-start--perfect-rating-settings)
+* [Portability to your own Project](#portability-to-your-own-project)
+* [Known Issues](#known-issues)
+* [License](#license)
+
 ## About
 
 This Unity asset integrates Bayesian Optimization (based on [botorch.org](https://botorch.org/)) into your projects, enabling the optimization of design parameters to maximize or minimize objective values. It utilizes a **Human-in-the-Loop** approach, iteratively querying user feedback on designs to refine parameter values.
@@ -9,42 +26,55 @@ This Unity asset integrates Bayesian Optimization (based on [botorch.org](https:
 Key features include:
 - Set optimization hyperparameters directly in Unity.
 - Automatic communication between Unity and the Python process running the botorch-based implementation.
+- The [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for user feedback
 
 ## Usage
 
-#### Human-in-the-Loop Process
-
-To utilize the Human-in-the-Loop optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for collecting explicit subjective feedback from users. This feedback serves as the design objective value in the optimization process. 
 
 Example use case:
 - Measure the usability of a design using the System Usability Scale (SUS) and use this data for optimization.
 
-#### Limitations
+#### Human-in-the-Loop Process
+In the following picture you can see the Human-in-the-Loop Process (HITL) of this asset.
+This process can be explained step by step:
+1. ..
+2. ..
+3. ..
+4. ..
 
-Currently, there is no *implicit* feedback variant of this asset. It cannot, for example, process physiological data from users as input for design objective values.
+![HITL diagramm](./images/HITL.png)
+
+#### Questionnaires for user feedback
+To utilize the Human-in-the-Loop optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for collecting explicit subjective feedback from users. This feedback serves as the design objective value in the optimization process. 
+
+<!--#### Limitations-->
+
+
 
 ## Versions
-Currently there are two example versions of the bayesian optimization for unity project. They are separated in branches.
+Currently, there are three example versions of the Bayesian optimization for Unity project. They are separated in branches.
 
 #### Main-Branch
-In this version, the example is based on one unity-scene, meaning there is no real change of scenes. The interface gets replaced by the next one in the same unity-scene instead.
+This version is based on one unity-scene, meaning there is no real change of scenes. The interface is replaced by the next one in the same Unity-scene instead.
 
 #### Multi-Scene-Branch
-In this version, the example is based on multiple unity-scenes. This means, everytime you see a new interface, unity switched to another scene. To make this work, there is a loading scene during the optimization process and the *BOforUnityManager* is marked as *DontDestroyOnLoad*.
+This version is based on multiple Unity-scenes. This means, every time you see a new interface, Unity switches to another scene. To make this work, there is a loading scene during the optimization process and the *BOforUnityManager* is marked as *DontDestroyOnLoad*.
+
+#### HeartRateReceiver-Branch
+This version uses implicit data as objectives in the human-in-the-loop process (for example, live smartwatch data of the proband). This is an implicit variant of the BO for Unity.
 
 ## Installation
 This is a step-by-step explanation how you get this asset running on your system.
 1. Clone the repository 
 2. Launch the installation_python.bat (or the install_python.sh for MacOS) to install Python and the library requirements.
 These files are located in *Assets/StreamingAssets/BOData/Installation*
-
-* **Note:** If you have Python already installed locally you have to set the path to python manually. This is explained in the [Python Settings](#python-settings) chapter. Make sure to also read the first section of [Configuration](#configuration) to make sure you safe the python setting correctly
-
 3. Download Unity Hub
 4. Create or Login to your (student-)licensed Unity-account
 5. Install Unity 2022.3.21f1
 6. Add the project in the Unity Hub by selecting the repository folder
 7. Open the project and set the [Python Settings](#python-settings) accordingly
+
+* **Note:** You have to set the python path manually, no matter if you installed it with the installation file or if you have Python already installed locally. How you set the path correctly is explained in the [Python Settings](#python-settings) chapter. Make sure to also read the first section of [Configuration](#configuration) to make sure you safe the python setting correctly.
 
 ## Example Usage
 In this chapter this Asset is explained by going through the Demo experiment step-by-step once.
@@ -140,12 +170,11 @@ Select the objective you want to delete, by clicking on the `=`-symbol at the to
 ![Remove objective](./images/remove_objective.png)
 
 #### Python Settings
-In this section which is seen in this [image](#py_st_ws_pr_settings) you can set the path to Python manually. To do so you have to get the local path of **Python 3.11.3** .
+In this section which is seen in this [image](#py_st_ws_pr_settings) you have to set the path to Python manually. To do so you have to get the local path of **Python 3.11.3** .
 * for Windows you can go into a cmd terminal and type `where python`. This will list all installed Python versions. Now you can copy the path of the correct version.
 * for Linux you can go into the terminal and type `whereis python3.11` or `which python3.11`. Now you can copy the path.
 
 After that you can tick the box in the *Python Settings* section in the *BOforUnityManager* and paste the copied path in the upcoming text field. You do not need to strip anything of the path.
-If you downloaded python via the installation script, you can simply uncheck the box.
 
 #### Study Settings
 In the next section of the [image](#py_st_ws_pr_settings) you can set individual study settings. Here you can fill in the ID of the user (User ID), the ID of the current condition you are running the experiment on (Condition ID), as well as the ID of the current group (Group ID). This ensures sortable results.
@@ -205,7 +234,7 @@ To include it in your project, simply click on *Import package -> Custom package
 
 * **Note:** If this is a new project, or you never used *TextMeshPro* in your project a pop-up will appear to install *TextMeshPro-Essentials*. Install this as well, to make the textboxes work. Refresh the scene afterwards, if needed.
 
-## Known issues
+## Known Issues
 #### Python Warnings
 During the experiment, it can happen, that the mobo python script throws warnings about the normalization of the input objectives. Unity treats these warnings as Errors. But these warnings can be ignored and wont affect the result of the optimizer as far as we know.
 
