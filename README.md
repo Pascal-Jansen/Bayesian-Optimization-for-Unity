@@ -58,17 +58,15 @@ Multi-Objective Bayesian Optimization (MOBO) is an extension of Bayesian optimiz
 
 The optimization problem can be represented as:
 
-\[
-\max_{x \in X} f(x),
-\]
+$$\max_{x \in A} f(x),$$
 
 where:
-- \( x \) is a vector of parameters within the feasible design space \( X \),
-- \( f(x) \) represents a vector of objective functions, \( f(x) = [f_1(x), f_2(x), \dots, f_k(x)] \), where \( k \) is the number of objectives. In our case this is known as \( y \).
+- $ x $ is a vector of parameters within the feasible design space $ X $,
+- $ f(x) $ represents a vector of objective functions, $ f(x) = [f_1(x), f_2(x), \dots, f_k(x)] $, where $ k $ is the number of objectives. In our case this is known as $ y $.
 
 MOBO uses surrogate models (e.g. Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer predict results for different design instances without having to compute them directly each time. A learning function (e.g., Expected Hypervolume Improvement) then uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
 
-This means, the optimizer tries to maximize \( f(x) \) by selecting the expected best-fitting vector of parameters for the next round.
+This means, the optimizer tries to maximize $ f(x) $ by selecting the expected best-fitting vector of parameters for the next round.
 
 MOBO is widely used in areas such as hyperparameter tuning, material design, and engineering optimization, where multiple objectives must be satisfied simultaneously.
 
