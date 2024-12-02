@@ -37,20 +37,35 @@ Example use case:
 
 #### Optimization Problem
 
+In multi-objective Bayesian optimization, the goal is to find the optimal configuration of parameters (e.g. color, transparency, visibility) that maximizes the objective function values (consisting out of objectives, in this example: usability & trust) while respecting the constraints of the design space ($`X`$), which contains all possible sets of parameters. This involves exploring a feasible design space to identify the best trade-offs among multiple objectives.
+
+The optimization problem can be represented as:
+
+$$
+x^* = \arg\max_{x \in X} f(x),
+$$
+
+where:
+- $`x`$ is a vector of parameters within the feasible design space $`X`$,
+- $`f(x)`$ represents a vector of objective functions, $`f(x) = [f_1(x), f_2(x), \dots, f_k(x)]`$, where $`k`$ is the number of objectives,
+- $`x^*`$ is the optimal configuration of design parameters that maximizes $`f(x)`$ across all designs in $`X`$.
+
+In this context, $`f(x)`$ is known as $`y`$, representing the outputs or responses of the system being optimized. This formulation ensures that the optimizer seeks to identify the parameter vector $`x^*`$ that leads to the best possible outcomes for the given objectives.
 
 #### Human-in-the-Loop Process
 The picture below shows the Human-in-the-Loop (HITL) process of this asset.
 This process can be explained step by step:
-1. The optimizer selects the design instance x. This is one set of parameters from the design space (X) which contains all possible sets of parameters. In this example a design instance includes the color (ColorR, ColorG, ColorB), the transparency and the visibility of both shapes (cube & cylinder). The parameters also have a set range to limit the size of the design space (X).
-2. The appearance that has been prametrized by x is now visualized in the simulation. The user then experiences the appearance of the shapes by watching the simulation.
-3. After the simulation the user can subjectively rate the given design instance by filling out the questionnaire. The ratings are then translated into objective function values y. In this example the objectives are trust and usability which also have a range to limit the size of the objective functions (Y).
+1. The optimizer selects the design instance $`x`$. This is one set of parameters from the design space ($`X`$) which contains all possible sets of parameters. In this example a design instance includes the color (ColorR, ColorG, ColorB), the transparency and the visibility of both shapes (cube & cylinder). The parameters also have a set range to limit the size of the design space ($`X`$).
+2. The appearance that has been prametrized by $`x`$ is now visualized in the simulation. The user then experiences the appearance of the shapes by watching the simulation.
+3. After the simulation the user can subjectively rate the given design instance by filling out the questionnaire. The ratings are then translated into objective function values $`y`$. In this example the objectives are trust and usability which also have a range to limit the size of the objective functions ($`Y`$).
 4. Based on the current objective function values the [Multi-Objective Bayesian Optimization (MOBO)](#multi-objective-bayesian-optimization-mobo) selects another design instance, taking into account all the values given so far. Then the loop starts again from step 1.
 
 > **Note:** In the initial rounds, the optimizer selects a design instance according to a seed and stores the objective function values to collect more values for later optimization rounds. This means that in these rounds there is no relation between the change of the visual appearance and the rating to expect.
 
 > **Note:** For the implicit approach the questionnaire is replaced by the implicitly collected values.
+<a id="hitl_diagram"></a>
 
-![HITL diagramm](./images/HITL.png)
+![HITL Siagram](./images/HITL.png)
 
 #### Questionnaires for User Feedback
 To utilize the Human-in-the-Loop optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback from users. This feedback serves as the design objective value in the optimization process.
@@ -59,17 +74,16 @@ To utilize the Human-in-the-Loop optimization, this asset requires the [Question
 
 Multi-Objective Bayesian Optimization (MOBO) is an extension of Bayesian optimization designed to optimize multiple conflicting objectives simultaneously. Instead of seeking a single optimum, the goal is to identify a **Pareto front**, which represents the set of solutions that offer the best trade-offs between objectives.
 
-The optimization problem can be represented as:
+For a solution to lie on the Pareto front it must be **Pareto optimal**, meaning no other solution in the design space achieves better results for one objective without worsening another. This can be visualized in the following diagram. 
 
-$$\max_{x \in X} f(x),$$
+![Pareto Front Diagram](./images/MOBO_Pareto_Front.png)
 
-where:
-- $`x`$ is a vector of parameters within the feasible design space $` X `$,
-- $`f(x)`$ represents a vector of objective functions, $`f(x) = [f_1(x), f_2(x), \dots, f_k(x)]`$, where $`k`$ is the number of objectives. In our case this is known as $`y`$.
+On the x-axis you can see the first objective (usability) and on the y-axis the second objective (trust). Together they represent the objective function values ($`y`$), as you can see in the [HITL diagram](#hitl_diagram). Each point on the diagram represents one set of y from the objective functions ($`Y`$).
+Points on the curve represent Pareto optimal solutions, while points inside the curve are suboptimal and dominated by the points on the front.
 
 MOBO uses surrogate models (e.g. Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer predict results for different design instances without having to compute them directly each time. A learning function (e.g., Expected Hypervolume Improvement) then uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
 
-This means, the optimizer tries to maximize $`f(x)`$ by selecting the expected best-fitting vector of parameters for the next round.
+This means, the optimizer tries to maximize $`y`$ by selecting the expected best-fitting vector of parameters for the next round.
 
 MOBO is widely used in areas such as hyperparameter tuning, material design, and engineering optimization, where multiple objectives must be satisfied simultaneously.
 
@@ -119,11 +133,11 @@ It is necessary that you have installed the Asset correctly and set the python p
 > **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
 
 ## Demo Video
-You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer.
+You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer. Optionally, you can you can go to the *images* folder and watch the video there.
 
-<!--[![Watch the video](https://img.youtube.com/vi/J1hrFuiGiRI/0.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)-->
+[![Watch the video](https://img.youtube.com/vi/J1hrFuiGiRI/0.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
-![Watch the video](./images/Demo_BO_for_Unity.gif)
+<!--![Watch the video](./images/Demo_BO_for_Unity.gif)-->
 
 ## Configuration
 All the necessary configurations can be done in Unity. To do this, open the Unity scene folder which is *Assets/BOforUnity*. Double-click on the *BO-example-scene.unity* file to open the scene. Then select the *BOforUnityManager* object on the left (blue) and click on *Select* in the upper part of the inspector. Now you can change the settings.
@@ -161,14 +175,14 @@ The adjustable options of each parameter are explained from top to bottom. You c
 > **Note:** The `UpdateParameter` method should not be used if possible, because it often happens that the exact script can't be found even when setting the above parameters. Instead, get the needed value from the parameter list in the *BOforUnityManager* by selecting the correct index.
 <a id="parameter_settings"></a>
 
-![Parameter settings](./images/parameter_settings.png)
+![Parameter Settings](./images/parameter_settings.png)
 
 ##### Remove Parameter
 Select the parameter you want to delete by clicking on the `=` icon in the upper left corner of the parameter. Make sure it is highlighted in blue, as shown in the image below. Then click the `-` icon at the bottom of the parameter collection.
 
 > **Note:** Make sure you do the reverse of what you must do when adding a parameter.
 
-![Remove parameter](./images/remove_parameter.png)
+![Remove Parameter](./images/remove_parameter.png)
 
 #### Objectives
 The objectives are the inputs that the optimizer receives. In this configuration section you can create, change or remove such objectives.
@@ -199,14 +213,14 @@ Adjustable options are explained from top to bottom. You can see them in the ins
 | **Smaller is Better**          | Indicates whether smaller values are preferable (default is that higher values are better).          |
 <a id="objective_settings"></a>
 
-![Objective settings](./images/objective_settings.png)
+![Objective Settings](./images/objective_settings.png)
 
 ##### Remove Objective
 Select the objective you want to delete, by clicking on the  `=` icon in the upper left corner of the objective. Make sure it is highlighted in blue as shown in the image below. Then click on the `-` icon at the bottom of the objective collection.
 
 > **Note:** Make sure you do the reverse of what you must do when adding an objective.
 
-![Remove objective](./images/remove_objective.png)
+![Remove Objective](./images/remove_objective.png)
 
 #### Python Settings
 In the top section shown in this [image] (#py_st_ws_pr_settings) you have to set the path to Python manually. To do this, you need to get the local path of **Python 3.11.3**.
@@ -258,7 +272,7 @@ BO-Hyper-Parameters control the behavior of the optimization process, such as th
 > **Note:** The number of initial rounds must be **at least 2!** Use the warm start option instead if you want to skip the initial rounds.
 <a id="BO_hyper_settings"></a>
 
-![BO Hyperprameter settings](./images/BO_hyperparameter_settings.png)
+![BO Hyperprameter Settings](./images/BO_hyperparameter_settings.png)
 
 ## Portability to Your Own Project
 If you want to use this optimization tool in your own project, you can simply export it as a Unity package and import it into your project. To do this, follow these steps: 
