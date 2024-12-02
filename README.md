@@ -35,6 +35,9 @@ Example use case:
 
 ## Process
 
+#### Optimization Problem
+
+
 #### Human-in-the-Loop Process
 The picture below shows the Human-in-the-Loop (HITL) process of this asset.
 This process can be explained step by step:
@@ -58,15 +61,15 @@ Multi-Objective Bayesian Optimization (MOBO) is an extension of Bayesian optimiz
 
 The optimization problem can be represented as:
 
-$$\max_{x \in A} f(x),$$
+$$\max_{x \in X} f(x),$$
 
 where:
-- $ x $ is a vector of parameters within the feasible design space $ X $,
-- $ f(x) $ represents a vector of objective functions, $ f(x) = [f_1(x), f_2(x), \dots, f_k(x)] $, where $ k $ is the number of objectives. In our case this is known as $ y $.
+- $\ x $ is a vector of parameters within the feasible design space $ X $,
+- $\ f(x) $ represents a vector of objective functions, $\ f(x) = [f_1(x), f_2(x), \dots, f_k(x)] $, where $\ k $ is the number of objectives. In our case this is known as $\ y $.
 
 MOBO uses surrogate models (e.g. Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer predict results for different design instances without having to compute them directly each time. A learning function (e.g., Expected Hypervolume Improvement) then uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
 
-This means, the optimizer tries to maximize $ f(x) $ by selecting the expected best-fitting vector of parameters for the next round.
+This means, the optimizer tries to maximize $\ f(x) $ by selecting the expected best-fitting vector of parameters for the next round.
 
 MOBO is widely used in areas such as hyperparameter tuning, material design, and engineering optimization, where multiple objectives must be satisfied simultaneously.
 
@@ -118,7 +121,9 @@ It is necessary that you have installed the Asset correctly and set the python p
 ## Demo Video
 You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer.
 
-[![Watch the video](https://img.youtube.com/vi/J1hrFuiGiRI/0.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
+<!--[![Watch the video](https://img.youtube.com/vi/J1hrFuiGiRI/0.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)-->
+
+[![Watch the video](https://raw.githubusercontent.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/main/images/Demo_BO_for_Unity.png)](https://raw.githubusercontent.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/images/Demo_BO_for_Unity.mp4)
 
 ## Configuration
 All the necessary configurations can be done in Unity. To do this, open the Unity scene folder which is *Assets/BOforUnity*. Double-click on the *BO-example-scene.unity* file to open the scene. Then select the *BOforUnityManager* object on the left (blue) and click on *Select* in the upper part of the inspector. Now you can change the settings.
