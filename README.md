@@ -15,6 +15,7 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en)
     * [Python Settings](#python-settings)
     * [Study Settings](#study-settings)
     * [Warm Start & Perfect Rating Settings](#warm-start--perfect-rating-settings)
+* [System Architecture](#system-architecture)
 * [Portability to your own Project](#portability-to-your-own-project)
 * [Known Issues](#known-issues)
 * [License](#license)
@@ -37,7 +38,7 @@ Example use case:
 
 #### Optimization Problem
 
-In multi-objective Bayesian optimization, the goal is to find the optimal configuration of parameters (e.g. color, transparency, visibility) that maximizes the objective function values (consisting out of objectives, in this example: usability & trust) while respecting the constraints of the design space ($`X`$), which contains all possible sets of parameters. This involves exploring a feasible design space to identify the best trade-offs among multiple objectives.
+In Multi-Objective Bayesian Optimization, the goal is to find the optimal configuration of parameters (int this example the design parameters: color, transparency & visibility). This optimal configuration maximizes the objective function values (consisting of objectives, in this example: usability & trust) while respecting the constraints of the design space ($`X`$), which contains all possible sets of parameters. This involves exploring a feasible design space to identify the best trade-offs among multiple objectives.
 
 The optimization problem can be represented as:
 
@@ -65,7 +66,7 @@ This process can be explained step by step:
 > **Note:** For the implicit approach the questionnaire is replaced by the implicitly collected values.
 <a id="hitl_diagram"></a>
 
-![HITL Siagram](./images/HITL.png)
+![HITL Diagram](./images/HITL.png)
 
 #### Questionnaires for User Feedback
 To utilize the Human-in-the-Loop optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback from users. This feedback serves as the design objective value in the optimization process.
@@ -78,7 +79,7 @@ For a solution to lie on the Pareto front it must be **Pareto optimal**, meaning
 
 ![Pareto Front Diagram](./images/MOBO_Pareto_Front.png)
 
-On the x-axis you can see the first objective (usability) and on the y-axis the second objective (trust). Together they represent the objective function values ($`y`$), as you can see in the [HITL diagram](#hitl_diagram). Each point on the diagram represents one set of y from the objective functions ($`Y`$).
+On the x-axis you can see the first objective (usability) and on the y-axis the second objective (trust). Together they represent the objective function values ($`y`$), as you can see in the [HITL diagram](#hitl_diagram). Each point on the diagram represents one set of $`y`$ from the objective functions ($`Y`$).
 Points on the curve represent Pareto optimal solutions, while points inside the curve are suboptimal and dominated by the points on the front.
 
 MOBO uses surrogate models (e.g. Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer predict results for different design instances without having to compute them directly each time. A learning function (e.g., Expected Hypervolume Improvement) then uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
@@ -135,7 +136,7 @@ It is necessary that you have installed the Asset correctly and set the python p
 ## Demo Video
 You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer. Optionally, you can you can go to the *images* folder and watch the video there.
 
-[![Watch the video](https://img.youtube.com/vi/J1hrFuiGiRI/0.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
+[![Watch the video](./images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
 <!--![Watch the video](./images/Demo_BO_for_Unity.gif)-->
 
@@ -273,6 +274,17 @@ BO-Hyper-Parameters control the behavior of the optimization process, such as th
 <a id="BO_hyper_settings"></a>
 
 ![BO Hyperprameter Settings](./images/BO_hyperparameter_settings.png)
+
+## System Architecture
+This chapter explains the system architecture to make it easier for you to work with it as a base and develop the asset to meet your own needs. The system architecture can be explained with the following diagram.
+
+![System Architecture](./images/System_Architecture.png)
+
+At the top you can see the *BoForUnityManagerEditor.cs* where you can edit the *BoForUnityManager.prefab*. So you can change what can be set there, how the descriptions for the settings look like and so on. The settings in the *BoForUnityManager.prefab* can be set via the *Unity Inspector* as explained in the [Configuration](#Configuration) chapter.\
+The settings are used by *BoForUnityManager.cs* which manages the whole process and is located in the middle of the diagram. It starts the Python server first with *PythonStarter.cs*.\
+Once the Python server has been successfully started, *BoForUnityManager.cs* communicates with the *mobo.py* script running on the server. It does this through the *SocketNetwork.cs* script.\
+After receiving data from *SocketNetwork.cs* it passes it to *Optimizer.cs* which updates the design parameters for the simulation.\
+The *BoForUnityManager.cs* script also checks which iteration is active and manages the process accordingly.
 
 ## Portability to Your Own Project
 If you want to use this optimization tool in your own project, you can simply export it as a Unity package and import it into your project. To do this, follow these steps: 

@@ -1,0 +1,25 @@
+@startuml
+package "Unity" {
+    [BoForUnityManagerEditor.cs]
+    [BoForUnityManager.prefab]
+    [BoForUnityManager.cs]
+    [PythonStarter.cs]
+    [Optimizer.cs]
+    [SocketNetwork.cs]
+    circle " " as Manages
+}
+
+node "Python Server" {
+    [mobo.py]
+}
+[BoForUnityManagerEditor.cs] --> [BoForUnityManager.prefab] : change manager
+[BoForUnityManager.prefab] --> [BoForUnityManager.cs] : change settings
+[BoForUnityManager.cs] <--> "Manages" : data exchange
+"Manages" <--> [Optimizer.cs]
+"Manages" <--> [SocketNetwork.cs]
+"Manages" <--> [PythonStarter.cs]
+
+[PythonStarter.cs] --> [mobo.py] : starts
+[SocketNetwork.cs] <--> [mobo.py] : messaging
+
+@enduml
