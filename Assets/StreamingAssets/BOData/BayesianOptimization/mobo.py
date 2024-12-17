@@ -183,6 +183,7 @@ def objective_function(x_tensor):
     return torch.tensor(fs, dtype=torch.float64).to(device)
     # return torch.tensor(fs, dtype=torch.float64).cuda()
 
+
 # parameter values range from 0 to 1
 def denormalize_to_original_param(value, lower_bound, upper_bound):
     result = lower_bound + value * (upper_bound - lower_bound)
@@ -195,8 +196,6 @@ def denormalize_to_original_obj(value, lower_bound, upper_bound, smaller_is_bett
     result = lower_bound + (value + 1) / 2 * (upper_bound - lower_bound)
     return np.round(result, 2) if isinstance(result, (float, int)) else np.round(result, 2)
 
-def denormalize_to_original(value, lower_bound, upper_bound):
-    return lower_bound + (value + 1) / 2 * (upper_bound - lower_bound)
 
 # -------------------------------------------------------
 # create_csv_file
@@ -230,12 +229,14 @@ def write_data_to_csv(csv_file_path, fieldnames, data):
 # generate_initial_data
 # -------------------------------------------------------
 #das hier heißt dass die Optimierungsfunktion immer random beginnt und deshalb direkt mit der Applikation verbunden sein muss
-# n_samples muss 2(d+1) wobei d = num_objs ist sein (https://botorch.org/tutorials/multi_objective_bo)
+# n_samples muss 2(d+1) sein, wobei d = problem_dim (d.h. Anzahl Design Parameter) ist (https://botorch.org/tutorials/multi_objective_bo)
 def generate_initial_data(n_samples):
     
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
-    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData", USER_ID)
+    if not os.path.exists(PROJECT_PATH):
+        os.makedirs(PROJECT_PATH)
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
 
     # Check if the file exists and write the header if it does not
@@ -249,7 +250,7 @@ def generate_initial_data(n_samples):
     train_x = draw_sobol_samples(
         bounds=problem_bounds, n=1, q=n_samples, seed=torch.randint(1000000, (1,)).item()
     ).squeeze(0)
-    #print("Initial training data (Sobol samples) in normalized range [-1, 1]:", train_x, flush=True)
+    print("Initial training data (Sobol samples) in normalized range [-1, 1]:", train_x, flush=True)
 
     # loop to sample objective values from the users to these training data
     train_obj = []
@@ -382,7 +383,7 @@ def mobo_execute(seed, iterations, initial_samples):
     # prepare file logging
     #-----------------------
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
-    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData", USER_ID)
     os.makedirs(PROJECT_PATH, exist_ok=True)
     csv_file_path = os.path.join(PROJECT_PATH, 'ExecutionTimes.csv')
     create_csv_file(csv_file_path, ['Optimization', 'Execution_Time'])
@@ -524,14 +525,16 @@ def load_object(filename):
 def save_xy(x_sample, y_sample, iteration):
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Current working directory
-    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData", USER_ID)
+    if not os.path.exists(PROJECT_PATH):
+        os.makedirs(PROJECT_PATH)
     print("Project Path for Observations:", PROJECT_PATH, flush=True)
 
     # Detect pareto front points before denormalization (while the objective values are still all set to maximization)
     #pareto_mask = is_non_dominated(y_sample) # not used as it does not return identical rows as Pareto true
     pareto_mask = calculate_pareto_front(y_sample)
 
-   # Convert tensors to numpy arrays
+    # Convert tensors to numpy arrays
     x_csv = x_sample.clone().cpu().numpy()
     y_csv = y_sample.clone().cpu().numpy()
 
@@ -552,7 +555,7 @@ def save_xy(x_sample, y_sample, iteration):
         current_data = pd.read_csv(observations_csv_file_path, delimiter=';')
     else:
         current_data = pd.DataFrame(columns=['User_ID', 'Condition_ID', 'Group_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
-
+    
     # Create a DataFrame for the new record
     new_data = pd.DataFrame([[
         USER_ID,
@@ -582,7 +585,9 @@ def save_xy(x_sample, y_sample, iteration):
 def save_hypervolume_to_file(hvs_qehvi, iteration):
     # Define the CSV file path
     CURRENT_DIR = os.getcwd()  # Aktuelles Arbeitsverzeichnis
-    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
+    PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData", USER_ID)
+    if not os.path.exists(PROJECT_PATH):
+        os.makedirs(PROJECT_PATH)
     print("Project Path for Hypervolumes:", PROJECT_PATH, flush=True)
     
     # Save hypervolume per evaluation
@@ -615,7 +620,7 @@ def calculate_pareto_front(obj_vals):
     else:
         obj_vals_tmp = obj_vals.clone()
 
-    print("Input Objective Values:", obj_vals_tmp, flush=True)
+    #print("Input Objective Values:", obj_vals_tmp, flush=True)
 
     # Identify the number of objectives and observations
     num_observations = obj_vals_tmp.shape[0]
@@ -718,7 +723,9 @@ def plot_pareto(x_sample, y_sample, hvs_qehvi):
     plt.clf()
 # -------------------------------------------------------
 # -------------------------------------------------------
-
+    
+    
+    
 # Run the sampling and optimization loop, 
 #   after receiving the initialization data (see "data = conn.recv(1024)" blocker at the beginning of this file):
 hvs_qehvi, train_x_qehvi, train_obj_qehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)

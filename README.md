@@ -61,15 +61,28 @@ This process can be explained step by step:
 3. After the simulation the user can subjectively rate the given design instance by filling out the questionnaire. The ratings are then translated into objective function values $`y`$. In this example the objectives are trust and usability which also have a range to limit the size of the objective functions ($`Y`$).
 4. Based on the current objective function values the [Multi-Objective Bayesian Optimization (MOBO)](#multi-objective-bayesian-optimization-mobo) selects another design instance, taking into account all the values given so far. Then the loop starts again from step 1.
 
-> **Note:** In the initial rounds, the optimizer selects a design instance according to a seed and stores the objective function values to collect more values for later optimization rounds. This means that in these rounds there is no relation between the change of the visual appearance and the rating to expect.
+#### Phases
+The entire process is divided into two phases, where the entire HITL process takes place.
+These two phases are different from each other.
 
-> **Note:** For the implicit approach the questionnaire is replaced by the implicitly collected values.
+* **Sampling Phase (N Initial):**\
+In this phase, the optimizer selects a design instance according to a seed and stores the objective function values to understand the design space and to collect more values for later optimization rounds. This means that in these rounds there is no relation between the change of the visual appearance and the rating to expect.
+\
+The length of the sampling phase is determined by the number of initial rounds (N Initial). This is a [hyperparameter](#bo-hyper-parameters) that can be set in the Unity inspector as explained later on.
+
+* **Optimization Phase (N Iterations):**\
+In this phase, the optimizer balances between **exploitation** (refining known good configurations) and **exploration** (searching new areas of the design space).
+\
+The length of the optimization phase is determined by the number of optimization rounds (N Iteration). This is a [hyperparameter](#bo-hyper-parameters) that can be set in the Unity inspector as explained later on.
+
 <a id="hitl_diagram"></a>
 
 ![HITL Diagram](./images/HITL.png)
 
 #### Questionnaires for User Feedback
 To utilize the Human-in-the-Loop optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback from users. This feedback serves as the design objective value in the optimization process.
+
+> **Note:** For the implicit approach the questionnaire is replaced by the implicitly collected values.
 
 #### Multi-Objective Bayesian Optimization (MOBO)
 
@@ -121,7 +134,7 @@ These files are located in *Assets/StreamingAssets/BOData/Installation*
 ## Example Usage
 This chapter explains this asset by going through the demo experiment step-by-step.
 It is necessary that you have installed the Asset correctly and set the python path in Unity.
-> **Note:** To work, the *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* must be empty (except for the header row). You can also delete the file completely, which will create a new clean file in the process.
+> **Note:** To work, the *ObservationPerEvaluation.csv* must be empty (except for the header row). It can be found in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)). You can also delete the folder completely, which will create a new clean folder with the file in the process.
 
 1. In Unity, open the *Assets/BOforUnity* folder. Double-click on the *BO-example-scene.unity* file to open the scene.
 2. Press the play button (⏵) at the top center of the screen.
@@ -131,7 +144,7 @@ It is necessary that you have installed the Asset correctly and set the python p
 6. Answer the questions accordingly and press `Finish` when you are done. Now the optimizer will save your input and change the simulation parameters.
 7. Press `Next` to start a new iteration. Now the process starts again from step `3.` until the set number of iterations is reached. Then the system tells you that you can now close the application.
 
-> **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData*.
+> **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)).
 
 ## Demo Video
 You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer. Optionally, you can you can go to the *images* folder and watch the video there.
@@ -155,7 +168,7 @@ Click on the `+` symbol at the bottom of the parameter collection. A new prefill
 
 > **Note:** Make sure that the added parameter is used in your simulation.
 
-> **Note:** It is recommended to save the previous *ObservationPerEvaluation.csv* from *Assets/BOforUnity/BOData/BayesianOptimization/LogData* somewhere else and then delete it from this folder to make sure the header is correct.
+> **Note:** It is recommended to save the previous log files in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)) and then delete this folder to make sure that the header is correct.
 
 > **Note:** Changing the header when adding a parameter is also important for the .csv files used by the optimizer when using the [warm start option](#warm-start-settings)!
 
@@ -193,7 +206,7 @@ Click on the `+` symbol at the bottom of the objective collection. A new prefill
 
 > **Note:** An objective must be given a value before the optimization step to make it work. In this demo, this can be done by creating a new question in the questionnaire or by changing a question for another objective to the new objective. How to do this is explained below.
 
-> **Note:** It is recommended to save the previous *ObservationPerEvaluation.csv* in *Assets/BOforUnity/BOData/BayesianOptimization/LogData* and then delete it in this folder to make sure that the header is correct.
+> **Note:** It is recommended to save the previous log files in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)) and then delete this folder to make sure that the header is correct.
 
 > **Note:** Changing the header when adding an objective is also important for the .csv files used by the optimizer when using the [warm start option](#warm-start-settings)!
 
@@ -237,7 +250,7 @@ In the next section of the [image](#py_st_ws_pr_settings) you can set individual
 The following explanations refer to the lower part of this [image](#py_st_ws_pr_settings).
 
 ##### Warm Start Settings
-* If you check the Warm Start box, the initial rounds will be skipped. This means that from the first iteration on, the optimizer will start optimizing using the results of a previous study. The results of the previous study must be given as .csv files. They must have a certain shape, which can be seen in the example data in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. In addition, the *ObservationsPerEvaluation.csv* of the previous study must be copied into the LogData of the new study (For the example warm start, you can copy the contents of the *ExampleObservationsPerEvaluation.csv* located in the *InitData* folder into the *ObservationsPerEvaluation.csv*).
+* If you check the Warm Start box, the initial rounds will be skipped. This means that from the first iteration on, the optimizer will start optimizing using the results of a previous study. The results of the previous study must be given as .csv files. They must have a certain shape, which can be seen in the example data in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. In addition, the *ObservationsPerEvaluation.csv* of the previous study must be copied into the log data of the new study (For the example warm start, you can copy the contents of the *ExampleObservationsPerEvaluation.csv* located in the *InitData* folder into the *ObservationsPerEvaluation.csv*).
 
 * Leaving the box unchecked results in the default start. After the specified number of initial iterations (at least 2!), the optimizer uses all the collected values to start the optimization process.
 
@@ -260,8 +273,8 @@ BO-Hyper-Parameters control the behavior of the optimization process, such as th
 
 | **Name**       | **Default Value** | **Description**                                                                                   | **More Information**                                                                                                   |
 |-----------------|-------------------|---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| **N Initial**   | 5                 | Number of initial evaluations to gather before optimization begins.                              |                                                                                                                        |
-| **N Iterations**| 10                | Number of iterations the optimizer will perform to refine the results.                                |                                                                                                                        |
+| **N Initial**   | 5                 | Number of initial evaluations to gather before optimization begins. Also known as length of the sampling phase.                              |                                                                                                                        |
+| **N Iterations**| 10                | Number of iterations the optimizer will perform to refine the results. Also known as length of the optimization phase.                               |                                                                                                                        |
 | **Total Iterations** | 15           | Sum of `N Initial` and `N Iterations`, representing the total number of iterations.               |                                                                                                                        |
 | **Batch Size**  | 1                 | Number of evaluations performed in parallel during optimization.                                  | [Batch Size Explanation](https://mljourney.com/how-does-batch-size-affect-training/)                                      |
 | **Num Restarts**| 10                | Number of optimization restarts to escape local optima and ensure better results.             |                 |
