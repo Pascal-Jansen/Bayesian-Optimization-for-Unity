@@ -66,9 +66,12 @@ The entire process is divided into two phases, where the entire HITL process tak
 These two phases are different from each other.
 
 * **Sampling Phase (N Initial):**\
-In this phase, the optimizer selects a design instance according to a seed and stores the objective function values to understand the design space and to collect more values for later optimization rounds. This means that in these rounds there is no relation between the change of the visual appearance and the rating to expect.
+In this phase, the optimizer selects a design instance by using Sobol sampling (see in the note below). Sobol sampling systematically divides the design space into evenly distributed areas and selects one representative configuration from each area. The optimizer stores the objective function values to understand the design space and to collect more values for later optimization rounds. This means that in these rounds there is no relation between the change of the visual appearance and the rating to expect.
 \
 The length of the sampling phase is determined by the number of initial rounds (N Initial). This is a [hyperparameter](#bo-hyper-parameters) that can be set in the Unity inspector as explained later on.
+
+    > **Note:** I. M. Sobol. 1967. On the distribution of points in a cube and the approximate evaluation of integrals. U. S. S. R. Comput. Math. and Math. Phys. 7 (1967), 86–112. (https://doi.org/10.1016/0041-5553(67)90144-9).
+
 
 * **Optimization Phase (N Iterations):**\
 In this phase, the optimizer balances between **exploitation** (refining known good configurations) and **exploration** (searching new areas of the design space).
