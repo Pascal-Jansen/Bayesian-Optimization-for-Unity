@@ -22,25 +22,24 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en)
 
 ## About
 
-This Unity asset integrates Bayesian Optimization (based on [botorch.org](https://botorch.org/)) into your projects, enabling the optimization of design parameters to maximize or minimize objective values. It utilizes a [Human-in-the-Loop](#human-in-the-loop-process) approach, iteratively querying user feedback on designs to refine parameter values.
+This Unity asset integrates Bayesian Optimization (based on [botorch.org](https://botorch.org/)) into your projects, enabling the optimization of design parameters to maximize or minimize objective values. It utilizes a [Human-in-the-Loop](#human-in-the-loop-process) approach, iteratively refining parameters based on user feedback.
 
 #### Key Features
-- Set optimization hyperparameters directly in Unity.
+- Configure optimization hyperparameters directly in Unity.
 - Automatic communication between Unity and the Python process running the BoTorch-based implementation.
-- The [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for user feedback
+- Integration of the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for user feedback
 
-#### Usage
+#### Example Use Case
 
-Example use case:
-- Measuring the usability and trustworthiness of a design using the System Usability Scale (SUS) and using this data for optimization.
+Measuring the usability and trustworthiness of a design using the System Usability Scale (SUS) and using this data for optimization.
 
 ## Process
 
 #### Optimization Problem
 
-In Multi-Objective Bayesian Optimization, the goal is to find the optimal configuration of parameters (int this example the design parameters: color, transparency & visibility). This optimal configuration maximizes the objective function values (consisting of objectives, in this example: usability & trust) while respecting the constraints of the design space ($`X`$), which contains all possible sets of parameters. This involves exploring a feasible design space to identify the best trade-offs among multiple objectives.
+In Multi-Objective Bayesian Optimization (MOBO), the goal is to find the optimal configuration of parameters (e.g., design parameters like color, transparency, and visibility). This optimal configuration maximizes the objective function values (e.g., objectives like usability & trust) while respecting the constraints of the design space ($`X`$), which contains all possible sets of parameters. This involves exploring a feasible design space to identify the best trade-offs among multiple objectives.
 
-The optimization problem can be represented as:
+The optimization problem is represented as:
 
 $$
 x^* = \arg\max_{x \in X} f(x),
@@ -51,26 +50,29 @@ where:
 - $`f(x)`$ represents a vector of objective functions, $`f(x) = [f_1(x), f_2(x), \dots, f_k(x)]`$, where $`k`$ is the number of objectives,
 - $`x^*`$ is the optimal configuration of design parameters that maximizes $`f(x)`$ across all designs in $`X`$.
 
-In this context, $`f(x)`$ is known as $`y`$, representing the outputs or responses of the system being optimized. This formulation ensures that the optimizer seeks to identify the parameter vector $`x^*`$ that leads to the best possible outcomes for the given objectives.
+In this context, $`f(x)`$ is referred to as $`y`$. It represents the outputs or reactions of the user to the system being optimized (e.g., answers to questionnaires). This formulation ensures that the optimizer seeks to identify the parameter vector $`x^*`$ that leads to the best possible outcomes for the given objectives.
 
 #### Human-in-the-Loop Process
 The picture below shows the Human-in-the-Loop (HITL) process of this asset.
 This process can be explained step by step:
-1. The optimizer selects the design instance $`x`$. This is one set of parameters from the design space ($`X`$) which contains all possible sets of parameters. In this example a design instance includes the color (ColorR, ColorG, ColorB), the transparency and the visibility of both shapes (cube & cylinder). The parameters also have a set range to limit the size of the design space ($`X`$).
-2. The appearance that has been prametrized by $`x`$ is now visualized in the simulation. The user then experiences the appearance of the shapes by watching the simulation.
-3. After the simulation the user can subjectively rate the given design instance by filling out the questionnaire. The ratings are then translated into objective function values $`y`$. In this example the objectives are trust and usability which also have a range to limit the size of the objective functions ($`Y`$).
-4. Based on the current objective function values the [Multi-Objective Bayesian Optimization (MOBO)](#multi-objective-bayesian-optimization-mobo) selects another design instance, taking into account all the values given so far. Then the loop starts again from step 1.
+1. **Design Selection:**\
+The optimizer selects the design instance $`x`$. This is one set of parameters from the design space ($`X`$) which contains all possible sets of parameters. In this example, a design instance includes the color (ColorR, ColorG, ColorB), the transparency, and the visibility of the shapes (Cube & Cylinder). The parameters also have a set range to limit the size of the design space ($`X`$).
+2. **Simulation:**\ 
+The appearance parameterized by $x$ is visualized in the simulation, allowing the user to experience the design.
+3. **User Feedback:**\ 
+After the simulation the user can subjectively rate the given design instance by filling out the questionnaire. The ratings are then translated into objective function values $`y`$. In this example the objectives are trust and usability which also have a range to limit the size of the objective functions ($`Y`$).
+4. **Optimization:**\ 
+Based on the current objective function values the [Multi-Objective Bayesian Optimization (MOBO)](#multi-objective-bayesian-optimization-mobo) selects another design instance, considering all previous feedback. The loop then repeats from step 1.
 
 #### Phases
-The entire process is divided into two phases, where the entire HITL process takes place.
-These two phases are different from each other.
+The entire process is divided into two phases, where the full HITL process takes place.
 
 * **Sampling Phase (N Initial):**\
 In this phase, the optimizer selects a design instance by using Sobol sampling (see in the note below). Sobol sampling systematically divides the design space into evenly distributed areas and selects one representative configuration from each area. The optimizer stores the objective function values to understand the design space and to collect more values for later optimization rounds. This means that in these rounds there is no relation between the change of the visual appearance and the rating to expect.
 \
 The length of the sampling phase is determined by the number of initial rounds (N Initial). This is a [hyperparameter](#bo-hyper-parameters) that can be set in the Unity inspector as explained later on.
 
-    > **Note:** I. M. Sobol. 1967. On the distribution of points in a cube and the approximate evaluation of integrals. U. S. S. R. Comput. Math. and Math. Phys. 7 (1967), 86–112. (https://doi.org/10.1016/0041-5553(67)90144-9).
+    > **Note:** I. M. Sobol. 1967. On the distribution of points in a cube and the approximate evaluation of integrals. U. S. S. R. Comput. Math. and Math. Phys. 7 (1967), 86–112. ([DOI](https://doi.org/10.1016/0041-5553(67)90144-9))
 
 
 * **Optimization Phase (N Iterations):**\
@@ -98,7 +100,7 @@ For a solution to lie on the Pareto front it must be **Pareto optimal**, meaning
 On the x-axis you can see the first objective (usability) and on the y-axis the second objective (trust). Together they represent the objective function values ($`y`$), as you can see in the [HITL diagram](#hitl_diagram). Each point on the diagram represents one set of $`y`$ from the objective functions ($`Y`$).
 Points on the curve represent Pareto optimal solutions, while points inside the curve are suboptimal and dominated by the points on the front.
 
-MOBO uses surrogate models (e.g. Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer predict results for different design instances without having to compute them directly each time. A learning function (e.g., Expected Hypervolume Improvement) then uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
+MOBO uses surrogate models (e.g. Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer to predict results for different design instances without having to compute them directly each time. A learning function (e.g., Expected Hypervolume Improvement) then uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
 
 This means, the optimizer tries to maximize $`y`$ by selecting the expected best-fitting vector of parameters for the next round.
 
@@ -122,11 +124,11 @@ This version is based on multiple Unity scenes. This means that every time you s
 This is an implicit version of the BO for Unity. It uses implicit data as objectives in the human-in-the-loop process (for example, live smartwatch data from the proband).
 
 ## Installation
-This is a step-by-step explanation of how to get the asset up and running on your system.
+Follow these steps to set up the asset on your system:
 1. Clone the repository 
 2. Run the installation_python.bat (or the install_python.sh for macOS) to install Python and the library requirements.
 These files are located in *Assets/StreamingAssets/BOData/Installation*
-3. Download the Unity Hub
+3. Download & install the Unity Hub
 4. Create or login to your (student-)licensed Unity account
 5. Install Unity 2022.3.21f1
 6. Add the project to the Unity Hub by selecting the repository folder
@@ -141,7 +143,7 @@ It is necessary that you have installed the Asset correctly and set the python p
 
 1. In Unity, open the *Assets/BOforUnity* folder. Double-click on the *BO-example-scene.unity* file to open the scene.
 2. Press the play button (⏵) at the top center of the screen.
-3. Press the `Next` button on the screen and wait for the system to load. Then press next again.
+3. Press the `Next` button on the screen and wait for the system to load. Then press `Next` again.
 4. Now the simulation will be shown. In this case, you will see a maximum of two shapes with colors to evaluate.
 5. When you are finished, you can press the `End Simulation` button. A questionnaire will appear asking you to rate the simulation.
 6. Answer the questions accordingly and press `Finish` when you are done. Now the optimizer will save your input and change the simulation parameters.
@@ -150,7 +152,7 @@ It is necessary that you have installed the Asset correctly and set the python p
 > **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)).
 
 ## Demo Video
-You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer. Optionally, you can you can go to the *images* folder and watch the video there.
+You can click on the thumbnail below to see a short demo video showing how to export the BO-for-Unity package (Main-branch) and import it into a new Unity project. It shows what you need to do after importing if you have Python 3.11.3 installed locally and are using a Windows computer. Optionally, you can go to the *images* folder and watch the video there.
 
 [![Watch the video](./images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
