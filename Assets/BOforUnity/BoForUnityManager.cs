@@ -281,8 +281,14 @@ namespace BOforUnity
                 objectives.Add(objective);            
             }
 
+            // this adds the value to the list
             objective.value.values.Add(value);
+            // this updates number of submeasure to represent the list size, this is later used to average the values, so it must be updated.
+            objective.value.numberOfSubMeasures = objective.value.values.Count;
+        
             Debug.Log($"Updated Objective '{key}' with value: {value}");
+            Debug.Log($"Updated Objective size '{key}' with value: {objective.value.values.Count}");
+
         }
 
         //can be used in onstart simulate some values for objectives (e.g. heartrate)
