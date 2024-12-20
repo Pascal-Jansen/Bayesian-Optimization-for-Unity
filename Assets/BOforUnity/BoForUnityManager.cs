@@ -83,13 +83,8 @@ namespace BOforUnity
             currentIteration = 1;
             totalIterations = nInitial + nIterations; // set how many iterations the optimizer should run for
 
-            //check if there is an objective list available
-            if (objectives == null)
-            {
-                objectives = new List<ObjectiveEntry>();
-            }
 
-            // Find the simulator
+            // Find the data simulator. Just needed if you dont have real data sources. 
             valueSimulator = FindObjectOfType<ValueSimulator>();
             if (valueSimulator == null)
             {
@@ -202,8 +197,7 @@ namespace BOforUnity
         public void OptimizationStart()
         {
             Debug.Log("Optimization START");
-            UpdateObjectives(new List<string> { "HeartRate", "StepCount" }, defaultValue: 75f); // here additional values can be added as needed
-
+            UpdateObjectives();
             socketNetwork.SendObjectives(); // send the current objective values to the Python process
             optimizationRunning = true;
             simulationRunning = false;
@@ -304,38 +298,53 @@ namespace BOforUnity
         }
 
 
-// Update objectives with the latest data from the simulator
-public void UpdateObjectives(List<string> variableKeys, float defaultValue = 0f)
+private void clearOldData(string key){
+
+    //Example clearing simulated HeartRate and Stepcount Data
+    if(key == "HeartRate" || key == "StepCount"){
+        valueSimulator.ClearSimulatedDataForKey(key);
+    }
+
+    //---------
+    
+
+    //implement clearing logig here, above example with HeartRate and Stepcount
+
+
+    //---------
+
+}
+
+private List<float> fetchData(string key){
+    List<float> data = new List<float>();
+    if(key == "HeartRate" || key == "StepCount"){
+       data = valueSimulator != null ? valueSimulator.GetSimulatedData(key) : new List<float>();
+    }
+
+    //---------
+    
+
+    //implement data fetching logig here, above example with HeartRate and Stepcount
+
+
+    //---------
+
+    return data;
+}
+
+// Updates objectives -- implement logic for updating your objectives here -- examples use HeartRate and Stepcount
+public void UpdateObjectives()
 {
-    foreach (var key in variableKeys)
-    {
-        // Fetch all data for the key from the simulator
-        List<float> data = valueSimulator != null ? valueSimulator.GetSimulatedData(key) : new List<float>();
 
-        // Find the objective
-        var objective = objectives.FirstOrDefault(o => o.key == key);
-        if (objective == null)
-        {
-            Debug.LogWarning($"Objective '{key}' does not exist, please create it in BoForUnityManager gameobject in objectives list");
-            continue;
-        }
+    foreach (var objective in objectives){
+        //Fetch data here (different approaches can used by filtering the names in the fetchData method)
+        List<float> data = fetchData(objective.key);
 
-        if (data.Count > 0)
-        {
-            objective.value.values.AddRange(data);
+        //add data to objective and clear old data (implement logic to clear your old data)
+        objective.value.values.AddRange(data);
+        clearOldData(objective.key);
 
-            //Don't forget clearing your data lists, after adding it to the objectives, so you make room for new data. 
-            valueSimulator.ClearSimulatedDataForKey(key);
-
-        }
-        else
-        {
-            // If no new data, add a default value, if this message appears, the program
-            objective.value.values.Add(defaultValue);
-            Debug.LogWarning($"No data available for '{key}'. Added default value: {defaultValue}, process should be repeated");
-        }
-
-        // Update the number of sub-measures to match the size of the list
+        //Update the number of sub-measures to match the size of the list. Needed for averaging before sending data to the optimizer
         objective.value.numberOfSubMeasures = objective.value.values.Count;
     }
 

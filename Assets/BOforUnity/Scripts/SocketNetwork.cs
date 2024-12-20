@@ -275,7 +275,6 @@ namespace BOforUnity.Scripts
                 var value = ob.value;
                 var tmpList = value.values;
 
-
                 //tmpList.RemoveRange(0, value.values.Count - value.numberOfSubMeasures); // should not be needed in the implicit approach
                 if(value.values.Count <= 0){ // filters out objectives with less than one values. Would throw an error anyways
                     Debug.Log($"the objective: '{ob.key}' does not contain any values and can not be computed. It will use its lower bound for this iteration");
