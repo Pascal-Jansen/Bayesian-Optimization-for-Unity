@@ -203,6 +203,13 @@ namespace BOforUnity
             Debug.Log("Optimization DONE");
             optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
             optimizationRunning = false;
+
+            // Reset objectives for the next iteration
+            foreach (var objective in objectives)
+            {
+                objective.value.values.Clear(); // Clear the list of values
+                objective.value.numberOfSubMeasures = 0; // might cause problems if not updated correctly later on
+            }
             
             loadingObj.SetActive(false); // hide as the optimizer has finished running
             nextButton.SetActive(true);
