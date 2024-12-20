@@ -2,63 +2,85 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-
-namespace BOforUnity{
-
+namespace BOforUnity
+{
     public class ValueSimulator : MonoBehaviour
     {
-        private Coroutine heartRateSimulationCoroutine;
-        private BoForUnityManager _boForUnityManager;
+        private Dictionary<string, List<float>> simulatedData = new Dictionary<string, List<float>>();
+        private Coroutine simulationCoroutine;
 
         private void Awake()
         {
-            _boForUnityManager = FindObjectOfType<BoForUnityManager>();
-            if (_boForUnityManager == null)
+            DontDestroyOnLoad(gameObject); // Ensure this persists across scenes
+            StartSimulations(); // Start generating example data
+        }
+
+        // Start generating data for multiple simulated variables
+        public void StartSimulations()
+        {
+            if (simulationCoroutine == null)
             {
-                Debug.LogError("BoForUnityManager not found in the scene.");
+                simulationCoroutine = StartCoroutine(SimulateValues());
+                Debug.Log("Simulations started.");
+            }
+            else
+            {
+                Debug.Log("Simulations are already running.");
             }
         }
 
-        public void StartHeartRateSimulation()
+        // Simulate values for multiple variables (e.g., HeartRate, StepCount)
+        private IEnumerator SimulateValues()
         {
-            if (heartRateSimulationCoroutine == null)
-            {
-                heartRateSimulationCoroutine = StartCoroutine(SimulateHeartRate());
-            }
-        }
-
-        public void StopHeartRateSimulation()
-        {
-            if (heartRateSimulationCoroutine != null)
-            {
-                StopCoroutine(heartRateSimulationCoroutine);
-                heartRateSimulationCoroutine = null;
-            }
-        }
-
-        private IEnumerator SimulateHeartRate()
-        {
-            if (_boForUnityManager == null)
-            {
-                yield break;
-            }
-            
             System.Random random = new System.Random();
 
             while (true)
             {
-                float simulatedHeartRate = random.Next(60, 101);
+                // Simulate example variables
+                AddSimulatedData("HeartRate", random.Next(60, 101)); // Simulate heart rate
+                AddSimulatedData("StepCount", random.Next(0, 500));  // Simulate step count
 
-                // Send the value to the BoForUnityManager
-                _boForUnityManager.UpdateObjective("HeartRate", simulatedHeartRate);
+                // Log example values (optional)
+                Debug.Log($"HeartRate: {simulatedData["HeartRate"][^1]}, StepCount: {simulatedData["StepCount"][^1]}");
 
-                Debug.Log($"Simulated Heart Rate: {simulatedHeartRate}");
+                yield return new WaitForSeconds(1f); // Wait 1 second before generating more data
+            }
+        }
 
-                // Wait for 1 second before generating the next value
-                yield return new WaitForSeconds(1f);
+        // Add a simulated value for a specific variable
+        private void AddSimulatedData(string key, float value)
+        {
+            if (!simulatedData.ContainsKey(key))
+            {
+                simulatedData[key] = new List<float>();
+            }
+
+            simulatedData[key].Add(value);
+        }
+
+        // Fetch all simulated data for a given variable
+        public List<float> GetSimulatedData(string key)
+        {
+            if (simulatedData.TryGetValue(key, out var data))
+            {
+                return new List<float>(data); // Return a copy of the data
+            }
+            else
+            {
+                Debug.LogWarning($"No data found for key: {key}");
+                return new List<float>();
+            }
+        }
+
+        // Stop all simulations
+        public void StopSimulations()
+        {
+            if (simulationCoroutine != null)
+            {
+                StopCoroutine(simulationCoroutine);
+                simulationCoroutine = null;
+                Debug.Log("Simulations stopped.");
             }
         }
     }
-
 }
-

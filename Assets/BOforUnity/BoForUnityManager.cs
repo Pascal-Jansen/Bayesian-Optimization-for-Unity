@@ -22,6 +22,7 @@ namespace BOforUnity
         public SocketNetwork socketNetwork;
 
         private static BoForUnityManager _instance;
+        private ValueSimulator valueSimulator;
         
         //-----------------------------------------------
         // DESIGN PARAMETERS and DESIGN OBJECTIVES
@@ -81,8 +82,22 @@ namespace BOforUnity
 
             currentIteration = 1;
             totalIterations = nInitial + nIterations; // set how many iterations the optimizer should run for
-        }
+
+            //check if there is an objective list available
+            if (objectives == null)
+            {
+                objectives = new List<ObjectiveEntry>();
+            }
+
+            // Find the simulator
+            valueSimulator = FindObjectOfType<ValueSimulator>();
+            if (valueSimulator == null)
+            {
+                Debug.LogError("ValueSimulator not found.");
+            }
         
+        }
+
         void Start()
         {
 
@@ -95,7 +110,6 @@ namespace BOforUnity
             perfectRatingStart = false;
             simulationRunning = true; // the simulation to true to prevent 
 
-            startSimulators();
         }
         
         void Update()
@@ -188,6 +202,7 @@ namespace BOforUnity
         public void OptimizationStart()
         {
             Debug.Log("Optimization START");
+            UpdateObjectives(new List<string> { "HeartRate", "StepCount" }, defaultValue: 75f); // here additional values can be added as needed
             socketNetwork.SendObjectives(); // send the current objective values to the Python process
             optimizationRunning = true;
             simulationRunning = false;
@@ -197,6 +212,7 @@ namespace BOforUnity
             nextButton.SetActive(false);
             outputText.text = "The system is loading, please wait ...";
         }
+
         
         public void OptimizationDone()
         {
@@ -216,6 +232,13 @@ namespace BOforUnity
             outputText.text = "The system has finished loading.\nYou can now proceed.";
             
             currentIteration++; // increase iteration counter
+            //StartNextIteration();
+        }
+
+        private void StartNextIteration()
+        {
+            Debug.Log("Starting next optimizer iteration...");
+            OptimizationStart();
         }
         
         public void InitializationDone()
@@ -278,53 +301,40 @@ namespace BOforUnity
             return false;
         }
 
-        public void UpdateObjective(string key, float value){
-            var objective = objectives.FirstOrDefault(o => o.key == key);
 
-            if(objective == null){
-                Debug.LogWarning($"Objective '{key}' not found. Creating a new one.");
-                //creating objective for heart rate, this is a standard objective, this should be avoided!
-                objective = new ObjectiveEntry(key, new ObjectiveArgs(50, 100, smallerIsBetter: false, numberOfSubMeasures: 1));
-                objectives.Add(objective);            
-            }
-
-            // this adds the value to the list
-            objective.value.values.Add(value);
-            // this updates number of submeasure to represent the list size, this is later used to average the values, so it must be updated.
-            objective.value.numberOfSubMeasures = objective.value.values.Count;
-        
-            Debug.Log($"Updated Objective '{key}' with value: {value}");
-            Debug.Log($"Updated Objective size '{key}' with value: {objective.value.values.Count}");
-
-        }
-
-        //can be used in onstart simulate some values for objectives (e.g. heartrate)
-        private void startSimulators(){
-            
-            ValueSimulator simulator = FindObjectOfType<ValueSimulator>();
-            if (simulator != null)
-            {
-                simulator.StartHeartRateSimulation();
-            }
-            else
-            {
-                Debug.LogError("ValueSimulator not found in the scene.");
-            }
-        }
-
-        //should be used in ondestroy to stop coroutine for simualations. 
-        private void stopSimulators(){
-            ValueSimulator simulator = FindObjectOfType<ValueSimulator>();
-            if (simulator != null)
-            {
-                simulator.StopHeartRateSimulation();
-            }
-        }
-
-        private void OnDestroy()
+        // Update objectives with the latest data from the simulator
+        public void UpdateObjectives(List<string> variableKeys, float defaultValue = 0f)
         {
-            stopSimulators();
+            foreach (var key in variableKeys)
+            {
+                List<float> data = valueSimulator != null ? valueSimulator.GetSimulatedData(key) : new List<float>();
+
+                // Use default value if no data is available
+                float latestValue = data.Count > 0 ? data.Last() : defaultValue;
+
+                // Find or create the objective
+                var objective = objectives.FirstOrDefault(o => o.key == key);
+                if (objective == null)
+                {
+                    objective = new ObjectiveEntry(key, new ObjectiveArgs(0, 100, smallerIsBetter: false, numberOfSubMeasures: 1));
+                    objectives.Add(objective);
+                }
+
+                // Add the value to the objective
+                objective.value.values.Add(latestValue);
+                objective.value.numberOfSubMeasures = objective.value.values.Count;
+
+
+            }
+                            // Log the entire objectives list
+                Debug.Log("Current Objectives List:");
+                foreach (var objective in objectives)
+                {
+                    Debug.Log($"Objective '{objective.key}': Values [{string.Join(", ", objective.value.values)}], Total Count: {objective.value.values.Count}");
+                }
         }
+
+
 
         
         public void EndApplication()
