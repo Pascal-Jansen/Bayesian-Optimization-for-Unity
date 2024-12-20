@@ -6,6 +6,7 @@ namespace BOforUnity
 {
     public class ValueSimulator : MonoBehaviour
     {
+        //contains all data that was created here
         private Dictionary<string, List<float>> simulatedData = new Dictionary<string, List<float>>();
         private Coroutine simulationCoroutine;
 
@@ -40,9 +41,6 @@ namespace BOforUnity
                 AddSimulatedData("HeartRate", random.Next(60, 101)); // Simulate heart rate
                 AddSimulatedData("StepCount", random.Next(0, 500));  // Simulate step count
 
-                // Log example values (optional)
-                Debug.Log($"HeartRate: {simulatedData["HeartRate"][^1]}, StepCount: {simulatedData["StepCount"][^1]}");
-
                 yield return new WaitForSeconds(1f); // Wait 1 second before generating more data
             }
         }
@@ -71,6 +69,19 @@ namespace BOforUnity
                 return new List<float>();
             }
         }
+
+public void ClearSimulatedDataForKey(string key)
+{
+    if (simulatedData.ContainsKey(key))
+    {
+        simulatedData[key].Clear(); // Clear the list for the specified key
+        Debug.Log($"Cleared simulated data for key: {key}");
+    }
+    else
+    {
+        Debug.LogWarning($"Key '{key}' not found in simulatedData. Cannot clear.");
+    }
+}
 
         // Stop all simulations
         public void StopSimulations()

@@ -75,8 +75,31 @@ namespace BOforUnity.Examples
         
         public void StartQuestionnaire()
         {
-            GameObject.FindWithTag("QTQuestionnaireManager").GetComponent<QTQuestionnaireManager>()
-                .StartQuestionnaire();
+            Debug.Log("Skipping questionnaire. Triggering optimizer with gathered heart rate data.");
+
+            // Start a new iteration in the optimizer
+            StartNewIteration();
+        }
+
+        private void StartNewIteration()
+        {
+            // Find the BOforUnityManager
+            GameObject boManagerObject = GameObject.FindWithTag("BOforUnityManager");
+            if (boManagerObject != null)
+            {
+                var boManager = boManagerObject.GetComponent<BoForUnityManager>();
+
+                if (boManager != null)
+                {
+                    // Call the method to start a new iteration
+                    Debug.Log("Starting new optimizer iteration...");
+                    boManager.OptimizationStart();
+                }
+            }
+            else
+            {
+                Debug.LogError("BOforUnityManager not found.");
+            }
         }
     }
 }

@@ -203,6 +203,7 @@ namespace BOforUnity
         {
             Debug.Log("Optimization START");
             UpdateObjectives(new List<string> { "HeartRate", "StepCount" }, defaultValue: 75f); // here additional values can be added as needed
+
             socketNetwork.SendObjectives(); // send the current objective values to the Python process
             optimizationRunning = true;
             simulationRunning = false;
@@ -244,6 +245,7 @@ namespace BOforUnity
         public void InitializationDone()
         {
             Debug.Log("Initialization DONE");
+
             optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
             optimizationRunning = false;
             
@@ -302,37 +304,48 @@ namespace BOforUnity
         }
 
 
-        // Update objectives with the latest data from the simulator
-        public void UpdateObjectives(List<string> variableKeys, float defaultValue = 0f)
+// Update objectives with the latest data from the simulator
+public void UpdateObjectives(List<string> variableKeys, float defaultValue = 0f)
+{
+    foreach (var key in variableKeys)
+    {
+        // Fetch all data for the key from the simulator
+        List<float> data = valueSimulator != null ? valueSimulator.GetSimulatedData(key) : new List<float>();
+
+        // Find the objective
+        var objective = objectives.FirstOrDefault(o => o.key == key);
+        if (objective == null)
         {
-            foreach (var key in variableKeys)
-            {
-                List<float> data = valueSimulator != null ? valueSimulator.GetSimulatedData(key) : new List<float>();
-
-                // Use default value if no data is available
-                float latestValue = data.Count > 0 ? data.Last() : defaultValue;
-
-                // Find or create the objective
-                var objective = objectives.FirstOrDefault(o => o.key == key);
-                if (objective == null)
-                {
-                    objective = new ObjectiveEntry(key, new ObjectiveArgs(0, 100, smallerIsBetter: false, numberOfSubMeasures: 1));
-                    objectives.Add(objective);
-                }
-
-                // Add the value to the objective
-                objective.value.values.Add(latestValue);
-                objective.value.numberOfSubMeasures = objective.value.values.Count;
-
-
-            }
-                            // Log the entire objectives list
-                Debug.Log("Current Objectives List:");
-                foreach (var objective in objectives)
-                {
-                    Debug.Log($"Objective '{objective.key}': Values [{string.Join(", ", objective.value.values)}], Total Count: {objective.value.values.Count}");
-                }
+            Debug.LogWarning($"Objective '{key}' does not exist, please create it in BoForUnityManager gameobject in objectives list");
+            continue;
         }
+
+        if (data.Count > 0)
+        {
+            objective.value.values.AddRange(data);
+
+            //Don't forget clearing your data lists, after adding it to the objectives, so you make room for new data. 
+            valueSimulator.ClearSimulatedDataForKey(key);
+
+        }
+        else
+        {
+            // If no new data, add a default value, if this message appears, the program
+            objective.value.values.Add(defaultValue);
+            Debug.LogWarning($"No data available for '{key}'. Added default value: {defaultValue}, process should be repeated");
+        }
+
+        // Update the number of sub-measures to match the size of the list
+        objective.value.numberOfSubMeasures = objective.value.values.Count;
+    }
+
+    // Log the entire objectives list
+    Debug.Log("Current Objectives List:");
+    foreach (var objective in objectives)
+    {
+        Debug.Log($"Objective '{objective.key}': Values [{string.Join(", ", objective.value.values)}], Total Count: {objective.value.values.Count}");
+    }
+}
 
 
 
