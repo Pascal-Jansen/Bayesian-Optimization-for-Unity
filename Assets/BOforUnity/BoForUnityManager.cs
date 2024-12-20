@@ -85,6 +85,7 @@ namespace BOforUnity
         
         void Start()
         {
+
             loadingObj.SetActive(true);
             nextButton.SetActive(false);
 
@@ -93,6 +94,8 @@ namespace BOforUnity
             perfectRating = false;
             perfectRatingStart = false;
             simulationRunning = true; // the simulation to true to prevent 
+
+            startSimulators();
         }
         
         void Update()
@@ -180,6 +183,7 @@ namespace BOforUnity
                 nextButton.SetActive(false);
             }
         }
+
         
         public void OptimizationStart()
         {
@@ -266,6 +270,49 @@ namespace BOforUnity
             }
             return false;
         }
+
+        public void UpdateObjective(string key, float value){
+            var objective = objectives.FirstOrDefault(o => o.key == key);
+
+            if(objective == null){
+                Debug.LogWarning($"Objective '{key}' not found. Creating a new one.");
+                //creating objective for heart rate, this is a standard objective, this should be avoided!
+                objective = new ObjectiveEntry(key, new ObjectiveArgs(50, 100, smallerIsBetter: false, numberOfSubMeasures: 1));
+                objectives.Add(objective);            
+            }
+
+            objective.value.values.Add(value);
+            Debug.Log($"Updated Objective '{key}' with value: {value}");
+        }
+
+        //can be used in onstart simulate some values for objectives (e.g. heartrate)
+        private void startSimulators(){
+            
+            ValueSimulator simulator = FindObjectOfType<ValueSimulator>();
+            if (simulator != null)
+            {
+                simulator.StartHeartRateSimulation();
+            }
+            else
+            {
+                Debug.LogError("ValueSimulator not found in the scene.");
+            }
+        }
+
+        //should be used in ondestroy to stop coroutine for simualations. 
+        private void stopSimulators(){
+            ValueSimulator simulator = FindObjectOfType<ValueSimulator>();
+            if (simulator != null)
+            {
+                simulator.StopHeartRateSimulation();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            stopSimulators();
+        }
+
         
         public void EndApplication()
         {
@@ -276,7 +323,7 @@ namespace BOforUnity
 #endif
         }
         //-----------------------------------------------
-        
+
         
         //-----------------------------------------------
         // SETTINGS SCRIPT

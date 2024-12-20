@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.18018535, g: 0.22559482, b: 0.30677685, a: 1}
+  m_IndirectSpecularColor: {r: 0.18028326, g: 0.22571333, b: 0.30692202, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -14514,6 +14514,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
+      propertyPath: nInitial
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
+      propertyPath: nIterations
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
+      propertyPath: totalIterations
+      value: 4
+      objectReference: {fileID: 0}
     - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
       propertyPath: parameters.Array.data[0].value.scriptReference
       value: 
