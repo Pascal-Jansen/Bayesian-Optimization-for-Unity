@@ -7,16 +7,17 @@ using WebSocketSharp.Server;
 public class HeartrateReciever : MonoBehaviour
 {
     WebSocketServer wssv;
+    const int PORT = 9090;
 
     void Start()
     {
-        wssv = new WebSocketServer(System.Net.IPAddress.Any, 9090); 
+        wssv = new WebSocketServer(System.Net.IPAddress.Any, PORT); 
         wssv.AddWebSocketService<HeartRateBehavior>("/HeartRate");
         wssv.Start();
 
         // this adress should match the adress in the smartwatch app. 
         // localhost is the ip adress and the number after : is the port
-        Debug.Log("WebSocket Server started on ws://localhost:3000/HeartRate");
+        Debug.Log($"WebSocket Server started on ws://localhost:'{PORT}'/HeartRate");
     }
 
     void OnDestroy()
@@ -47,4 +48,3 @@ public class HeartRateBehavior : WebSocketBehavior
         Debug.Log($"WebSocket connection closed: {e.Reason}");
     }
 }
-
