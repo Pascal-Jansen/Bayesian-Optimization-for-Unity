@@ -3747,6 +3747,50 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 624315104}
   m_CullTransparentMesh: 0
+--- !u!1 &636968430
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 636968432}
+  - component: {fileID: 636968431}
+  m_Layer: 0
+  m_Name: HeartRateReceiverWebSocketHolder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &636968431
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 636968430}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75a6a582f7d86411d9425039dd4d9622, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!4 &636968432
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 636968430}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1262, y: 709.9999, z: -4.6741667}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &639219195
 GameObject:
   m_ObjectHideFlags: 0
@@ -14571,6 +14615,14 @@ PrefabInstance:
       value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
+      propertyPath: objectives.Array.data[0].key
+      value: HeartRate
+      objectReference: {fileID: 0}
+    - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
+      propertyPath: objectives.Array.data[1].key
+      value: StepCount
+      objectReference: {fileID: 0}
+    - target: {fileID: 3936047810940554290, guid: 1a8635736d96f48aea3fc9c9902c4c6c, type: 3}
       propertyPath: parameters.Array.data[0].value.scriptReference
       value: 
       objectReference: {fileID: 622783123}
@@ -15666,3 +15718,4 @@ SceneRoots:
   - {fileID: 1706944740}
   - {fileID: 1141114221}
   - {fileID: 158022917}
+  - {fileID: 636968432}
