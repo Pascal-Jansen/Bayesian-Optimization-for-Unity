@@ -20,7 +20,7 @@ OBSERVATIONS_LOG_PATH = ""
 N_INITIAL = 5 # Number of sampling iterations
 N_ITERATIONS = 10  # Number of optimization iterations
 
-BATCH_SIZE = 1  # Number of design parameter points to query at next iteration
+BATCH_SIZE = 1  # Number of design parameter points to query at the next iteration
 NUM_RESTARTS = 10  # Used for the acquisition function number of restarts in optimization
 RAW_SAMPLES = 1024  # Durch höhere RawSamples kein OptimierungsFehler (Optimization failed within `scipy.optimize.minimize` with status 1.')
 MC_SAMPLES = 512  # Number of samples to approximate acquisition function
@@ -29,7 +29,7 @@ SEED = 3  # Seed to initialize the initial samples obtained
 PROBLEM_DIM = 16 #dimension of the parameters x
 NUM_OBJS = 2 #dimension of the objectives y
 
-WARM_START = False #true if there is initial data (accsible from the following paths) that should be used before optimization restarts
+WARM_START = False #true if there is initial data (accessible from the following paths) that should be used before optimization restarts
 CSV_PATH_PARAMETERS = ""
 CSV_PATH_OBJECTIVES = ""
 
@@ -118,7 +118,7 @@ problem_bounds[1] = 1  # Set upper bounds
 start_time = time.strftime("%Y-%m-%d-%H-%M", time.localtime())
 
 # -------------------------------------------------------
-# Sample current objective function from the Unity application
+# Sample the current objective function from the Unity application
 # -------------------------------------------------------
 #  do this in EACH iteration of the defined total optimization iterations (= n_samples + n_iterations)
 def objective_function(x_tensor):
@@ -184,12 +184,12 @@ def objective_function(x_tensor):
     # return torch.tensor(fs, dtype=torch.float64).cuda()
 
 
-# parameter values range from 0 to 1
+# Parameter values range from 0 to 1
 def denormalize_to_original_param(value, lower_bound, upper_bound):
     result = lower_bound + value * (upper_bound - lower_bound)
     return np.round(result, 2) if isinstance(result, (float, int)) else np.round(result, 2)
 
-# objective values range from -1 to 1
+# Objective values range from -1 to 1
 def denormalize_to_original_obj(value, lower_bound, upper_bound, smaller_is_better):
     if smaller_is_better == 1:  # ... if the objective was set to minimize, invert it first before denormalizing
         value *= -1
@@ -228,8 +228,9 @@ def write_data_to_csv(csv_file_path, fieldnames, data):
 # -------------------------------------------------------
 # generate_initial_data
 # -------------------------------------------------------
-#das hier heißt dass die Optimierungsfunktion immer random beginnt und deshalb direkt mit der Applikation verbunden sein muss
-# n_samples muss 2(d+1) sein, wobei d = problem_dim (d.h. Anzahl Design Parameter) ist (https://botorch.org/tutorials/multi_objective_bo)
+# This means that the optimization function always starts randomly and must be directly connected to the application.
+# n_samples must be 2(d+1), where d = problem_dim (i.e., the number of design parameters) 
+# (https://botorch.org/tutorials/multi_objective_bo)
 def generate_initial_data(n_samples):
     
     # Define the CSV file path
@@ -241,7 +242,7 @@ def generate_initial_data(n_samples):
 
     # Check if the file exists and write the header if it does not
     if not os.path.exists(OBSERVATIONS_LOG_PATH):
-        header = np.array(['User_ID', 'Condition_ID', 'Group_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
+        header = np.array(['UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsPareto'] + objective_names + parameter_names)
         with open(OBSERVATIONS_LOG_PATH, 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(header)
@@ -429,7 +430,7 @@ def mobo_execute(seed, iterations, initial_samples):
     # Go through the iterations
     #-----------------------
     for iteration in range(1, iterations + 1):
-        print(f"----------------------BO Iteration: {iteration}", flush=True)
+        print(f"----------------------MOBO Iteration: {iteration}", flush=True)
         # Startzeitpunkt der Iteration von mobo
         start_time = time.time()
         # Fit Models
@@ -440,7 +441,7 @@ def mobo_execute(seed, iterations, initial_samples):
         if torch.any(torch.isnan(list(model_qehvi.parameters())[0].clone().detach())):
             print("Warning: NaN detected in GP model parameters after fitting.", flush=True)
 
-        # Define qEI acquisition modules using QMC sampler
+        # Define qEI acquisition modules using the QMC sampler
         sample_shape = torch.Size([MC_SAMPLES])
         qehvi_sampler = SobolQMCNormalSampler(sample_shape=sample_shape, seed=SEED)
         #print(f"Defined qEI acquisition module with sample shape: {sample_shape}", flush=True)  # Logging acquisition setup
@@ -450,7 +451,7 @@ def mobo_execute(seed, iterations, initial_samples):
         new_x_qehvi = optimize_qehvi(model_qehvi, train_obj_qehvi, qehvi_sampler)
         #print(f"New candidate solution: {new_x_qehvi}", flush=True)  # Logging new candidate solution
 
-        # Check if candidate solution is within expected bounds
+        # Check if the candidate solution is within expected bounds
         if torch.any(new_x_qehvi < problem_bounds[0]) or torch.any(new_x_qehvi > problem_bounds[1]):
             print("Warning: Candidate solution out of problem bounds.", flush=True)
 
@@ -468,7 +469,7 @@ def mobo_execute(seed, iterations, initial_samples):
         new_obj_qehvi = objective_function(new_x_qehvi[0])
         print(f"New objective values from Unity: {new_obj_qehvi}", flush=True)  # Logging new objective values
 
-        # Check if new objective values are within expected range
+        # Check if new objective values are within the expected range
         if torch.any(new_obj_qehvi > 1) or torch.any(new_obj_qehvi < -1):
             print("Warning: New objective values are out of expected range [-1, 1].", flush=True)
 
@@ -550,11 +551,11 @@ def save_xy(x_sample, y_sample, iteration):
     new_record = np.concatenate((y_csv[-1], x_csv[-1]))
     observations_csv_file_path = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     
-    # Read current CSV data (if exists)
+    # Read current CSV data (if it exists)
     if os.path.exists(observations_csv_file_path):
         current_data = pd.read_csv(observations_csv_file_path, delimiter=';')
     else:
-        current_data = pd.DataFrame(columns=['User_ID', 'Condition_ID', 'Group_ID', 'Timestamp', 'Run', 'Phase', 'IsPareto'] + objective_names + parameter_names)
+        current_data = pd.DataFrame(columns=['UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsPareto'] + objective_names + parameter_names)
     
     # Create a DataFrame for the new record
     new_data = pd.DataFrame([[
@@ -562,7 +563,7 @@ def save_xy(x_sample, y_sample, iteration):
         CONDITION_ID,
         GROUP_ID,
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-        iteration,
+        iteration + N_INITIAL,
         'optimization',
         'FALSE',  # Placeholder for IsPareto, to be updated
         *new_record
