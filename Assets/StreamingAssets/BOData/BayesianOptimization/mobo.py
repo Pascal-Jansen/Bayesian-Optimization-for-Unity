@@ -121,7 +121,7 @@ GROUP_ID = study_info_raw[2]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Reference point in objective function space
-# This tells the optimizer that all objectives should be maximized, having a -1 to 1 range (higher is better)
+# This tells the optimizer that all objectives should be maximized, having a [-1, 1] range (higher is better)
 ref_point = torch.tensor([-1. for _ in range(NUM_OBJS)]).to(device)
 
 # Design parameter bounds to range from 0 to 1
@@ -179,6 +179,9 @@ def objective_function(x_tensor):
     print("Objective normalized:", fs)
     return torch.tensor(fs, dtype=torch.float64).to(device)
 
+# -------------------------------------------------------
+# Denormalization functions
+# -------------------------------------------------------
 # Parameter denormalization (from normalized [0,1] to original scale)
 def denormalize_to_original_param(value, lower_bound, upper_bound):
     result = lower_bound + value * (upper_bound - lower_bound)
@@ -186,13 +189,13 @@ def denormalize_to_original_param(value, lower_bound, upper_bound):
 
 # Objective denormalization (from normalized [-1,1] to original scale)
 def denormalize_to_original_obj(value, lower_bound, upper_bound, smaller_is_better):
-    if smaller_is_better == 1:  # Invert if objective was set to minimize
+    if smaller_is_better == 1:  # Invert if the objective was set to minimize
         value *= -1
     result = lower_bound + (value + 1) / 2 * (upper_bound - lower_bound)
     return np.round(result, 2) if isinstance(result, (float, int)) else np.round(result, 2)
 
 # -------------------------------------------------------
-# create_csv_file
+# CSV logging functions
 # -------------------------------------------------------
 def create_csv_file(csv_file_path, fieldnames):
     try:
@@ -206,9 +209,6 @@ def create_csv_file(csv_file_path, fieldnames):
     except Exception as e:
         print("Error creating file:", str(e), flush=True)
 
-# -------------------------------------------------------
-# write_data_to_csv
-# -------------------------------------------------------
 def write_data_to_csv(csv_file_path, fieldnames, data):
     try:
         with open(csv_file_path, 'a+', newline='') as csvfile:
@@ -226,7 +226,7 @@ def write_data_to_csv(csv_file_path, fieldnames, data):
 def generate_initial_data(n_samples):
     global PROJECT_PATH
     CURRENT_DIR = os.getcwd()  # Current working directory
-    # Use the global PROJECT_PATH (set in mobo_execute) instead of re-computing it
+    # Use the global PROJECT_PATH (set in mobo_execute) so that all logs go to the unique folder
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     if not os.path.exists(OBSERVATIONS_LOG_PATH):
         header = np.array(['UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsPareto'] + objective_names + parameter_names)
@@ -246,6 +246,7 @@ def generate_initial_data(n_samples):
         obj = objective_function(x)
         train_obj.append(obj)
 
+        # Convert objective and parameter values to numpy arrays for logging
         x_numpy = x.cpu().numpy()
         obj_numpy = obj.cpu().detach().numpy()
         x_denormalized = np.array([denormalize_to_original_param(x_numpy[i], parameters_info[i][0], parameters_info[i][1]) for i in range(len(x_numpy))])
@@ -278,6 +279,7 @@ def load_data():
 # initialize_model
 # -------------------------------------------------------
 def initialize_model(train_x, train_obj):
+    # Normalize train_x to be between 0 and 1
     x_min = train_x.min(dim=0)[0]
     x_max = train_x.max(dim=0)[0]
     x_range = x_max - x_min
@@ -297,19 +299,22 @@ def initialize_model(train_x, train_obj):
 # -------------------------------------------------------
 def optimize_qehvi(model, train_obj, sampler):
     """Optimizes the qEHVI acquisition function, and returns a new candidate and observation."""
+    # Partition non-dominated space into disjoint rectangles
     partitioning = NondominatedPartitioning(ref_point=ref_point, Y=train_obj)
+    # Set up qEHVI acquisition function
     acq_func = qExpectedHypervolumeImprovement(
         model=model,
-        ref_point=ref_point.tolist(),
+        ref_point=ref_point.tolist(),  # Use known reference point
         partitioning=partitioning,
         sampler=sampler,
     )
+    # Optimize the acquisition function to find new candidates
     candidates, _ = optimize_acqf(
         acq_function=acq_func,
         bounds=problem_bounds,
         q=BATCH_SIZE,
         num_restarts=NUM_RESTARTS,
-        raw_samples=RAW_SAMPLES,
+        raw_samples=RAW_SAMPLES,  # Used for initialization heuristic
         options={"batch_limit": 5, "maxiter": 200, "nonnegative": True},
         sequential=True,
     )
@@ -389,6 +394,7 @@ def mobo_execute(seed, iterations, initial_samples):
         if torch.any(new_obj_qehvi > 1) or torch.any(new_obj_qehvi < -1):
             print("Warning: New objective values are out of expected range [-1, 1].", flush=True)
 
+        # Update training points with the new candidate and corresponding objective values
         train_x_qehvi = torch.cat([train_x_qehvi, new_x_qehvi])
         train_obj_qehvi = torch.cat([train_obj_qehvi, new_obj_qehvi.unsqueeze(0)])
         print(f"Updated training data. Train X shape: {train_x_qehvi.shape}, Train Obj shape: {train_obj_qehvi.shape}", flush=True)
@@ -435,8 +441,10 @@ def save_xy(x_sample, y_sample, iteration):
     x_csv = x_sample.clone().cpu().numpy()
     y_csv = y_sample.clone().cpu().numpy()
 
+    # Denormalize parameter values for the last row
     for i in range(len(x_csv[-1])):
         x_csv[-1][i] = denormalize_to_original_param(x_csv[-1][i], parameters_info[i][0], parameters_info[i][1])
+    # Denormalize objective values for the last row
     for i in range(len(y_csv[-1])):
         y_csv[-1][i] = denormalize_to_original_obj(y_csv[-1][i], objectives_info[i][0], objectives_info[i][1], objectives_info[i][2])
 
