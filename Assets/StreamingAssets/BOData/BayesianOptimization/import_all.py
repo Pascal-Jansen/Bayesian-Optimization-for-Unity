@@ -15,6 +15,7 @@ from botorch.acquisition.multi_objective.monte_carlo import qExpectedHypervolume
 from botorch.utils.sampling import sample_simplex
 #from botorch import fit_gpytorch_model
 from botorch.acquisition.monte_carlo import qExpectedImprovement, qNoisyExpectedImprovement
+from botorch.acquisition.multi_objective.logei import qLogExpectedHypervolumeImprovement
 #from botorch.sampling.samplers import SobolQMCNormalSampler
 from botorch.sampling.normal import SobolQMCNormalSampler
 from botorch.exceptions import BadInitialCandidatesWarning
@@ -22,6 +23,7 @@ from botorch.utils.multi_objective.pareto import is_non_dominated
 from botorch.utils.multi_objective.hypervolume import Hypervolume
 #from botorch.fit import fit_gpytorch_model
 from botorch.fit import fit_gpytorch_mll
+
 
 
 #tkwargs = {

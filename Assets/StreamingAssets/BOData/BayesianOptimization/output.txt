@@ -1,45 +1,131 @@
 Server starts, waiting for connection...
-Connected by ('127.0.0.1', 57400)
+Connected by ('127.0.0.1', 49811)
 Initialization parameters received and set.
-BATCH_SIZE: 1, NUM_RESTARTS: 10, RAW_SAMPLES: 1024, N_ITERATIONS: 4, MC_SAMPLES: 512, N_INITIAL: 2, SEED: 3, PROBLEM_DIM: 10, NUM_OBJS: 2
+BATCH_SIZE: 1, NUM_RESTARTS: 10, RAW_SAMPLES: 1024, N_ITERATIONS: 10, MC_SAMPLES: 512, N_INITIAL: 5, SEED: 3, PROBLEM_DIM: 10, NUM_OBJS: 2
 Parameter ['0,1,0', '0,1,0', '0,1,0', '0,1,0', '0,1,1', '0,1,0', '0,1,0', '0,1,0', '0,1,0', '0,1,1']
 Objective ['1,5,0', '1,5,0']
 Objectives info 2
-Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-----------------------Iteration: 1
-x [0.52103304 1.         1.         0.78087086 1.         1.
- 1.         0.74306848 0.69595806 0.99485632]
-Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,0.521,1.0,1.0,0.781,1.0,1.0,1.0,0.743,0.696,0.99
-Received Objective Values:  [2.333333, 3.0]
-Received Number of Objectives 2
-Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-----------------------Iteration: 2
-x [0.7707114  1.         1.         0.94923896 1.         1.
- 1.         0.50679743 0.84391262 0.70089505]
-Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,0.771,1.0,1.0,0.949,1.0,1.0,1.0,0.507,0.844,0.70
-Received Objective Values:  [2.0, 3.0]
-Received Number of Objectives 2
-Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-----------------------Iteration: 3
-x [0.86804525 1.         1.         0.48482645 1.         0.9815914
- 1.         0.77189976 0.7650276  0.92807976]
-Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,0.868,1.0,1.0,0.485,1.0,0.982,1.0,0.772,0.765,0.92
-Received Objective Values:  [3.0, 1.0]
-Received Number of Objectives 2
-Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-----------------------Iteration: 4
-x [0.64529458 0.81125481 1.         1.         0.94887327 0.86693284
- 0.9522244  0.73766148 0.82862247 0.81692306]
-Parameters_info: [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-Send Data:  parameters,0.645,0.811,1.0,1.0,0.949,0.867,0.952,0.738,0.829,0.81
-Received Objective Values:  [3.333333, 3.0]
-Received Number of Objectives 2
-Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData
-Send Data:  optimization_finished,
+Generating initial training data...
+Initial training data (Sobol samples) in normalized range [0,1]: tensor([[0.0685, 0.2245, 0.6992, 0.0626, 0.3754, 0.0304, 0.1474, 0.3385, 0.2702,
+         0.2726],
+        [0.5577, 0.8747, 0.3599, 0.8874, 0.8091, 0.7142, 0.8393, 0.6483, 0.9877,
+         0.8106],
+        [0.7745, 0.4763, 0.7949, 0.2752, 0.6662, 0.7623, 0.4071, 0.7819, 0.7289,
+         0.6998],
+        [0.3477, 0.6230, 0.1470, 0.7084, 0.0223, 0.4462, 0.6069, 0.2323, 0.0133,
+         0.2242],
+        [0.4575, 0.3008, 0.4448, 0.6192, 0.2316, 0.2307, 0.2576, 0.9391, 0.5318,
+         0.9238]], dtype=torch.float64)
+----------------------Initial Sample: 1
+Send Data: parameters,0.07,0.22,0.7,0.06,0.38,0.03,0.15,0.34,0.27,0.27
+Received Objective Values: [2.333333, 3.0]
+Objective normalized: [-0.33333349999999995, 0.0]
+----------------------Initial Sample: 2
+Send Data: parameters,0.56,0.87,0.36,0.89,0.81,0.71,0.84,0.65,0.99,0.81
+Received Objective Values: [4.333333, 4.5]
+Objective normalized: [0.6666664999999998, 0.75]
+----------------------Initial Sample: 3
+Send Data: parameters,0.77,0.48,0.79,0.28,0.67,0.76,0.41,0.78,0.73,0.7
+Received Objective Values: [1.666667, 2.0]
+Objective normalized: [-0.6666665, -0.5]
+----------------------Initial Sample: 4
+Send Data: parameters,0.35,0.62,0.15,0.71,0.02,0.45,0.61,0.23,0.01,0.22
+Received Objective Values: [3.0, 3.5]
+Objective normalized: [0.0, 0.25]
+----------------------Initial Sample: 5
+Send Data: parameters,0.46,0.3,0.44,0.62,0.23,0.23,0.26,0.94,0.53,0.92
+Received Objective Values: [2.333333, 3.0]
+Objective normalized: [-0.33333349999999995, 0.0]
+Initial train_x shape: torch.Size([5, 10]), train_obj shape: torch.Size([5, 2])
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 1
+Iteration 1 execution time: 2.13 seconds
+Send Data: parameters,0.68,1.0,0.31,1.0,1.0,0.93,1.0,0.58,1.0,0.84
+Received Objective Values: [1.666667, 2.5]
+Objective normalized: [-0.6666665, -0.25]
+New objective values from Unity: tensor([-0.6667, -0.2500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([6, 10]), Train Obj shape: torch.Size([6, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 2
+Iteration 2 execution time: 2.35 seconds
+Send Data: parameters,0.68,0.84,0.32,0.89,0.8,0.75,0.81,0.59,0.99,0.84
+Received Objective Values: [2.0, 1.5]
+Objective normalized: [-0.5, -0.75]
+New objective values from Unity: tensor([-0.5000, -0.7500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([7, 10]), Train Obj shape: torch.Size([7, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 3
+Iteration 3 execution time: 1.82 seconds
+Send Data: parameters,0.69,0.84,0.33,0.88,0.81,0.76,0.81,0.59,0.99,0.84
+Received Objective Values: [1.333333, 1.5]
+Objective normalized: [-0.8333335, -0.75]
+New objective values from Unity: tensor([-0.8333, -0.7500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([8, 10]), Train Obj shape: torch.Size([8, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 4
+Iteration 4 execution time: 2.27 seconds
+Send Data: parameters,0.68,0.85,0.33,0.89,0.81,0.76,0.82,0.59,0.99,0.84
+Received Objective Values: [1.0, 1.0]
+Objective normalized: [-1.0, -1.0]
+New objective values from Unity: tensor([-1., -1.], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([9, 10]), Train Obj shape: torch.Size([9, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 5
+Iteration 5 execution time: 2.29 seconds
+Send Data: parameters,0.68,0.84,0.33,0.88,0.81,0.76,0.81,0.59,0.99,0.84
+Received Objective Values: [1.333333, 2.0]
+Objective normalized: [-0.8333335, -0.5]
+New objective values from Unity: tensor([-0.8333, -0.5000], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([10, 10]), Train Obj shape: torch.Size([10, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 6
+Iteration 6 execution time: 1.24 seconds
+Send Data: parameters,0.53,0.91,0.36,0.91,0.83,0.74,0.87,0.66,0.99,0.81
+Received Objective Values: [1.666667, 1.5]
+Objective normalized: [-0.6666665, -0.75]
+New objective values from Unity: tensor([-0.6667, -0.7500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([11, 10]), Train Obj shape: torch.Size([11, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 7
+Iteration 7 execution time: 2.21 seconds
+Send Data: parameters,0.7,0.83,0.33,0.88,0.8,0.75,0.8,0.59,0.99,0.84
+Received Objective Values: [1.333333, 2.0]
+Objective normalized: [-0.8333335, -0.5]
+New objective values from Unity: tensor([-0.8333, -0.5000], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([12, 10]), Train Obj shape: torch.Size([12, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 8
+Iteration 8 execution time: 1.88 seconds
+Send Data: parameters,0.7,0.83,0.33,0.88,0.8,0.75,0.8,0.59,0.99,0.84
+Received Objective Values: [1.333333, 1.5]
+Objective normalized: [-0.8333335, -0.75]
+New objective values from Unity: tensor([-0.8333, -0.7500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([13, 10]), Train Obj shape: torch.Size([13, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 9
+Iteration 9 execution time: 2.21 seconds
+Send Data: parameters,0.7,0.83,0.33,0.88,0.8,0.75,0.81,0.59,0.99,0.84
+Received Objective Values: [1.666667, 1.5]
+Objective normalized: [-0.6666665, -0.75]
+New objective values from Unity: tensor([-0.6667, -0.7500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([14, 10]), Train Obj shape: torch.Size([14, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+----------------------MOBO Iteration: 10
+Iteration 10 execution time: 2.84 seconds
+Send Data: parameters,0.7,0.83,0.33,0.88,0.8,0.75,0.81,0.59,0.99,0.84
+Received Objective Values: [1.333333, 1.5]
+Objective normalized: [-0.8333335, -0.75]
+New objective values from Unity: tensor([-0.8333, -0.7500], dtype=torch.float64)
+Updated training data. Train X shape: torch.Size([15, 10]), Train Obj shape: torch.Size([15, 2])
+Project Path for Observations: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Project Path for Hypervolumes: /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets/StreamingAssets/BOData/LogData/-1
+Send Data: optimization_finished,
