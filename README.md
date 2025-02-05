@@ -2,6 +2,16 @@
 
 by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) and [Mark Colley](https://scholar.google.com/citations?user=Kt5I7wYAAAAJ&hl=de)
 
+## Related Publications
+* [OptiCarVis: Improving Automated Vehicle Functionality Visualizations Using Bayesian Optimization to Enhance User Experience](https://arxiv.org/abs/2501.06757)
+(conditionally accepted, CHI '25)
+
+* [Improving External Communication of Automated Vehicles Using Bayesian Optimization](https://arxiv.org/abs/2501.10792)
+(conditionally accepted, CHI '25)
+
+* [Fly Away: Evaluating the Impact of Motion Fidelity on Optimized User Interface Design via Bayesian Optimization in Automated Urban Air Mobility Simulations](https://arxiv.org/abs/2501.11829)
+(conditionally accepted, CHI '25)
+
 ## Table of Contents
 * [About](#about)
 * [Process](#process)
