@@ -6,7 +6,7 @@ PYTHON_INSTALLER="$SCRIPT_DIR/Data/Installation_Objects/python-3.11.3-macos11.pk
 PYTHON_INSTALL_DIR="/usr"
 PYTHON_EXE="/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
 
-REQUIREMENTS="$SCRIPT_DIR/Data/Installation_Objects/requirements.txt"
+REQUIREMENTS="$SCRIPT_DIR/../../../../../requirements.txt"
 
 
 
