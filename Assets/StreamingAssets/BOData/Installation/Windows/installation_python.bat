@@ -5,7 +5,7 @@ set PYTHON_EXE="C:\Program Files\Python311\python.exe"
 cd %~dp0
 
 set PYTHON_INSTALLER="Installation_Objects\python-3.11.3.exe"
-set REQUIREMENTS="\..\..\..\..\..\requirements.txt"
+set REQUIREMENTS="\..\requirements.txt"
 set VC_REDIST_EXE="Installation_Objects\VC_redist.x64.exe"
 
 REM Check if Visual C++ Redistributable is already installed

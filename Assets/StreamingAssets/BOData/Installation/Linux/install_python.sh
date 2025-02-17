@@ -6,7 +6,7 @@ PYTHON_PACKAGE="python3.11"
 PYTHON_INSTALL_DIR="/usr"
 PYTHON_EXE="/usr/bin/python3.11"
 
-REQUIREMENTS="$SCRIPT_DIR/Data/Installation_Objects/requirements.txt"
+REQUIREMENTS="$SCRIPT_DIR/../requirements.txt"
 
 
 
