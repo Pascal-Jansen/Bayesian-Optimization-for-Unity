@@ -4,7 +4,7 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) 
 
 ## Related Publications
 * [OptiCarVis: Improving Automated Vehicle Functionality Visualizations Using Bayesian Optimization to Enhance User Experience](https://arxiv.org/abs/2501.06757)
-(CHI '25, Best Paper Honorable Mention)
+(CHI '25, Best Paper Honorable Mention, top 5%)
 
 * [Improving External Communication of Automated Vehicles Using Bayesian Optimization](https://arxiv.org/abs/2501.10792)
 (CHI '25)
