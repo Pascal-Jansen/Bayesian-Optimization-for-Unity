@@ -1,10 +1,10 @@
-using System.Collections;
-using TMPro;
 using UnityEngine;
+using System.Collections;
 
-namespace TextMesh_Pro.Examples___Extras.Scripts
+
+namespace TMPro.Examples
 {
-    
+
     public class TeleType : MonoBehaviour
     {
 
@@ -24,7 +24,7 @@ namespace TextMesh_Pro.Examples___Extras.Scripts
             // Get Reference to TextMeshPro Component
             m_textMeshPro = GetComponent<TMP_Text>();
             m_textMeshPro.text = label01;
-            m_textMeshPro.enableWordWrapping = true;
+            m_textMeshPro.textWrappingMode = TextWrappingModes.Normal;
             m_textMeshPro.alignment = TextAlignmentOptions.Top;
 
 

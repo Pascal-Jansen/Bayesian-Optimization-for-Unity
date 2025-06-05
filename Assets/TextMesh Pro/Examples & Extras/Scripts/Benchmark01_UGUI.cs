@@ -1,9 +1,9 @@
-using System.Collections;
-using TMPro;
 using UnityEngine;
+using System.Collections;
 using UnityEngine.UI;
 
-namespace TextMesh_Pro.Examples___Extras.Scripts
+
+namespace TMPro.Examples
 {
     
     public class Benchmark01_UGUI : MonoBehaviour

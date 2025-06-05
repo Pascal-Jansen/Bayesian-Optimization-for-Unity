@@ -1,30 +1,29 @@
-Unity Editor version:    2022.3.21f1 (bf09ca542b87)
-Branch:                  2022.3/staging
-Build type:              Release
-Batch mode:              YES
-macOS version:           Version 14.5 (Build 23F79)
-Darwin version:          23.5.0
-Architecture:            arm64
-Running under Rosetta:   NO
-Available memory:        16384 MB
 Using pre-set license
-Pro License: YES
+Built from '6000.0/staging' branch; Version is '6000.0.31f1 (a206c360e2a8) revision 10618563'; Using compiler version '193933523'; Build Type 'Release'
+OS: 'Windows 11  (10.0.26100) 64bit Education' Language: 'en' Physical Memory: 16338 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1, IsPro: 1
 
 COMMAND LINE ARGUMENTS:
-/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/MacOS/Unity
+C:\Program Files\Unity\Hub\Editor\6000.0.31f1\Editor\Unity.exe
 -adb2
 -batchMode
 -noUpm
 -name
 AssetImportWorker0
 -projectPath
-/Users/pjansen/Downloads/BO-for-Unity-Asset-New
+C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity
 -logFile
 Logs/AssetImportWorker0.log
 -srvPort
-50672
-Successfully changed project path to: /Users/pjansen/Downloads/BO-for-Unity-Asset-New
-/Users/pjansen/Downloads/BO-for-Unity-Asset-New
+51498
+-job-worker-count
+5
+-background-job-worker-count
+8
+-gc-helper-count
+1
+Successfully changed project path to: C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity
+C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity
 [UnityMemory] Configuration Parameters - Can be set up in boot.config
     "memorysetup-bucket-allocator-granularity=16"
     "memorysetup-bucket-allocator-bucket-count=8"
@@ -55,151 +54,2017 @@ Successfully changed project path to: /Users/pjansen/Downloads/BO-for-Unity-Asse
     "memorysetup-temp-allocator-size-audio-worker=65536"
     "memorysetup-temp-allocator-size-cloud-worker=32768"
     "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
     "memorysetup-temp-allocator-size-gfx=262144"
-Player connection [8670333952] Host "[IP] 192.168.0.41 [Port] 0 [Flags] 2 [Guid] 3655184750 [EditorId] 3655184750 [Version] 1048832 [Id] OSXEditor(0,Pascals-MBP-4) [Debug] 1 [PackageName] OSXEditor [ProjectName] Editor" joined multi-casting on [225.0.0.222:54997]...
+Player connection [22488]  Target information:
 
-Player connection [8670333952] Host "[IP] 192.168.0.41 [Port] 0 [Flags] 2 [Guid] 3655184750 [EditorId] 3655184750 [Version] 1048832 [Id] OSXEditor(0,Pascals-MBP-4) [Debug] 1 [PackageName] OSXEditor [ProjectName] Editor" joined alternative multi-casting on [225.0.0.222:34997]...
+Player connection [22488]  * "[IP] 192.168.0.93 [Port] 0 [Flags] 2 [Guid] 1728854184 [EditorId] 1728854184 [Version] 1048832 [Id] WindowsEditor(7,Sunyy) [Debug] 1 [PackageName] WindowsEditor [ProjectName] Editor" 
 
-[Physics::Module] Initialized MultithreadedJobDispatcher with 9 workers.
-Refreshing native plugins compatible for Editor in 3.34 ms, found 1 plugins.
+Player connection [22488]  * "[IP] 172.25.48.1 [Port] 0 [Flags] 2 [Guid] 1728854184 [EditorId] 1728854184 [Version] 1048832 [Id] WindowsEditor(7,Sunyy) [Debug] 1 [PackageName] WindowsEditor [ProjectName] Editor" 
+
+Player connection [22488] Host joined multi-casting on [225.0.0.222:54997]...
+Player connection [22488] Host joined alternative multi-casting on [225.0.0.222:34997]...
+JobSystem: Creating JobQueue using job-worker-count value 5
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+Library Redirect Path: Library/
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+Refreshing native plugins compatible for Editor in 0.75 ms, found 0 plugins.
 Preloading 0 native plugins for Editor in 0.00 ms.
-Initialize engine version: 2022.3.21f1 (bf09ca542b87)
-[Subsystems] Discovering subsystems at path /Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Resources/UnitySubsystems
-[Subsystems] Discovering subsystems at path /Users/pjansen/Downloads/BO-for-Unity-Asset-New/Assets
-GfxDevice: creating device client; threaded=0; jobified=0
- preferred device: Apple M1 Pro (high power)
-Metal devices available: 1
-0: Apple M1 Pro (high power)
-Using device Apple M1 Pro (high power)
-Initializing Metal device caps: Apple M1 Pro
+Initialize engine version: 6000.0.31f1 (a206c360e2a8)
+[Subsystems] Discovering subsystems at path C:/Program Files/Unity/Hub/Editor/6000.0.31f1/Editor/Data/Resources/UnitySubsystems
+[Subsystems] Discovering subsystems at path C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity/Assets
+GfxDevice: creating device client; kGfxThreadingModeNonThreaded
+Direct3D:
+    Version:  Direct3D 11.0 [level 11.1]
+    Renderer: NVIDIA GeForce RTX 4090 (ID=0x2684)
+    Vendor:   NVIDIA
+    VRAM:     24142 MB
+    Driver:   32.0.15.7628
 Initialize mono
-Mono path[0] = '/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Managed'
-Mono path[1] = '/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/MonoBleedingEdge/lib/mono/unityjit-macos'
-Mono config path = '/Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/MonoBleedingEdge/etc'
-Using monoOptions --debugger-agent=transport=dt_socket,embedding=1,server=y,suspend=n,address=127.0.0.1:56596
+Mono path[0] = 'C:/Program Files/Unity/Hub/Editor/6000.0.31f1/Editor/Data/Managed'
+Mono path[1] = 'C:/Program Files/Unity/Hub/Editor/6000.0.31f1/Editor/Data/MonoBleedingEdge/lib/mono/unityjit-win32'
+Mono config path = 'C:/Program Files/Unity/Hub/Editor/6000.0.31f1/Editor/Data/MonoBleedingEdge/etc'
+Using monoOptions --debugger-agent=transport=dt_socket,embedding=1,server=y,suspend=n,address=127.0.0.1:56048
 Begin MonoManager ReloadAssembly
 Registering precompiled unity dll's ...
-Register platform support module: /Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/PlaybackEngines/MacStandaloneSupport/UnityEditor.OSXStandalone.Extensions.dll
-Register platform support module: /Applications/Unity/Hub/Editor/2022.3.21f1/PlaybackEngines/iOSSupport/UnityEditor.iOS.Extensions.dll
-Registered in 0.003425 seconds.
-- Loaded All Assemblies, in  0.259 seconds
-[usbmuxd] Start listen thread
-[usbmuxd] Listen thread started
-[usbmuxd] Send listen message
-Native extension for iOS target not found
-Native extension for OSXStandalone target not found
+Register platform support module: C:/Program Files/Unity/Hub/Editor/6000.0.31f1/Editor/Data/PlaybackEngines/WindowsStandaloneSupport/UnityEditor.WindowsStandalone.Extensions.dll
+Register platform support module: C:/Program Files/Unity/Hub/Editor/6000.0.31f1/Editor/Data/PlaybackEngines/LinuxStandaloneSupport/UnityEditor.LinuxStandalone.Extensions.dll
+Registered in 0.006545 seconds.
+- Loaded All Assemblies, in  0.503 seconds
+Native extension for LinuxStandalone target not found
+Native extension for WindowsStandalone target not found
 Mono: successfully reloaded assembly
-- Finished resetting the current domain, in  0.226 seconds
-Domain Reload Profiling: 486ms
-	BeginReloadAssembly (85ms)
+- Finished resetting the current domain, in  0.379 seconds
+Domain Reload Profiling: 878ms
+	BeginReloadAssembly (153ms)
 		ExecutionOrderSort (0ms)
 		DisableScriptedObjects (0ms)
 		BackupInstance (0ms)
 		ReleaseScriptingObjects (0ms)
-		CreateAndSetChildDomain (0ms)
-	RebuildCommonClasses (25ms)
-	RebuildNativeTypeToScriptingClass (8ms)
-	initialDomainReloadingComplete (35ms)
-	LoadAllAssembliesAndSetupDomain (106ms)
-		LoadAssemblies (86ms)
+		CreateAndSetChildDomain (1ms)
+	RebuildCommonClasses (44ms)
+	RebuildNativeTypeToScriptingClass (14ms)
+	initialDomainReloadingComplete (62ms)
+	LoadAllAssembliesAndSetupDomain (225ms)
+		LoadAssemblies (149ms)
 		RebuildTransferFunctionScriptingTraits (0ms)
-		AnalyzeDomain (104ms)
-			TypeCache.Refresh (103ms)
-				TypeCache.ScanAssembly (92ms)
-			ScanForSourceGeneratedMonoScriptInfo (0ms)
+		AnalyzeDomain (221ms)
+			TypeCache.Refresh (220ms)
+				TypeCache.ScanAssembly (201ms)
+			BuildScriptInfoCaches (0ms)
 			ResolveRequiredComponents (0ms)
-	FinalizeReload (227ms)
+	FinalizeReload (380ms)
 		ReleaseScriptCaches (0ms)
 		RebuildScriptCaches (0ms)
-		SetupLoadedEditorAssemblies (188ms)
+		SetupLoadedEditorAssemblies (341ms)
 			LogAssemblyErrors (0ms)
-			InitializePlatformSupportModulesInManaged (64ms)
-			SetLoadedEditorAssemblies (4ms)
-			RefreshPlugins (0ms)
-			BeforeProcessingInitializeOnLoad (1ms)
-			ProcessInitializeOnLoadAttributes (89ms)
-			ProcessInitializeOnLoadMethodAttributes (29ms)
+			InitializePlatformSupportModulesInManaged (35ms)
+			SetLoadedEditorAssemblies (5ms)
+			BeforeProcessingInitializeOnLoad (60ms)
+			ProcessInitializeOnLoadAttributes (181ms)
+			ProcessInitializeOnLoadMethodAttributes (60ms)
 			AfterProcessingInitializeOnLoad (0ms)
 			EditorAssembliesLoaded (0ms)
 		ExecutionOrderSort2 (0ms)
 		AwakeInstancesAfterBackupRestoration (0ms)
 ========================================================================
 Worker process is ready to serve import requests
+Import Worker Mode flag is 0x00
 Begin MonoManager ReloadAssembly
-- Loaded All Assemblies, in  0.263 seconds
-Refreshing native plugins compatible for Editor in 0.48 ms, found 1 plugins.
-Native extension for iOS target not found
-Native extension for OSXStandalone target not found
+- Loaded All Assemblies, in  0.514 seconds
+Refreshing native plugins compatible for Editor in 0.66 ms, found 0 plugins.
+Native extension for LinuxStandalone target not found
+Native extension for WindowsStandalone target not found
 Mono: successfully reloaded assembly
-- Finished resetting the current domain, in  0.233 seconds
-Domain Reload Profiling: 497ms
-	BeginReloadAssembly (89ms)
+- Finished resetting the current domain, in  0.359 seconds
+Domain Reload Profiling: 869ms
+	BeginReloadAssembly (184ms)
 		ExecutionOrderSort (0ms)
-		DisableScriptedObjects (3ms)
+		DisableScriptedObjects (9ms)
 		BackupInstance (0ms)
 		ReleaseScriptingObjects (0ms)
-		CreateAndSetChildDomain (27ms)
-	RebuildCommonClasses (23ms)
-	RebuildNativeTypeToScriptingClass (8ms)
-	initialDomainReloadingComplete (22ms)
-	LoadAllAssembliesAndSetupDomain (121ms)
-		LoadAssemblies (118ms)
+		CreateAndSetChildDomain (29ms)
+	RebuildCommonClasses (41ms)
+	RebuildNativeTypeToScriptingClass (13ms)
+	initialDomainReloadingComplete (40ms)
+	LoadAllAssembliesAndSetupDomain (230ms)
+		LoadAssemblies (278ms)
 		RebuildTransferFunctionScriptingTraits (0ms)
-		AnalyzeDomain (41ms)
-			TypeCache.Refresh (36ms)
-				TypeCache.ScanAssembly (27ms)
-			ScanForSourceGeneratedMonoScriptInfo (2ms)
-			ResolveRequiredComponents (2ms)
-	FinalizeReload (234ms)
+		AnalyzeDomain (63ms)
+			TypeCache.Refresh (52ms)
+				TypeCache.ScanAssembly (40ms)
+			BuildScriptInfoCaches (7ms)
+			ResolveRequiredComponents (3ms)
+	FinalizeReload (360ms)
 		ReleaseScriptCaches (0ms)
 		RebuildScriptCaches (0ms)
-		SetupLoadedEditorAssemblies (137ms)
+		SetupLoadedEditorAssemblies (251ms)
 			LogAssemblyErrors (0ms)
-			InitializePlatformSupportModulesInManaged (16ms)
-			SetLoadedEditorAssemblies (2ms)
-			RefreshPlugins (0ms)
-			BeforeProcessingInitializeOnLoad (18ms)
-			ProcessInitializeOnLoadAttributes (87ms)
-			ProcessInitializeOnLoadMethodAttributes (12ms)
-			AfterProcessingInitializeOnLoad (1ms)
+			InitializePlatformSupportModulesInManaged (5ms)
+			SetLoadedEditorAssemblies (3ms)
+			BeforeProcessingInitializeOnLoad (71ms)
+			ProcessInitializeOnLoadAttributes (136ms)
+			ProcessInitializeOnLoadMethodAttributes (28ms)
+			AfterProcessingInitializeOnLoad (9ms)
 			EditorAssembliesLoaded (0ms)
 		ExecutionOrderSort2 (0ms)
-		AwakeInstancesAfterBackupRestoration (3ms)
-Launching external process: /Applications/Unity/Hub/Editor/2022.3.21f1/Unity.app/Contents/Tools/UnityShaderCompiler
-Launched and connected shader compiler UnityShaderCompiler after 0.03 seconds
-Refreshing native plugins compatible for Editor in 0.37 ms, found 1 plugins.
+		AwakeInstancesAfterBackupRestoration (9ms)
+Launched and connected shader compiler UnityShaderCompiler.exe after 0.01 seconds
+Refreshing native plugins compatible for Editor in 0.86 ms, found 0 plugins.
 Preloading 0 native plugins for Editor in 0.00 ms.
-Unloading 496 Unused Serialized files (Serialized files now loaded: 0)
-Unloading 10 unused Assets / (46.6 KB). Loaded Objects now: 961.
-Memory consumption went from 70.9 MB to 70.8 MB.
-Total: 2.176958 ms (FindLiveObjects: 0.038375 ms CreateObjectMapping: 0.010292 ms MarkObjects: 2.046125 ms  DeleteObjects: 0.081500 ms)
+Unloading 21 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 563 unused Assets / (214.0 KB). Loaded Objects now: 1069.
+Memory consumption went from 62.4 MB to 62.1 MB.
+Total: 8.548900 ms (FindLiveObjects: 0.162400 ms CreateObjectMapping: 0.105300 ms MarkObjects: 7.795700 ms  DeleteObjects: 0.484000 ms)
 
-AssetImportParameters requested are different than current active one (requested -> active):
-  custom:video-encoder-webm-vp8: eb34c28f22e8b96e1ab97ce403110664 -> 
-  custom:video-decoder-webm-vp8: 9c59270c3fd7afecdb556c50c9e8de78 -> 
-  custom:audio-decoder-ogg-vorbis: bf7c407c2cedff20999df2af8eb42d56 -> 
-  custom:video-decoder-ogg-theora: a1e56fd34408186e4bbccfd4996cb3dc -> 
-  custom:audio-encoder-webm-vorbis: bf7c407c2cedff20999df2af8eb42d56 -> 
-  custom:SearchIndexIgnoredProperties: e643bd26f0fe6173181afceb89e7c659 -> 
-  custom:container-demuxer-ogg: 62fdf1f143b41e24485cea50d1cbac27 -> 
-  custom:AudioImporter_EditorPlatform: 3918e3fc78b5a79bad01e8451be0beb8 -> 
-  custom:CustomObjectIndexerAttribute: 9a22284fe3817be447336de3de66b15e -> 
-  custom:framework-osx-AVFoundation: e770b220cccbd017edd2c1fefb359320 -> 
-  custom:container-demuxer-webm: 4f35f7cbe854078d1ac9338744f61a02 -> 
-  custom:container-muxer-webm: aa71ff27fc2769a1b78a27578f13a17b -> 
 ========================================================================
 Received Import Request.
-  Time since last request: 2289534.516099 seconds.
+  Time since last request: 2190.143492 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTDropdown.cs
+  artifactKey: Guid(61617347ff5edae4f8082fde94f114ab) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTDropdown.cs using Guid(61617347ff5edae4f8082fde94f114ab) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e0a96c703d11ad0a66befbf3fb8006f4') in 0.0074747 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003827 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/TextInputBanner.png
+  artifactKey: Guid(10b721bf5ef1f0a4bb47871b8f56d0bf) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/TextInputBanner.png using Guid(10b721bf5ef1f0a4bb47871b8f56d0bf) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'daa65736e1f671a601c645a2ca917dff') in 0.0903343 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003675 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Scripts/OpenCanvasKeyboard.cs
+  artifactKey: Guid(a001b81aa70a45b499e99af899542ac4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Scripts/OpenCanvasKeyboard.cs using Guid(a001b81aa70a45b499e99af899542ac4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6606fbe9baa4ac441831615b8feda04d') in 0.0006403 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002236 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires
+  artifactKey: Guid(5aac38780a4b9084a90e3bd834f10210) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires using Guid(5aac38780a4b9084a90e3bd834f10210) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '56d1d57a711206cf0594e0b90c9e666b') in 0.0005656 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003271 seconds.
   path: Assets/BOforUnity/BOforUnityManager.prefab
   artifactKey: Guid(1a8635736d96f48aea3fc9c9902c4c6c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
-Start importing Assets/BOforUnity/BOforUnityManager.prefab using Guid(1a8635736d96f48aea3fc9c9902c4c6c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)  -> (artifact id: '132343f3ec88533d83e23cf8414f3560') in 0.058230 seconds
-Number of updated asset objects reloaded before import = 0
-Number of asset objects unloaded after import = 90
+Start importing Assets/BOforUnity/BOforUnityManager.prefab using Guid(1a8635736d96f48aea3fc9c9902c4c6c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'ebb5052a9dfbfa31283f76894f263243') in 0.0515696 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 90
+
 ========================================================================
 Received Import Request.
-  Time since last request: 31.285915 seconds.
+  Time since last request: 0.002944 seconds.
+  path: Assets/StreamingAssets/BOData/InitData/ExampleInitDataParameters.csv
+  artifactKey: Guid(3d30d7532d75541c296150007b0a2102) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/InitData/ExampleInitDataParameters.csv using Guid(3d30d7532d75541c296150007b0a2102) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '556f6a2fae149fec80d1a4bcbc2877ba') in 0.0012412 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003353 seconds.
+  path: Assets/BOforUnity/Scripts/PythonStarter.cs
+  artifactKey: Guid(ddfca4f0c702e429fa6641ef401f5605) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Scripts/PythonStarter.cs using Guid(ddfca4f0c702e429fa6641ef401f5605) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'cc5550cc08243913a61547d03e0a2c29') in 0.0006493 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003260 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/rectangle.png
+  artifactKey: Guid(6f52a70eae47c2e428ee77d603bcbdf7) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/rectangle.png using Guid(6f52a70eae47c2e428ee77d603bcbdf7) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b20cdec6194a112e5724035b88ca00ee') in 0.055205 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002082 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/MacOs
+  artifactKey: Guid(edaa8a80811cc4399969378116b12b33) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/MacOs using Guid(edaa8a80811cc4399969378116b12b33) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '775754fd87419d2c924c0c267970cd20') in 0.0006365 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003283 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTMultipleChoiceGrid.cs
+  artifactKey: Guid(8332a04e96bc5b74e886693704fe7eb8) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTMultipleChoiceGrid.cs using Guid(8332a04e96bc5b74e886693704fe7eb8) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '41f24c2628c27aef18862223569b8697') in 0.0005666 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003460 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowser.cs
+  artifactKey: Guid(3c708be74128e4ced9b79eaaf80e8443) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowser.cs using Guid(3c708be74128e4ced9b79eaaf80e8443) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b86943003951922145014c224c74747d') in 0.0007269 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004275 seconds.
+  path: Assets/BOforUnity/Examples/ObjectVariableExposer.cs
+  artifactKey: Guid(b2ca3f052501e4fa8979f52d0c3bbb7c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Examples/ObjectVariableExposer.cs using Guid(b2ca3f052501e4fa8979f52d0c3bbb7c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9909c51e0b719735501646a3e6754d71') in 0.0016617 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003269 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_23_delay-0.05s.png
+  artifactKey: Guid(c6eb493ce551b4015aad7b1f28d3c2eb) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_23_delay-0.05s.png using Guid(c6eb493ce551b4015aad7b1f28d3c2eb) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b246300eeddca4543628cd18d3130379') in 0.0157938 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.005060 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTLinearScaleEditor.cs
+  artifactKey: Guid(ddd8145d94bc5d241a448e9434ba698f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTLinearScaleEditor.cs using Guid(ddd8145d94bc5d241a448e9434ba698f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '64016b38f0c7c417109c7425ee86f1f3') in 0.0009396 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003181 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs
+  artifactKey: Guid(48e3d1df48e184d4c9049457c6de3792) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs using Guid(48e3d1df48e184d4c9049457c6de3792) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '388fafe312deef1eb6b2e805b85cfdac') in 0.0010844 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003862 seconds.
+  path: Assets/StreamingAssets/BOData/InitData/ExampleObservationPerEvaluation.csv
+  artifactKey: Guid(d0646ab97771f497aa7b3f7df1eb5513) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/InitData/ExampleObservationPerEvaluation.csv using Guid(d0646ab97771f497aa7b3f7df1eb5513) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2fabf6461055affbb64182fd1d8f9a18') in 0.0013654 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003968 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor/DropdownOption.cs
+  artifactKey: Guid(3e9426e21e6378d4099f418524678969) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor/DropdownOption.cs using Guid(3e9426e21e6378d4099f418524678969) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f46c252e6673a5ce5735a5a56f59e693') in 0.0007949 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004325 seconds.
+  path: Assets/BOforUnity/BoForUnityManager.cs
+  artifactKey: Guid(43e81b2355532462a98aa4ab2748c819) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/BoForUnityManager.cs using Guid(43e81b2355532462a98aa4ab2748c819) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9dbb08b7ad5c339898b07c2bd016ed39') in 0.0008099 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004067 seconds.
+  path: Assets/BOforUnity/Examples/CubeMat.mat
+  artifactKey: Guid(af112fc137ef14e2e88e75596fd50192) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Examples/CubeMat.mat using Guid(af112fc137ef14e2e88e75596fd50192) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f43347b605b4d40ec8c4f2086fbddf15') in 0.1524666 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002479 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTCheckboxesEditor.cs
+  artifactKey: Guid(0df54852205de4b46b88338249f9e1c5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTCheckboxesEditor.cs using Guid(0df54852205de4b46b88338249f9e1c5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd7926952eceb42f3061f15cb0f4af70c') in 0.0005247 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003830 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTDropdownEditor.cs
+  artifactKey: Guid(41ffca61d5519d644b59d9d86d9d83d8) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTDropdownEditor.cs using Guid(41ffca61d5519d644b59d9d86d9d83d8) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'db45b78600ca4b1d8ca0652bc9bb2cb6') in 0.0007485 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002631 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures
+  artifactKey: Guid(339b93c403bb7b141965bf7c02715d98) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures using Guid(339b93c403bb7b141965bf7c02715d98) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0d869fe8c94365e028edd22ab623bd5e') in 0.0005438 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003972 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/ReorderableArray.cs
+  artifactKey: Guid(84d5026b0b996d943862bf1e1004ff54) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/ReorderableArray.cs using Guid(84d5026b0b996d943862bf1e1004ff54) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'a26b4cb57811d53af406de2d08b8b35a') in 0.0005611 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003693 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/CheckboxesBanner.png
+  artifactKey: Guid(8f573e2cbbfe1b74c9fb514830a0cd2f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/CheckboxesBanner.png using Guid(8f573e2cbbfe1b74c9fb514830a0cd2f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bc191a821771995620febb828366de47') in 0.0132165 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003287 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__
+  artifactKey: Guid(1f2b336a8f4484e91832c614a0065100) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__ using Guid(1f2b336a8f4484e91832c614a0065100) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c292359b3f610b00da7534cc1a3ed9b8') in 0.0007676 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002767 seconds.
+  path: Assets/QuestionnaireToolkit/Textures
+  artifactKey: Guid(71339e2b3ed7dee45bd28d782462cd1b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures using Guid(71339e2b3ed7dee45bd28d782462cd1b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0a0729c55cfd077be20ab2efd9376bc4') in 0.0005529 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002583 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser
+  artifactKey: Guid(57e25b4a578dba94c9353f4633b20549) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser using Guid(57e25b4a578dba94c9353f4633b20549) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4f32d69d2ff3eaa88ab6f7690e102b8f') in 0.0005866 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003740 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Windows/installation_python.bat
+  artifactKey: Guid(b9910047c3c0f4b9093c994b96930e1b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Windows/installation_python.bat using Guid(b9910047c3c0f4b9093c994b96930e1b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f36d8e953fdd4cf8b79263316579f4ab') in 0.0009183 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003695 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_19_delay-0.05s.png
+  artifactKey: Guid(f6de46b9b48954858b6940a96aae7e78) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_19_delay-0.05s.png using Guid(f6de46b9b48954858b6940a96aae7e78) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '10bda1d9abd8ad7655daf2d43fd93a9b') in 0.0133792 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003634 seconds.
+  path: Assets/BOforUnity/Scripts
+  artifactKey: Guid(80b6ff9cdfa0d4fff83f9f0fec6134e9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Scripts using Guid(80b6ff9cdfa0d4fff83f9f0fec6134e9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '52bc964ba71b127631429eca074365d4') in 0.0006431 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003551 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_13_delay-0.05s.png
+  artifactKey: Guid(93bf1804542ac4fc89f4c62931d2eb61) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_13_delay-0.05s.png using Guid(93bf1804542ac4fc89f4c62931d2eb61) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7bf7f1ed4770dc3996bd4045d098fc04') in 0.0139753 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004010 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/LinearScaleBanner.png
+  artifactKey: Guid(1fbc0e8c898e78b4985eda5accf2f471) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/LinearScaleBanner.png using Guid(1fbc0e8c898e78b4985eda5accf2f471) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '444ec8dbc10cb7722dd881e83b5f1a92') in 0.0134309 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003889 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/UnityObjectType.cs
+  artifactKey: Guid(6cc7ee117d5aba24786a60f7f81ae5fa) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/UnityObjectType.cs using Guid(6cc7ee117d5aba24786a60f7f81ae5fa) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '77796cc27fbdc00c081314360ac001d0') in 0.00074 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004473 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/UnityReflectionException.cs
+  artifactKey: Guid(d5163f5c4f5987e4788a1ff971ab4d2c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/UnityReflectionException.cs using Guid(d5163f5c4f5987e4788a1ff971ab4d2c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0bec6387aafedd3e73fa03a6b4944d92') in 0.0007454 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003295 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires/IPQ.json
+  artifactKey: Guid(63fce832de241b24f9c59f8516053eda) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires/IPQ.json using Guid(63fce832de241b24f9c59f8516053eda) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bd51b75752b3d615abde9131cb1ddee8') in 0.0011076 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003488 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/StandaloneFileBrowser.jslib
+  artifactKey: Guid(265aaf20a6d564e0fb00a9c4a7a9c300) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/StandaloneFileBrowser.jslib using Guid(265aaf20a6d564e0fb00a9c4a7a9c300) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter)Could not generate preview image
+ -> (artifact id: '72cbdc0ff3ce3d623ba940d8bd055805') in 0.0111235 seconds
+  ERROR: Import of 'Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/StandaloneFileBrowser.jslib' had errors: Could not generate preview image
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003528 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesGrid.prefab
+  artifactKey: Guid(babcf5cb154676a40981282da473d7ec) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesGrid.prefab using Guid(babcf5cb154676a40981282da473d7ec) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c343561e59b24774262e5f21aa20615d') in 0.0152174 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 24
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004281 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Button.prefab
+  artifactKey: Guid(ca4e801d17241bc41a1f5f470df351c1) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Button.prefab using Guid(ca4e801d17241bc41a1f5f470df351c1) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7d4e826e857e6d417e225db496251638') in 0.0230712 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 27
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003082 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserEditor.cs
+  artifactKey: Guid(2650af8de2cda46b99b1bc7cf5d30ca5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserEditor.cs using Guid(2650af8de2cda46b99b1bc7cf5d30ca5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6dd9247de4c14c1676ca0c45dda38afb') in 0.0006169 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003497 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires/System_Usability_Scale_Questionnaire.json
+  artifactKey: Guid(37d0487cfd9a8d140baae3e23614cd6e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires/System_Usability_Scale_Questionnaire.json using Guid(37d0487cfd9a8d140baae3e23614cd6e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd644547589f4d08e5727b07669c11534') in 0.0013167 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003988 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Video.prefab
+  artifactKey: Guid(57abc8fbcb5b67445bda3a109c792ef0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Video.prefab using Guid(57abc8fbcb5b67445bda3a109c792ef0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd2bcab04a2cbda32040fee866198cf42') in 0.0030038 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 14
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002719 seconds.
+  path: Assets/StreamingAssets/BOData/InitData
+  artifactKey: Guid(df5229785aeac45e8b014cb625319317) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/InitData using Guid(df5229785aeac45e8b014cb625319317) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5da4134dabe1a4582519994fceee155e') in 0.0006186 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002652 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Linux
+  artifactKey: Guid(46efb20d92cf76447bbc5cf4fc94d80b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Linux using Guid(46efb20d92cf76447bbc5cf4fc94d80b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7310ff882f85b20d010161b5eedb66dc') in 0.0006054 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002607 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Windows
+  artifactKey: Guid(13dd9b186c1aa4235b5c12e6a4559078) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Windows using Guid(13dd9b186c1aa4235b5c12e6a4559078) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4a1803141281442c2e2c53c18da33fb7') in 0.0006848 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004359 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTTextInputEditor.cs
+  artifactKey: Guid(23a24781290be12499da5c1f68c18eef) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTTextInputEditor.cs using Guid(23a24781290be12499da5c1f68c18eef) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '02eaf894702f8690969b158f12a48021') in 0.0008309 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002723 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection
+  artifactKey: Guid(d5d2eb9bbea23de409141ed9507792c8) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection using Guid(d5d2eb9bbea23de409141ed9507792c8) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e4336a94d4f91352174d721115524dca') in 0.0005314 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002684 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner
+  artifactKey: Guid(42e5cb000259f77438658d79df065db5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner using Guid(42e5cb000259f77438658d79df065db5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9d4e2a3453be37341026d2c0f6afdc37') in 0.0007458 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004227 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires/SUS_Presence_Questionnaire.json
+  artifactKey: Guid(87734d7037d2bca4dbb2d3f8922d98ad) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires/SUS_Presence_Questionnaire.json using Guid(87734d7037d2bca4dbb2d3f8922d98ad) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '8d90d380eb6d9a46675440698fa7b006') in 0.0016287 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004199 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/LabelTypeAfterAttribute.cs
+  artifactKey: Guid(1e40376d72f818c49b6293cd4c50bc4a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/LabelTypeAfterAttribute.cs using Guid(1e40376d72f818c49b6293cd4c50bc4a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f4e3ac67cb399e8a3f3e5b95580b7e5f') in 0.0007142 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004004 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesGridOption.prefab
+  artifactKey: Guid(f966e4f47efd1fa419b1607418521e3e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesGridOption.prefab using Guid(f966e4f47efd1fa419b1607418521e3e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '30bf140ba3f88c3fc8be6770ef4bd73b') in 0.0040686 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 19
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003849 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceGrid.prefab
+  artifactKey: Guid(688cd45b95387e14f9f0d4af7bb46cb0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceGrid.prefab using Guid(688cd45b95387e14f9f0d4af7bb46cb0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'afb3301a3367c33d2bd25352d0366cff') in 0.0088005 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 24
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003845 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_16_delay-0.05s.png
+  artifactKey: Guid(0aefa056c16134689856ae4705687ee6) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_16_delay-0.05s.png using Guid(0aefa056c16134689856ae4705687ee6) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '681584964d199018e1ff7ad39c48476f') in 0.0166368 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003174 seconds.
+  path: Assets/StreamingAssets
+  artifactKey: Guid(bd0179c86336a4a5bb5fc0a813cb571e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets using Guid(bd0179c86336a4a5bb5fc0a813cb571e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'a8d0accf99dfe64666d2bcffd7b29af5') in 0.0007913 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004332 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Text.prefab
+  artifactKey: Guid(e619f5c81ff90004c9e2356bf714c31f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Text.prefab using Guid(e619f5c81ff90004c9e2356bf714c31f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '734363ed83a0bde4e0c205fb005630d4') in 0.0219795 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 25
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003423 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/QTBackground.mat
+  artifactKey: Guid(4f74293f7b82af3458ad3e63daa07b09) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/QTBackground.mat using Guid(4f74293f7b82af3458ad3e63daa07b09) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5de86c828e9505cbb70fb3b750dfce89') in 0.3058378 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004062 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTButton.cs
+  artifactKey: Guid(c63d810c7b76e7d45a4e1cac687a5cd7) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTButton.cs using Guid(c63d810c7b76e7d45a4e1cac687a5cd7) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4d4952c2c1258b2bbdb26919439439b4') in 0.0012449 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003971 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/ReorderableAttribute.cs
+  artifactKey: Guid(af18777bcf6ae2c47a02c3ff8adabb0e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/ReorderableAttribute.cs using Guid(af18777bcf6ae2c47a02c3ff8adabb0e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '38e91f505ab030a157711adbff36af9d') in 0.0006588 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003584 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires/Simulation_Sickness_Questionnaire.json
+  artifactKey: Guid(4cefb209e167e7d4cb8bf86fcf3b66ca) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires/Simulation_Sickness_Questionnaire.json using Guid(4cefb209e167e7d4cb8bf86fcf3b66ca) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c71713149e3e92eb6c1ad9ab4fa31375') in 0.0011115 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003406 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/UnityMemberHelper.cs
+  artifactKey: Guid(b9cd6fda5f82d234f8b52ac024bd73e7) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/UnityMemberHelper.cs using Guid(b9cd6fda5f82d234f8b52ac024bd73e7) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'adf69663ff80aa9c78b14d7e28cc4cfe') in 0.00089 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003482 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Ookii.Dialogs.dll
+  artifactKey: Guid(e60958662eed5413d86143a0a69b731e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Ookii.Dialogs.dll using Guid(e60958662eed5413d86143a0a69b731e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '393e436a4872a4e83ef500e19d4b265b') in 0.0007449 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003237 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_17_delay-0.05s.png
+  artifactKey: Guid(80ac4d549161047698067b29d2223576) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_17_delay-0.05s.png using Guid(80ac4d549161047698067b29d2223576) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2f8611621c2c3cbcac68d2ebc198ed97') in 0.0164268 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003388 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_09_delay-0.05s.png
+  artifactKey: Guid(dbac029e0e7f649ea95912886d1b3672) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_09_delay-0.05s.png using Guid(dbac029e0e7f649ea95912886d1b3672) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd9f1ed9d7695dda0e436be41052ce5cd') in 0.0162968 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004388 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/AnimatorParameterDrawer.cs
+  artifactKey: Guid(209b7784dfea19042b9871dc86da346e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/AnimatorParameterDrawer.cs using Guid(209b7784dfea19042b9871dc86da346e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b0c1eea8fd5d8bc87166fe48dc5d9847') in 0.0006166 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003341 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/UnityMemberDrawerHelper.cs
+  artifactKey: Guid(6bd579dcda99bdd4aa4ad1e7b66d4c23) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/UnityMemberDrawerHelper.cs using Guid(6bd579dcda99bdd4aa4ad1e7b66d4c23) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'ffcc866ae0cb6ca8a9759b042153df0e') in 0.0005711 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003039 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QuestionnaireMeta.cs
+  artifactKey: Guid(661c8d19209491542a32cf6ad04a3fa4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QuestionnaireMeta.cs using Guid(661c8d19209491542a32cf6ad04a3fa4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f1e6168c326783a23f8e71e4f13fb8d9') in 0.0005559 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002998 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_03_delay-0.05s.png
+  artifactKey: Guid(147edfa6e3377490eacab79cfb0a072a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_03_delay-0.05s.png using Guid(147edfa6e3377490eacab79cfb0a072a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '738b1accfabe518fd22be66dd07e73b9') in 0.0137094 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003770 seconds.
+  path: Assets/QuestionnaireToolkit/Demo Scenes/QuestionnaireShowcase.unity
+  artifactKey: Guid(9311f04cde1fb494b9f1da9daa9f29a0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Demo Scenes/QuestionnaireShowcase.unity using Guid(9311f04cde1fb494b9f1da9daa9f29a0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '482c4efb890aa9fc4024fa1551cf9368') in 0.0008647 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003201 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTButtonEditor.cs
+  artifactKey: Guid(daa9c0dd70d15f640af2d019f63bb4a2) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTButtonEditor.cs using Guid(daa9c0dd70d15f640af2d019f63bb4a2) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'fc4b02e066892c8348556b13c559253c') in 0.0007167 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003155 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/LinearScaleOption.prefab
+  artifactKey: Guid(e17be0c28bd8a6445ad8db27edc7bb8c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/LinearScaleOption.prefab using Guid(e17be0c28bd8a6445ad8db27edc7bb8c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'efafa8dae1ec4b7e2c5ebdbdbf7bee7c') in 0.0183353 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 28
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002935 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTImage.cs
+  artifactKey: Guid(2b487e53f041dae44af669c9471cc923) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTImage.cs using Guid(2b487e53f041dae44af669c9471cc923) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'eb99014ec2b6b0bc654b9c10dc2498a8') in 0.0005502 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003297 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor/DropdownGUI.cs
+  artifactKey: Guid(20cce676f35dcfd4fb676235eef3c777) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor/DropdownGUI.cs using Guid(20cce676f35dcfd4fb676235eef3c777) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'ddd3a9a0d9645431a8fe137a5783bc55') in 0.0006174 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003174 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTLinearScale.cs
+  artifactKey: Guid(e4207fd24b018e146848b63426ecde49) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTLinearScale.cs using Guid(e4207fd24b018e146848b63426ecde49) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '33909da60dd670123a4b98ded91b1186') in 0.0005788 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003239 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures/shift.png
+  artifactKey: Guid(5c968e3c9c449f348afbc183c43614ed) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures/shift.png using Guid(5c968e3c9c449f348afbc183c43614ed) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'dbacfe15ab192a8b8782e72c7067a5e1') in 0.0162818 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002728 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard
+  artifactKey: Guid(be46e32082e63c34b8e0cd67dfb64a13) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard using Guid(be46e32082e63c34b8e0cd67dfb64a13) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c4dade07ec33ff265df1ef8864d0a373') in 0.0005855 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003191 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitCustomResources
+  artifactKey: Guid(301a1c463d6fb854dafbfcb97f2ff575) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitCustomResources using Guid(301a1c463d6fb854dafbfcb97f2ff575) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '453d19dbc53427ead889e0664ebbfdc3') in 0.0005716 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003297 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2_Right.png
+  artifactKey: Guid(b7b3c75d9e8db9b41af9bf0ab1aa4a82) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2_Right.png using Guid(b7b3c75d9e8db9b41af9bf0ab1aa4a82) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5c4f9b21e9f0180e1bed933cb0b85f79') in 0.0118119 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004062 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/MacOs/install_python.sh
+  artifactKey: Guid(f5383e6655a7c476b925049d8a2dd346) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/MacOs/install_python.sh using Guid(f5383e6655a7c476b925049d8a2dd346) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bd797b56b5d48e14c70137ba79ec07c4') in 0.0009843 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003433 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires/SART.json
+  artifactKey: Guid(6cbe4ed006d33446eaac6b6258427c1f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires/SART.json using Guid(6cbe4ed006d33446eaac6b6258427c1f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b6993a3899ad18733c1a77698103c656') in 0.0009298 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003299 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTMultipleChoiceGridEditor.cs
+  artifactKey: Guid(5948d2dafcfebcf4f9dab573d53c8254) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTMultipleChoiceGridEditor.cs using Guid(5948d2dafcfebcf4f9dab573d53c8254) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b37bdf9baa8daf4040aad61f30c23b24') in 0.0007847 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003669 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
+  artifactKey: Guid(32798311e1b7e49f18ceb5563aec073c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/output.txt using Guid(32798311e1b7e49f18ceb5563aec073c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b84249927797146a9b057f0fc2de5347') in 0.0008562 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002542 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Scripts
+  artifactKey: Guid(a54ce9e0e36562049868f12b5bed0063) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Scripts using Guid(a54ce9e0e36562049868f12b5bed0063) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '32e799eea3aa8b86013664cd8b73446b') in 0.0004985 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003235 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_allLongitudinal.cpython-311.pyc
+  artifactKey: Guid(8fb9fdc74ca3c4cd5962a3a74d7c343e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_allLongitudinal.cpython-311.pyc using Guid(8fb9fdc74ca3c4cd5962a3a74d7c343e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0e7a6b121397041e4b4eb1575ac23ad9') in 0.0008344 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003786 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/TextInputLong.prefab
+  artifactKey: Guid(f0d77f2147ae77c40ae3735c9b7f2ea5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/TextInputLong.prefab using Guid(f0d77f2147ae77c40ae3735c9b7f2ea5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f11eb75d4f288c15b41d19cdfd3f55c6') in 0.0119263 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 35
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003355 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_08_delay-0.05s.png
+  artifactKey: Guid(74d01736c63234719ab5a69a9e19b075) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_08_delay-0.05s.png using Guid(74d01736c63234719ab5a69a9e19b075) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e05d800af1894ebfd3b9c5449e412898') in 0.0136513 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004272 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures/hi_dk.png
+  artifactKey: Guid(0dd95696a403be24ebec04840bd7907b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures/hi_dk.png using Guid(0dd95696a403be24ebec04840bd7907b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b7012b35fa08cbe467b828aa2be24fa4') in 0.014906 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003864 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTSlider.cs
+  artifactKey: Guid(1f10031791c90a044a6bb87cd0fb4da2) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTSlider.cs using Guid(1f10031791c90a044a6bb87cd0fb4da2) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c711b5949a1da766173e64b7d315c435') in 0.0007131 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003300 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/ButtonBackground.png
+  artifactKey: Guid(451f2029f87b2b04b962b0a21cd8567b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/ButtonBackground.png using Guid(451f2029f87b2b04b962b0a21cd8567b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0a653b76e9c566828b8ec93ab8366be3') in 0.0166344 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004204 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Dropdown.prefab
+  artifactKey: Guid(37dcad350fdedf948b314ac006e3c8d6) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Dropdown.prefab using Guid(37dcad350fdedf948b314ac006e3c8d6) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5fb71fcb6fa925aca60488614adcb4cd') in 0.0135697 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 70
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003190 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_all.cpython-39.pyc
+  artifactKey: Guid(2abe897d8ac804d69bde8fb3ec8439e0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_all.cpython-39.pyc using Guid(2abe897d8ac804d69bde8fb3ec8439e0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'a534522009be09c356ce0f2dc3840499') in 0.0019076 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003775 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserMac.cs
+  artifactKey: Guid(bcb49ddb0ed5644fda9c3b055cafa27a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserMac.cs using Guid(bcb49ddb0ed5644fda9c3b055cafa27a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e6393afe6a54970ef488a8539c0097be') in 0.0008697 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004035 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/VideoTexture.renderTexture
+  artifactKey: Guid(197ac4c0c49d3214b9a7c9f73de1a93e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/VideoTexture.renderTexture using Guid(197ac4c0c49d3214b9a7c9f73de1a93e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c7842829e933e89896c4f42d48a740ed') in 0.0179436 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.006847 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_05_delay-0.05s.png
+  artifactKey: Guid(fad95f519f22b49ad85bfc76e7f8fd61) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_05_delay-0.05s.png using Guid(fad95f519f22b49ad85bfc76e7f8fd61) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '20da60d004e17b97e40087387282e319') in 0.0180159 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004088 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_14_delay-0.05s.png
+  artifactKey: Guid(3bcec6eb362d8452ba1d19b2801d72e9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_14_delay-0.05s.png using Guid(3bcec6eb362d8452ba1d19b2801d72e9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'dd5479023d9ee69575804c9646aa68c1') in 0.0190703 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004582 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Linux/install_python.sh
+  artifactKey: Guid(8f6e05c2822ea4c48bdb87f7561bcdb5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Linux/install_python.sh using Guid(8f6e05c2822ea4c48bdb87f7561bcdb5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '900933557565dfda2fed20a2c3b24629') in 0.0011398 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.005054 seconds.
+  path: Assets/BOforUnity/Editor/BoForUnityManagerEditor.cs
+  artifactKey: Guid(87ee6506d514246f884e84d66abf5324) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Editor/BoForUnityManagerEditor.cs using Guid(87ee6506d514246f884e84d66abf5324) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'aad0bf72c4a8053f74c174028b5f0317') in 0.0008394 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004265 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Utilities/Extensions.cs
+  artifactKey: Guid(8b3d0baf94d987941b5d3695b322abd9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Utilities/Extensions.cs using Guid(8b3d0baf94d987941b5d3695b322abd9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4064eaf30ff38c77192a1a9934a4df56') in 0.0008302 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004367 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesOptionOther.prefab
+  artifactKey: Guid(85268db1d53bb6140a66d3c4f9895bfb) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesOptionOther.prefab using Guid(85268db1d53bb6140a66d3c4f9895bfb) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c8019574dfda2864bcff5ec3311c0689') in 0.022304 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 38
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003029 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_allB.cpython-311.pyc
+  artifactKey: Guid(eb1f49fa328614df2b183d2b90ac295d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_allB.cpython-311.pyc using Guid(eb1f49fa328614df2b183d2b90ac295d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9a0af2ed0420defaf3dcc4f30e839855') in 0.0010508 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004421 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/QTBanner.png
+  artifactKey: Guid(2644125923cf44343bfc560a61eeb365) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/QTBanner.png using Guid(2644125923cf44343bfc560a61eeb365) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'eaab74f4b62ac734be5b068bf3b4fa7d') in 0.02074 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003506 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/PageBanner.png
+  artifactKey: Guid(4c39b30054cd7a44e884c7b97bca0302) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/PageBanner.png using Guid(4c39b30054cd7a44e884c7b97bca0302) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b7ce12c2b7b9688e582b8fa17e5e34c3') in 0.0136942 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003292 seconds.
+  path: Assets/StreamingAssets/BOData/output.txt
+  artifactKey: Guid(2c72aac83eac64074b1b80d0253b0872) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/output.txt using Guid(2c72aac83eac64074b1b80d0253b0872) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '401f9fe94f12b17b07e484f28d521aa9') in 0.0021963 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003741 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Image.prefab
+  artifactKey: Guid(6b9b6a7520d9ee743a56f6dcae194231) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Image.prefab using Guid(6b9b6a7520d9ee743a56f6dcae194231) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1270e792768f8e9411bc85767781d5c0') in 0.0024424 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 14
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002676 seconds.
+  path: Assets/QuestionnaireToolkit/Editor
+  artifactKey: Guid(c9820c532aef1a540a46e26c5ee3f4a1) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor using Guid(c9820c532aef1a540a46e26c5ee3f4a1) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '50d7b92cbb2be546c1d16d77646604fa') in 0.000618 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003625 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesOption.prefab
+  artifactKey: Guid(f7458d5e8a12f5a41bf655e180908272) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/CheckboxesOption.prefab using Guid(f7458d5e8a12f5a41bf655e180908272) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'cceeff0acd13475afd9e8eaf61109424') in 0.0223183 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 27
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002590 seconds.
+  path: Assets/BOforUnity/Examples
+  artifactKey: Guid(49fcccf3d488a453dbf323a9b70a2615) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Examples using Guid(49fcccf3d488a453dbf323a9b70a2615) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f22a2086ecbbfbcd117899c201603aea') in 0.0008474 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003674 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTQuestionnaireManagerEditor.cs
+  artifactKey: Guid(045b842c00e941941949480530ac928e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTQuestionnaireManagerEditor.cs using Guid(045b842c00e941941949480530ac928e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '50b6c9fd5732ac3e80cff2bb5c7e590e') in 0.0006753 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002692 seconds.
+  path: Assets/BOforUnity/LoadingImages
+  artifactKey: Guid(9a0535317d81346dd95615725a83c091) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages using Guid(9a0535317d81346dd95615725a83c091) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c80e0af5093afa4cc96056e4f7961c61') in 0.0009122 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003315 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/SimpleJSON/SimpleJSON.cs
+  artifactKey: Guid(2c0e629b2f4d3d545a2da2f43b20f0b0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/SimpleJSON/SimpleJSON.cs using Guid(2c0e629b2f4d3d545a2da2f43b20f0b0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '63afdce6a41aa5946b2dea16422b42db') in 0.0005592 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.014061 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Windows/Installation_Objects/python-3.11.3.exe
+  artifactKey: Guid(c1a318728fa114654be2f80e97f01201) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Windows/Installation_Objects/python-3.11.3.exe using Guid(c1a318728fa114654be2f80e97f01201) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '168dedfdcedd9d3c045de6e345120ee8') in 0.0008701 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002920 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceOption.prefab
+  artifactKey: Guid(46a46ad35619af04b9b9bcfe4f60abac) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceOption.prefab using Guid(46a46ad35619af04b9b9bcfe4f60abac) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '038c5feadf0ad8ee7f8be39b154862b7') in 0.0198614 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 27
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002548 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_11_delay-0.05s.png
+  artifactKey: Guid(d8b14b30dd31541ddb98640662e1aecd) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_11_delay-0.05s.png using Guid(d8b14b30dd31541ddb98640662e1aecd) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1c9fac319e33bd4235480b928b1e935b') in 0.0139063 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002486 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Linux
+  artifactKey: Guid(82666e520ab4d4cf08bebbb8059cd6f4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Linux using Guid(82666e520ab4d4cf08bebbb8059cd6f4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c92556a8ebef4bae9a5025ff983a51ae') in 0.0005476 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003569 seconds.
+  path: Assets/QuestionnaireToolkit/Questionnaires/NASA_TLX.json
+  artifactKey: Guid(f1b6fc70365b19a4d98bfc8168813275) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Questionnaires/NASA_TLX.json using Guid(f1b6fc70365b19a4d98bfc8168813275) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9f539e5e534cd880219f2b3a4b6c5504') in 0.0010297 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003021 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTCheckboxesGridEditor.cs
+  artifactKey: Guid(722ab90f162a4214c9abf79db8a8d59f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTCheckboxesGridEditor.cs using Guid(722ab90f162a4214c9abf79db8a8d59f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'fbf851f63bcc6cbbe3f994de572b04bc') in 0.0005667 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002881 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/GridText.prefab
+  artifactKey: Guid(f33c67c7ca93be746a60728a6dd22616) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/GridText.prefab using Guid(f33c67c7ca93be746a60728a6dd22616) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0a3c6e860de806f563f84507b34ec6c7') in 0.0180543 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 16
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003285 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Utilities/TypeSerializer.cs
+  artifactKey: Guid(e6b975f13c3c116409e9d5371cdb9da9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Utilities/TypeSerializer.cs using Guid(e6b975f13c3c116409e9d5371cdb9da9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '77ebbaf44af20ce3f4129d0f007e27db') in 0.000767 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003230 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_22_delay-0.05s.png
+  artifactKey: Guid(2a85e52027e9041f0a896461b7a87198) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_22_delay-0.05s.png using Guid(2a85e52027e9041f0a896461b7a87198) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '78e541018946f58aa1d4f8680e78dd0e') in 0.014175 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003569 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitCustomResources/QTBanner.png
+  artifactKey: Guid(d98c7e282139e1a41aafadc60cd419f9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitCustomResources/QTBanner.png using Guid(d98c7e282139e1a41aafadc60cd419f9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'ed6e3d13901ff858d5dad756182004e4') in 0.0085908 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003813 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/QuestionnaireBanner.png
+  artifactKey: Guid(f9d67f45f106f1d4b9deb7baf2f1757c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/QuestionnaireBanner.png using Guid(f9d67f45f106f1d4b9deb7baf2f1757c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5e8686526475826cd4c5eabb5f82c331') in 0.010893 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003282 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor
+  artifactKey: Guid(d158212096fbe674d8096c19f2cf4c2a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor using Guid(d158212096fbe674d8096c19f2cf4c2a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6add21a4fe9b5c15510b3797939a20fc') in 0.0006984 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003411 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/QTQuestionnaireManager.prefab
+  artifactKey: Guid(0e583bb6021c73c40adbf063576f4077) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/QTQuestionnaireManager.prefab using Guid(0e583bb6021c73c40adbf063576f4077) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '878e3e7f865708239e9c6c13230da28a') in 0.0241272 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 101
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002969 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_02_delay-0.05s.png
+  artifactKey: Guid(97c75aa350391455ab9f19faa60cb6ba) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_02_delay-0.05s.png using Guid(97c75aa350391455ab9f19faa60cb6ba) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'cf4c1d32c4fc6da346d6a20e9d58a3f6') in 0.0132514 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003971 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures/backspace.png
+  artifactKey: Guid(48e23c0a464d7864b9b20a0c4f34b53d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures/backspace.png using Guid(48e23c0a464d7864b9b20a0c4f34b53d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bc0b66806666bf08f345461e3fac0172') in 0.0146105 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003440 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_00_delay-0.05s.png
+  artifactKey: Guid(da7d1feb8db5d4a489baa19d14c12bfd) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_00_delay-0.05s.png using Guid(da7d1feb8db5d4a489baa19d14c12bfd) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '65c7f65ae4009c7075d89d39cc7d3da0') in 0.0136094 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003483 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/FilterAttribute.cs
+  artifactKey: Guid(4cfca90487f2d34438fe4f332698f45d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/FilterAttribute.cs using Guid(4cfca90487f2d34438fe4f332698f45d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '421b2b99a35ebab2a31c88637a9d0547') in 0.0006408 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002161 seconds.
+  path: Assets/BOforUnity
+  artifactKey: Guid(d722b1fe6223d4c8fb159c3812b998c3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity using Guid(d722b1fe6223d4c8fb159c3812b998c3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9766f3c8037c6aa2575ee07941ea8c08') in 0.0005628 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003073 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/CheckboxesGridBanner.png
+  artifactKey: Guid(a1ede353ffd75904fa3878b4523333d3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/CheckboxesGridBanner.png using Guid(a1ede353ffd75904fa3878b4523333d3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0efaf819e69b46b8d6de5cb8182ec3bc') in 0.0130562 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003406 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures/hi.png
+  artifactKey: Guid(85c68896d8f7bdd43b1dac8959f696c3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures/hi.png using Guid(85c68896d8f7bdd43b1dac8959f696c3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1d3741af58cb68fe08beadbe158f33c3') in 0.014356 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003670 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTMultipleChoice.cs
+  artifactKey: Guid(d06d6f984d37a5c408aa2dbb31f32fbb) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTMultipleChoice.cs using Guid(d06d6f984d37a5c408aa2dbb31f32fbb) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7298eda9983b8886c90d2571023967cc') in 0.0007395 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003402 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/PlaceholderImage.png
+  artifactKey: Guid(21077394f7a70bb4688c1d090aa24631) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/PlaceholderImage.png using Guid(21077394f7a70bb4688c1d090aa24631) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd7c88e992e675165e878d12ca50e7977') in 0.0312208 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003927 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/LinearScale.prefab
+  artifactKey: Guid(9293e62331e7fbd438e308b09f0bc290) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/LinearScale.prefab using Guid(9293e62331e7fbd438e308b09f0bc290) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '46cab5c6ad60c92122a0fd613f9c807d') in 0.0083174 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 23
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003672 seconds.
+  path: Assets/QuestionnaireToolkit/Demo Scenes/NASA TLX Showcase.unity
+  artifactKey: Guid(98df34a1d42dca54d967a3e580006b77) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Demo Scenes/NASA TLX Showcase.unity using Guid(98df34a1d42dca54d967a3e580006b77) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '688dab27ae0f52e55fc0a664ad328e1a') in 0.0005552 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002142 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Windows/Installation_Objects
+  artifactKey: Guid(aa84c8e5986ab4b1dab6434696f25b0b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Windows/Installation_Objects using Guid(aa84c8e5986ab4b1dab6434696f25b0b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '96798fe1756d0c8f592142ed7df4f395') in 0.0004977 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004848 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/System.Windows.Forms.dll
+  artifactKey: Guid(7d459a96865cc4aaab657012c6dc4833) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/System.Windows.Forms.dll using Guid(7d459a96865cc4aaab657012c6dc4833) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '888ee9a5eda7abe650628eb3b5c58e96') in 0.0005434 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002985 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Resources/QTBackgroundVR.prefab
+  artifactKey: Guid(68318093360fce440b0f55cdd17db622) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Resources/QTBackgroundVR.prefab using Guid(68318093360fce440b0f55cdd17db622) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'b37fe106eab74a9c5abccf2d97aa7f40') in 0.0243103 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 7
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003848 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTSliderEditor.cs
+  artifactKey: Guid(ccc0e1bacc12f574b92c548a5e0ed8ae) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTSliderEditor.cs using Guid(ccc0e1bacc12f574b92c548a5e0ed8ae) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'cb35c45c5628b7a299a97b7f96895b6a') in 0.0005332 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003290 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/TypeFamily.cs
+  artifactKey: Guid(dd8c98312515fed42b3d2672d8542737) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/TypeFamily.cs using Guid(dd8c98312515fed42b3d2672d8542737) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'af74669fca5759c463abf52786326268') in 0.0005469 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003251 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTCheckboxesGrid.cs
+  artifactKey: Guid(1b9c862e12037e04bb9bbba16d690888) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTCheckboxesGrid.cs using Guid(1b9c862e12037e04bb9bbba16d690888) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9d8d901326a20d55c3b2a29ef1178eb8') in 0.0006309 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003345 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTQuestionPageManager.cs
+  artifactKey: Guid(48ee16a9afb73a94581e25103f453845) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTQuestionPageManager.cs using Guid(48ee16a9afb73a94581e25103f453845) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '694c6da341ef58b0b00de34256babdc5') in 0.0005569 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002276 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Linux/x86_64
+  artifactKey: Guid(bd198408642944765b9305bd99404136) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Linux/x86_64 using Guid(bd198408642944765b9305bd99404136) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0c63b00dddef0e78aad4cc29dc9ffc2d') in 0.0005278 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003242 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/path51801.png
+  artifactKey: Guid(2531463870cec604ebd6ed17220ac531) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/path51801.png using Guid(2531463870cec604ebd6ed17220ac531) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4260ca83ed30abbeb5e7e3a035430938') in 0.016079 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003411 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/MacOs/Data/Installation_Objects
+  artifactKey: Guid(67dae546273ba422e8c94cbe784b357b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/MacOs/Data/Installation_Objects using Guid(67dae546273ba422e8c94cbe784b357b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '83e82c846502caf3f83658daa8e94fb1') in 0.0005842 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003144 seconds.
+  path: Assets/BOforUnity/Scripts/MainThreadDispatcher.cs
+  artifactKey: Guid(b3ad18accc2564b048a36995daaed1b8) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Scripts/MainThreadDispatcher.cs using Guid(b3ad18accc2564b048a36995daaed1b8) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '947cf32f54b2e685dcdd11e8e5027950') in 0.0005709 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.013446 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/Windows/Installation_Objects/VC_redist.x64.exe
+  artifactKey: Guid(dbb2ca7c3d99d434fabb478c2dae3a80) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/Windows/Installation_Objects/VC_redist.x64.exe using Guid(dbb2ca7c3d99d434fabb478c2dae3a80) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd2fba88d53c51fe3551b1bb79d878a88') in 0.0008835 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003272 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/import_all.py
+  artifactKey: Guid(01e5ba96d13274c91b72206d0b43ca26) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/import_all.py using Guid(01e5ba96d13274c91b72206d0b43ca26) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c446ebefbff1b90bd15baf17cce8c8d5') in 0.0008481 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003134 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_10_delay-0.05s.png
+  artifactKey: Guid(50168bd0fa8884a2fbbfe1286340877c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_10_delay-0.05s.png using Guid(50168bd0fa8884a2fbbfe1286340877c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd6c11c081a3b9237407fab25f81c02d6') in 0.0142961 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003971 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Linux/x86_64/libStandaloneFileBrowser.so
+  artifactKey: Guid(b8c465928f1784a3fac8dc3766f7201c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/Linux/x86_64/libStandaloneFileBrowser.so using Guid(b8c465928f1784a3fac8dc3766f7201c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6e0df3fabad6f2fd139daa8e653966a1') in 0.0010559 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003002 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_06_delay-0.05s.png
+  artifactKey: Guid(81cbfef1491f246dab0bf03dfdec7131) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_06_delay-0.05s.png using Guid(81cbfef1491f246dab0bf03dfdec7131) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7079c27d5235768a44210f51221d9d46') in 0.0143558 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003674 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/ReorderableList.cs
+  artifactKey: Guid(7524a33cc4881484f94d10e60833382b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/ReorderableList.cs using Guid(7524a33cc4881484f94d10e60833382b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0dd6a6e2c8a454061c9378b31016199d') in 0.0006138 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002636 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection
+  artifactKey: Guid(de9be32fc7960cd4590e016ad6c9ab1f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection using Guid(de9be32fc7960cd4590e016ad6c9ab1f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6f338002a64afd1f066cfdb7ab14ad1a') in 0.000655 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003470 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/UnityMemberDrawer.cs
+  artifactKey: Guid(5a4b3493d25657a4aa0c2c6fde290c26) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/UnityMemberDrawer.cs using Guid(5a4b3493d25657a4aa0c2c6fde290c26) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '605a1da22de6bca685f1bdc9aebd530a') in 0.0005723 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003510 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Scripts/CanvasKeyboard.cs
+  artifactKey: Guid(40d6608dcb1afb94d8918d300622ff5d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Scripts/CanvasKeyboard.cs using Guid(40d6608dcb1afb94d8918d300622ff5d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '3687cb3d93d414d196efd3b777ea8b04') in 0.0006664 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002540 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization
+  artifactKey: Guid(56cf5d374e05441f580941bd47a78536) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization using Guid(56cf5d374e05441f580941bd47a78536) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7f79ebb9e4b0311f7aa325f53a607194') in 0.0006558 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003125 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/circle.png
+  artifactKey: Guid(d1e99b94e9c17e4488073480268b06f3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/circle.png using Guid(d1e99b94e9c17e4488073480268b06f3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '207d3c1ab825a75e5d1b1360bc1cf706') in 0.0165554 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002883 seconds.
+  path: Assets/QuestionnaireToolkit/Documentation
+  artifactKey: Guid(59740f89297897a4f8b3694d0996226a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Documentation using Guid(59740f89297897a4f8b3694d0996226a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '08e91271766b808eb96818a3450d92c4') in 0.0005763 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002753 seconds.
+  path: Assets/QuestionnaireToolkit/Demo Scenes
+  artifactKey: Guid(eb1c0a30c23593a4c9d98dc9328719cd) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Demo Scenes using Guid(eb1c0a30c23593a4c9d98dc9328719cd) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '145e98c6a56f8aa508b3c4a8d11b549f') in 0.0006736 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003603 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_all.cpython-311.pyc
+  artifactKey: Guid(39a761bea1e9c42d28458d9ba96032ef) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_all.cpython-311.pyc using Guid(39a761bea1e9c42d28458d9ba96032ef) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '895ace79b780158c02b415f41dc33327') in 0.0008531 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003135 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTManager.cs
+  artifactKey: Guid(e73ff6cc52c523143b893b55b36b7168) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTManager.cs using Guid(e73ff6cc52c523143b893b55b36b7168) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'acfdc3ef0189467126618efd4595eac4') in 0.0005423 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004113 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Resources/CanvasKeyboard.prefab
+  artifactKey: Guid(252cbbdc2ceea3a4bbf93af0316dd731) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Resources/CanvasKeyboard.prefab using Guid(252cbbdc2ceea3a4bbf93af0316dd731) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bb6fd192a8a7013d936498c5f270915c') in 0.0212608 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1426
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.001996 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTCheckboxes.cs
+  artifactKey: Guid(89bfad7ee6f402c4faf67c8fdf8a3d4a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTCheckboxes.cs using Guid(89bfad7ee6f402c4faf67c8fdf8a3d4a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '40a5f21fc6609a370048a21a24468fff') in 0.0005423 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003085 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserWindows.cs
+  artifactKey: Guid(194e247414a78461d83ae606c1b96917) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserWindows.cs using Guid(194e247414a78461d83ae606c1b96917) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '37abb9179d97d9e10215140829311d8a') in 0.0005313 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003884 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Scripts/CanvasKeyboardASCII.cs
+  artifactKey: Guid(2147a51df7336254c948debf11857c52) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Scripts/CanvasKeyboardASCII.cs using Guid(2147a51df7336254c948debf11857c52) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '40a6d8fbdbd1cc96e0fbb4896d6613e7') in 0.0006848 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003767 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/QTManager.prefab
+  artifactKey: Guid(942c2b2ef86a07046841042a6f6de50b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/QTManager.prefab using Guid(942c2b2ef86a07046841042a6f6de50b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f1dd7a57704c4a25fa10bff8a02c2f64') in 0.0037628 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 5
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002473 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor
+  artifactKey: Guid(f8202e571d1bddf479cc88410cda24b6) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor using Guid(f8202e571d1bddf479cc88410cda24b6) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7a2d03f246dce9e4c407277382267df7') in 0.0004693 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003609 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/SelfTargetedAttribute.cs
+  artifactKey: Guid(461ce2451ca2d9443a4d8908e8ea704d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/SelfTargetedAttribute.cs using Guid(461ce2451ca2d9443a4d8908e8ea704d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '9f0f62cd0ecb72d4801b2fa523e8290b') in 0.0006962 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003082 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/ReorderableDrawer.cs
+  artifactKey: Guid(3b5cb2f0917b1f34f8aceb725a71bfe7) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/ReorderableDrawer.cs using Guid(3b5cb2f0917b1f34f8aceb725a71bfe7) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'ad144bfb93a7f3b9a5497d748778d75e') in 0.0005607 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002386 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/SimpleJSON
+  artifactKey: Guid(7c93cdefca53768408a908c6077bc6f9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/SimpleJSON using Guid(7c93cdefca53768408a908c6077bc6f9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '20bc632575c80ea0c3be096055cc7e1a') in 0.0005594 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002403 seconds.
+  path: Assets/QuestionnaireToolkit/Resources
+  artifactKey: Guid(960e2e08b423c8644b07519c9bc96f4d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources using Guid(960e2e08b423c8644b07519c9bc96f4d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '25d79f75c8a443b1b2378b0851bb6873') in 0.0004816 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003335 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTMetaData.asset
+  artifactKey: Guid(b9a5630233ae1a442b2345df096b83b0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTMetaData.asset using Guid(b9a5630233ae1a442b2345df096b83b0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '733de7f22a9aad8d9420235c9ede9863') in 0.0011687 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003112 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Slider.prefab
+  artifactKey: Guid(f4991e070e806014db12aba0d381e6b3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Slider.prefab using Guid(f4991e070e806014db12aba0d381e6b3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'cb5af0eb002db189f65a00ab63cee8a1') in 0.011093 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 226
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002099 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins
+  artifactKey: Guid(ddc4e7b83981f244ba9a26b88c18cb67) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins using Guid(ddc4e7b83981f244ba9a26b88c18cb67) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '8c60b3769b0eb6842d6f4907205b891c') in 0.0004773 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003021 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/TextInputShort.prefab
+  artifactKey: Guid(7eed0a7cc8297614f8148ccf29e6a738) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/TextInputShort.prefab using Guid(7eed0a7cc8297614f8148ccf29e6a738) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '20cbc45f08bbcd2a87f86454d1b8d3c2') in 0.0076927 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 35
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.017368 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/MacOs/Data/Installation_Objects/python-3.11.3-macos11.pkg
+  artifactKey: Guid(b17d257163a064c8099c3bea53a2c592) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/MacOs/Data/Installation_Objects/python-3.11.3-macos11.pkg using Guid(b17d257163a064c8099c3bea53a2c592) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6f68d5b38e808af9daba695f8774c0ee') in 0.001078 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003364 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/mobo.py
+  artifactKey: Guid(e6d1f42e392804d4f82c699fbf65652d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/mobo.py using Guid(e6d1f42e392804d4f82c699fbf65652d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e0484604cafd9a3bce522173046ccaae') in 0.0008289 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003017 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_20_delay-0.05s.png
+  artifactKey: Guid(db6d3254283c14550a010ec43f5f3cb5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_20_delay-0.05s.png using Guid(db6d3254283c14550a010ec43f5f3cb5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e2e834a5013bba582dd3751a8108f613') in 0.0157493 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003726 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/ItemBackground.png
+  artifactKey: Guid(113fb03c63b4eaa4089c8dd39093faaa) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/ItemBackground.png using Guid(113fb03c63b4eaa4089c8dd39093faaa) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c3c8ade606c3473ca6dfd0424fecd3c5') in 0.014122 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003744 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor/Extensions.cs
+  artifactKey: Guid(59a34c408d4aa8045ae3a432965b096b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls/Editor/Extensions.cs using Guid(59a34c408d4aa8045ae3a432965b096b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7360737d1db666db7176ad7705676e0f') in 0.0006331 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003640 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/circleHighlight.png
+  artifactKey: Guid(74097c64202821b43a780917fe7581a7) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/circleHighlight.png using Guid(74097c64202821b43a780917fe7581a7) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4c84ef8cc131138d83da337a0ac9d558') in 0.0150126 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003947 seconds.
+  path: Assets/BOforUnity/Scripts/SocketNetwork.cs
+  artifactKey: Guid(0cb113d0642b13147b253efe5c40bc47) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Scripts/SocketNetwork.cs using Guid(0cb113d0642b13147b253efe5c40bc47) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd037ca6bcbacc5f559ab73a0f5fc941f') in 0.000616 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002494 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts
+  artifactKey: Guid(60de0dc9803576941b832f695a6f92f5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts using Guid(60de0dc9803576941b832f695a6f92f5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1866fa62af1190af6d8689139cc00dcc') in 0.0004824 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003554 seconds.
+  path: Assets/QuestionnaireToolkit/Documentation/QTDocumentation.pdf
+  artifactKey: Guid(9a21e76b61b54154e84f7ebc12d6416b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Documentation/QTDocumentation.pdf using Guid(9a21e76b61b54154e84f7ebc12d6416b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '49a993429e69b6c853e1ffff767b0864') in 0.0009264 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002863 seconds.
+  path: Assets/StreamingAssets/BOData/Installation
+  artifactKey: Guid(0157bff2728834775b0efee6a9224c45) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation using Guid(0157bff2728834775b0efee6a9224c45) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd1c97af219b2e5ac2b129d51401510ea') in 0.0004696 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002503 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/MacOs/Data
+  artifactKey: Guid(eaf507a05d59f4cc0bf3bdcd234e12c2) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/MacOs/Data using Guid(eaf507a05d59f4cc0bf3bdcd234e12c2) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '11905953e63bcd714a41eda9821c4020') in 0.0005119 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003364 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTManagerEditor.cs
+  artifactKey: Guid(b57066f0b606bef4796e2c43404756c3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTManagerEditor.cs using Guid(b57066f0b606bef4796e2c43404756c3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'dfe985c4cff042d1c29b7d7b4ff65f2d') in 0.0006553 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003310 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/QtBottomPanel.png
+  artifactKey: Guid(868d2e7a0e971d149a9b3b8b743d0df3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/QtBottomPanel.png using Guid(868d2e7a0e971d149a9b3b8b743d0df3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1ae8b4badd67d225a3b597b1622c9b59') in 0.0277008 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003643 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceGridOption.prefab
+  artifactKey: Guid(b84b03b1b2b79f24ab93d4f35eb02f95) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceGridOption.prefab using Guid(b84b03b1b2b79f24ab93d4f35eb02f95) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '37c2a532a5f449180930b8bcd6a506eb') in 0.0021317 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 19
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004074 seconds.
   path: Assets/BOforUnity/BO-example-scene.unity
   artifactKey: Guid(9fc0d4010bbf28b4594072e72b8655ab) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
-Start importing Assets/BOforUnity/BO-example-scene.unity using Guid(9fc0d4010bbf28b4594072e72b8655ab) Importer(815301076,1909f56bfc062723c751e8b465ee728b)  -> (artifact id: 'a769182d7e1e98d45633b5c99be2e2b0') in 0.006343 seconds
-Number of updated asset objects reloaded before import = 0
-Number of asset objects unloaded after import = 0
+Start importing Assets/BOforUnity/BO-example-scene.unity using Guid(9fc0d4010bbf28b4594072e72b8655ab) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6ea629157fa03a953e0bfe47f70e9a52') in 0.0005361 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003024 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTQuestionPageManagerEditor.cs
+  artifactKey: Guid(b6fa3a966174f514e8d00acfdbcafc97) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTQuestionPageManagerEditor.cs using Guid(b6fa3a966174f514e8d00acfdbcafc97) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '98d67a79fea1c4fcb70e47ae9413d1f2') in 0.0005253 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003272 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/MCGridBanner.png
+  artifactKey: Guid(7d5dadd8753e25445bb79388785a550e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/MCGridBanner.png using Guid(7d5dadd8753e25445bb79388785a550e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '3cfbeb2f1e2eadc4748e818b1af82b49') in 0.0150683 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003677 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/SliderHandle.png
+  artifactKey: Guid(ac72a5d4524bec9419ccbfce66524284) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/SliderHandle.png using Guid(ac72a5d4524bec9419ccbfce66524284) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '99120ba084872310fce797c12f412fc5') in 0.0199876 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003474 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_15_delay-0.05s.png
+  artifactKey: Guid(ee77050bd99ad4644bd2e8890321ecbd) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_15_delay-0.05s.png using Guid(ee77050bd99ad4644bd2e8890321ecbd) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '55f70674a4ac8f9db496ce9c3d2ad53a') in 0.0178774 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004286 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_01_delay-0.05s.png
+  artifactKey: Guid(596088a60729044a2b88a7b235f0b46e) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_01_delay-0.05s.png using Guid(596088a60729044a2b88a7b235f0b46e) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2ddecd3571aa126492a44f0771c52e0a') in 0.016556 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003875 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoice.prefab
+  artifactKey: Guid(84c175e32376fec4e9b1bbd44f23b917) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoice.prefab using Guid(84c175e32376fec4e9b1bbd44f23b917) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c3649a14361762f69a351bad3c0c77cc') in 0.0223019 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 61
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003184 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/BottomBackground.png
+  artifactKey: Guid(dc10991d6e4590d4baf64237dc14076d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/BottomBackground.png using Guid(dc10991d6e4590d4baf64237dc14076d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '53f21eea910753c4b719d4b924239f9d') in 0.0162616 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003642 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTQuestionnaireManager.cs
+  artifactKey: Guid(8cf4b7804dbb43a4a13ac09f04b4a7fb) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTQuestionnaireManager.cs using Guid(8cf4b7804dbb43a4a13ac09f04b4a7fb) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e7087bbece01b9dd7556da655ee97412') in 0.0006062 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003463 seconds.
+  path: Assets/StreamingAssets/BOData/Installation/requirements.txt
+  artifactKey: Guid(f2accb7b6b500434a8cfd3f2764462fe) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/Installation/requirements.txt using Guid(f2accb7b6b500434a8cfd3f2764462fe) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'a972b355ebc33aaeef7177d313dd1248') in 0.0010386 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003627 seconds.
+  path: Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_all.cpython-310.pyc
+  artifactKey: Guid(139c18fd8081d466fa32e7ce71f26e7a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/BayesianOptimization/__pycache__/import_all.cpython-310.pyc using Guid(139c18fd8081d466fa32e7ce71f26e7a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2fa31a6e04e3ae8561a7aa89a03efcd8') in 0.0008375 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002314 seconds.
+  path: Assets/StreamingAssets/BOData
+  artifactKey: Guid(6b01e7146ce60416eb5230cbdbf50285) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData using Guid(6b01e7146ce60416eb5230cbdbf50285) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '261f6ffc6b9aa2414253d029092880d4') in 0.0005058 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003262 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserLinux.cs
+  artifactKey: Guid(5d3a668018554b8a89c3fe12de72b60c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/StandaloneFileBrowserLinux.cs using Guid(5d3a668018554b8a89c3fe12de72b60c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '467196cbf1910e890822b7db25f767d3') in 0.0007722 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003632 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_04_delay-0.05s.png
+  artifactKey: Guid(a82470ed6deb64bef92c10cb118e2dc7) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_04_delay-0.05s.png using Guid(a82470ed6deb64bef92c10cb118e2dc7) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '4cd549fa70c197d84bdf4a5656bdb824') in 0.0148989 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004123 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/SliderBanner.png
+  artifactKey: Guid(3369d3b5fd5289d448640fd4ccbf38f4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/SliderBanner.png using Guid(3369d3b5fd5289d448640fd4ccbf38f4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'e43065f5b65fce734f7c6fd1958fac09') in 0.011698 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003719 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_21_delay-0.05s.png
+  artifactKey: Guid(a53709e338f1742aaaf110f12d265ac3) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_21_delay-0.05s.png using Guid(a53709e338f1742aaaf110f12d265ac3) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2a382128dae2ac012f7687d9bcfd0693') in 0.0141273 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002923 seconds.
+  path: Assets/QuestionnaireToolkit
+  artifactKey: Guid(04d33bc36d549e54aad6b1ecc5dc67ff) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit using Guid(04d33bc36d549e54aad6b1ecc5dc67ff) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'c285677d9e28f4ccb2f928f550a0b341') in 0.0005644 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003267 seconds.
+  path: Assets/BOforUnity/Scripts/AnimatedImage.cs
+  artifactKey: Guid(bdff2c240acce47058e52ca2a310a550) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Scripts/AnimatedImage.cs using Guid(bdff2c240acce47058e52ca2a310a550) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '64bca57b9c1c814c0caec856a563cd36') in 0.0006873 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003266 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_07_delay-0.05s.png
+  artifactKey: Guid(822e8f548999645d481045929b858ec0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_07_delay-0.05s.png using Guid(822e8f548999645d481045929b858ec0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '816625f7892916e164aa57f38cee2565') in 0.0143779 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002823 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Resources
+  artifactKey: Guid(f0cbf418464bd8240917721cb1d1d101) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Resources using Guid(f0cbf418464bd8240917721cb1d1d101) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '90c70d57f79616adefedde34e9aeeb14') in 0.0006131 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003677 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures/std.png
+  artifactKey: Guid(5a819f3d31597de4994e24ff794abbe5) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures/std.png using Guid(5a819f3d31597de4994e24ff794abbe5) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6c68c63bf5bb774512eb8e3d2a13e372') in 0.0135975 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002863 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Utilities
+  artifactKey: Guid(4b4f3366186ded841b1b2bb19fc8f2aa) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Utilities using Guid(4b4f3366186ded841b1b2bb19fc8f2aa) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd63ec8a9aa79a03d16dfca599943daeb') in 0.0005892 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003185 seconds.
+  path: Assets/StreamingAssets/BOData/InitData/ExampleInitDataObjectives.csv
+  artifactKey: Guid(62d239bc71021424ca17bdcceef8af0d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/StreamingAssets/BOData/InitData/ExampleInitDataObjectives.csv using Guid(62d239bc71021424ca17bdcceef8af0d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5b7f6b5c311321a110e16ea3c86b9d09') in 0.0008795 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003470 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/ButtonItem.prefab
+  artifactKey: Guid(e3d7e51dccb57414a8cf70d6693de0f0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/ButtonItem.prefab using Guid(e3d7e51dccb57414a8cf70d6693de0f0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd70a717a776dd70cd86b979080d69a09') in 0.0176745 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 19
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003604 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTTextInput.cs
+  artifactKey: Guid(54fcad432888f434c9c79b85b73b5a05) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTTextInput.cs using Guid(54fcad432888f434c9c79b85b73b5a05) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1a34ae800c1b2a23aa80b29b5e8cb0e7') in 0.0005876 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003085 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/IStandaloneFileBrowser.cs
+  artifactKey: Guid(7609f7b6787a54496aa41a3053fcc76a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/IStandaloneFileBrowser.cs using Guid(7609f7b6787a54496aa41a3053fcc76a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'f59688b7f20a13257ff2deb9368cec4b') in 0.0005381 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003416 seconds.
+  path: Assets/BOforUnity/Scripts/Optimizer.cs
+  artifactKey: Guid(698fb45f7d41a4c1fbe38400f716c906) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Scripts/Optimizer.cs using Guid(698fb45f7d41a4c1fbe38400f716c906) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7d013df46ba34d854dcec2f25198965b') in 0.0006147 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003554 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/Extensions.cs
+  artifactKey: Guid(124ffa968ba27f24b97a64824c0ec4d9) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/Extensions.cs using Guid(124ffa968ba27f24b97a64824c0ec4d9) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd128f0ff82b0318cb44bcb825ce07765') in 0.0005579 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003200 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Checkboxes.prefab
+  artifactKey: Guid(63c1140a9236855458fd04c2203e2b6a) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/Checkboxes.prefab using Guid(63c1140a9236855458fd04c2203e2b6a) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '060ce54688dfaae445daa428459a37e6') in 0.0089064 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 53
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002961 seconds.
+  path: Assets/BOforUnity/Examples/CylinderMat.mat
+  artifactKey: Guid(a06113d513b3f43d9b80eab19e1ac79f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/Examples/CylinderMat.mat using Guid(a06113d513b3f43d9b80eab19e1ac79f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '7f79a5f601a472fded2b732cea2bc436') in 0.0151155 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 1
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004678 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/TagsAndLayers.cs
+  artifactKey: Guid(b5f8f509be5188449ba65527098b3c0f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/TagsAndLayers.cs using Guid(b5f8f509be5188449ba65527098b3c0f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '419a6056f530014efb9a38388fe648a3') in 0.0005708 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003413 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/QuestionPage.prefab
+  artifactKey: Guid(58018ee2af6cd8a40a9095c7a5f083c4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/QuestionPage.prefab using Guid(58018ee2af6cd8a40a9095c7a5f083c4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '00d0842c9ecef144b6e5fb015b14c14c') in 0.0196921 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 97
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002996 seconds.
+  path: Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceOptionOther.prefab
+  artifactKey: Guid(7f604246ca3ce874aba0b5dcc87ecbef) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Resources/QuestionnaireToolkitPrefabs/MultipleChoiceOptionOther.prefab using Guid(7f604246ca3ce874aba0b5dcc87ecbef) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '738da1cd5660f6ddb7a9db0afd4bfa1d') in 0.0184403 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 38
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002266 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/StandaloneFileBrowser.bundle
+  artifactKey: Guid(110fdfb459db4fc448a2ccd37e200fa4) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/Plugins/StandaloneFileBrowser.bundle using Guid(110fdfb459db4fc448a2ccd37e200fa4) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '063b003e0b819007bc7db77f387f82cd') in 0.0006329 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003355 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_12_delay-0.05s.png
+  artifactKey: Guid(cf356ea73479a4b08ba5a6b49136bad0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_12_delay-0.05s.png using Guid(cf356ea73479a4b08ba5a6b49136bad0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'd27952a7041359def7dfc943e0791b2e') in 0.0145308 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004171 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2.png
+  artifactKey: Guid(36326c4fa19c4104c9358674491fd6e0) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2.png using Guid(36326c4fa19c4104c9358674491fd6e0) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5243688a70468a19352480911bf189f8') in 0.0127231 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004283 seconds.
+  path: Assets/QuestionnaireToolkit/Demo Scenes/MultipleQuestionnairesShowcase.unity
+  artifactKey: Guid(23b56d1cbd33e554d9292e20946c371f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Demo Scenes/MultipleQuestionnairesShowcase.unity using Guid(23b56d1cbd33e554d9292e20946c371f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '1ae66ab11f6cdd9ec8d40a95b37ecdab') in 0.0007249 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003597 seconds.
+  path: Assets/BOforUnity/LoadingImages/frame_18_delay-0.05s.png
+  artifactKey: Guid(a46191bea84cc4ecfa944b54d3aeb074) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/BOforUnity/LoadingImages/frame_18_delay-0.05s.png using Guid(a46191bea84cc4ecfa944b54d3aeb074) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '930709efab7c91f59b32ec5c92c14636') in 0.0157655 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004351 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/TargetedDrawer.cs
+  artifactKey: Guid(cd8eb0c50ed738a4a9893900bc562673) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/Editor/TargetedDrawer.cs using Guid(cd8eb0c50ed738a4a9893900bc562673) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5fa9aa9881c1ed15a4ae4415d3c4ecba') in 0.0006587 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003602 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/AnimatorParameter.cs
+  artifactKey: Guid(1184cc3cd98760a40a6f1d170f9ab442) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/AnimatorParameter.cs using Guid(1184cc3cd98760a40a6f1d170f9ab442) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bd103a9d37361193eb4755ab8185945e') in 0.0005506 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003251 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/QTText.cs
+  artifactKey: Guid(72ee6765daa302347bc724b7f1673227) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/QTText.cs using Guid(72ee6765daa302347bc724b7f1673227) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'bedec5fc893c47715c8391ae769a832f') in 0.0007383 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.002735 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls
+  artifactKey: Guid(3c50ffbb86b155f4ba9846ef3a501e4c) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Controls using Guid(3c50ffbb86b155f4ba9846ef3a501e4c) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2eb3acfb13ba6e4aacd3bc23b2aa3478') in 0.0007033 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003721 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/ManagerBanner.png
+  artifactKey: Guid(5bc5a57b80dafff41826c78eaf0df14d) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/ManagerBanner.png using Guid(5bc5a57b80dafff41826c78eaf0df14d) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '0000e3a33b3dc0d223183dad9c424482') in 0.0202259 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.013370 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/MCBanner.png
+  artifactKey: Guid(d3e22c6a8395a884f8c9da7b74c6465b) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/MCBanner.png using Guid(d3e22c6a8395a884f8c9da7b74c6465b) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '368d5b02a1a30d7dd28d3224028beab9') in 0.0212263 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004361 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/Banner/DropdownBanner.png
+  artifactKey: Guid(59eec70f1e8e10f4db1d8c71c57a0d9f) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/Banner/DropdownBanner.png using Guid(59eec70f1e8e10f4db1d8c71c57a0d9f) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '5300e2025075641c76bd3c4a1ad46c5a') in 0.0158064 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 2
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.004013 seconds.
+  path: Assets/QuestionnaireToolkit/VR Keyboard/Textures/std_dk.png
+  artifactKey: Guid(a94f411bda807a44b83337dd17a03053) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/VR Keyboard/Textures/std_dk.png using Guid(a94f411bda807a44b83337dd17a03053) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '2cc245ff21ffe7c4889ffd25f4a961e4') in 0.0135144 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003315 seconds.
+  path: Assets/QuestionnaireToolkit/Textures/rectangleHighlight.png
+  artifactKey: Guid(b793f6f2c46326d438280dc112edfd02) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Textures/rectangleHighlight.png using Guid(b793f6f2c46326d438280dc112edfd02) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: 'fdd6bd287a1ca3054224cb845d430dc6') in 0.0137488 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 3
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003543 seconds.
+  path: Assets/QuestionnaireToolkit/Editor/QTMultipleChoiceEditor.cs
+  artifactKey: Guid(e9b89fc351614d840bdcd8c16afc9e88) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Editor/QTMultipleChoiceEditor.cs using Guid(e9b89fc351614d840bdcd8c16afc9e88) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '173ea6f00cf629f55937f83e7f4440e2') in 0.0006462 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+
+========================================================================
+Received Import Request.
+  Time since last request: 0.003153 seconds.
+  path: Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/UnityMember.cs
+  artifactKey: Guid(4126c17fd4b56764a91d14d36d6c8575) Importer(815301076,1909f56bfc062723c751e8b465ee728b)
+Start importing Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/UnityMember.cs using Guid(4126c17fd4b56764a91d14d36d6c8575) Importer(815301076,1909f56bfc062723c751e8b465ee728b) (PreviewImporter) -> (artifact id: '6adf9023352a019c5516181bec3f3005') in 0.0005557 seconds
+Number of updated asset objects reloaded before import = 0Number of asset objects unloaded after import = 0
+

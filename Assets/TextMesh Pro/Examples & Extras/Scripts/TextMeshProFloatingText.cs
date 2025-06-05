@@ -1,8 +1,8 @@
-using System.Collections;
-using TMPro;
 using UnityEngine;
+using System.Collections;
 
-namespace TextMesh_Pro.Examples___Extras.Scripts
+
+namespace TMPro.Examples
 {
 
     public class TextMeshProFloatingText : MonoBehaviour
@@ -65,7 +65,7 @@ namespace TextMesh_Pro.Examples___Extras.Scripts
                 m_textMeshPro.fontSize = 24;
                 //m_textMeshPro.enableExtraPadding = true;
                 //m_textMeshPro.enableShadows = false;
-                m_textMeshPro.enableKerning = false;
+                m_textMeshPro.fontFeatures.Clear();
                 m_textMeshPro.text = string.Empty;
                 m_textMeshPro.isTextObjectScaleStatic = IsTextObjectScaleStatic;
 
