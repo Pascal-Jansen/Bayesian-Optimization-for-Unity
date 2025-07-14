@@ -388,6 +388,7 @@
 "Assets/BOforUnity/Scripts/AnimatedImage.cs"
 "Assets/BOforUnity/Scripts/MainThreadDispatcher.cs"
 "Assets/BOforUnity/Scripts/Optimizer.cs"
+"Assets/BOforUnity/Scripts/PilotDesignLoader.cs"
 "Assets/BOforUnity/Scripts/PythonStarter.cs"
 "Assets/BOforUnity/Scripts/SocketNetwork.cs"
 "Assets/QuestionnaireToolkit/Scripts/MemberReflection/Reflection/AnimatorParameter.cs"

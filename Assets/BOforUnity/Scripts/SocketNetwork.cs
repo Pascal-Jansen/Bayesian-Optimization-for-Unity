@@ -136,7 +136,7 @@ namespace BOforUnity.Scripts
                 $"{_boManager.batchSize},{_boManager.numRestarts},{_boManager.rawSamples}," +
                 $"{_boManager.nIterations},{_boManager.mcSamples},{_boManager.nInitial},{_boManager.seed}," +
                 $"{_boManager.parameters.Count},{_boManager.objectives.Count}," +
-                $"{_boManager.contexts.Count}_" +
+                $"{_boManager.traits.Count}_" +
                 $"{_boManager.warmStart},{_boManager.initialParametersDataPath},{_boManager.initialObjectivesDataPath}";
 
             /* ---------- b: parameter / objective range blocks ---------- */
@@ -165,8 +165,8 @@ namespace BOforUnity.Scripts
             b = b.TrimEnd('/');
             c = c.TrimEnd(',') + "_";                 // separator before context names
 
-            /* ---------- context names (no range block needed) ---------- */
-            foreach (var ctx in _boManager.contexts)
+            /* ---------- trait names (no range block needed) ---------- */
+            foreach (var ctx in _boManager.traits)
                 c += ctx.key + ",";
             c = c.TrimEnd(',');                       // final trailing comma removed
 
@@ -176,14 +176,6 @@ namespace BOforUnity.Scripts
             /* ---------- final payload ---------- */
             string payload = $"{a}_{b}_{c}_{d}";
             SocketSend(payload);
-        }
-
-        // Normalise and clamp to [0,1] (handles zero range gracefully)
-        private static float Normalise01(float val, float lo, float hi)
-        {
-            if (Mathf.Approximately(hi, lo))
-                return 0f;                               // avoid divide-by-zero
-            return Mathf.Clamp01((val - lo) / (hi - lo));
         }
 
         // ───────────────────────────────────────────────────────────────────
@@ -209,19 +201,18 @@ namespace BOforUnity.Scripts
             }
             if (objVals.Count != _boManager.objectives.Count)
                 Debug.LogWarning($"Expected {_boManager.objectives.Count} objectives, got {objVals.Count}");
-
-            /*  CONTEXT VECTOR  (taken from _boManager.contexts)
-                Each .value.Value must already be normalised to [0,1]
-            ------------------------------------------------------------ */
+            
+            /*------------------------------------------------------------ */
+            /*  TRAIT VECTOR */
             var ctxVals = new List<float>();
-            foreach (var ctx in _boManager.contexts)
+            foreach (var ctx in _boManager.traits)
             {
-                float raw   = ctx.value.Value;          // sensor value
-                ctxVals.Add(Normalise01(raw, 0, 1));  // always returns [0,1]
+                float v = Mathf.Clamp01(ctx.value.Value);
+                ctxVals.Add(v);
             }
-
-            if (ctxVals.Count != _boManager.contexts.Count)
-                Debug.LogWarning($"Context length {ctxVals.Count} ≠ declared {_boManager.contexts.Count}");
+            
+            if (ctxVals.Count != _boManager.traits.Count)
+                Debug.LogWarning($"Trait length {ctxVals.Count} ≠ declared {_boManager.traits.Count}");
 
             /*  CONCATENATE  and send  ------------------------------------------------ */
             var allVals = objVals.Concat(ctxVals)

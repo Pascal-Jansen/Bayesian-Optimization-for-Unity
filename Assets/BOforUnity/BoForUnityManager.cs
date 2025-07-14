@@ -27,7 +27,7 @@ namespace BOforUnity
         // DESIGN PARAMETERS, DESIGN OBJECTIVES, and Context
         public List<ParameterEntry> parameters = new List<ParameterEntry>();
         public List<ObjectiveEntry> objectives = new List<ObjectiveEntry>();
-        public List<ContextEntry> contexts = new List<ContextEntry>();
+        public List<TraitEntry> traits = new List<TraitEntry>();
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -487,11 +487,11 @@ namespace BOforUnity
         // the context entries:
         // ------------------
         [System.Serializable]
-        public class ContextEntry
+        public class TraitEntry
         {
             public string key;
-            public ContextArgs value;
-            public ContextEntry(string key, ContextArgs value)
+            public TraitArgs value;
+            public TraitEntry(string key, TraitArgs value)
             {
                 this.key = key;
                 this.value = value;
@@ -499,7 +499,7 @@ namespace BOforUnity
         }
         
         [System.Serializable]
-        public class ContextArgs
+        public class TraitArgs
         {
             public float Value = 0.0f;
         }

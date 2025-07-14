@@ -1,6 +1,6 @@
 /*  ────────────────────────────────────────────────────────────────────────────
     BoForUnityManagerEditor.cs
-    Full inspector script with support for a third ReorderableList: **contexts**
+    Full inspector script with support for a third ReorderableList: **traits**
     (same Key / Value structure as parameters and objectives).
     ─────────────────────────────────────────────────────────────────────────── */
 
@@ -38,7 +38,7 @@ namespace BOforUnity.Editor
         // ───────── Reorderable lists ─────────
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
-        private ReorderableList contextList;          // NEW
+        private ReorderableList traitsList;          // NEW
 
         private string initDataPath;
 
@@ -63,13 +63,13 @@ namespace BOforUnity.Editor
             objectiveList.drawElementCallback   = DrawObjectiveListItems;
             objectiveList.elementHeightCallback = GetObjectiveElementHeight;
 
-            /* CONTEXT LIST ---------------------------------------------------- */
-            var contextsProp = serializedObject.FindProperty("contexts");
-            contextList = new ReorderableList(serializedObject, contextsProp,
+            /* TRAITS LIST ---------------------------------------------------- */
+            var traitsProp = serializedObject.FindProperty("traits");
+            traitsList = new ReorderableList(serializedObject, traitsProp,
                                               true, true, true, true);
-            contextList.drawHeaderCallback    = r => EditorGUI.LabelField(r, "Contexts");
-            contextList.drawElementCallback   = DrawContextListItems;
-            contextList.elementHeightCallback = GetContextElementHeight;
+            traitsList.drawHeaderCallback    = r => EditorGUI.LabelField(r, "Traits");
+            traitsList.drawElementCallback   = DrawTraitsListItems;
+            traitsList.elementHeightCallback = GetTraitsElementHeight;
 
             /* UI references --------------------------------------------------- */
             outputTextProp          = serializedObject.FindProperty("outputText");
@@ -116,7 +116,7 @@ namespace BOforUnity.Editor
             objectiveList.DoLayoutList();
             EditorGUILayout.Space();
 
-            contextList.DoLayoutList();   // show contexts list
+            traitsList.DoLayoutList();   // show traits list
             EditorGUILayout.Space();
 
             CheckAndSetDefaultValues(script);
@@ -241,11 +241,11 @@ namespace BOforUnity.Editor
         }
 
         // =====================================================================
-        //  DRAWERS : Contexts   (mirror objectives)
+        //  DRAWERS : Traits   (mirror objectives)
         // =====================================================================
-        private void DrawContextListItems(Rect rect,int index,bool isActive,bool isFocused)
+        private void DrawTraitsListItems(Rect rect,int index,bool isActive,bool isFocused)
         {
-            SerializedProperty element = contextList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty element = traitsList.serializedProperty.GetArrayElementAtIndex(index);
             SerializedProperty key   = element.FindPropertyRelative("key");
             SerializedProperty value = element.FindPropertyRelative("value");
 
@@ -266,9 +266,9 @@ namespace BOforUnity.Editor
             EditorGUI.indentLevel--;
         }
 
-        private float GetContextElementHeight(int index)
+        private float GetTraitsElementHeight(int index)
         {
-            SerializedProperty element = contextList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty element = traitsList.serializedProperty.GetArrayElementAtIndex(index);
             float pad = 5f;
             return EditorGUIUtility.singleLineHeight +
                    EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value")) +

@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""
+Generate Sobol designs for the pilot study and write pilot_designs.csv
+(one design per row, already scaled to parameter bounds).
+
+Edit the PARAMS list and pilot settings below, then run:
+    python generate_pilot_designs.py
+"""
+
+import numpy as np
+import pandas as pd
+from botorch.utils import draw_sobol_samples
+
+# ---------------------------------------------------------------------
+# USER INPUT
+PARAMS = [                                           # design parameters
+    {"name": "Hue",          "low": 0.0,  "high": 1.0},
+    {"name": "IconDensity",  "low": 0.0,  "high": 1.0},
+    {"name": "Brightness",   "low": 0.2,  "high": 0.8},
+    {"name": "FontSize",     "low": 0.0,  "high": 1.0},
+    {"name": "AnimSpeed",    "low": 0.0,  "high": 1.0},
+    {"name": "LineWidth",    "low": 0.1,  "high": 0.5},
+]
+
+TOTAL_PARTICIPANTS   = 25      # P
+DESIGNS_PER_USER     = 4       # K
+SOBOL_SEED           = 42
+# ---------------------------------------------------------------------
+
+D        = len(PARAMS)
+N_total  = TOTAL_PARTICIPANTS * DESIGNS_PER_USER
+
+# Sobol in [0,1]^D
+sobol = draw_sobol_samples(
+    bounds=np.zeros((2, D)), n=1, q=N_total, seed=SOBOL_SEED
+).squeeze(0).numpy()
+
+# scale to user-defined bounds
+scaled = np.empty_like(sobol)
+for j, p in enumerate(PARAMS):
+    scaled[:, j] = p["low"] + sobol[:, j] * (p["high"] - p["low"])
+
+df = pd.DataFrame(scaled, columns=[p["name"] for p in PARAMS])
+df.to_csv("pilot_designs.csv", sep=";", index=False, float_format="%.4f")
+
+print("Wrote pilot_designs.csv  →", df.shape, "rows")

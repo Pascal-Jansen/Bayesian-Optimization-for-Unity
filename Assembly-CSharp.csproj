@@ -66,6 +66,7 @@
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\StandaloneFileBrowser\IStandaloneFileBrowser.cs" />
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\SimpleScript.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\TagsAndLayers.cs" />
+    <Compile Include="Assets\BOforUnity\Scripts\PilotDesignLoader.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\QTQuestionnaireManager.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\MemberReflection\Reflection\AnimatorParameter.cs" />
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\Benchmark04.cs" />
@@ -126,6 +127,7 @@
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\TMP_TextEventCheck.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\QTImage.cs" />
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
+    <None Include="Assets\StreamingAssets\BOData\BayesianOptimization\generate_pilot_designs.txt" />
     <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Overlay.shader" />
     <None Include="Assets\TextMesh Pro\Examples &amp; Extras\Fonts\Roboto-Bold - License.txt" />
     <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile-2-Pass.shader" />
