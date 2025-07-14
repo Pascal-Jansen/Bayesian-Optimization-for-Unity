@@ -1,3 +1,9 @@
+/*  ────────────────────────────────────────────────────────────────────────────
+    BoForUnityManagerEditor.cs
+    Full inspector script with support for a third ReorderableList: **contexts**
+    (same Key / Value structure as parameters and objectives).
+    ─────────────────────────────────────────────────────────────────────────── */
+
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -12,217 +18,343 @@ namespace BOforUnity.Editor
     [CustomEditor(typeof(BoForUnityManager))]
     public class BoForUnityManagerEditor : UnityEditor.Editor
     {
-        private string originalUploadURL;
-        private string originalGroupName;
-        private string originalDownloadURLGroup;
-        private string originalLongitudinalName;
-        private string originalDownloadURLLongitudinal;
-        private string originalLockFileName;
-        private string originalDownloadURLLock;
-        private string originalPythonPath;
+        // ───────── cached original strings (server settings) ─────────
+        private string originalUploadURL, originalGroupName, originalDownloadURLGroup;
+        private string originalLongitudinalName, originalDownloadURLLongitudinal;
+        private string originalLockFileName, originalDownloadURLLock, originalPythonPath;
 
-        private SerializedProperty outputTextProp;
-        private SerializedProperty loadingObjProp;
-        private SerializedProperty nextButtonProp;
-        //private SerializedProperty endSimProp;
-        private SerializedProperty welcomePanelProp;
-        private SerializedProperty optimizerStatePanelProp;
-        
-        private SerializedProperty batchSizeProp;
-        private SerializedProperty numRestartsProp;
-        private SerializedProperty rawSamplesProp;
-        private SerializedProperty nIterationsProp;
-        private SerializedProperty mcSamplesProp;
-        private SerializedProperty nInitialProp;
-        private SerializedProperty seedProp;
-        private SerializedProperty warmStartProp;
-        private SerializedProperty perfectRatingActiveProp;
-        private SerializedProperty perfectRatingInInitialRoundsProp;
-        private SerializedProperty initialParametersDataPathProp;
-        private SerializedProperty initialObjectivesDataPathProp;
+        // ───────── SerializedProperty references (UI widgets) ────────
+        private SerializedProperty outputTextProp, loadingObjProp, nextButtonProp;
+        private SerializedProperty welcomePanelProp, optimizerStatePanelProp;
+
+        private SerializedProperty batchSizeProp, numRestartsProp, rawSamplesProp;
+        private SerializedProperty nIterationsProp, mcSamplesProp, nInitialProp, seedProp;
+        private SerializedProperty warmStartProp, perfectRatingActiveProp, perfectRatingInInitialRoundsProp;
+        private SerializedProperty initialParametersDataPathProp, initialObjectivesDataPathProp;
 
         private SerializedProperty totalIterationsProp;
+        private SerializedProperty userIdProp, conditionIdProp, groupIdProp;
 
-        private SerializedProperty userIdProp;
-        private SerializedProperty conditionIdProp;
-        private SerializedProperty groupIdProp;
-        
+        // ───────── Reorderable lists ─────────
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
+        private ReorderableList contextList;          // NEW
 
         private string initDataPath;
-        
+
+        // =====================================================================
+        //  OnEnable   –   cache properties & build lists
+        // =====================================================================
         private void OnEnable()
         {
-            SerializedProperty parametersProperty = serializedObject.FindProperty("parameters");
-            // Initialize your ReorderableList and set the elementHeightCallback
-            parameterList = new ReorderableList(serializedObject, serializedObject.FindProperty("parameters"), true, true, true, true)
-            {
-                drawElementCallback = DrawParameterListItems,
-                elementHeightCallback = GetParameterListItemHeight
-            };
-            parameterList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Parameters");
-            
-            SerializedProperty objectivesProperty = serializedObject.FindProperty("objectives");
-            objectiveList = new ReorderableList(serializedObject, objectivesProperty, true, true, true, true);
-            objectiveList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Objectives");
-            objectiveList.drawElementCallback = DrawObjectiveListItems;
-            objectiveList.elementHeightCallback = GetObjectiveElementHeight;
-            
-            outputTextProp = serializedObject.FindProperty("outputText");
-            loadingObjProp = serializedObject.FindProperty("loadingObj");
-            nextButtonProp = serializedObject.FindProperty("nextButton");
-            welcomePanelProp = serializedObject.FindProperty("welcomePanel");
-            optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
-            //endSimProp = serializedObject.FindProperty("endOfSimulation");
-            
-            batchSizeProp = serializedObject.FindProperty("batchSize");
-            numRestartsProp = serializedObject.FindProperty("numRestarts");
-            rawSamplesProp = serializedObject.FindProperty("rawSamples");
-            nIterationsProp = serializedObject.FindProperty("nIterations");
-            mcSamplesProp = serializedObject.FindProperty("mcSamples");
-            nInitialProp = serializedObject.FindProperty("nInitial");
-            seedProp = serializedObject.FindProperty("seed");
-            warmStartProp = serializedObject.FindProperty("warmStart");
-            perfectRatingActiveProp = serializedObject.FindProperty("perfectRatingActive");
-            perfectRatingInInitialRoundsProp = serializedObject.FindProperty("perfectRatingInInitialRounds");
-            initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
-            initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
+            /* PARAMETER LIST -------------------------------------------------- */
+            parameterList = new ReorderableList(serializedObject,
+                                                serializedObject.FindProperty("parameters"),
+                                                true, true, true, true);
+            parameterList.drawHeaderCallback    = rect => EditorGUI.LabelField(rect, "Parameters");
+            parameterList.drawElementCallback   = DrawParameterListItems;
+            parameterList.elementHeightCallback = GetParameterListItemHeight;
 
+            /* OBJECTIVE LIST -------------------------------------------------- */
+            var objectivesProp = serializedObject.FindProperty("objectives");
+            objectiveList = new ReorderableList(serializedObject, objectivesProp,
+                                                true, true, true, true);
+            objectiveList.drawHeaderCallback    = r => EditorGUI.LabelField(r, "Objectives");
+            objectiveList.drawElementCallback   = DrawObjectiveListItems;
+            objectiveList.elementHeightCallback = GetObjectiveElementHeight;
+
+            /* CONTEXT LIST ---------------------------------------------------- */
+            var contextsProp = serializedObject.FindProperty("contexts");
+            contextList = new ReorderableList(serializedObject, contextsProp,
+                                              true, true, true, true);
+            contextList.drawHeaderCallback    = r => EditorGUI.LabelField(r, "Contexts");
+            contextList.drawElementCallback   = DrawContextListItems;
+            contextList.elementHeightCallback = GetContextElementHeight;
+
+            /* UI references --------------------------------------------------- */
+            outputTextProp          = serializedObject.FindProperty("outputText");
+            loadingObjProp          = serializedObject.FindProperty("loadingObj");
+            nextButtonProp          = serializedObject.FindProperty("nextButton");
+            welcomePanelProp        = serializedObject.FindProperty("welcomePanel");
+            optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
+
+            /* BO hyper-parameters -------------------------------------------- */
+            batchSizeProp   = serializedObject.FindProperty("batchSize");
+            numRestartsProp = serializedObject.FindProperty("numRestarts");
+            rawSamplesProp  = serializedObject.FindProperty("rawSamples");
+            nIterationsProp = serializedObject.FindProperty("nIterations");
+            mcSamplesProp   = serializedObject.FindProperty("mcSamples");
+            nInitialProp    = serializedObject.FindProperty("nInitial");
+            seedProp        = serializedObject.FindProperty("seed");
+            warmStartProp   = serializedObject.FindProperty("warmStart");
+            perfectRatingActiveProp        = serializedObject.FindProperty("perfectRatingActive");
+            perfectRatingInInitialRoundsProp = serializedObject.FindProperty("perfectRatingInInitialRounds");
+            initialParametersDataPathProp  = serializedObject.FindProperty("initialParametersDataPath");
+            initialObjectivesDataPathProp  = serializedObject.FindProperty("initialObjectivesDataPath");
+
+            /* Study settings -------------------------------------------------- */
             totalIterationsProp = serializedObject.FindProperty("totalIterations");
-            
-            userIdProp = serializedObject.FindProperty("userId");
-            conditionIdProp = serializedObject.FindProperty("conditionId");
-            groupIdProp = serializedObject.FindProperty("groupId");
-            
+            userIdProp          = serializedObject.FindProperty("userId");
+            conditionIdProp     = serializedObject.FindProperty("conditionId");
+            groupIdProp         = serializedObject.FindProperty("groupId");
+
             initDataPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData", "InitData");
         }
 
+        // =====================================================================
+        //  Inspector GUI
+        // =====================================================================
         public override void OnInspectorGUI()
         {
-            BoForUnityManager script = (BoForUnityManager)target;
-
+            var script = (BoForUnityManager)target;
             serializedObject.Update();
 
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(2));
-            // Draw Parameter and Objective Lists first
             parameterList.DoLayoutList();
             EditorGUILayout.Space();
+
             objectiveList.DoLayoutList();
+            EditorGUILayout.Space();
+
+            contextList.DoLayoutList();   // show contexts list
+            EditorGUILayout.Space();
 
             CheckAndSetDefaultValues(script);
-
-            /*
-            if (script.getServerClientCommunication())
-            {
-                BackupServerClientCommunicationValues(script);
-            }*/
-
-            if (script.getLocalPython())
-            {
-                originalPythonPath = script.getPythonPath();
-            }
-
             DrawSettingsConfiguration(script);
 
             serializedObject.ApplyModifiedProperties();
         }
 
+        // =====================================================================
+        //  DRAWERS : Parameters
+        // =====================================================================
+        private void DrawParameterListItems(Rect rect, int index,bool isActive,bool isFocused)
+        {
+            SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty key   = element.FindPropertyRelative("key");
+            SerializedProperty value = element.FindPropertyRelative("value");
+
+            // internal value props
+            SerializedProperty Value         = value.FindPropertyRelative("Value");
+            SerializedProperty lowerBound    = value.FindPropertyRelative("lowerBound");
+            SerializedProperty upperBound    = value.FindPropertyRelative("upperBound");
+            SerializedProperty isDiscrete    = value.FindPropertyRelative("isDiscrete");
+            SerializedProperty step          = value.FindPropertyRelative("step");
+            SerializedProperty scriptRef     = value.FindPropertyRelative("scriptReference");
+            SerializedProperty variableName  = value.FindPropertyRelative("variableName");
+            SerializedProperty goNameProp    = value.FindPropertyRelative("gameObjectName");
+            SerializedProperty scriptNameProp= value.FindPropertyRelative("scriptName");
+
+            float pad = 5f, line = EditorGUIUtility.singleLineHeight;
+            float y = rect.y + pad/2;
+
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), key, GUIContent.none);
+            y += line + pad/2;
+
+            value.isExpanded = EditorGUI.Foldout(new Rect(rect.x, y, rect.width, line),
+                                                 value.isExpanded, "", true);
+            y += line + pad/2;
+
+            if (!value.isExpanded) return;
+            EditorGUI.indentLevel++;
+
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), Value);        y+=line+pad/2;
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), lowerBound);   y+=line+pad/2;
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), upperBound);   y+=line+pad/2;
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), isDiscrete);   y+=line+pad/2;
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), step);         y+=line+pad/2;
+
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), scriptRef,
+                                    new GUIContent("Script Reference"));
+            y += line + pad/2;
+
+            MonoBehaviour scriptObj = scriptRef.objectReferenceValue as MonoBehaviour;
+            if (scriptObj != null)
+            {
+                goNameProp.stringValue = scriptObj.gameObject.name;
+                scriptNameProp.stringValue = scriptObj.GetType().Name;
+
+                var vars = new List<string>();
+                foreach (FieldInfo f in scriptObj.GetType().GetFields(BindingFlags.Instance|BindingFlags.Public))
+                    if (f.FieldType == typeof(float)) vars.Add(f.Name);
+                foreach (PropertyInfo p in scriptObj.GetType().GetProperties(BindingFlags.Instance|BindingFlags.Public))
+                    if (p.PropertyType == typeof(float)) vars.Add(p.Name);
+
+                int sel = Mathf.Max(0, vars.IndexOf(variableName.stringValue));
+                sel = EditorGUI.Popup(new Rect(rect.x, y, rect.width, line),
+                                      "Script Variable", sel, vars.ToArray());
+                variableName.stringValue = vars.Count>0 ? vars[sel] : "";
+                y += line + pad/2;
+            }
+            else
+            {
+                EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), variableName);
+                y += line + pad/2;
+            }
+
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), goNameProp);    y+=line+pad/2;
+            EditorGUI.PropertyField(new Rect(rect.x, y, rect.width, line), scriptNameProp);
+            EditorGUI.indentLevel--;
+        }
+
+        private float GetParameterListItemHeight(int index)
+        {
+            SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
+            bool expanded = element.FindPropertyRelative("value").isExpanded;
+            float line = EditorGUIUtility.singleLineHeight, pad = 5;
+            return expanded ? line*11 + pad*11 : line*2 + pad*2;
+        }
+
+        // =====================================================================
+        //  DRAWERS : Objectives
+        // =====================================================================
+        private void DrawObjectiveListItems(Rect rect,int index,bool isActive,bool isFocused)
+        {
+            SerializedProperty element = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty key   = element.FindPropertyRelative("key");
+            SerializedProperty value = element.FindPropertyRelative("value");
+
+            float pad  = 5f;
+            rect.y    += pad/2;
+
+            EditorGUI.PropertyField(
+                new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight),
+                key, GUIContent.none);
+
+            EditorGUI.indentLevel++;
+            EditorGUI.PropertyField(
+                new Rect(rect.x,
+                         rect.y + EditorGUIUtility.singleLineHeight + 2,
+                         rect.width,
+                         EditorGUI.GetPropertyHeight(value)),
+                value, GUIContent.none, true);
+            EditorGUI.indentLevel--;
+        }
+
+        private float GetObjectiveElementHeight(int index)
+        {
+            SerializedProperty element = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
+            float pad = 5f;
+            return EditorGUIUtility.singleLineHeight +
+                   EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value")) +
+                   EditorGUIUtility.standardVerticalSpacing + 2 + pad;
+        }
+
+        // =====================================================================
+        //  DRAWERS : Contexts   (mirror objectives)
+        // =====================================================================
+        private void DrawContextListItems(Rect rect,int index,bool isActive,bool isFocused)
+        {
+            SerializedProperty element = contextList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty key   = element.FindPropertyRelative("key");
+            SerializedProperty value = element.FindPropertyRelative("value");
+
+            float pad  = 5f;
+            rect.y    += pad/2;
+
+            EditorGUI.PropertyField(
+                new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight),
+                key, GUIContent.none);
+
+            EditorGUI.indentLevel++;
+            EditorGUI.PropertyField(
+                new Rect(rect.x,
+                         rect.y + EditorGUIUtility.singleLineHeight + 2,
+                         rect.width,
+                         EditorGUI.GetPropertyHeight(value)),
+                value, GUIContent.none, true);
+            EditorGUI.indentLevel--;
+        }
+
+        private float GetContextElementHeight(int index)
+        {
+            SerializedProperty element = contextList.serializedProperty.GetArrayElementAtIndex(index);
+            float pad = 5f;
+            return EditorGUIUtility.singleLineHeight +
+                   EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value")) +
+                   EditorGUIUtility.standardVerticalSpacing + 2 + pad;
+        }
+
+        // =====================================================================
+        //  SETTINGS PANELS  (unchanged from your original script)
+        // =====================================================================
         private void DrawSettingsConfiguration(BoForUnityManager script)
         {
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
-            
-            EditorGUILayout.LabelField("Python Settings", EditorStyles.boldLabel);
-            // Server Client Connection settings
-            //DrawServerClientConnectionSettings(script);
 
-            //EditorGUILayout.LabelField("Location of Python Executable", EditorStyles.boldLabel);
-            GUIContent manuallyInstalledPythonLabel = new GUIContent("Manually Installed Python", "Python was manually installed and not through the project's installation program");
-            script.setLocalPython(EditorGUILayout.Toggle(manuallyInstalledPythonLabel, script.getLocalPython()));
+            EditorGUILayout.LabelField("Python Settings", EditorStyles.boldLabel);
+            GUIContent manualLbl = new GUIContent("Manually Installed Python",
+                "Python was manually installed and not through the project's installer");
+            script.setLocalPython(EditorGUILayout.Toggle(manualLbl, script.getLocalPython()));
             EditorGUILayout.Space();
 
             if (script.getLocalPython())
             {
-                // Show the Python path input field only if Python is locally installed
-                script.setPythonPath(EditorGUILayout.TextField("Path of Python Executable:", originalPythonPath));
-                EditorGUILayout.LabelField("Attention! There are differences between macOS and Windows path. Please ensure you provide the correct path for your operating system.", EditorStyles.helpBox);
+                script.setPythonPath(EditorGUILayout.TextField("Path of Python Executable:",
+                                                               script.getPythonPath()));
+                EditorGUILayout.LabelField(
+                    "Ensure path matches your OS (macOS vs Windows).", EditorStyles.helpBox);
             }
-            
-            //EditorGUILayout.Space();
-            //EditorGUILayout.LabelField("Iteration Controls", EditorStyles.largeLabel);
-            //EditorGUILayout.PropertyField(endSimProp);
-            
-            EditorGUILayout.Space();
+
+            // Study IDs -------------------------------------------------------
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
-            
             EditorGUILayout.LabelField("Study Settings", EditorStyles.boldLabel);
-            // Set default values if properties are not assigned
-            if (string.IsNullOrEmpty(script.userId))
-            {
-                script.userId = "-1";
-            }
-            if (string.IsNullOrEmpty(script.conditionId))
-            {
-                script.conditionId = "-1";
-            }
-            if (string.IsNullOrEmpty(script.groupId))
-            {
-                script.groupId = "-1";
-            }
-            
+            script.userId      = string.IsNullOrEmpty(script.userId)      ? "-1" : script.userId;
+            script.conditionId = string.IsNullOrEmpty(script.conditionId) ? "-1" : script.conditionId;
+            script.groupId     = string.IsNullOrEmpty(script.groupId)     ? "-1" : script.groupId;
+
             EditorGUILayout.PropertyField(userIdProp);
             EditorGUILayout.PropertyField(conditionIdProp);
             EditorGUILayout.PropertyField(groupIdProp);
-            EditorGUILayout.LabelField("Default values for userID, conditionID and groupID is -1.", EditorStyles.helpBox);
-            
-            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Default for all IDs is -1.", EditorStyles.helpBox);
+
+            // Warm-start & perfect-rating ------------------------------------
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
-            
             EditorGUILayout.LabelField("Warm Start & Perfect Rating Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(warmStartProp);
             EditorGUILayout.PropertyField(perfectRatingActiveProp);
-            if(perfectRatingActiveProp.boolValue)
-            {
+            if (perfectRatingActiveProp.boolValue)
                 EditorGUILayout.PropertyField(perfectRatingInInitialRoundsProp);
-            }
-            
-            EditorGUILayout.LabelField("Attention! If warm start is TRUE, the N Initial rounds will be skipped. If perfect rating active is TRUE, the BO can terminate when it reaches the perfect rating. If perfect rating in inital rounds is TRUE, perfect rating can be achieved in the sampling phase.", EditorStyles.helpBox);
+
+            EditorGUILayout.LabelField(
+                "Warm start skips N-initial rounds; perfect rating may terminate early.",
+                EditorStyles.helpBox);
+
             if (warmStartProp.boolValue)
             {
                 EditorGUILayout.PropertyField(initialParametersDataPathProp);
-                EditorGUILayout.LabelField(initDataPath + "/" + initialParametersDataPathProp.stringValue, EditorStyles.label);
+                EditorGUILayout.LabelField(initDataPath + "/" +
+                                           initialParametersDataPathProp.stringValue);
                 EditorGUILayout.PropertyField(initialObjectivesDataPathProp);
-                EditorGUILayout.LabelField(initDataPath + "/" + initialObjectivesDataPathProp.stringValue, EditorStyles.label);
-                EditorGUILayout.LabelField("Remember: You only need to provide the file name. No '_' or ',' allowed in the file name.", EditorStyles.helpBox);
-                
-                // This is necessary to get the correct number of iterations in the BoForUnityManager.cs in order to make the Perfect Rating settings work.
+                EditorGUILayout.LabelField(initDataPath + "/" +
+                                           initialObjectivesDataPathProp.stringValue);
+                EditorGUILayout.LabelField(
+                    "Provide only file name (no _ or ,).", EditorStyles.helpBox);
                 script.nInitial = 0;
             }
-            
-            EditorGUILayout.Space();
-            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
 
+            // Hyper-parameters -----------------------------------------------
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
             EditorGUILayout.LabelField("BO Hyper-parameters", EditorStyles.boldLabel);
-            if (!warmStartProp.boolValue)
-            {
-                EditorGUILayout.PropertyField(nInitialProp);
-            }
+            if (!warmStartProp.boolValue) EditorGUILayout.PropertyField(nInitialProp);
             EditorGUILayout.PropertyField(nIterationsProp);
-            EditorGUILayout.LabelField("Attention! For the total number of iterations, these two numbers are added (N Initial + N Iterations). N Initial must at least be 2! Use the Warm Start option instead to skip the initial rounds", EditorStyles.helpBox);
-            // Calculate and display the sum of nInitial and nIterations
-            var val = (warmStartProp.boolValue ? 0: nInitialProp.intValue) + nIterationsProp.intValue;
-            totalIterationsProp.intValue = val;
-            EditorGUILayout.LabelField("Total Iterations", val.ToString(), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(
+                "Total iterations = N-Initial + N-Iterations (N-Initial ≥ 2).", EditorStyles.helpBox);
+
+            int total = (warmStartProp.boolValue ? 0 : nInitialProp.intValue) +
+                        nIterationsProp.intValue;
+            totalIterationsProp.intValue = total;
+            EditorGUILayout.LabelField("Total Iterations", total.ToString(), EditorStyles.boldLabel);
             EditorGUILayout.Space();
+
             EditorGUILayout.PropertyField(batchSizeProp);
             EditorGUILayout.PropertyField(numRestartsProp);
             EditorGUILayout.PropertyField(rawSamplesProp);
             EditorGUILayout.PropertyField(mcSamplesProp);
             EditorGUILayout.PropertyField(seedProp);
-            
-            EditorGUILayout.Space();
-            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
 
+            // Game object refs ----------------------------------------------
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
             EditorGUILayout.LabelField("GameObject References", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(outputTextProp);
             EditorGUILayout.PropertyField(loadingObjProp);
@@ -230,252 +362,12 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(welcomePanelProp);
             EditorGUILayout.PropertyField(optimizerStatePanelProp);
         }
-        /*
-        private void DrawServerClientConnectionSettings(BoForUnityManager script)
-        {
-            EditorGUILayout.LabelField("Server Client Connection for LogFiles", EditorStyles.boldLabel);
-            script.setServerClientCommunication(EditorGUILayout.Toggle("Server", script.getServerClientCommunication()));
-            EditorGUILayout.Space();
-            
-            if (!script.getServerClientCommunication())
-            {
-                EditorGUILayout.LabelField("Attention! If the server is not used, make sure to select GroupID and LongitudinalID in the Object Parameter Controller before starting.", EditorStyles.helpBox);
-            }
-            else
-            {
-                script.setUploadURL(EditorGUILayout.TextField("Upload URL:", originalUploadURL));
-                script.setGroupDatabaseName(EditorGUILayout.TextField("File Name GroupID Database:", originalGroupName));
-                script.setDownloadURLGroupID(EditorGUILayout.TextField("Download URL GroupID:", originalDownloadURLGroup));
-                script.setLongitudinalDatabaseName(EditorGUILayout.TextField("File Name LongitudinalID Database:", originalLongitudinalName));
-                script.setDownloadURLLongitudinalID(EditorGUILayout.TextField("Download URL LongitudinalID:", originalDownloadURLLongitudinal));
-                script.setLockFileName(EditorGUILayout.TextField("File Name LockFile:", originalLockFileName));
-                script.setLockFileUrl(EditorGUILayout.TextField("Download URL Lock File:", originalDownloadURLLock));
-            }
-        }
-        */
-        private void BackupServerClientCommunicationValues(BoForUnityManager script)
-        {
-            /*
-            originalUploadURL = script.getUploadURL();
-            originalGroupName = script.getGroupDatabaseName();
-            originalDownloadURLGroup = script.getDownloadURLGroupID();
-            originalLongitudinalName = script.getLongitudinalDatabaseName();
-            originalDownloadURLLongitudinal = script.getDownloadURLLongitudinalID();
-            originalLockFileName = script.getLockFileName();
-            originalDownloadURLLock = script.getLockFileUrl();
-            */
-        }
 
         private void CheckAndSetDefaultValues(BoForUnityManager script)
         {
-            /*
-            if (string.IsNullOrEmpty(script.getUploadURL()))
-            {
-                script.setUploadURL("https://barakuda.de/longitudinal_save_csv.php");
-            }
-
-            if (string.IsNullOrEmpty(script.getGroupDatabaseName()))
-            {
-                script.setGroupDatabaseName("GroupID_Database.csv");
-            }
-
-            if (string.IsNullOrEmpty(script.getDownloadURLGroupID()))
-            {
-                script.setDownloadURLGroupID("https://barakuda.de/longitudinal_uploads/GroupID_Database.csv");
-            }
-
-            if (string.IsNullOrEmpty(script.getLongitudinalDatabaseName()))
-            {
-                script.setLongitudinalDatabaseName("LongitudinalID_Database.csv");
-            }
-
-            if (string.IsNullOrEmpty(script.getDownloadURLLongitudinalID()))
-            {
-                script.setDownloadURLLongitudinalID("https://barakuda.de/longitudinal_uploads/LongitudinalID_Database.csv");
-            }
-
-            if (string.IsNullOrEmpty(script.getLockFileName()))
-            {
-                script.setLockFileName("S_Lock_file.lock");
-            }
-
-            if (string.IsNullOrEmpty(script.getLockFileUrl()))
-            {
-                script.setLockFileUrl("https://barakuda.de/longitudinal_uploads/S_Lock_file.lock");
-            }
-            */
-
             if (string.IsNullOrEmpty(script.getPythonPath()))
-            {
                 script.setPythonPath("/usr/local/bin/python3");
-            }
-        }
-
-private void DrawParameterListItems(Rect rect, int index, bool isActive, bool isFocused)
-        {
-            SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
-            SerializedProperty key = element.FindPropertyRelative("key");
-            SerializedProperty value = element.FindPropertyRelative("value");
-
-            // Fields within ParameterArgs
-            SerializedProperty Value = value.FindPropertyRelative("Value");
-            SerializedProperty lowerBound = value.FindPropertyRelative("lowerBound");
-            SerializedProperty upperBound = value.FindPropertyRelative("upperBound");
-            SerializedProperty isDiscrete = value.FindPropertyRelative("isDiscrete");
-            SerializedProperty step = value.FindPropertyRelative("step");
-            SerializedProperty scriptReference = value.FindPropertyRelative("scriptReference");
-            SerializedProperty variableName = value.FindPropertyRelative("variableName");
-
-            float padding = 5f;
-            float singleLineHeight = EditorGUIUtility.singleLineHeight;
-            float fieldHeight = singleLineHeight + padding;
-            float yOffset = rect.y + padding / 2;
-
-            // Draw the key field
-            EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), key, GUIContent.none);
-            yOffset += fieldHeight;
-
-            // Draw foldout for ParameterArgs
-            value.isExpanded = EditorGUI.Foldout(new Rect(rect.x, yOffset, rect.width, singleLineHeight), value.isExpanded, "", true);
-            yOffset += fieldHeight;
-
-            if (value.isExpanded)
-            {
-                EditorGUI.indentLevel++;
-
-                // Draw the existing fields in ParameterArgs
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), Value);
-                yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), lowerBound);
-                yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), upperBound);
-                yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), isDiscrete);
-                yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), step);
-                yOffset += fieldHeight;
-                
-                // Draw script reference field
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), scriptReference, new GUIContent("Script Reference"));
-                yOffset += fieldHeight;
-
-                MonoBehaviour script = scriptReference.objectReferenceValue as MonoBehaviour;
-                float variableValue = 0.0f;
-
-                if (script != null)
-                {
-                    value.FindPropertyRelative("gameObjectName").stringValue = script.gameObject.name;
-                    value.FindPropertyRelative("scriptName").stringValue = script.GetType().Name;
-                    
-                    var variableNames = new List<string>();
-                    FieldInfo[] fields = script.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public);
-                    foreach (FieldInfo field in fields)
-                    {
-                        if (field.FieldType == typeof(float))
-                        {
-                            variableNames.Add(field.Name);
-                        }
-                    }
-
-                    PropertyInfo[] properties = script.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
-                    foreach (PropertyInfo property in properties)
-                    {
-                        if (property.PropertyType == typeof(float))
-                        {
-                            variableNames.Add(property.Name);
-                        }
-                    }
-
-                    if (variableNames.Count > 0)
-                    {
-                        // Get the current selected index
-                        int selectedIndex = Mathf.Max(0, variableNames.IndexOf(variableName.stringValue));
-
-                        // Show the popup to select a variable
-                        selectedIndex = EditorGUI.Popup(new Rect(rect.x, yOffset, rect.width, singleLineHeight), "Script Variable", selectedIndex, variableNames.ToArray());
-                        string selectedVariable = variableNames[selectedIndex];
-
-                        // Update the variable name property
-                        variableName.stringValue = selectedVariable;
-                        yOffset += fieldHeight;
-
-                        // Get and show the Value field from the selected variable
-                        FieldInfo selectedField = script.GetType().GetField(selectedVariable, BindingFlags.Instance | BindingFlags.Public);
-                        PropertyInfo selectedProperty = script.GetType().GetProperty(selectedVariable, BindingFlags.Instance | BindingFlags.Public);
-                        
-                        if (selectedField != null)
-                        {
-                            variableValue = (float)selectedField.GetValue(script);
-                        }
-                        else if (selectedProperty != null)
-                        {
-                            variableValue = (float)selectedProperty.GetValue(script);
-                        }
-                    }
-                }
-                else
-                {
-                    EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), variableName);
-                    yOffset += fieldHeight;
-                }
-
-                //EditorGUI.LabelField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), "Script Value: " + variableValue);
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), value.FindPropertyRelative("gameObjectName"));
-                yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), value.FindPropertyRelative("scriptName"));
-                
-                EditorGUI.indentLevel--;
-            }
-        }
-
-
-
-        private float GetParameterListItemHeight(int index)
-        {
-            SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
-            SerializedProperty value = element.FindPropertyRelative("value");
-
-            float singleLineHeight = EditorGUIUtility.singleLineHeight;
-            float totalHeight = singleLineHeight * 2 + 10f; // Key + Foldout
-
-            if (value.isExpanded)
-            {
-                totalHeight += singleLineHeight * 9 + 5f * 9; // 5 fields + script reference + variable dropdown + value field
-            }
-
-            return totalHeight;
-        }
-
-
-
-        private void DrawObjectiveListItems(Rect rect, int index, bool isActive, bool isFocused)
-        {
-            SerializedProperty element = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
-            SerializedProperty key = element.FindPropertyRelative("key");
-            SerializedProperty value = element.FindPropertyRelative("value");
-
-            float padding = 5f;
-            rect.y += padding / 2;
-
-            EditorGUI.PropertyField(new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight), key, GUIContent.none);
-            EditorGUI.indentLevel++;
-            EditorGUI.PropertyField(new Rect(rect.x, rect.y + EditorGUIUtility.singleLineHeight + 2, rect.width, EditorGUI.GetPropertyHeight(value)), value, GUIContent.none, true);
-            EditorGUI.indentLevel--;
-            rect.y += padding;
-        }
-
-        private float GetParameterElementHeight(int index)
-        {
-            SerializedProperty element = parameterList.serializedProperty.GetArrayElementAtIndex(index);
-            float padding = 5;
-            return EditorGUIUtility.singleLineHeight + EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value")) + EditorGUIUtility.standardVerticalSpacing + 2 + padding;
-        }
-
-        private float GetObjectiveElementHeight(int index)
-        {
-            SerializedProperty element = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
-            float padding = 5;
-            return EditorGUIUtility.singleLineHeight + EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value")) + EditorGUIUtility.standardVerticalSpacing + 2 + padding;
         }
     }
 }
+

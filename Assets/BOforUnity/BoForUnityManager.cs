@@ -24,9 +24,10 @@ namespace BOforUnity
         private static BoForUnityManager _instance;
         
         //-----------------------------------------------
-        // DESIGN PARAMETERS and DESIGN OBJECTIVES
+        // DESIGN PARAMETERS, DESIGN OBJECTIVES, and Context
         public List<ParameterEntry> parameters = new List<ParameterEntry>();
         public List<ObjectiveEntry> objectives = new List<ObjectiveEntry>();
+        public List<ContextEntry> contexts = new List<ContextEntry>();
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -478,5 +479,28 @@ namespace BOforUnity
             {
                 return $"{lowerBound},{upperBound},{step}/";
             }
+        }
+        
+        
+        
+        // ------------------
+        // the context entries:
+        // ------------------
+        [System.Serializable]
+        public class ContextEntry
+        {
+            public string key;
+            public ContextArgs value;
+            public ContextEntry(string key, ContextArgs value)
+            {
+                this.key = key;
+                this.value = value;
+            }
+        }
+        
+        [System.Serializable]
+        public class ContextArgs
+        {
+            public float Value = 0.0f;
         }
 }

@@ -5,29 +5,29 @@ m_ProjectFiles:
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
       serializedVersion: 2
-      ticks: 638847335495916090
-    m_Hash: 607977026
+      ticks: 638880286976741632
+    m_Hash: 300311504
   m_LockFileStatus:
     m_FilePath: C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity/Packages/packages-lock.json
     m_PathExists: 1
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
       serializedVersion: 2
-      ticks: 638847335496021394
-    m_Hash: 731949137
+      ticks: 638880287133803300
+    m_Hash: 3993684156
 m_EmbeddedPackageManifests:
   m_ManifestsStatus: {}
 m_LocalPackages:
   m_LocalFileStatus: []
 m_ProjectPath: C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity/Packages
-m_EditorVersion: 6000.0.31f1 (a206c360e2a8)
+m_EditorVersion: 6000.1.7f1 (13a8ffad9172)
 m_ResolvedPackages:
-- packageId: com.unity.ide.rider@3.0.31
+- packageId: com.unity.ide.rider@3.0.36
   testable: 0
   isDirectDependency: 1
-  version: 3.0.31
+  version: 3.0.36
   source: 1
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.ide.rider
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.ide.rider@4d374c7eb6db
   assetPath: Packages/com.unity.ide.rider
   name: com.unity.ide.rider
   displayName: JetBrains Rider Editor
@@ -36,7 +36,7 @@ m_ResolvedPackages:
     email: 
     url: 
   category: 
-  type: assets
+  type: 
   description: The JetBrains Rider Editor package provides an integration for using
     the JetBrains Rider IDE as a code editor for Unity. It adds support for generating
     .csproj files for code completion and auto-discovery of installations.
@@ -90,9 +90,6 @@ m_ResolvedPackages:
     - 3.0.35
     - 3.0.36
     compatible:
-    - 3.0.31
-    - 3.0.34
-    - 3.0.35
     - 3.0.36
     recommended: 3.0.36
     deprecated: []
@@ -115,16 +112,16 @@ m_ResolvedPackages:
   entitlements:
     licensingModel: 1
   isAssetStorePackage: 0
-  datePublishedTicks: 638548308080000000
+  datePublishedTicks: 638799562419060000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.ide.rider@3.0/manual/index.html
   hasRepository: 1
   repository:
     type: git
     url: https://github.cds.internal.unity3d.com/unity/com.unity.ide.rider.git
-    revision: ccd778a2275ff09f1a83bc924cfb2fb4d5b63566
+    revision: b5315083ab3861d21f6ab2ed0d9514daf04bf208
     path: 
   unityLifecycle:
-    version: 3.0.31
+    version: 3.0.36
     nextVersion: 
     recommendedVersion: 
     isDeprecated: 0
@@ -134,23 +131,21 @@ m_ResolvedPackages:
   git:
     hash: 
     revision: 
-  upmReserved: '{"changelog":"fix RIDER-104519 Rider is reporting errors in scripts
-    that work fine in Unity when utilizing DOTS - when Player project, by generating
-    projects for all assemblies in \"com.unity.entities\", \"com.unity.collections\"\nfix
-    RIDER-111622 Unity Rider package is not compatible with Rider Dev builds"}'
+  upmReserved: '{"changelog":"- fix RIDER-124592 Avoid affecting \"Strip Engine Code\"
+    while IL2CPP debug enabled"}'
   assetStore:
     productId: 
-  fingerprint: 7921be93db40ec070fcb01ed82d1c3df1bbdddcd
+  fingerprint: 4d374c7eb6db6907c7e6925e3086c3c73f926e13
   editorCompatibility:
     compatibilityLevel: 0
-    minimumPackageVersion: 3.0.31
-    minimumUnityVersion: 2019.2.6f1
+    minimumPackageVersion: 3.0.36
+    minimumUnityVersion: 2019.4.6f1
 - packageId: com.unity.multiplayer.center@1.0.0
   testable: 0
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.multiplayer.center
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.multiplayer.center@f3fb577b3546
   assetPath: Packages/com.unity.multiplayer.center
   name: com.unity.multiplayer.center
   displayName: Multiplayer Center
@@ -230,7 +225,7 @@ m_ResolvedPackages:
   upmReserved: 
   assetStore:
     productId: 
-  fingerprint: f502d8ac613fa076192423e73892fbd89eb4049b
+  fingerprint: f3fb577b3546594b97b8cc34307cd621f60f1c73
   editorCompatibility:
     compatibilityLevel: 0
     minimumPackageVersion: 1.0.0
@@ -240,7 +235,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.0.10
   source: 1
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.toolchain.win-x86_64-linux-x86_64
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.toolchain.win-x86_64-linux-x86_64@426618737602
   assetPath: Packages/com.unity.toolchain.win-x86_64-linux-x86_64
   name: com.unity.toolchain.win-x86_64-linux-x86_64
   displayName: Toolchain Win Linux x64
@@ -345,7 +340,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.ugui
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.ugui@4f1c21fcc9bc
   assetPath: Packages/com.unity.ugui
   name: com.unity.ugui
   displayName: Unity UI
@@ -372,7 +367,10 @@ m_ResolvedPackages:
     - 3.0.0-exp.3
     - 3.0.0-exp.4
     recommended: 2.0.0
-    deprecated: []
+    deprecated:
+    - 3.0.0-exp.1
+    - 3.0.0-exp.3
+    - 3.0.0-exp.4
   dependencies:
   - name: com.unity.modules.ui
     version: 1.0.0
@@ -427,7 +425,7 @@ m_ResolvedPackages:
   upmReserved: 
   assetStore:
     productId: 
-  fingerprint: fd5da3b4bec8d043b01c30177bd62059c5fa36d0
+  fingerprint: 4f1c21fcc9bcee6987a89cc276da72ac77ce3db1
   editorCompatibility:
     compatibilityLevel: 0
     minimumPackageVersion: 2.0.0
@@ -437,7 +435,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.accessibility
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.accessibility
   assetPath: Packages/com.unity.modules.accessibility
   name: com.unity.modules.accessibility
   displayName: Accessibility
@@ -504,7 +502,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.ai
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.ai
   assetPath: Packages/com.unity.modules.ai
   name: com.unity.modules.ai
   displayName: AI
@@ -571,7 +569,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.androidjni
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.androidjni
   assetPath: Packages/com.unity.modules.androidjni
   name: com.unity.modules.androidjni
   displayName: Android JNI
@@ -637,7 +635,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.animation
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.animation
   assetPath: Packages/com.unity.modules.animation
   name: com.unity.modules.animation
   displayName: Animation
@@ -704,7 +702,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.assetbundle
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.assetbundle
   assetPath: Packages/com.unity.modules.assetbundle
   name: com.unity.modules.assetbundle
   displayName: Asset Bundle
@@ -771,7 +769,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.audio
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.audio
   assetPath: Packages/com.unity.modules.audio
   name: com.unity.modules.audio
   displayName: Audio
@@ -838,7 +836,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.cloth
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.cloth
   assetPath: Packages/com.unity.modules.cloth
   name: com.unity.modules.cloth
   displayName: Cloth
@@ -909,7 +907,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.director
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.director
   assetPath: Packages/com.unity.modules.director
   name: com.unity.modules.director
   displayName: Director
@@ -984,7 +982,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.imageconversion
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.imageconversion
   assetPath: Packages/com.unity.modules.imageconversion
   name: com.unity.modules.imageconversion
   displayName: Image Conversion
@@ -1051,7 +1049,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.imgui
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.imgui
   assetPath: Packages/com.unity.modules.imgui
   name: com.unity.modules.imgui
   displayName: IMGUI
@@ -1118,7 +1116,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.jsonserialize
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.jsonserialize
   assetPath: Packages/com.unity.modules.jsonserialize
   name: com.unity.modules.jsonserialize
   displayName: JSONSerialize
@@ -1185,7 +1183,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.particlesystem
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.particlesystem
   assetPath: Packages/com.unity.modules.particlesystem
   name: com.unity.modules.particlesystem
   displayName: Particle System
@@ -1252,7 +1250,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.physics
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.physics
   assetPath: Packages/com.unity.modules.physics
   name: com.unity.modules.physics
   displayName: Physics
@@ -1319,7 +1317,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.physics2d
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.physics2d
   assetPath: Packages/com.unity.modules.physics2d
   name: com.unity.modules.physics2d
   displayName: Physics 2D
@@ -1386,7 +1384,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.screencapture
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.screencapture
   assetPath: Packages/com.unity.modules.screencapture
   name: com.unity.modules.screencapture
   displayName: Screen Capture
@@ -1457,7 +1455,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.terrain
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.terrain
   assetPath: Packages/com.unity.modules.terrain
   name: com.unity.modules.terrain
   displayName: Terrain
@@ -1524,7 +1522,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.terrainphysics
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.terrainphysics
   assetPath: Packages/com.unity.modules.terrainphysics
   name: com.unity.modules.terrainphysics
   displayName: Terrain Physics
@@ -1599,7 +1597,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.tilemap
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.tilemap
   assetPath: Packages/com.unity.modules.tilemap
   name: com.unity.modules.tilemap
   displayName: Tilemap
@@ -1669,7 +1667,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.ui
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.ui
   assetPath: Packages/com.unity.modules.ui
   name: com.unity.modules.ui
   displayName: UI
@@ -1736,7 +1734,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.uielements
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.uielements
   assetPath: Packages/com.unity.modules.uielements
   name: com.unity.modules.uielements
   displayName: UIElements
@@ -1819,7 +1817,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.umbra
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.umbra
   assetPath: Packages/com.unity.modules.umbra
   name: com.unity.modules.umbra
   displayName: Umbra
@@ -1886,7 +1884,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.unityanalytics
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.unityanalytics
   assetPath: Packages/com.unity.modules.unityanalytics
   name: com.unity.modules.unityanalytics
   displayName: Unity Analytics
@@ -1960,7 +1958,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.unitywebrequest
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.unitywebrequest
   assetPath: Packages/com.unity.modules.unitywebrequest
   name: com.unity.modules.unitywebrequest
   displayName: Unity Web Request
@@ -2027,7 +2025,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.unitywebrequestassetbundle
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.unitywebrequestassetbundle
   assetPath: Packages/com.unity.modules.unitywebrequestassetbundle
   name: com.unity.modules.unitywebrequestassetbundle
   displayName: Unity Web Request Asset Bundle
@@ -2102,7 +2100,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.unitywebrequestaudio
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.unitywebrequestaudio
   assetPath: Packages/com.unity.modules.unitywebrequestaudio
   name: com.unity.modules.unitywebrequestaudio
   displayName: Unity Web Request Audio
@@ -2177,7 +2175,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.unitywebrequesttexture
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.unitywebrequesttexture
   assetPath: Packages/com.unity.modules.unitywebrequesttexture
   name: com.unity.modules.unitywebrequesttexture
   displayName: Unity Web Request Texture
@@ -2252,7 +2250,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.unitywebrequestwww
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.unitywebrequestwww
   assetPath: Packages/com.unity.modules.unitywebrequestwww
   name: com.unity.modules.unitywebrequestwww
   displayName: Unity Web Request WWW
@@ -2343,7 +2341,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.vehicles
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.vehicles
   assetPath: Packages/com.unity.modules.vehicles
   name: com.unity.modules.vehicles
   displayName: Vehicles
@@ -2414,7 +2412,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.video
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.video
   assetPath: Packages/com.unity.modules.video
   name: com.unity.modules.video
   displayName: Video
@@ -2493,7 +2491,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.vr
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.vr
   assetPath: Packages/com.unity.modules.vr
   name: com.unity.modules.vr
   displayName: VR
@@ -2574,7 +2572,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.wind
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.wind
   assetPath: Packages/com.unity.modules.wind
   name: com.unity.modules.wind
   displayName: Wind
@@ -2641,7 +2639,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.xr
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.xr
   assetPath: Packages/com.unity.modules.xr
   name: com.unity.modules.xr
   displayName: XR
@@ -2720,7 +2718,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.subsystems
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.subsystems
   assetPath: Packages/com.unity.modules.subsystems
   name: com.unity.modules.subsystems
   displayName: Subsystems
@@ -2791,7 +2789,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 1.0.0
   source: 2
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.modules.hierarchycore
+  resolvedPath: C:\Program Files\Unity\Hub\Editor\6000.1.7f1\Editor\Data\Resources\PackageManager\BuiltInPackages\com.unity.modules.hierarchycore
   assetPath: Packages/com.unity.modules.hierarchycore
   name: com.unity.modules.hierarchycore
   displayName: Hierarchy Core
@@ -2858,7 +2856,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 2.0.10
   source: 1
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.sysroot
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.sysroot@7bbbb9339c14
   assetPath: Packages/com.unity.sysroot
   name: com.unity.sysroot
   displayName: Sysroot Base
@@ -2948,7 +2946,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 2.0.9
   source: 1
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.sysroot.linux-x86_64
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.sysroot.linux-x86_64@1998d1c7730e
   assetPath: Packages/com.unity.sysroot.linux-x86_64
   name: com.unity.sysroot.linux-x86_64
   displayName: Sysroot Linux x64
@@ -3038,8 +3036,8 @@ m_ResolvedPackages:
   testable: 0
   isDirectDependency: 0
   version: 2.0.5
-  source: 1
-  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.ext.nunit
+  source: 2
+  resolvedPath: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\PackageCache\com.unity.ext.nunit@031a54704bff
   assetPath: Packages/com.unity.ext.nunit
   name: com.unity.ext.nunit
   displayName: Custom NUnit
@@ -3048,7 +3046,7 @@ m_ResolvedPackages:
     email: 
     url: 
   category: Libraries
-  type: assets
+  type: 
   description: A custom version of NUnit used by Unity Test Framework. Based on NUnit
     version 3.5 and works with all platforms, il2cpp and Mono AOT.
   errors: []
@@ -3084,15 +3082,15 @@ m_ResolvedPackages:
     configSource: 0
   hideInEditor: 1
   entitlements:
-    licensingModel: 1
+    licensingModel: 0
   isAssetStorePackage: 0
-  datePublishedTicks: 638236642220000000
+  datePublishedTicks: 0
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.ext.nunit@2.0/manual/index.html
-  hasRepository: 1
+  hasRepository: 0
   repository:
-    type: git
-    url: https://github.cds.internal.unity3d.com/unity/com.unity.ext.nunit.git
-    revision: 469fe0d46bfc26fbb32a53885ca4d12abcdae4ae
+    type: 
+    url: 
+    revision: 
     path: 
   unityLifecycle:
     version: 2.0.5
@@ -3105,12 +3103,12 @@ m_ResolvedPackages:
   git:
     hash: 
     revision: 
-  upmReserved: '{"changelog":"- Fixing bug for InstanceID as struct changes"}'
+  upmReserved: 
   assetStore:
     productId: 
-  fingerprint: 60ef35ffd3cd5e2f5c8887a4a4ca6148854cd092
+  fingerprint: 031a54704bffe39e6a0324909f8eaa4565bdebf2
   editorCompatibility:
     compatibilityLevel: 0
     minimumPackageVersion: 2.0.5
     minimumUnityVersion: 2019.4.0a1
-m_BuiltInPackagesHash: 6f2402311d0e4d4e35607ca968b42a9258561b2a
+m_BuiltInPackagesHash: eb08d51636b29d616273e4c1bbf28208e1d1d905
