@@ -107,7 +107,7 @@ For a solution to lie on the Pareto front, it must be **Pareto optimal**, statin
 
 ![Pareto Front Diagram](./images/MOBO_Pareto_Front.png)
 
-The x-axis illustrates the first objective (usability,) whereas the y-axis shows the second objective (trust). As depicted in the [HITL diagram](#hitl_diagram), both axes represent the objective function values ($`y`$). Each point on the diagram represents one set of $`y`$ from the objective functions ($`Y`$).
+The x-axis illustrates the first objective (usability), whereas the y-axis shows the second objective (trust). As depicted in the [HITL diagram](#hitl_diagram), both axes represent the objective function values ($`y`$). Each point on the diagram represents one set of $`y`$ from the objective functions ($`Y`$).
 Points on the curve represent Pareto optimal solutions, while points inside the curve are suboptimal and dominated by the points on the front.
 
 MOBO uses surrogate models (e.g., Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer to predict results for different design instances without having to compute them directly each time. Afterwards, a learning function (e.g., Expected Hypervolume Improvement) uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
@@ -139,7 +139,7 @@ Follow these steps to set up the asset on your system:
 2. Run the installation_python.bat (or the install_python.sh for macOS) to install Python and the library requirements.
 These files are located in *Assets/StreamingAssets/BOData/Installation*
 3. Download & install the Unity Hub
-4. Create or login to your (student-)licensed Unity account
+4. Create or log in to your (student-)licensed Unity account
 5. Install Unity 2022.3.21f1 or higher
 6. Add the project to the Unity Hub by selecting the repository folder
 7. Open the project and set the [Python Settings](#python-settings) accordingly
@@ -149,7 +149,7 @@ These files are located in *Assets/StreamingAssets/BOData/Installation*
 ## Example Usage
 This chapter explains this asset by going through the demo experiment step-by-step.
 You must install the Asset correctly and set the Python path in Unity.
-> **Note:** To work, the *ObservationPerEvaluation.csv* must be empty (except for the header row). It can be found in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)). You can also delete the folder completely which will create a new clean folder with the file in the process.
+> **Note:** To work, the *ObservationPerEvaluation.csv* must be empty (except for the header row). It can be found in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)). You can also delete the folder completely, which will create a new clean folder with the file in the process.
 
 1. In Unity, open the *Assets/BOforUnity* folder. Double-click on the *BO-example-scene.unity* file to open the scene.
 2. Press the play button (⏵) at the top center of the screen.
@@ -179,7 +179,7 @@ Be sure to save the scene after you have made your changes! Please check if your
 The parameters are optimized by the optimizer. In this configuration section, you can create, chang,e or remove such parameters.
 
 ##### Create Parameter
-Click on the `+` symbol at the bottom of the parameter collection. A new prefilled parameter will appear,r which needs to be edited accordingly. How to edit it is explained [here](#change-parameter).
+Click on the `+` symbol at the bottom of the parameter collection. A new prefilled parameter will appear, which needs to be edited accordingly. How to edit it is explained [here](#change-parameter).
 
 > **Note:** Make sure the added parameter is used in your simulation.
 
@@ -228,7 +228,7 @@ Click on the `+` symbol at the bottom of the objective collection. A new prefill
 > **Note:** Changing the header when adding an objective is also essential for the .csv files used by the optimizer when using the [warm start option](#warm-start-settings)!
 
 ###### Create Question
-In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1*. On the right side, you will see *Question Item Creation*. Select the inputs as needed (the *Header Name* must be the same as the corresponding objective name). Then click on *Create Item* and the question will be added. Now you can edit the question by following the next paragraph.
+In the hierarchy of the *BO-example-scene*, go to *QTQuestionnaireManager/QuestionPage-1*. On the right side, you will see *Question Item Creation*. Select the inputs as needed (the *Header Name* must be the same as the corresponding objective name). Then click on *Create Item* and the question will be added. Now you can edit the question by following the next paragraph.
 
 ###### Change Existing Question
 In the hierarchy of the *BO-example-scene*, go to *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/* and select the question you want to change. To make the question count for the new objective, the *Header Name* of the question must be the same as the objective name.
@@ -255,10 +255,13 @@ Select the objective you want to delete by clicking on the  `=` icon in the uppe
 
 #### Python Settings
 In the top section shown in this [image](#py_st_ws_pr_settings), you have to set the path to Python manually. To do this, you need to get the local path of **your Python installation**.
-* For Windows, you can enter a CMD terminal and type `where python`. This will list all installed Python versions. Now, you can copy the path to the correct version.
-* For Linux or macOS, you can go into a terminal and type `whereis python3.13` or `which python3.13`. Now, you can copy the path.
+* For Windows, you can enter a CMD terminal and type `where python`. This will list all installed Python versions.
+* For Linux or macOS, you can go into a terminal and type `which python3`.
+Now, you can copy the path to the *newest* Python version displayed in the list.
 
-Afterwards, you have to check the box in the *Python Settings* section of the *BOforUnityManager* if it is not checked and replace the default path with the copied path in the text box that appears. You do not need to remove anything from your path.
+Afterwards, you have to check the box in the *Python Settings* section of the *BOforUnityManager* and replace the default path with the copied path in the text field.
+
+These steps ensure BOforUnityManager launches the exact Python version you selected, regardless of what other versions are installed on the system.
 
 #### Study Settings
 You can set individual study settings in the next section of the [image](#py_st_ws_pr_settings). Here, you can set the ID of the user (User ID), the ID of the current condition (Condition ID), and the ID of the current group (Group ID). This ensures sortable results.
@@ -278,7 +281,7 @@ The following explanations refer to the lower part of this [image](#py_st_ws_pr_
 ##### Perfect Rating Settings
 
 * The perfect rating is disabled by default (unchecked box).
-* The option for **perfect rating** is enabled by checking the box. AS a result, the check for a perfect rating will be performed and the system will terminate if a perfect rating is achieved.
+* The option for **perfect rating** is enabled by checking the box. AS a result, the check for a perfect rating will be performed, and the system will terminate if a perfect rating is achieved.
 * If *Perfect Rating In Initial Rounds* is also checked (appears only when perfect rating is active), a perfect rating can also be achieved in the initial rounds (sampling phase).
 <a id="py_st_ws_pr_settings"></a>
 
@@ -314,7 +317,7 @@ At the top, you can see the *BoForUnityManagerEditor.cs*, where you can edit the
 The settings are used by *BoForUnityManager.cs,* which manages the whole process and is located in the middle of the diagram. It starts the Python server first with *PythonStarter.cs*.\
 Once the Python server has been successfully started, *BoForUnityManager.cs* communicates with the *mobo.py* script running on the server. It does this based on the *SocketNetwork.cs* script.\
 After receiving data from *SocketNetwork.cs* it passes it to *Optimizer.cs*, which updates the design parameters for the simulation.\
-The *BoForUnityManager.cs*, script also checks which iteration is active and manages the process accordingly.
+The *BoForUnityManager.cs* script also checks which iteration is active and manages the process accordingly.
 
 ## Portability to Your Own Project
 If you want to use this optimization tool in your own project, you can export it as a Unity package and import it into your project. To do so, follow these steps: 
@@ -335,10 +338,10 @@ To include it in your project, return to `Assets` in the top menu and click `Imp
 During the experiment, the MOBO Python script may give warnings about normalizing the input objectives. Unity will treat these warnings as errors. However, these warnings can be ignored and do not affect the result of the optimizer as far as we know.
 
 #### Multi-Scene - Warm-Start
-If warm start is enabled in the multi-scene branch, the `Next` button to get to the first simulation will appear too early. This is not a big problem, you just have to wait for the initialization of the warm start data to be processed. Click the button a few seconds after it appears. If it still does not work, try again after a few more seconds.
+If warm start is enabled in the multi-scene branch, the `Next` button to get to the first simulation will appear too early. This is not a big problem; you just have to wait for the initialization of the warm start data to be processed. Click the button a few seconds after it appears. If it still does not work, try again after a few more seconds.
 
 ## License
-This project underlies the **MIT License**, which can be found in the folder where this README is located.
+This project is under the **MIT License**, which can be found in the folder where this README is located.
 
 \
 \
