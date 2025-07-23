@@ -1,75 +1,69 @@
 @echo off
-setlocal EnableDelayedExpansion
 
-REM ────────────────────────────────────────────────────────────────
-REM 1. Download the latest stable CPython-64-bit installer
-REM    (filters out alphas/betas/RCs)
-REM ────────────────────────────────────────────────────────────────
-echo Detecting latest Python version…
+set PYTHON_EXE="C:\Program Files\Python311\python.exe"
 
-for /f "usebackq tokens=* delims=" %%V in (`
-  powershell -NoProfile -Command ^
-    "$vers = Invoke-WebRequest -UseBasicParsing 'https://www.python.org/ftp/python/' |" ^
-    "        Select-String -Pattern '\d+\.\d+\.\d+/' -AllMatches |" ^
-    "        %% { $_.Matches } | %% { $_.Value.TrimEnd('/') } |" ^
-    "        Where-Object { $_ -notmatch '[abrc]' } |" ^
-    "        Sort-Object {[version]$_} -Descending;" ^
-    "Write-Output $vers[0]"
-`) do set "PY_VERSION=%%V"
+cd %~dp0
 
-echo Latest stable CPython detected: %PY_VERSION%
+set PYTHON_INSTALLER="Installation_Objects\python-3.11.3.exe"
+set REQUIREMENTS="..\requirements.txt"
+set VC_REDIST_EXE="Installation_Objects\VC_redist.x64.exe"
 
-set "DL_URL=https://www.python.org/ftp/python/%PY_VERSION%/python-%PY_VERSION%-amd64.exe"
-set "PYTHON_INSTALLER=Installation_Objects\python-%PY_VERSION%-amd64.exe"
+REM Check if Visual C++ Redistributable is already installed
+reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" >nul 2>&1
+if %errorlevel%==0 (
+    echo Visual C++ Redistributable is already installed.
+    goto continue
+)
 
-if not exist "Installation_Objects" mkdir "Installation_Objects"
+REM Run the Visual C++ Redistributable installer
+echo Installing Visual C++ Redistributable...
+%VC_REDIST_EXE% /quiet
 
-echo Downloading %DL_URL% …
-powershell -NoProfile -Command ^
-  "Invoke-WebRequest -Uri '%DL_URL%' -OutFile '%PYTHON_INSTALLER%'"
-
-if not exist "%PYTHON_INSTALLER%" (
-    echo ERROR: Failed to download Python installer.
+REM Check if the installation was successful
+reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" >nul 2>&1
+if %errorlevel%==0 (
+    echo Visual C++ Redistributable was successfully installed.
+) else (
+    echo Error installing Visual C++ Redistributable.
     exit /b 1
 )
 
-REM ────────────────────────────────────────────────────────────────
-REM 2. Visual C++ Redistributable check/installation (unchanged)
-REM ────────────────────────────────────────────────────────────────
-set "VC_REDIST_EXE=Installation_Objects\VC_redist.x64.exe"
-
-reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Installing Visual C++ Redistributable …
-    "%VC_REDIST_EXE%" /quiet
+:continue
+REM Check if Python is already installed
+%PYTHON_EXE% --version >nul 2>&1
+if %errorlevel%==0 (
+    echo Python is already installed.
+    goto install_packages
 )
 
-REM ────────────────────────────────────────────────────────────────
-REM 3. Install Python if not already present
-REM ────────────────────────────────────────────────────────────────
-where python >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Installing Python %PY_VERSION% …
-    "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1
+REM Run the Python installer
+echo Installing Python...
+%PYTHON_INSTALLER% /quiet InstallAllUsers=1 PrependPath=1
+
+REM Check if the installation was successful
+%PYTHON_EXE% --version >nul 2>&1
+if %errorlevel%==0 (
+    echo Python was successfully installed.
+) else (
+    echo Error installing Python.
+    exit /b 1
 )
 
-REM ────────────────────────────────────────────────────────────────
-REM 4. Locate the newly-installed interpreter
-REM ────────────────────────────────────────────────────────────────
-for /f "usebackq tokens=*" %%P in (`where python ^| findstr /i "python%PY_VERSION%"`) do set "PYTHON_EXE=%%P"
-if not defined PYTHON_EXE (
-    for /f "usebackq tokens=1" %%P in (`where python`) do set "PYTHON_EXE=%%P"
+
+:install_packages
+REM Update Pip
+echo Updating Pip...
+%PYTHON_EXE% -m pip install --upgrade pip
+
+REM Install packages
+echo Installing packages...
+%PYTHON_EXE% -m pip install -r %REQUIREMENTS%
+
+REM Check if the package installation was successful
+%PYTHON_EXE% -m pip list | findstr "numpy scipy matplotlib pandas torch pytorch gpytorch botorch" >nul 2>&1
+if %errorlevel%==0 (
+    echo Packages were successfully installed.
+) else (
+    echo Error installing packages.
+    exit /b 1
 )
-
-echo Using interpreter: "%PYTHON_EXE%"
-
-REM ────────────────────────────────────────────────────────────────
-REM 5. Upgrade pip and install requirements
-REM ────────────────────────────────────────────────────────────────
-set "REQUIREMENTS=..\requirements.txt"
-
-"%PYTHON_EXE%" -m pip install --upgrade pip
-"%PYTHON_EXE%" -m pip install -r "%REQUIREMENTS%"
-
-echo Done.
-endlocal
