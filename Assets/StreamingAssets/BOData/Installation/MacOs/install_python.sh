@@ -1,82 +1,54 @@
 #!/bin/bash
-set -euo pipefail
 
-# ──────────────────────────────
-# 0. Paths relative to script
-# ──────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="$SCRIPT_DIR/Data/Installation_Objects"
-mkdir -p "$INSTALL_DIR"
+
+PYTHON_INSTALLER="$SCRIPT_DIR/Data/Installation_Objects/python-3.11.3-macos11.pkg"
+PYTHON_INSTALL_DIR="/usr"
+PYTHON_EXE="/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
+
 REQUIREMENTS="$SCRIPT_DIR/../requirements.txt"
 
-# ──────────────────────────────
-# 1. Detect latest stable Python
-# ──────────────────────────────
-echo "Detecting latest stable Python for macOS…"
-LATEST_VER=$(curl -s https://www.python.org/ftp/python/ \
-  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+/' \
-  | tr -d '/' \
-  | grep -vE '[abrc]' \
-  | sort -V \
-  | tail -1)
-echo "Latest version found: $LATEST_VER"
 
-# ──────────────────────────────
-# 2. Choose pkg variant by OS
-# ──────────────────────────────
-OS_VER=$(sw_vers -productVersion)          # e.g. 12.7.5
-OS_MAJOR=${OS_VER%%.*}                     # 12
-if [ "$OS_MAJOR" -ge 11 ]; then
-  PKG_SUFFIX="macos11.pkg"                 # universal-2
+
+install_packages() {
+    # Upgrade pip
+    echo "Upgrading pip..."
+    "$PYTHON_EXE" -m pip install --upgrade pip
+
+    # Install packages
+    echo "Installing packages..."
+    "$PYTHON_EXE" -m pip install -r "$REQUIREMENTS"
+
+    # Check if the package installation was successful
+    "$PYTHON_EXE" -m pip list | grep -E "numpy|scipy|matplotlib|pandas|torch|gpytorch|botorch" > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "Packages were successfully installed."
+    else
+        echo "Error installing packages."
+        exit 1
+    fi
+}
+
+
+
+# Install Python
+echo "Installing Python..."
+sudo installer -pkg "$PYTHON_INSTALLER" -target /
+
+# Check if the installation was successful
+if [ -x "$PYTHON_EXE" ]; then
+    echo "Python was successfully installed."
 else
-  PKG_SUFFIX="macosx10.9.pkg"              # Intel-only
+    echo "Error installing Python."
+    exit 1
 fi
 
-PKG_NAME="python-${LATEST_VER}-${PKG_SUFFIX}"
-PKG_URL="https://www.python.org/ftp/python/${LATEST_VER}/${PKG_NAME}"
-PKG_PATH="$INSTALL_DIR/$PKG_NAME"
-echo "Selected package: $PKG_NAME"
+install_packages
 
-# ──────────────────────────────
-# 3. Download if not cached
-# ──────────────────────────────
-if [ ! -f "$PKG_PATH" ]; then
-  echo "Downloading $PKG_URL …"
-  curl -L "$PKG_URL" -o "$PKG_PATH"
-fi
 
-# ──────────────────────────────
-# 4. Install Python (needs sudo)
-# ──────────────────────────────
-echo "Installing Python $LATEST_VER …"
-sudo installer -pkg "$PKG_PATH" -target /
-
-# interpreter lives in Versions/<major.minor>/bin/python3
-MAJMIN=$(echo "$LATEST_VER" | cut -d. -f1,2)   # e.g. 3.12
-PYTHON_EXE="/Library/Frameworks/Python.framework/Versions/${MAJMIN}/bin/python3"
-if [ ! -x "$PYTHON_EXE" ]; then
-  echo "ERROR: Interpreter not found at $PYTHON_EXE"
-  exit 1
-fi
-echo "Python installed: $("$PYTHON_EXE" --version)"
-
-# ──────────────────────────────
-# 5. Upgrade pip & install deps
-# ──────────────────────────────
-echo "Upgrading pip …"
-"$PYTHON_EXE" -m pip install --upgrade pip
-
-echo "Installing requirements …"
-"$PYTHON_EXE" -m pip install -r "$REQUIREMENTS"
-
-echo "Verifying core packages …"
-"$PYTHON_EXE" -m pip show numpy scipy pandas >/dev/null || {
-  echo "Package install failed."; exit 1; }
-
-# ──────────────────────────────
-# 6. Remove quarantine bit from any .app bundles
-# ──────────────────────────────
-echo "Removing quarantine attributes …"
-find "$SCRIPT_DIR" -name "*.app" -exec xattr -d com.apple.quarantine {} + 2>/dev/null || true
-
-echo "Setup complete."
+# Remove quarantine attribute for .app files
+echo "Removing quarantine attribute for .app files..."
+find "$SCRIPT_DIR" -name "*.app" -print0 | while IFS= read -r -d $'\0' app_file; do
+    echo "Removing quarantine attribute for: $app_file"
+    xattr -d com.apple.quarantine "$app_file"
+done
