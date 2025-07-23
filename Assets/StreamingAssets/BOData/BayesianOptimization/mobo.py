@@ -8,6 +8,8 @@ import platform
 import csv
 import os  # For working with file paths and directories
 
+from botorch.acquisition.multi_objective.monte_carlo import qNoisyExpectedHypervolumeImprovement
+
 # Define default values for global variables
 tkwargs = {
     "dtype": torch.double,
@@ -295,33 +297,31 @@ def initialize_model(train_x, train_obj):
     return mll, model
 
 # -------------------------------------------------------
-# optimize_qehvi
-# -------------------------------------------------------
-def optimize_qehvi(model, train_obj, sampler):
-    """Optimizes the qEHVI acquisition function, and returns a new candidate and observation."""
-    # Partition non-dominated space into disjoint rectangles
-    partitioning = NondominatedPartitioning(ref_point=ref_point, Y=train_obj)
-    # Set up qEHVI acquisition function
-    acq_func = qExpectedHypervolumeImprovement(
+# --- q-NEHVI version ----------------------------------------
+def optimize_qnehvi(model, sampler):
+    # ----- fixed baseline handling ----------------------------------------
+    X_baseline = model.train_inputs[0]
+    if X_baseline.dim() == 3:           # shape (m, n, d)
+        X_baseline = X_baseline[0]      # → (n, d)
+    # ----------------------------------------------------------------------
+
+    acq = qNoisyExpectedHypervolumeImprovement(
         model=model,
-        ref_point=ref_point.tolist(),  # Use known reference point
-        partitioning=partitioning,
+        ref_point=ref_point.tolist(),
+        X_baseline=X_baseline,
         sampler=sampler,
+        prune_baseline=True,
     )
-    # Optimize the acquisition function to find new candidates
     candidates, _ = optimize_acqf(
-        acq_function=acq_func,
+        acq_function=acq,
         bounds=problem_bounds,
         q=BATCH_SIZE,
         num_restarts=NUM_RESTARTS,
-        raw_samples=RAW_SAMPLES,  # Used for initialization heuristic
+        raw_samples=RAW_SAMPLES,
         options={"batch_limit": 5, "maxiter": 200, "nonnegative": True},
         sequential=True,
     )
-    # Optionally add small random noise to encourage exploration:
-    # candidates += torch.randn_like(candidates) * 0.01
-    new_x = unnormalize(candidates.detach(), bounds=problem_bounds)
-    return new_x
+    return unnormalize(candidates.detach(), bounds=problem_bounds)
 
 # -------------------------------------------------------
 # mobo_execute ... Main optimization loop
@@ -347,26 +347,26 @@ def mobo_execute(seed, iterations, initial_samples):
     #-----------------------
     torch.manual_seed(seed)
     hv = Hypervolume(ref_point=ref_point)
-    hvs_qehvi = []
+    hvs_qnehvi = []
 
     if WARM_START:
         print("Loading warm start data...", flush=True)
-        train_x_qehvi, train_obj_qehvi = load_data()
+        train_x_qnehvi, train_obj_qnehvi = load_data()
     else:
         print("Generating initial training data...", flush=True)
-        train_x_qehvi, train_obj_qehvi = generate_initial_data(n_samples=initial_samples)
+        train_x_qnehvi, train_obj_qnehvi = generate_initial_data(n_samples=initial_samples)
 
-    mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
-    print(f"Initial train_x_qehvi shape: {train_x_qehvi.shape}, train_obj_qehvi shape: {train_obj_qehvi.shape}", flush=True)
+    mll_qehvi, model_qehvi = initialize_model(train_x_qnehvi, train_obj_qnehvi)
+    print(f"Initial train_x_qnehvi shape: {train_x_qnehvi.shape}, train_obj_qnehvi shape: {train_obj_qnehvi.shape}", flush=True)
 
-    if torch.any(train_obj_qehvi > 1) or torch.any(train_obj_qehvi < -1):
+    if torch.any(train_obj_qnehvi > 1) or torch.any(train_obj_qnehvi < -1):
         print("Warning: Initial objective values are out of expected range [-1, 1].", flush=True)
 
-    pareto_mask = is_non_dominated(train_obj_qehvi)
-    pareto_y = train_obj_qehvi[pareto_mask]
+    pareto_mask = is_non_dominated(train_obj_qnehvi)
+    pareto_y = train_obj_qnehvi[pareto_mask]
     volume = hv.compute(pareto_y)
-    hvs_qehvi.append(volume)
-    save_hypervolume_to_file(hvs_qehvi, 0)
+    hvs_qnehvi.append(volume)
+    save_hypervolume_to_file(hvs_qnehvi, 0)
     #-----------------------
 
     for iteration in range(1, iterations + 1):
@@ -376,11 +376,11 @@ def mobo_execute(seed, iterations, initial_samples):
 
         if torch.any(torch.isnan(list(model_qehvi.parameters())[0].clone().detach())):
             print("Warning: NaN detected in GP model parameters after fitting.", flush=True)
-
-        sample_shape = torch.Size([MC_SAMPLES])
-        qehvi_sampler = SobolQMCNormalSampler(sample_shape=sample_shape, seed=SEED)
-        new_x_qehvi = optimize_qehvi(model_qehvi, train_obj_qehvi, qehvi_sampler)
-        if torch.any(new_x_qehvi < problem_bounds[0]) or torch.any(new_x_qehvi > problem_bounds[1]):
+        
+        sample_shape=torch.Size([MC_SAMPLES])
+        qnehvi_sampler=SobolQMCNormalSampler(sample_shape=sample_shape, seed=SEED)
+        new_x_qnehvi=optimize_qnehvi(model_qehvi, qnehvi_sampler)
+        if torch.any(new_x_qnehvi < problem_bounds[0]) or torch.any(new_x_qnehvi > problem_bounds[1]):
             print("Warning: Candidate solution out of problem bounds.", flush=True)
 
         end_time = time.time()
@@ -389,32 +389,32 @@ def mobo_execute(seed, iterations, initial_samples):
         data = [{'Optimization': iteration, 'Execution_Time': execution_time}]
         write_data_to_csv(csv_file_path, ['Optimization', 'Execution_Time'], data)
 
-        new_obj_qehvi = objective_function(new_x_qehvi[0])
-        print(f"New objective values from Unity: {new_obj_qehvi}", flush=True)
-        if torch.any(new_obj_qehvi > 1) or torch.any(new_obj_qehvi < -1):
+        new_obj_qnehvi = objective_function(new_x_qnehvi[0])
+        print(f"New objective values from Unity: {new_obj_qnehvi}", flush=True)
+        if torch.any(new_obj_qnehvi > 1) or torch.any(new_obj_qnehvi < -1):
             print("Warning: New objective values are out of expected range [-1, 1].", flush=True)
 
         # Update training points with the new candidate and corresponding objective values
-        train_x_qehvi = torch.cat([train_x_qehvi, new_x_qehvi])
-        train_obj_qehvi = torch.cat([train_obj_qehvi, new_obj_qehvi.unsqueeze(0)])
-        print(f"Updated training data. Train X shape: {train_x_qehvi.shape}, Train Obj shape: {train_obj_qehvi.shape}", flush=True)
+        train_x_qnehvi = torch.cat([train_x_qnehvi, new_x_qnehvi])
+        train_obj_qnehvi = torch.cat([train_obj_qnehvi, new_obj_qnehvi.unsqueeze(0)])
+        print(f"Updated training data. Train X shape: {train_x_qnehvi.shape}, Train Obj shape: {train_obj_qnehvi.shape}", flush=True)
 
-        pareto_mask = is_non_dominated(train_obj_qehvi)
-        pareto_y = train_obj_qehvi[pareto_mask]
+        pareto_mask = is_non_dominated(train_obj_qnehvi)
+        pareto_y = train_obj_qnehvi[pareto_mask]
         volume = hv.compute(pareto_y)
-        hvs_qehvi.append(volume)
-        save_xy(train_x_qehvi, train_obj_qehvi, iteration)
-        save_hypervolume_to_file(hvs_qehvi, iteration)
+        hvs_qnehvi.append(volume)
+        save_xy(train_x_qnehvi, train_obj_qnehvi, iteration)
+        save_hypervolume_to_file(hvs_qnehvi, iteration)
 
-        mll_qehvi, model_qehvi = initialize_model(train_x_qehvi, train_obj_qehvi)
+        mll_qehvi, model_qehvi = initialize_model(train_x_qnehvi, train_obj_qnehvi)
     #-----------------------
 
     # Optionally plot the results:
-    # plot_pareto(train_x_qehvi, train_obj_qehvi, hvs_qehvi)
+    # plot_pareto(train_x_qnehvi, train_obj_qnehvi, hvs_qnehvi)
 
     print("Send Data: optimization_finished,", flush=True)
     conn.sendall(bytes('optimization_finished,', 'utf-8'))
-    return hvs_qehvi, train_x_qehvi, train_obj_qehvi
+    return hvs_qnehvi, train_x_qnehvi, train_obj_qnehvi
 
 # -------------------------------------------------------
 # Utility functions for saving/loading objects remain unchanged
@@ -472,11 +472,11 @@ def save_xy(x_sample, y_sample, iteration):
 # -------------------------------------------------------
 # Save hypervolume values to CSV (uses global PROJECT_PATH)
 # -------------------------------------------------------
-def save_hypervolume_to_file(hvs_qehvi, iteration):
+def save_hypervolume_to_file(hvs_qnehvi, iteration):
     global PROJECT_PATH
     hypervolume_csv_file_path = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
     print("Project Path for Hypervolumes:", PROJECT_PATH, flush=True)
-    hypervolume_value = np.array(hvs_qehvi)
+    hypervolume_value = np.array(hvs_qnehvi)
     header_volume = ["Hypervolume", "Run"]
     with open(hypervolume_csv_file_path, 'a', newline='') as file:
         writer = csv.writer(file, delimiter=';')
@@ -516,7 +516,7 @@ def calculate_pareto_front(obj_vals):
 # -------------------------------------------------------
 # Plot Pareto front and hypervolume (optional)
 # -------------------------------------------------------
-def plot_pareto(x_sample, y_sample, hvs_qehvi):
+def plot_pareto(x_sample, y_sample, hvs_qnehvi):
     global PROJECT_PATH
     CURRENT_DIR = os.getcwd()
     PROJECT_PATH = os.path.join(CURRENT_DIR, "LogData")
@@ -569,7 +569,7 @@ def plot_pareto(x_sample, y_sample, hvs_qehvi):
     plt.clf()
 
     plt.figure()
-    plt.plot(hvs_qehvi)
+    plt.plot(hvs_qnehvi)
     plt.title("Pareto Hypervolume Increase", fontsize=24)
     plt.tick_params(axis='x', labelsize=16)
     plt.tick_params(axis='y', labelsize=16)
@@ -579,4 +579,4 @@ def plot_pareto(x_sample, y_sample, hvs_qehvi):
 # -------------------------------------------------------
 # Run the sampling and optimization loop
 # -------------------------------------------------------
-hvs_qehvi, train_x_qehvi, train_obj_qehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)
+hvs_qnehvi, train_x_qnehvi, train_obj_qnehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)
