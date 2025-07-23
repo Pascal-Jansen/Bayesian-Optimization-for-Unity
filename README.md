@@ -162,7 +162,7 @@ You must install the Asset correctly and set the Python path in Unity.
 > **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)).
 
 ## Demo Video
-You can click on the thumbnail below for a short demo video illustrating how to export the BO-for-Unity package (main-branch) and import it into a new Unity project. It shows what you must do after importing if you have Python 3.11.3 installed locally and are using a Windows computer. Optionally, you can go to the *images* folder and watch the video there.
+You can click on the thumbnail below for a short demo video illustrating how to export the BO-for-Unity package (main-branch) and import it into a new Unity project. It shows what you must do after importing if you have an up-to-date Python (currently, we recommend 3.13.5) installed locally and are using a Windows computer. Optionally, you can go to the *images* folder and watch the video there.
 
 [![Watch the video](./images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
@@ -231,7 +231,7 @@ Click on the `+` symbol at the bottom of the objective collection. A new prefill
 In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1*. On the right side, you will see *Question Item Creation*. Select the inputs as needed (the *Header Name* must be the same as the corresponding objective name). Then click on *Create Item* and the question will be added. Now you can edit the question by following the next paragraph.
 
 ###### Change Existing Question
-In the hierarchy of the *BO-example-scene* go to *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/* and select the question you want to change. To make the question count for the new objective, the *Header Name* of the question must be the same as the objective name.
+In the hierarchy of the *BO-example-scene*, go to *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/* and select the question you want to change. To make the question count for the new objective, the *Header Name* of the question must be the same as the objective name.
 
 ##### Change Objective
 Adjustable options are explained from top to bottom. You can see them in the inspector by clicking on the drop-down arrow of an objective, as shown in the [image](#objective_settings) below.
@@ -254,9 +254,9 @@ Select the objective you want to delete by clicking on the  `=` icon in the uppe
 ![Remove Objective](./images/remove_objective.png)
 
 #### Python Settings
-In the top section shown in this [image](#py_st_ws_pr_settings), you have to set the path to Python manually. To do this, you need to get the local path of **Python 3.11.3**.
-* For Windows, you can enter a cmd terminal and type `where python`. This will list all installed Python versions. Now, you can copy the path to the correct version.
-* For Linux or macOS, you can go into a terminal and type `whereis python3.11` or `which python3.11`. Now, you can copy the path.
+In the top section shown in this [image](#py_st_ws_pr_settings), you have to set the path to Python manually. To do this, you need to get the local path of **your Python installation**.
+* For Windows, you can enter a CMD terminal and type `where python`. This will list all installed Python versions. Now, you can copy the path to the correct version.
+* For Linux or macOS, you can go into a terminal and type `whereis python3.13` or `which python3.13`. Now, you can copy the path.
 
 Afterwards, you have to check the box in the *Python Settings* section of the *BOforUnityManager* if it is not checked and replace the default path with the copied path in the text box that appears. You do not need to remove anything from your path.
 
@@ -271,14 +271,14 @@ The following explanations refer to the lower part of this [image](#py_st_ws_pr_
 
 * Leaving the box unchecked results in the default start. After the specified number of initial iterations (must be at least 2!), the optimizer uses all the collected values to start the optimization process.
 
-> **Note:** To work, the format of the .csv files needed for the warm start **MUST** be the same as in the example csv files! Check the header to see what values are required. This also means that the number of parameters and targets in the .csv files provided for the warm start must match the number used for the optimization afterwards. This is automatically the case if you use the log data of a previous study (with the same settings!) as input files.
+> **Note:** To work, the format of the .csv files needed for the warm start **MUST** be the same as in the example CSV files! Check the header to see what values are required. This also means that the number of parameters and targets in the .csv files provided for the warm start must match the number used for the optimization afterwards. This is automatically the case if you use the log data of a previous study (with the same settings!) as input files.
 
 > **Note:** If you go back to the default start, make sure that the number of initial rounds is at least **2**!
 
 ##### Perfect Rating Settings
 
 * The perfect rating is disabled by default (unchecked box).
-* Perfect rating is enabled by checking the box. AS a result, the check for a perfect rating will be performed and the system will terminate if a perfect rating is achieved.
+* The option for **perfect rating** is enabled by checking the box. AS a result, the check for a perfect rating will be performed and the system will terminate if a perfect rating is achieved.
 * If *Perfect Rating In Initial Rounds* is also checked (appears only when perfect rating is active), a perfect rating can also be achieved in the initial rounds (sampling phase).
 <a id="py_st_ws_pr_settings"></a>
 
@@ -310,7 +310,7 @@ This chapter explains the system architecture, making it easier for you to work 
 
 ![System Architecture](./images/System_Architecture.png)
 
-At the top you can see the *BoForUnityManagerEditor.cs*, where you can edit the *BoForUnityManager.prefab*. So you can change what can be set there, how the descriptions for the settings look, and so on. The *BoForUnityManager.prefab* settings can be set via the *Unity Inspector* as explained in the [Configuration](#Configuration) chapter.\
+At the top, you can see the *BoForUnityManagerEditor.cs*, where you can edit the *BoForUnityManager.prefab*. So you can change what can be set there, how the descriptions for the settings look, and so on. The *BoForUnityManager.prefab* settings can be set via the *Unity Inspector* as explained in the [Configuration](#Configuration) chapter.\
 The settings are used by *BoForUnityManager.cs,* which manages the whole process and is located in the middle of the diagram. It starts the Python server first with *PythonStarter.cs*.\
 Once the Python server has been successfully started, *BoForUnityManager.cs* communicates with the *mobo.py* script running on the server. It does this based on the *SocketNetwork.cs* script.\
 After receiving data from *SocketNetwork.cs* it passes it to *Optimizer.cs*, which updates the design parameters for the simulation.\
