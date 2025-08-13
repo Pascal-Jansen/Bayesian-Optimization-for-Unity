@@ -1,15 +1,18 @@
 # Bayesian Optimization for Unity
 
+[![DOI](https://zenodo.org/badge/833015227.svg)](https://doi.org/10.5281/zenodo.16849778)
+
 by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) and [Mark Colley](https://scholar.google.com/citations?user=Kt5I7wYAAAAJ&hl=de)
 
+
 ## Related Publications
-* [OptiCarVis: Improving Automated Vehicle Functionality Visualizations Using Bayesian Optimization to Enhance User Experience](https://arxiv.org/abs/2501.06757)
+[OptiCarVis: Improving Automated Vehicle Functionality Visualizations Using Bayesian Optimization to Enhance User Experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514)
 (CHI '25, Best Paper Honorable Mention, top 5%)
 
-* [Improving External Communication of Automated Vehicles Using Bayesian Optimization](https://arxiv.org/abs/2501.10792)
+[Improving External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187)
 (CHI '25)
 
-* [Fly Away: Evaluating the Impact of Motion Fidelity on Optimized User Interface Design via Bayesian Optimization in Automated Urban Air Mobility Simulations](https://arxiv.org/abs/2501.11829)
+[Fly Away: Evaluating the Impact of Motion Fidelity on Optimized User Interface Design via Bayesian Optimization in Automated Urban Air Mobility Simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288)
 (CHI '25)
 
 ## Table of Contents
@@ -27,7 +30,7 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) 
     * [Warm Start & Perfect Rating Settings](#warm-start--perfect-rating-settings)
 * [System Architecture](#system-architecture)
 * [Portability to your own Project](#portability-to-your-own-project)
-* [Known Issues](#known-issues)
+* [Citation](#citation)
 * [License](#license)
 
 ## About
@@ -333,12 +336,24 @@ To include it in your project, return to `Assets` in the top menu and click `Imp
 
 > **Note:** If this is a new project, or you have never used *TextMeshPro* in your project, a pop-up will appear to install *TextMeshPro-Essentials*. Install this as well to make the text boxes work. Refresh the scene afterwards to reload the text boxes if necessary.
 
-## Known Issues
-#### Python Warnings
-During the experiment, the MOBO Python script may give warnings about normalizing the input objectives. Unity will treat these warnings as errors. However, these warnings can be ignored and do not affect the result of the optimizer as far as we know.
 
-#### Multi-Scene - Warm-Start
-If warm start is enabled in the multi-scene branch, the `Next` button to get to the first simulation will appear too early. This is not a big problem; you just have to wait for the initialization of the warm start data to be processed. Click the button a few seconds after it appears. If it still does not work, try again after a few more seconds.
+
+## Citation
+
+If you use this software, please cite:
+
+```bibtex
+@software{jansen_bayesian_optimization_unity_2025,
+  author    = {Pascal Jansen and Mark Colley},
+  title     = {Bayesian-Optimization-for-Unity},
+  year      = {2025},
+  month     = aug,
+  publisher = {Zenodo},
+  version   = {v1.1.0},
+  doi       = {10.5281/zenodo.16849778},
+  url       = {https://doi.org/10.5281/zenodo.16849778}
+}
+```
 
 ## License
 This project is under the **MIT License**, which can be found in the folder where this README is located.
