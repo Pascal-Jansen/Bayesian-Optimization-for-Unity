@@ -1,3 +1,4 @@
+
 # Bayesian Optimization for Unity
 
 [![DOI](https://zenodo.org/badge/833015227.svg)](https://doi.org/10.5281/zenodo.16849778)
@@ -18,7 +19,6 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) 
 ## Table of Contents
 * [About](#about)
 * [Process](#process)
-* [Versions](#versions)
 * [Installation](#installation)
 * [Example Usage](#example-usage)
 * [Demo Video](#demo-video)
@@ -35,308 +35,279 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) 
 
 ## About
 
-This Unity asset integrates Bayesian Optimization (BO) (based on [botorch.org](https://botorch.org/)) into your projects, enabling the optimization of design parameters to maximize or minimize objective values. It utilizes a [Human-in-the-Loop](#human-in-the-loop-process) approach, iteratively refining design parameters based on explicit or implicit user feedback.
+This Unity asset integrates Bayesian Optimization (BO), based on [botorch.org](https://botorch.org/), into your projects to optimize design parameters for maximizing or minimizing objective values. It uses a [Human-in-the-Loop](#human-in-the-loop-process) approach, iteratively refining parameters from explicit or implicit user feedback.
 
 #### Key Features
-- Configuration of optimization hyperparameters directly in Unity.
-- Automatic communication between Unity and the Python process running the BoTorch-based implementation.
-- Integration of the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for user feedback.
+- Configure optimization hyperparameters directly in Unity.
+- Automatic communication between Unity and a BoTorch-based Python process.
+- Integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for user feedback.
 
 #### Example Use Case
 
-Optimizing the usability of an interface design. For this, we could employ the System Usability Scale (SUS) and measure interaction duration. This data can then be used to optimize the user interface.
+For instance, we want to improve UI usability by treating selected UI attributes as design parameters $x$ (e.g., button size, color contrast, spacing, animation duration). We might optimize two objectives $y$: System Usability Scale (SUS, 0–100, maximize) and task completion time (seconds, minimize). In each iteration of a human-in-the-loop multi-objective Bayesian optimization loop, the optimizer proposes a configuration $x_i$, a participant performs a fixed task, Unity records completion time, the participant completes the SUS, and the model updates its posterior and acquisition function. The procedure yields an estimated Pareto front and a recommended configuration based on a specified trade-off criterion such as hypervolume improvement or scalarization.
 
 ## Process
 
 #### Optimization Problem
 
-In Multi-Objective Bayesian Optimization (MOBO), the goal is to find the optimal configuration of parameters (e.g., design parameters like color, transparency, and visibility). This optimal configuration maximizes the objective function values (e.g., objectives like usability or trust) while respecting the constraints of the design space ($`X`$), which contains all possible sets of parameters. This involves exploring a feasible design space to identify the best trade-offs among multiple objectives.
+In Multi-Objective Bayesian Optimization (MOBO), the goal is to find a parameter configuration (e.g., color, transparency, visibility) that maximizes objective values (e.g., usability, trust) while respecting the design space ($`X`$). The optimizer explores feasible designs to identify the best trade-offs among multiple objectives.
 
-The optimization problem is represented as:
+The optimization problem is:
 
 $$
 x^* = \arg\max_{x \in X} f(x),
 $$
 
 where:
-- $`x`$ is a vector of parameters within the feasible design space $`X`$,
-- $`f(x)`$ represents a vector of objective functions, $`f(x) = [f_1(x), f_2(x), \dots, f_k(x)]`$, where $`k`$ is the number of objectives,
-- $`x^*`$ is the optimal configuration of design parameters that maximizes $`f(x)`$ across all designs in $`X`$.
+- $`x`$ is a parameter vector in $`X`$,
+- $`f(x)`$ is a vector of objectives, $`f(x) = [f_1(x), f_2(x), \dots, f_k(x)]`$,
+- $`x^*`$ maximizes $`f(x)`$ over $`X`$.
 
-In this context, $`f(x)`$ is referred to as $`y`$. It represents the outputs or reactions of the user to the system being optimized (e.g., answers to questionnaires). This formulation ensures that the optimizer seeks to identify the parameter vector $`x^*`$ leading to the best possible outcomes for the given objectives.
+Here, $`f(x)`$ is also denoted as $`y`$ and represents user responses to the system (e.g., questionnaire answers). The optimizer seeks the $`x^*`$ that yields the best outcomes.
 
 #### Human-in-the-Loop Process
-The picture below shows the human-in-the-loop (HITL) process for this asset.
-This process can be explained step by step:
-1. **Design Selection:**
-The optimizer selects the design instance $`x`$. This is one set of parameters from the design space ($`X`$) containing all possible sets of parameters. In this example, a design instance includes the color (ColorR, ColorG, ColorB), the transparency and the visibility of the shapes (Cube & Cylinder). The parameters also have a set range to limit the design space size ($`X`$).
-2. **Simulation:**
-The appearance parameterized by $x$ is visualized in the simulation, allowing the user to experience the design.
-3. **User Feedback:**
-After the simulation, the user can subjectively rate the given design instance by completing the questionnaire. Then, the ratings are translated into objective function values $`y`$. In this example, the objectives are trust and usability, which also have a range to limit the size of the objective functions ($`Y`$).
-4. **Optimization:**
-Based on the current objective function values, the [Multi-Objective Bayesian Optimization (MOBO)](#multi-objective-bayesian-optimization-mobo) selects another design instance, considering all previous feedback. The loop then restarts.
-
-#### Phases
-The entire process is divided into two phases, during which the full HITL process occurs.
-
-* **Sampling Phase (N Initial):**\
-In this phase, the optimizer selects a design instance using Sobol sampling (see the note below). Sobol sampling systematically divides the design space into evenly distributed areas and selects one representative configuration from each area. The optimizer stores the objective function values to understand the design space and collect more values following optimization rounds. This means that there is no relation between the change in the visual appearance and the rating in these rounds.
-\
-The length of the sampling phase is determined by the number of initial rounds (N Initial). This is a [hyperparameter](#bo-hyper-parameters) that can be set in the Unity inspector, as explained later.
-
-    > **Note:** I. M. Sobol. 1967. On the distribution of points in a cube and the approximate evaluation of integrals. U. S. S. R. Comput. Math. and Math. Phys. 7 (1967), 86–112. ([DOI](https://doi.org/10.1016/0041-5553(67)90144-9))
-
-
-* **Optimization Phase (N Iterations):**\
-In this phase, the optimizer balances between **exploitation** (refining known good configurations) and **exploration** (searching in new areas of the design space).
-\
-The length of the optimization phase is determined by the number of optimization rounds (N Iteration). This is also a [hyperparameter](#bo-hyper-parameters) that can be set in the Unity inspector, as explained later.
+The figure below shows the human-in-the-loop (HITL) process for this asset.
+Step by step:
+1. **Design Selection:**  
+   The optimizer selects a design instance $`x`$ from the design space ($`X`$). In the example, a design includes color (ColorR, ColorG, ColorB), transparency, and visibility of the shapes (Cube & Cylinder). Parameter ranges limit $`X`$.
+2. **Simulation:**  
+   The appearance parameterized by $`x`$ is shown in the simulation so the user can experience the design.
+3. **User Feedback:**  
+   After the simulation, the user rates the design via a questionnaire. Ratings are translated into objective values $`y`$. In the example, the objectives are trust and usability, each with defined ranges ($`Y`$).
+4. **Optimization:**  
+   Based on current objective values, [MOBO](#multi-objective-bayesian-optimization-mobo) proposes another design, considering prior feedback. The loop repeats.
 
 <a id="hitl_diagram"></a>
 
 ![HITL Diagram](./images/HITL.png)
 
+The entire process consists of two phases:
+
+* **Sampling Phase:**\
+Sobol sampling (see note) selects evenly spread designs across the space. The optimizer records objective values to learn the landscape before optimization starts. In these rounds, visual changes may not correlate with ratings.
+
+> **Note:** I. M. Sobol. 1967. On the distribution of points in a cube and the approximate evaluation of integrals. U. S. S. R. Comput. Math. and Math. Phys. 7 (1967), 86–112. ([DOI](https://doi.org/10.1016/0041-5553(67)90144-9))
+
+* **Optimization Phase:**\
+The optimizer balances **exploitation** (refining known good regions) and **exploration** (searching new regions).
+
+
 #### Questionnaires for User Feedback
-To utilize the HITL optimization, this asset requires the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback from users. This feedback serves as design objective value in the optimization process.
+This asset uses the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback. This feedback serves as a design objective in the HITL process.
 
-> **Note:** For the implicit approach, the questionnaire is replaced by the implicitly collected values.
 
-#### Multi-Objective Bayesian Optimization (MOBO)
+#### Results of Multi-Objective Bayesian Optimization (Pareto Front)
 
-MOBO is an extension of BO designed to optimize multiple conflicting objectives simultaneously. Instead of seeking a single optimum, the goal is to identify a **Pareto front** representing the solutions that offer the best trade-offs between objectives.
+MOBO can optimize for multiple, potentially conflicting objectives. Rather than a single optimum, it identifies the **Pareto front**, representing best trade-offs.
 
-For a solution to lie on the Pareto front, it must be **Pareto optimal**, stating that no other solution in the design space achieves better results for one objective without worsening another. This can be visualized in the following diagram. 
+A solution is **Pareto optimal** if no other solution improves one objective without worsening another. The diagram below illustrates this.
 
 ![Pareto Front Diagram](./images/MOBO_Pareto_Front.png)
 
-The x-axis illustrates the first objective (usability), whereas the y-axis shows the second objective (trust). As depicted in the [HITL diagram](#hitl_diagram), both axes represent the objective function values ($`y`$). Each point on the diagram represents one set of $`y`$ from the objective functions ($`Y`$).
-Points on the curve represent Pareto optimal solutions, while points inside the curve are suboptimal and dominated by the points on the front.
+The x-axis shows the first objective (usability) and the y-axis the second (trust). As in the [HITL diagram](#hitl_diagram), both axes are objective values ($`y`$). Each point is one observed $`y`$ from ($`Y`$). Points on the curve are Pareto optimal; points inside are dominated.
 
-MOBO uses surrogate models (e.g., Gaussian processes) to create a simplified representation of the objective functions. This helps the optimizer to predict results for different design instances without having to compute them directly each time. Afterwards, a learning function (e.g., Expected Hypervolume Improvement) uses this model to decide which points to test next, focusing on improving performance and exploring promising areas in the search space.
+MOBO uses surrogate models (e.g., Gaussian processes) to approximate objectives, enabling efficient prediction. An acquisition function (e.g., Expected Hypervolume Improvement) selects the next points, trading off performance gains and exploration.
 
-To sum it up, the optimizer tries to maximize $`y`$ by selecting the expected best-fitting vector of parameters for the next round.
+In short, the optimizer maximizes $`y`$ by proposing parameter vectors expected to perform best next.
 
-MOBO is widely used in areas such as hyperparameter tuning, material design, and engineering optimization, where multiple objectives must be satisfied simultaneously.
+MOBO is used in hyperparameter tuning, materials discovery, and engineering design where multiple objectives matter.
 
 
 <!--#### Limitations-->
 
 
 
-## Versions
-There are currently three sample versions of the Bayesian Optimization for Unity project. They are divided into branches.
-
-#### Main-Branch
-This version is based on one Unity scene, i.e., no real scene changes. Instead, the interface is replaced by the next one in the same Unity scene.
-
-#### Multi-Scene-Branch
-The second version is based on multiple Unity scenes, meaning that every time you see a new interface, Unity switches to a different scene. To make this work, there is a loading scene during the optimization process, and the *BOforUnityManager* is marked as *DontDestroyOnLoad*.
-
-#### HeartRateReceiver-Branch
-This is an implicit version of the BO for Unity. It uses implicit data as objectives in the HITL process (e.g., live smartwatch data from the proband).
 
 ## Installation
-Follow these steps to set up the asset on your system:
-1. Clone the repository 
-2. Run the installation_python.bat (or the install_python.sh for macOS) to install Python and the library requirements.
-These files are located in *Assets/StreamingAssets/BOData/Installation*
-3. Download & install the Unity Hub
-4. Create or log in to your (student-)licensed Unity account
-5. Install Unity 2022.3.21f1 or higher
-6. Add the project to the Unity Hub by selecting the repository folder
-7. Open the project and set the [Python Settings](#python-settings) accordingly
+Set up the asset as follows:
+1. Clone the repository.
+2. Run `installation_python.bat` (Windows) or `install_python.sh` (macOS) to install Python and required libraries.  
+   Files are in *Assets/StreamingAssets/BOData/Installation*.
+3. Install Unity Hub.
+4. Create or log in to your (student) Unity account.
+5. Install Unity 2022.3.21f1 or higher. We recommend Unity 6.
+6. Add the project to Unity Hub by selecting the repository folder.
+7. Open the project and set the [Python Settings](#python-settings).
 
-> **Note:** You need to set the Python path manually, whether you installed it with the install file or have Python already installed locally. How to set the path correctly is explained in the [Python Settings](#python-settings) chapter. Be sure to also read the first section of [Configuration](#configuration) to ensure that you successfully save your Python settings.
+> **Note:** Set the Python path manually, whether you used the installer or have a local Python. See [Python Settings](#python-settings). Also read [Configuration](#configuration) to ensure settings are saved.
 
 ## Example Usage
-This chapter explains this asset by going through the demo experiment step-by-step.
-You must install the Asset correctly and set the Python path in Unity.
-> **Note:** To work, the *ObservationPerEvaluation.csv* must be empty (except for the header row). It can be found in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)). You can also delete the folder completely, which will create a new clean folder with the file in the process.
+This chapter walks through the demo experiment. Install the asset and set the Python path first.
+> **Note:** *ObservationPerEvaluation.csv* must be empty (except the header). Find it at *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>` as set in [Study Settings](#study-settings)). You can delete the folder to recreate a clean one.
 
-1. In Unity, open the *Assets/BOforUnity* folder. Double-click on the *BO-example-scene.unity* file to open the scene.
-2. Press the play button (⏵) at the top center of the screen.
-3. Press the `Next` button on the screen and wait for the system to load. Then press `Next` again.
-4. Now, the simulation will be shown. In this case, you will see a maximum of two shapes with colors to evaluate.
-5. When you are finished, you can press the `End Simulation` button. A questionnaire will appear asking you to rate the simulation.
-6. Answer the questions accordingly and press `Finish` when finished. Now the optimizer will save your input and change the simulation parameters.
-7. Press `Next` to start a new iteration. Now, the process begins again from step `3.` until the set number of iterations is reached. Then, the system tells you that you can now close the application.
+1. In Unity, open *Assets/BOforUnity* and double-click *BO-example-scene.unity*.
+2. Press the Play button (⏵).
+3. Click `Next`, wait for loading, then click `Next` again.
+4. The simulation appears. You will see up to two colored shapes to evaluate.
+5. When finished, click `End Simulation`. A questionnaire appears.
+6. Answer, then press `Finish`. The optimizer saves your input and updates parameters.
+7. Press `Next` to start a new iteration. Repeat from step `3` until all iterations finish. The system then indicates you can close the application.
 
-> **Note:** The results of the experiment can be seen in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)).
+> **Note:** Results are in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`).
 
 ## Demo Video
-You can click on the thumbnail below for a short demo video illustrating how to export the BO-for-Unity package (main-branch) and import it into a new Unity project. It shows what you must do after importing if you have an up-to-date Python (currently, we recommend 3.13.5) installed locally and are using a Windows computer. Optionally, you can go to the *images* folder and watch the video there.
+Click the thumbnail for a short demo showing how to export the main-branch package and import it into a new Unity project. It also shows what to do after import if you have an up-to-date Python (currently, we recommend 3.13.5) on Windows. You can also open the video in the *images* folder.
 
 [![Watch the video](./images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
 <!--![Watch the video](./images/Demo_BO_for_Unity.gif)-->
 
 ## Configuration
-All the necessary configurations can be done in Unity. To do this, open the Unity scene folder, which is *Assets/BOforUnity*. Double-click on the *BO-example-scene.unity* file to open the scene. Then select the *BOforUnityManager* object on the left (blue) and click on *Select* in the upper part of the inspector. Now, you can change the settings.
+All configuration is done in Unity. Open *Assets/BOforUnity/BO-example-scene.unity*. Select the *BOforUnityManager* object in the hierarchy, then click *Select* at the top of the inspector. Adjust settings as needed.
 
-Be sure to save the scene after you have made your changes! Please check if your settings have been saved by clicking on the *BOforUnityManager* object on the left (blue) again and check the changed parameter. The prefab *BOforUnityManager* must be correct because it will override the previous settings, as seen in the inspector on the top left.
+Save the scene after changes. Re-select *BOforUnityManager* to confirm your edits. The *BOforUnityManager* prefab must be correct; it overrides previous settings (see the inspector top left).
 
-> **Note:** All possible configurations can be made in this object. The different possibilities are explained from top to bottom. You can follow along by scrolling down in the inspector on the right side of Unity.
+> **Note:** All configuration lives in this object. The options below follow the inspector from top to bottom.
 
 #### Parameters
-The parameters are optimized by the optimizer. In this configuration section, you can create, chang,e or remove such parameters.
+Parameters are optimized by the system. In this section, you can create, change, or remove parameters.
 
 ##### Create Parameter
-Click on the `+` symbol at the bottom of the parameter collection. A new prefilled parameter will appear, which needs to be edited accordingly. How to edit it is explained [here](#change-parameter).
+Click `+` at the bottom of the parameter list to add a prefilled entry, then edit it as described [here](#change-parameter).
 
-> **Note:** Make sure the added parameter is used in your simulation.
+> **Note:** Ensure the new parameter is used by your simulation.
 
-> **Note:** It is recommended to save the previous log files in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)) and then delete this folder to make sure that the header is correct.
+> **Note:** Back up logs in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`) and delete the folder to refresh headers.
 
-> **Note:** Changing the header when adding a parameter is also crucial for the .csv files used by the optimizer when using the [warm start option](#warm-start-settings)!
+> **Note:** If you use the [warm start option](#warm-start-settings), ensure CSV headers match after adding parameters.
 
 ##### Change Parameter
-The adjustable options of each parameter are explained from top to bottom. You can see them in the inspector by clicking on a parameter's drop-down arrow, as shown in the [image](#parameter_settings) below.
+Adjustable options, top to bottom:
 
 | **Name**              | **Description**                                                                   |
 |-----------------------|-----------------------------------------------------------------------------------|
-| **Value**             | Displays the value assigned to the parameter by the optimizer after optimization. |
-| **Lower/Upper Bound** | Sets a range to limit the values of the parameter.              |
-| **Is Discrete**       | Indicates if the optimizer generates only discrete values for this parameter.     |
-| **Step**              | Only relevant for discrete parameters; sets the step size (e.g., 1 allows all numbers, 2 allows even numbers, 3 allows every third number, etc.). |
-| **Script Reference**  | Links to the parameter in Unity via the `UpdateParameter` method in the *Optimizer.cs* file. |
-| **Variable Name**     | Identifies the correct parameter in Unity using the `UpdateParameter` method in the *Optimizer.cs* file. |
-| **Game Object Name**  | Specifies the game object associated with the parameter when multiple game objects are optimized. |
-| **Script Name**       | References the Unity script for locating the parameter through the `UpdateParameter` method in *Optimizer.cs*. |
+| **Value**             | Value assigned by the optimizer after runs.                                       |
+| **Lower/Upper Bound** | Bounds that restrict the parameter.                                               |
 
-> **Note:** The `UpdateParameter` method should not be used if possible because it often happens that the exact script can't be found even when setting the parameters above. Instead, get the needed value from the parameter list in the *BOforUnityManager* by selecting the correct index.
+> **Note:** You can read the current parameter values in each iteration directly from the parameter list in *BOforUnityManager* by index.
 <a id="parameter_settings"></a>
 
 ![Parameter Settings](./images/parameter_settings.png)
 
 ##### Remove Parameter
-Select the parameter you want to delete by clicking on the `=` icon in the upper left corner of the parameter. Ensure it is highlighted in blue, as shown in the image below. Then click the `-` icon at the bottom of the parameter collection.
+Select the parameter by clicking the `=` icon in its top-left corner (it turns blue). Click `-` at the bottom to remove it.
 
-> **Note:** Make sure that the removed parameter is **not** used in your simulation.
+> **Note:** Ensure the removed parameter is **not** used in your simulation.
 
-> **Note:** It is recommended to save the previous log files in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)) and then delete this folder to make sure that the header is correct.
+> **Note:** Back up and remove the log folder *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* to refresh headers.
 
 ![Remove Parameter](./images/remove_parameter.png)
 
 #### Objectives
-The objectives are the inputs that the optimizer receives. You can create, change, or remove such objectives in this configuration section.
+Objectives are sent to the optimizer. You can create, change, or remove objectives.
 
 ##### Create Objective
-Click on the `+` symbol at the bottom of the objective collection. A new prefilled objective will appear, which needs to be edited accordingly. How to edit it is explained [here](#change-objective).
+Click `+` at the bottom of the objective list to add a prefilled entry, then edit it as described [here](#change-objective).
 
-> **Note:** An objective must be given a value before the optimization step to make it work. In this demo, this can be done by creating a new question in the questionnaire or by changing a question for another objective to the new objective. How to do this is explained below.
+> **Note:** Each objective must receive a value before optimization. In the demo, create a new questionnaire item or map an existing one to the objective (see below).
 
-> **Note:** It is recommended to save the previous log files in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/<USER_ID>/* (replace <USER_ID> with the set [User ID](#study-settings)) and then delete this folder to make sure that the header is correct.
+> **Note:** Back up logs in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* and delete the folder to refresh headers.
 
-> **Note:** Changing the header when adding an objective is also essential for the .csv files used by the optimizer when using the [warm start option](#warm-start-settings)!
+> **Note:** For [warm start](#warm-start-settings), CSV headers must match after adding objectives.
 
 ###### Create Question
-In the hierarchy of the *BO-example-scene*, go to *QTQuestionnaireManager/QuestionPage-1*. On the right side, you will see *Question Item Creation*. Select the inputs as needed (the *Header Name* must be the same as the corresponding objective name). Then click on *Create Item* and the question will be added. Now you can edit the question by following the next paragraph.
+In *BO-example-scene* hierarchy, go to *QTQuestionnaireManager/QuestionPage-1*. In *Question Item Creation*, set the inputs (the *Header Name* must match the objective name), then click *Create Item*. Edit as needed.
 
 ###### Change Existing Question
-In the hierarchy of the *BO-example-scene*, go to *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/* and select the question you want to change. To make the question count for the new objective, the *Header Name* of the question must be the same as the objective name.
+In *QTQuestionnaireManager/QuestionPage-1/Scroll View/Viewpoint/Content/*, select the question and set its *Header Name* to the objective name.
 
 ##### Change Objective
-Adjustable options are explained from top to bottom. You can see them in the inspector by clicking on the drop-down arrow of an objective, as shown in the [image](#objective_settings) below.
+Options, top to bottom:
 
 | **Name**                       | **Description**                                                                                      |
 |--------------------------------|------------------------------------------------------------------------------------------------------|
-| **Number of Sub Measures**     | Specifies how many values exist for this object (e.g., the number of questions). Must be at least 1. |
-| **Values**                     | Displays the values after the questionnaire is completed.                                            |
-| **Lower/Upper Bound**          | Sets a range to limit the values of the objective.                                               |
-| **Smaller is Better**          | Indicates whether smaller values are preferable (default is that higher values are better).          |
+| **Number of Sub Measures**     | Number of values for this objective (e.g., count of questions). Minimum 1.                           |
+| **Values**                     | Values populated after the questionnaire is completed.                                               |
+| **Lower/Upper Bound**          | Bounds that restrict the objective values.                                                           |
+| **Smaller is Better**          | Whether lower values are preferable (default: higher is better).                                     |
 <a id="objective_settings"></a>
 
 ![Objective Settings](./images/objective_settings.png)
 
 ##### Remove Objective
-Select the objective you want to delete by clicking on the  `=` icon in the upper left corner of the objective. Make sure it is highlighted in blue as shown in the image below. Then click on the `-` icon at the bottom of the objective collection.
+Select the objective by clicking the `=` icon in its top-left corner (turns blue). Click `-` at the bottom to remove it.
 
-> **Note:** Make sure you do the reverse of what you must do when adding an objective.
+> **Note:** Reverse the steps you performed when adding the objective.
 
 ![Remove Objective](./images/remove_objective.png)
 
 #### Python Settings
-In the top section shown in this [image](#py_st_ws_pr_settings), you have to set the path to Python manually. To do this, you need to get the local path of **your Python installation**.
-* For Windows, you can enter a CMD terminal and type `where python`. This will list all installed Python versions.
-* For Linux or macOS, you can go into a terminal and type `which python3`.
-Now, you can copy the path to the *newest* Python version displayed in the list.
+In the top section shown in this [image](#py_st_ws_pr_settings), set the path to **your Python installation**.
+* Windows: `where python`
+* Linux/macOS: `which python3`  
+Copy the path to the *newest* Python version shown.
 
-Afterwards, you have to check the box in the *Python Settings* section of the *BOforUnityManager* and replace the default path with the copied path in the text field.
+Then, in *BOforUnityManager* → *Python Settings*, check the box and paste the path.
 
-These steps ensure BOforUnityManager launches the exact Python version you selected, regardless of what other versions are installed on the system.
+These steps ensure *BOforUnityManager* launches the exact Python you select.
 
 #### Study Settings
-You can set individual study settings in the next section of the [image](#py_st_ws_pr_settings). Here, you can set the ID of the user (User ID), the ID of the current condition (Condition ID), and the ID of the current group (Group ID). This ensures sortable results.
+Set `User ID`, `Condition ID`, and `Group ID` in the next section of the [image](#py_st_ws_pr_settings) to keep results sortable.
 
 #### Warm Start & Perfect Rating Settings
-The following explanations refer to the lower part of this [image](#py_st_ws_pr_settings).
+These options are in the lower part of this [image](#py_st_ws_pr_settings).
 
 ##### Warm Start Settings
-* If you check the Warm Start box, the initial rounds will be skipped. As a result, from the first iteration on, the optimizer will start optimizing using the results of a previous study. The results of the previous study must be given as .csv files. They must have a certain shape, as seen in the example data in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. In addition, the *ObservationsPerEvaluation.csv* of the previous study must be copied into the log data of the new study (For the example warm start, you can copy the contents of the *ExampleObservationsPerEvaluation.csv* located in the *InitData* folder into the *ObservationsPerEvaluation.csv*).
+* Checking **Warm Start** skips the initial rounds. Optimization starts from prior results supplied as CSVs, formatted like the examples in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. Also copy the prior *ObservationsPerEvaluation.csv* into the new study’s log folder (e.g., use *ExampleObservationsPerEvaluation.csv* as a template).
+* Leaving it unchecked uses the default start. After the specified number of initial iterations (minimum 2), optimization begins using the collected values.
 
-* Leaving the box unchecked results in the default start. After the specified number of initial iterations (must be at least 2!), the optimizer uses all the collected values to start the optimization process.
+> **Note:** CSV formats for warm start **must** match the examples. Headers must match the current number of parameters and objectives. Using logs from a prior study with the same settings satisfies this.
 
-> **Note:** To work, the format of the .csv files needed for the warm start **MUST** be the same as in the example CSV files! Check the header to see what values are required. This also means that the number of parameters and targets in the .csv files provided for the warm start must match the number used for the optimization afterwards. This is automatically the case if you use the log data of a previous study (with the same settings!) as input files.
-
-> **Note:** If you go back to the default start, make sure that the number of initial rounds is at least **2**!
+> **Note:** If you revert to the default start, set **N Initial ≥ 2**.
 
 ##### Perfect Rating Settings
-
-* The perfect rating is disabled by default (unchecked box).
-* The option for **perfect rating** is enabled by checking the box. AS a result, the check for a perfect rating will be performed, and the system will terminate if a perfect rating is achieved.
-* If *Perfect Rating In Initial Rounds* is also checked (appears only when perfect rating is active), a perfect rating can also be achieved in the initial rounds (sampling phase).
+* Disabled by default.
+* Enable **Perfect Rating** to terminate when a perfect rating is achieved.
+* If **Perfect Rating In Initial Rounds** is checked (visible only when perfect rating is active), a perfect rating can also terminate during sampling.
 <a id="py_st_ws_pr_settings"></a>
 
 ![Python, Study, Warm Start & Perfect Rating Settings](./images/python_study_ws_pr_settings.png)
 
-#### BO-Hyper-Parameters 
+#### BO-Hyper-Parameters
 
-BO-Hyper-Parameters control the behavior of the optimization process, such as the number of iterations, sampling strategies, and evaluation settings. These parameters influence how efficiently and effectively the optimizer searches for the best solution within the defined space. The adjustable hyperparameters are shown in this [image](#BO_hyper_settings).
+BO hyperparameters control iteration counts, sampling, and evaluation settings. They affect how efficiently the optimizer searches the space. The adjustable hyperparameters are shown in this [image](#BO_hyper_settings).
 
 | **Name**       | **Default Value** | **Description**                                                                                   | **More Information**                                                                                                   |
 |-----------------|-------------------|---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
-| **N Initial**   | 5                 | Number of initial evaluations to gather before optimization begins. Also known as the length of the sampling phase.                              |                                                                                                                        |
-| **N Iterations**| 10                | Number of iterations the optimizer will perform to refine the results. Also known as the length of the optimization phase.                               |                                                                                                                        |
-| **Total Iterations** | 15           | Sum of `N Initial` and `N Iterations` representing the total number of iterations.               |                                                                                                                        |
-| **Batch Size**  | 1                 | Number of evaluations performed in parallel during optimization.                                  | [Batch Size Explanation](https://mljourney.com/how-does-batch-size-affect-training/)                                      |
-| **Num Restarts**| 10                | Number of optimization restarts to escape local optima and ensure better results.             |                 |
-| **Raw Samples** | 1024              | Number of random samples taken to initialize the optimization process.                           |                                             |
-| **MC Samples**  | 512               | Number of Monte Carlo samples used to approximate expected utility in BO.      | [MC Samples Explanation](https://www.sciencedirect.com/topics/mathematics/monte-carlo-simulation)                      |
-| **Seed**        | 3                 | Seed value for random number generation to ensure reproducibility of optimization runs.           | [Seed Explanation](https://en.wikipedia.org/wiki/Random_seed)                                                          |
+| **N Initial**   | 5                 | Number of initial evaluations before optimization; the sampling phase length.                     |                                                                                                                        |
+| **N Iterations**| 10                | Number of iterations used to refine results; the optimization phase length.                       |                                                                                                                        |
+| **Total Iterations** | 15           | Sum of `N Initial` and `N Iterations`.                                                            |                                                                                                                        |
+| **Batch Size**  | 1                 | Number of evaluations performed in parallel.                                                      | [Batch Size Explanation](https://mljourney.com/how-does-batch-size-affect-training/)                                   |
+| **Num Restarts**| 10                | Optimization restarts to escape local optima.                                                     |                                                                                                                        |
+| **Raw Samples** | 1024              | Random samples to initialize acquisition optimization.                                            |                                                                                                                        |
+| **MC Samples**  | 512               | Monte Carlo samples to approximate the acquisition function.                                      | [MC Samples Explanation](https://www.sciencedirect.com/topics/mathematics/monte-carlo-simulation)                      |
+| **Seed**        | 3                 | Random seed for reproducibility.                                                                  | [Seed Explanation](https://en.wikipedia.org/wiki/Random_seed)                                                          |
 
 
-> **Note:** The number of initial rounds must be **at least 2!** Use the warm start option instead if you want to skip the initial rounds.
+> **Note:** **N Initial ≥ 2**. Use warm start if you want to skip sampling.
 <a id="BO_hyper_settings"></a>
 
-![BO Hyperprameter Settings](./images/BO_hyperparameter_settings.png)
+![BO Hyperparameter Settings](./images/BO_hyperparameter_settings.png)
 
 ## System Architecture
-This chapter explains the system architecture, making it easier for you to work with it as a base and develop the asset to meet your own needs. The system architecture can be explained with the following diagram.
+This section explains the architecture to help you extend the asset. The diagram below summarizes the flow.
 
 ![System Architecture](./images/System_Architecture.png)
 
-At the top, you can see the *BoForUnityManagerEditor.cs*, where you can edit the *BoForUnityManager.prefab*. So you can change what can be set there, how the descriptions for the settings look, and so on. The *BoForUnityManager.prefab* settings can be set via the *Unity Inspector* as explained in the [Configuration](#Configuration) chapter.\
-The settings are used by *BoForUnityManager.cs,* which manages the whole process and is located in the middle of the diagram. It starts the Python server first with *PythonStarter.cs*.\
-Once the Python server has been successfully started, *BoForUnityManager.cs* communicates with the *mobo.py* script running on the server. It does this based on the *SocketNetwork.cs* script.\
-After receiving data from *SocketNetwork.cs* it passes it to *Optimizer.cs*, which updates the design parameters for the simulation.\
-The *BoForUnityManager.cs* script also checks which iteration is active and manages the process accordingly.
+At the top is *BoForUnityManagerEditor.cs*, which edits the *BoForUnityManager.prefab* (what can be set and how it is described). The prefab’s settings are configured in the Unity Inspector as explained in [Configuration](#configuration).\
+*BoForUnityManager.cs* manages the process and first starts the Python server via *PythonStarter.cs*.\
+Once the server is running, *BoForUnityManager.cs* communicates with *mobo.py* using *SocketNetwork.cs*.\
+After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
+*BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
 ## Portability to Your Own Project
-If you want to use this optimization tool in your own project, you can export it as a Unity package and import it into your project. To do so, follow these steps: 
-1. Make sure you are in the *Assets* folder in the Unity project hierarchy. 
-2. Click on `Assets` in the top menu and then on `Export Package`. 
-3. Click `None` to deselect all files.
-4. Select these three folders: *BOforUnity*, *QuestionnaireToolkit*, *StreamingAssets*.  
-5. Click `Export...` and save the package. 
+To reuse this tool in another project, export it as a Unity package:
+1. In the Unity hierarchy, ensure you are in *Assets*. 
+2. `Assets` → **Export Package...**
+3. Click **None** to deselect all files.
+4. Select: *BOforUnity*, *QuestionnaireToolkit*, *StreamingAssets*.  
+5. Click **Export...** and save the package. 
 
-To include it in your project, return to `Assets` in the top menu and click `Import Package` → `Custom Package...`. Select the package you saved. Then, keep everything selected and press `Import`.
+To import: `Assets` → **Import Package** → **Custom Package...**, select your package, keep all selected, and press **Import**.
 
-> **Note:** Make sure that your project path does not contain any spaces. Otherwise, the Python script cannot find the correct paths.
+> **Note:** Avoid spaces in the project path; otherwise, the Python script may not resolve paths correctly.
 
-> **Note:** If this is a new project, or you have never used *TextMeshPro* in your project, a pop-up will appear to install *TextMeshPro-Essentials*. Install this as well to make the text boxes work. Refresh the scene afterwards to reload the text boxes if necessary.
-
-
+> **Note:** On first use of *TextMeshPro*, install *TextMeshPro-Essentials* when prompted. Refresh the scene if needed.
 
 ## Citation
 
@@ -356,8 +327,9 @@ If you use this software, please cite:
 ```
 
 ## License
-This project is under the **MIT License**, which can be found in the folder where this README is located.
+This project is under the **MIT License**, available in the repository folder containing this README.
 
 \
 \
 <span style="color:gray">*README written by Sebastian Lommen*</span>
+</pre>
