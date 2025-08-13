@@ -12,13 +12,6 @@ namespace BOforUnity.Scripts
 {
     public class Optimizer : MonoBehaviour
     {
-        private const bool Continuous = false;
-        private const bool Discrete = true;
-        private const bool BiggerIsBetter = false;
-        private const bool SmallerIsBetter = true;
-        private const int Likert7Scale = 7;
-        private const int Likert5Scale = 5;
-
         private List<Dictionary<string, object>> _csvData;
 
         private BoForUnityManager _bomanager;
@@ -26,31 +19,6 @@ namespace BOforUnity.Scripts
         public void Start()
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
-        }
-        
-        public void DebugOptimizer()
-        {
-            Debug.Log("Debug: Add Parameters");
-
-            // Add Parameters with value ranges and if it is discrete/continuous
-            /*
-            AddParameter("Trajectory", 0f, 1f, Continuous);
-            AddParameter("TrajectoryAlpha", 0.1f, 1f, Continuous);
-            AddParameter("TrajectorySize", 0.1f, 0.6f, Continuous);
-            AddParameter("EgoTrajectory", 0f, 1f, Continuous);
-            AddParameter("EgoTrajectoryAlpha", 0.1f, 1f, Continuous);
-            AddParameter("EgoTrajectorySize", 0.1f, 0.6f, Continuous);
-            AddParameter("PedestrianIntention", 0f, 1f, Continuous);
-            AddParameter("PedestrianIntentionSize", 0.1f, 0.2f, Continuous);
-            AddParameter("SemanticSegmentation", 0f, 1f, Continuous);
-            AddParameter("SemanticSegmentationAlpha", 0.1f, 1f, Continuous);
-            AddParameter("CarStatus", 0f, 1f, Continuous);
-            AddParameter("CarStatusAlpha", 0.1f, 1f, Continuous);
-            AddParameter("CoveredArea", 0f, 1f, Continuous);
-            AddParameter("CoveredAreaAlpha", 0.1f, 1f, Continuous);
-            AddParameter("CoveredAreaSize", 0.2f, 0.8f, Continuous);
-            AddParameter("OccludedCars", 0f, 1f, Continuous);
-            */
         }
 
         /// <summary>
@@ -77,36 +45,11 @@ namespace BOforUnity.Scripts
         /// <param name="name"></param>
         /// <param name="lowerBound"></param>
         /// <param name="upperBound"></param>
-        /// <param name="step"></param>
-        /// <param name="isDiscrete"></param>
-        public void AddParameter(string name, float lowerBound, float upperBound, float step, bool isDiscrete)
+        public void AddParameter(string name, float lowerBound, float upperBound)
         {
             try
             {
-                _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound, (isDiscrete) ? step : 0)));
-            }
-            catch (ArgumentException)
-            {
-                //Debug.LogError($"An element with Key = {name} already exists.", Instance);
-            }
-        }
-    
-        /// <summary>
-        /// The second method, addParameter(string name, float lowerBound, float upperBound, float step, bool isDiscrete),
-        /// adds a new parameter with the given name, lowerBound, upperBound, step (if isDiscrete is true), and stores it
-        /// in the parameters dictionary. "step" is always 1 if using this method.
-        /// </summary>
-        /// <param name="name"></param>
-        /// <param name="lowerBound"></param>
-        /// <param name="upperBound"></param>
-        /// <param name="step"></param>
-        /// <param name="isDiscrete"></param>
-        public void AddParameter(string name, float lowerBound, float upperBound, bool isDiscrete)
-        {
-            int step = 1;
-            try
-            {
-                _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound, (isDiscrete) ? step : 0)));
+                _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound)));
             }
             catch (ArgumentException)
             {
@@ -256,124 +199,6 @@ namespace BOforUnity.Scripts
                 }
             }
             return value;
-        }
-
-
-        // Update design parameters based on the current optimization values.
-        // Retrieve parameter values from the optimizer and set them in related components.
-        // Control various design features based on parameter values.
-        public void UpdateDesignParameters()
-        {
-            Debug.Log("Updating Parameters");
-
-            foreach (var pa in _bomanager.parameters)
-            {
-                if (pa.value.gameObjectName != null && pa.value.scriptName != null && !string.IsNullOrEmpty(pa.value.variableName))
-                {
-                    // Find the GameObject by its name
-                    GameObject obj = GameObject.Find(pa.value.gameObjectName);
-                    if (obj == null)
-                    {
-                        Debug.LogWarning("GameObject not found: " + pa.value.gameObjectName);
-                        continue;
-                    }
-                    // Get all MonoBehaviour components on the GameObject
-                    MonoBehaviour[] scripts = obj.GetComponents<MonoBehaviour>();
-                    // Find the script by its name
-                    MonoBehaviour script = scripts.FirstOrDefault(script => script.GetType().Name == pa.value.scriptName);
-
-                    // Apply discrete logic if applicable
-                    float value = pa.value.Value;
-
-                    if (pa.value.isDiscrete)
-                    {
-                        int steps = Mathf.RoundToInt((pa.value.upperBound - pa.value.lowerBound) / pa.value.step);
-                        if (steps <= 1)
-                        {
-                            bool boolValue = value >= (pa.value.lowerBound + pa.value.upperBound) / 2;
-                            SetBoolFieldOrProperty(script, pa.value.variableName, boolValue);
-                        }
-                        else
-                        {
-                            float stepSize = (pa.value.upperBound - pa.value.lowerBound) / steps;
-                            value = Mathf.Round(value / stepSize) * stepSize;
-                            SetFieldOrProperty(script, pa.value.variableName, value);
-                        }
-                    }
-                    else
-                    {
-                        SetFieldOrProperty(script, pa.value.variableName, value);
-                    }
-                }
-            }
-            
-            /*
-            float trajectoryValue = GetParameterValue("Trajectory");
-            float trajectoryAlphaValue = GetParameterValue("TrajectoryAlpha");
-            float trajectorySizeValue = GetParameterValue("TrajectorySize");
-            
-            trajectoryParameter.setTrajectoryAlpha(trajectoryAlphaValue);
-            trajectoryParameter.setTrajectorySize(trajectorySizeValue);
-            
-            if (trajectoryValue < 0.5f)
-            {
-                trajectoryParameter.setTrajectory(false);
-            }
-            else if (trajectoryValue >= 0.5f)
-            {
-                trajectoryParameter.setTrajectory(true);
-            }
-            */
-        }
-        
-        private void SetFieldOrProperty(MonoBehaviour script, string variableName, float value)
-        {
-            if (script == null)
-            {
-                Debug.LogWarning($"Script is null, cannot set {variableName}");
-                return;
-            }
-            
-            FieldInfo field = script.GetType().GetField(variableName, BindingFlags.Instance | BindingFlags.Public);
-            PropertyInfo property = script.GetType().GetProperty(variableName, BindingFlags.Instance | BindingFlags.Public);
-
-            if (field != null && field.FieldType == typeof(float))
-            {
-                field.SetValue(script, value);
-            }
-            else if (property != null && property.PropertyType == typeof(float))
-            {
-                property.SetValue(script, value, null);
-            }
-            else
-            {
-                Debug.LogWarning($"Variable {variableName} not found or not of type float in {script.name}");
-            }
-        }
-
-        private void SetBoolFieldOrProperty(MonoBehaviour script, string variableName, bool value)
-        {
-            if (script == null)
-            {
-                Debug.LogWarning($"Script is null, cannot set {variableName}");
-                return;
-            }
-            
-            FieldInfo field = script.GetType().GetField(variableName, BindingFlags.Instance | BindingFlags.Public);
-            PropertyInfo property = script.GetType().GetProperty(variableName, BindingFlags.Instance | BindingFlags.Public);
-
-            if (field != null && field.FieldType == typeof(bool))
-            {
-                field.SetValue(script, value);
-            }
-            else if (property != null && property.PropertyType == typeof(bool))
-            {
-                property.SetValue(script, value, null);
-            }
-            else
-            {
-                Debug.LogWarning($"Variable {variableName} not found or not of type bool in {script.name}");
-            }
         }
     }
 }

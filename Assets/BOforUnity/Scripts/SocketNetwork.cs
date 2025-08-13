@@ -217,7 +217,7 @@ namespace BOforUnity.Scripts
             string d = "";
             
             a += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
-                 $"{_bomanager.nIterations},{_bomanager.mcSamples},{_bomanager.nInitial},{_bomanager.seed}," +
+                 $"{_bomanager.numOptimizationIterations},{_bomanager.mcSamples},{_bomanager.numSamplingIterations},{_bomanager.seed}," +
                  $"{_bomanager.parameters.Count},{_bomanager.objectives.Count}_" +
                  $"{_bomanager.warmStart},{_bomanager.initialParametersDataPath},{_bomanager.initialObjectivesDataPath}";
 

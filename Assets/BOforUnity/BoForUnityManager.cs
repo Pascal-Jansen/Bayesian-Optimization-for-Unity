@@ -45,10 +45,12 @@ namespace BOforUnity
         public int batchSize = 1;
         public int numRestarts = 10;
         public int rawSamples = 1024;
-        public int nIterations = 10;
         public int mcSamples = 512;
-        public int nInitial = 5; // in typical MOBO problems, this should be 2(d+1), where d is the number of objectives
+        public int numSamplingIterations = 5; // in typical MOBO problems, this should be 2(d+1), where d is the number of objectives
+        public int numOptimizationIterations = 10;
         public int seed = 3;
+        
+        [SerializeField] private bool enableSamplingEdit = false; // checkbox in inspector
         
         public bool warmStart = false;
         public bool perfectRatingActive = false;
@@ -59,6 +61,8 @@ namespace BOforUnity
         public string userId = "-1";
         public string conditionId = "-1";
         public string groupId = "-1";
+
+        public bool hasNewDesignParameterValues;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -80,7 +84,7 @@ namespace BOforUnity
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
 
             currentIteration = 1;
-            totalIterations = nInitial + nIterations; // set how many iterations the optimizer should run for
+            totalIterations = numSamplingIterations + numOptimizationIterations; // set how many iterations the optimizer should run for
         }
         
         void Start()
@@ -142,7 +146,7 @@ namespace BOforUnity
                     isPerfect = IsPerfectRating();
                 }
                 // Else wait until the initial rounds are over and then check for perfect rating
-                else if (perfectRatingInInitialRounds == false && currentIteration > nInitial)
+                else if (perfectRatingInInitialRounds == false && currentIteration > numSamplingIterations)
                 {
                     isPerfect = IsPerfectRating();
                 }
@@ -185,6 +189,7 @@ namespace BOforUnity
         {
             Debug.Log("Optimization START");
             socketNetwork.SendObjectives(); // send the current objective values to the Python process
+            hasNewDesignParameterValues = false; // the current design parameter values are obsolete
             optimizationRunning = true;
             simulationRunning = false;
 
@@ -197,7 +202,10 @@ namespace BOforUnity
         public void OptimizationDone()
         {
             Debug.Log("Optimization DONE");
-            optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
+            // ---------------
+            // now, apply the parameter value of the current iteration ...
+            hasNewDesignParameterValues = true;
+            // ---------------
             optimizationRunning = false;
             
             loadingObj.SetActive(false); // hide as the optimizer has finished running
@@ -210,7 +218,10 @@ namespace BOforUnity
         public void InitializationDone()
         {
             Debug.Log("Initialization DONE");
-            optimizer.UpdateDesignParameters(); // apply the parameter value of the current iteration
+            // ---------------
+            // now, apply the parameter value of the current iteration ...
+            hasNewDesignParameterValues = true;
+            // ---------------
             optimizationRunning = false;
             
             initialized = true;
@@ -278,47 +289,11 @@ namespace BOforUnity
         //-----------------------------------------------
         
         
-        //-----------------------------------------------
-        // SETTINGS SCRIPT
-
-        //[Header("Server Client Communication for LogFiles")]
-        //public bool serverClientCommunication;
-        //public string downloadURLGroupID = "https://barakuda.de/longitudinal_uploads/GroupID_Database.csv";
-        //public string downloadURLlongitudinalID = "https://barakuda.de/longitudinal_uploads/LongitudinalID_Database.csv";
-        //public string lockFileURL = "https://barakuda.de/longitudinal_uploads/S_Lock_file.lock";
-        //public string uploadURL = "https://barakuda.de/longitudinal_save_csv.php";
-        //public string groupDatabaseName = "GroupID_Database.csv";
-        //public string longitudinalDatabaseName = "LongitudinalID_Database.csv";
-        //public string lockFileName = "S_Lock_file.lock";
-
+        //--------------------------------------------
         [Header("Location of Python executable")]
         public bool localPython;
         public string pythonPath;
-       /* 
-        public bool getServerClientCommunication() { return serverClientCommunication; }
-        public void setServerClientCommunication(bool a) { serverClientCommunication = a; }
-        
-        public string getDownloadURLGroupID() { return downloadURLGroupID; }
-        public void setDownloadURLGroupID(string a) { downloadURLGroupID = a; }
-        
-        public string getDownloadURLLongitudinalID() { return downloadURLlongitudinalID; }
-        public void setDownloadURLLongitudinalID(string a) { downloadURLlongitudinalID = a; }
 
-        public string getLockFileUrl() { return lockFileURL; }
-        public void setLockFileUrl(string a) { lockFileURL = a; }
-
-        public string getUploadURL() { return uploadURL; }
-        public void setUploadURL(string a) { uploadURL = a; }
-
-        public string getGroupDatabaseName() { return groupDatabaseName; }
-        public void setGroupDatabaseName(string a) { groupDatabaseName = a; }
-        
-        public string getLongitudinalDatabaseName() { return longitudinalDatabaseName; }
-        public void setLongitudinalDatabaseName(string a) { longitudinalDatabaseName = a; }
-
-        public string getLockFileName() { return lockFileName; }
-        public void setLockFileName(string a) { lockFileName = a; }
-        */
         public bool getLocalPython() { return localPython; }
         public void setLocalPython(bool a) { localPython = a; }
         
@@ -424,18 +399,10 @@ namespace BOforUnity
             /// reference: a float reference that can be used to keep track of the previous value of this parameter, if needed.
             /// </summary>
             [HideInInspector] public int optSeqOrder;
-            public bool isDiscrete = false;
             public float lowerBound = 0.0f;
             public float upperBound = 0.0f;
-            public float step = 1.0f;
             public float Value = 0.0f;
 
-            // Reference to another GameObject's script
-            public MonoBehaviour scriptReference;
-            public string variableName;
-            public string gameObjectName;
-            public string scriptName;
-            
             /// <summary>
             /// ParameterArgs(): a constructor that creates an empty instance of the ParameterArgs class.
             /// </summary>
@@ -454,29 +421,13 @@ namespace BOforUnity
             }
 
             /// <summary>
-            /// ParameterArgs(lowerBound, upperBound, step): a constructor that creates an instance of the ParameterArgs class and sets
-            /// the lower and upper bounds of the acceptable range of values for this parameter, as well as the step size for a discrete
-            /// parameter.
-            /// </summary>
-            /// <param name="lowerBound"></param>
-            /// <param name="upperBound"></param>
-            /// <param name="step"></param>
-            public ParameterArgs(float lowerBound, float upperBound, float step)
-            {
-                this.lowerBound = lowerBound;
-                this.upperBound = upperBound;
-                this.step = step;
-                isDiscrete = true;
-            }
-
-            /// <summary>
             /// GetInitInfoStr(): a method that returns a string representing the initial configuration of this parameter, including the lower
             /// and upper bounds and the step size.
             /// </summary>
             /// <returns></returns>
             public string GetInitInfoStr()
             {
-                return $"{lowerBound},{upperBound},{step}/";
+                return $"{lowerBound},{upperBound}/";
             }
         }
 }

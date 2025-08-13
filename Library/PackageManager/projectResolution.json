@@ -1,272 +1,355 @@
 {
   "context": {
     "projectPath": "C:/Users/SunyyPC/Desktop/Bayesian-Optimization-for-Unity/Packages",
-    "unityVersion": "6000.0.31f1"
+    "unityVersion": "6000.1.7f1"
   },
   "inputs": [
     "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Packages\\manifest.json",
-    "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Packages\\packages-lock.json"
+    "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Packages\\packages-lock.json",
+    "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\BuiltInPackagesCombined.sha1"
   ],
   "outputs": {
-    "com.unity.ide.rider@3.0.31": {
+    "com.unity.ide.rider@3.0.36": {
       "name": "com.unity.ide.rider",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.ide.rider",
-      "fingerprint": "7921be93db40ec070fcb01ed82d1c3df1bbdddcd",
-      "editorCompatibility": "2019.2.6f1",
-      "version": "3.0.31",
-      "source": "registry"
+      "displayName": "JetBrains Rider Editor",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.ide.rider@4d374c7eb6db",
+      "fingerprint": "4d374c7eb6db6907c7e6925e3086c3c73f926e13",
+      "editorCompatibility": "2019.4.6f1",
+      "version": "3.0.36",
+      "source": "registry",
+      "testable": false
     },
     "com.unity.multiplayer.center@1.0.0": {
       "name": "com.unity.multiplayer.center",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.multiplayer.center",
-      "fingerprint": "f502d8ac613fa076192423e73892fbd89eb4049b",
+      "displayName": "Multiplayer Center",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.multiplayer.center@f3fb577b3546",
+      "fingerprint": "f3fb577b3546594b97b8cc34307cd621f60f1c73",
       "editorCompatibility": "6000.0.0a1",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.toolchain.win-x86_64-linux-x86_64@2.0.10": {
       "name": "com.unity.toolchain.win-x86_64-linux-x86_64",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.toolchain.win-x86_64-linux-x86_64",
+      "displayName": "Toolchain Win Linux x64",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.toolchain.win-x86_64-linux-x86_64@426618737602",
       "fingerprint": "426618737602d0ff76e85db678b73b56aa2e891a",
       "editorCompatibility": "2019.4.0a1",
       "version": "2.0.10",
-      "source": "registry"
+      "source": "registry",
+      "testable": false
     },
     "com.unity.ugui@2.0.0": {
       "name": "com.unity.ugui",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.ugui",
-      "fingerprint": "fd5da3b4bec8d043b01c30177bd62059c5fa36d0",
+      "displayName": "Unity UI",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.ugui@4f1c21fcc9bc",
+      "fingerprint": "4f1c21fcc9bcee6987a89cc276da72ac77ce3db1",
       "editorCompatibility": "2019.2.0a1",
       "version": "2.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.accessibility@1.0.0": {
       "name": "com.unity.modules.accessibility",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.accessibility",
+      "displayName": "Accessibility",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.accessibility",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.ai@1.0.0": {
       "name": "com.unity.modules.ai",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.ai",
+      "displayName": "AI",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.ai",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.androidjni@1.0.0": {
       "name": "com.unity.modules.androidjni",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.androidjni",
+      "displayName": "Android JNI",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.androidjni",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.animation@1.0.0": {
       "name": "com.unity.modules.animation",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.animation",
+      "displayName": "Animation",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.animation",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.assetbundle@1.0.0": {
       "name": "com.unity.modules.assetbundle",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.assetbundle",
+      "displayName": "Asset Bundle",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.assetbundle",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.audio@1.0.0": {
       "name": "com.unity.modules.audio",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.audio",
+      "displayName": "Audio",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.audio",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.cloth@1.0.0": {
       "name": "com.unity.modules.cloth",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.cloth",
+      "displayName": "Cloth",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.cloth",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.director@1.0.0": {
       "name": "com.unity.modules.director",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.director",
+      "displayName": "Director",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.director",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.imageconversion@1.0.0": {
       "name": "com.unity.modules.imageconversion",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.imageconversion",
+      "displayName": "Image Conversion",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.imageconversion",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.imgui@1.0.0": {
       "name": "com.unity.modules.imgui",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.imgui",
+      "displayName": "IMGUI",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.imgui",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.jsonserialize@1.0.0": {
       "name": "com.unity.modules.jsonserialize",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.jsonserialize",
+      "displayName": "JSONSerialize",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.jsonserialize",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.particlesystem@1.0.0": {
       "name": "com.unity.modules.particlesystem",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.particlesystem",
+      "displayName": "Particle System",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.particlesystem",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.physics@1.0.0": {
       "name": "com.unity.modules.physics",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.physics",
+      "displayName": "Physics",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.physics",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.physics2d@1.0.0": {
       "name": "com.unity.modules.physics2d",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.physics2d",
+      "displayName": "Physics 2D",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.physics2d",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.screencapture@1.0.0": {
       "name": "com.unity.modules.screencapture",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.screencapture",
+      "displayName": "Screen Capture",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.screencapture",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.terrain@1.0.0": {
       "name": "com.unity.modules.terrain",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.terrain",
+      "displayName": "Terrain",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.terrain",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.terrainphysics@1.0.0": {
       "name": "com.unity.modules.terrainphysics",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.terrainphysics",
+      "displayName": "Terrain Physics",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.terrainphysics",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.tilemap@1.0.0": {
       "name": "com.unity.modules.tilemap",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.tilemap",
+      "displayName": "Tilemap",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.tilemap",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.ui@1.0.0": {
       "name": "com.unity.modules.ui",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.ui",
+      "displayName": "UI",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.ui",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.uielements@1.0.0": {
       "name": "com.unity.modules.uielements",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.uielements",
+      "displayName": "UIElements",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.uielements",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.umbra@1.0.0": {
       "name": "com.unity.modules.umbra",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.umbra",
+      "displayName": "Umbra",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.umbra",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.unityanalytics@1.0.0": {
       "name": "com.unity.modules.unityanalytics",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.unityanalytics",
+      "displayName": "Unity Analytics",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.unityanalytics",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.unitywebrequest@1.0.0": {
       "name": "com.unity.modules.unitywebrequest",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.unitywebrequest",
+      "displayName": "Unity Web Request",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.unitywebrequest",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.unitywebrequestassetbundle@1.0.0": {
       "name": "com.unity.modules.unitywebrequestassetbundle",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.unitywebrequestassetbundle",
+      "displayName": "Unity Web Request Asset Bundle",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.unitywebrequestassetbundle",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.unitywebrequestaudio@1.0.0": {
       "name": "com.unity.modules.unitywebrequestaudio",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.unitywebrequestaudio",
+      "displayName": "Unity Web Request Audio",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.unitywebrequestaudio",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.unitywebrequesttexture@1.0.0": {
       "name": "com.unity.modules.unitywebrequesttexture",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.unitywebrequesttexture",
+      "displayName": "Unity Web Request Texture",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.unitywebrequesttexture",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.unitywebrequestwww@1.0.0": {
       "name": "com.unity.modules.unitywebrequestwww",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.unitywebrequestwww",
+      "displayName": "Unity Web Request WWW",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.unitywebrequestwww",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.vehicles@1.0.0": {
       "name": "com.unity.modules.vehicles",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.vehicles",
+      "displayName": "Vehicles",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.vehicles",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.video@1.0.0": {
       "name": "com.unity.modules.video",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.video",
+      "displayName": "Video",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.video",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.vr@1.0.0": {
       "name": "com.unity.modules.vr",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.vr",
+      "displayName": "VR",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.vr",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.wind@1.0.0": {
       "name": "com.unity.modules.wind",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.wind",
+      "displayName": "Wind",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.wind",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.xr@1.0.0": {
       "name": "com.unity.modules.xr",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.xr",
+      "displayName": "XR",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.xr",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.subsystems@1.0.0": {
       "name": "com.unity.modules.subsystems",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.subsystems",
+      "displayName": "Subsystems",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.subsystems",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.modules.hierarchycore@1.0.0": {
       "name": "com.unity.modules.hierarchycore",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.modules.hierarchycore",
+      "displayName": "Hierarchy Core",
+      "resolvedPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.7f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages\\com.unity.modules.hierarchycore",
       "version": "1.0.0",
-      "source": "builtin"
+      "source": "builtin",
+      "testable": false
     },
     "com.unity.sysroot@2.0.10": {
       "name": "com.unity.sysroot",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.sysroot",
+      "displayName": "Sysroot Base",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.sysroot@7bbbb9339c14",
       "fingerprint": "7bbbb9339c143f6fbccaeb0a52c77b9217b35a71",
       "editorCompatibility": "2019.4.0a1",
       "version": "2.0.10",
-      "source": "registry"
+      "source": "registry",
+      "testable": false
     },
     "com.unity.sysroot.linux-x86_64@2.0.9": {
       "name": "com.unity.sysroot.linux-x86_64",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.sysroot.linux-x86_64",
+      "displayName": "Sysroot Linux x64",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.sysroot.linux-x86_64@1998d1c7730e",
       "fingerprint": "1998d1c7730e48fa49f28d983fececfc9cbd970b",
       "editorCompatibility": "2019.4.0a1",
       "version": "2.0.9",
-      "source": "registry"
+      "source": "registry",
+      "testable": false
     },
     "com.unity.ext.nunit@2.0.5": {
       "name": "com.unity.ext.nunit",
-      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.ext.nunit",
-      "fingerprint": "60ef35ffd3cd5e2f5c8887a4a4ca6148854cd092",
+      "displayName": "Custom NUnit",
+      "resolvedPath": "C:\\Users\\SunyyPC\\Desktop\\Bayesian-Optimization-for-Unity\\Library\\PackageCache\\com.unity.ext.nunit@031a54704bff",
+      "fingerprint": "031a54704bffe39e6a0324909f8eaa4565bdebf2",
       "editorCompatibility": "2019.4.0a1",
       "version": "2.0.5",
-      "source": "registry"
+      "source": "builtin",
+      "testable": false
     }
   }
 }

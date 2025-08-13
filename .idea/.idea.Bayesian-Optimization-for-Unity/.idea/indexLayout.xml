@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="ContentModelUserStore">
+    <attachedFolders />
+    <explicitIncludes>
+      <Path>../../AppData/Local/Unity/cache/packages/packages.unity.com/com.unity.sysroot.linux-x86_64@2.0.9</Path>
+      <Path>../../AppData/Local/Unity/cache/packages/packages.unity.com/com.unity.sysroot@2.0.10</Path>
+      <Path>Packages</Path>
+      <Path>ProjectSettings</Path>
+    </explicitIncludes>
+    <explicitExcludes>
+      <Path>.git</Path>
+      <Path>.idea</Path>
+      <Path>Library</Path>
+      <Path>Logs</Path>
+      <Path>Temp</Path>
+      <Path>UserSettings</Path>
+      <Path>images</Path>
+      <Path>obj</Path>
+      <Path>release</Path>
+    </explicitExcludes>
+  </component>
   <component name="UserContentModel">
     <attachedFolders />
     <explicitIncludes />
