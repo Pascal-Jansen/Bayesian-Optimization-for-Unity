@@ -99,3 +99,11 @@ Update Mode: updateDependencies
 
 The following packages were updated:
   com.unity.ide.rider from version 3.0.31 to 3.0.36
+
+=== Tue Sep 23 09:45:25 2025
+
+Packages were changed.
+Update Mode: updateDependencies
+
+The following packages were updated:
+  com.unity.ide.rider from version 3.0.36 to 3.0.37

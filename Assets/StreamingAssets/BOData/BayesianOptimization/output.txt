@@ -1,0 +1,56 @@
+Server starts, waiting for connection...
+Connected by ('127.0.0.1', 50859)
+Init: 1 10 1024 5 512 5 3 2 2
+Generating initial training data...
+Initial Sobol X in [0,1]: tensor([[0.0685, 0.2245],
+        [0.6992, 0.0626],
+        [0.3754, 0.0304],
+        [0.1474, 0.3385],
+        [0.2702, 0.2726]], dtype=torch.float64)
+---- Initial Sample 1
+Send Data: parameters,0.31,0.22
+Objective normalized: [-0.33333333333333337, 0.2971918644067796]
+---- Initial Sample 2
+Send Data: parameters,0.37,0.06
+Objective normalized: [0.6666666666666667, 0.4887302372881356]
+---- Initial Sample 3
+Send Data: parameters,0.34,0.03
+Objective normalized: [0.33333333333333326, 0.5193150508474575]
+---- Initial Sample 4
+Send Data: parameters,0.31,0.34
+Objective normalized: [0.6666666666666667, 0.2586176271186441]
+---- Initial Sample 5
+Send Data: parameters,0.33,0.27
+Objective normalized: [0.0, 0.4119017627118644]
+Project Path for Hypervolumes: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+---- MOBO Iteration 1
+Iter 1 time: 8.95s
+Send Data: parameters,0.34,0.38
+Objective normalized: [-0.6666666666666667, 0.44913322033898306]
+Project Path for Observations: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+Project Path for Hypervolumes: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+---- MOBO Iteration 2
+Iter 2 time: 7.00s
+Send Data: parameters,0.36,0.05
+Objective normalized: [1.0, 0.5745414915254238]
+Project Path for Observations: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+Project Path for Hypervolumes: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+---- MOBO Iteration 3
+Iter 3 time: 4.27s
+Send Data: parameters,0.35,0.09
+Objective normalized: [-0.6666666666666667, 0.7435295593220339]
+Project Path for Observations: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+Project Path for Hypervolumes: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+---- MOBO Iteration 4
+Iter 4 time: 6.49s
+Send Data: parameters,0.35,0.05
+Objective normalized: [0.6666666666666667, 0.7087740338983051]
+Project Path for Observations: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+Project Path for Hypervolumes: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+---- MOBO Iteration 5
+Iter 5 time: 6.30s
+Send Data: parameters,0.37,0.04
+Objective normalized: [-0.33333333333333337, 0.5924623728813558]
+Project Path for Observations: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+Project Path for Hypervolumes: C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Assets\StreamingAssets\BOData\LogData\-1_1
+Send Data: optimization_finished,
