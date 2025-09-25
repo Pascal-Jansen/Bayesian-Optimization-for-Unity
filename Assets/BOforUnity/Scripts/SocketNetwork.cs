@@ -141,12 +141,12 @@ namespace BOforUnity.Scripts
                 }
                 else if (strArr[0] == "coverage")
                 {
-                    coverage = Convert.ToSingle(strArr[1]);
+                    coverage = float.Parse(strArr[1], CultureInfo.InvariantCulture);
                     Debug.Log($"coverage {coverage}");
                 }
                 else if (strArr[0] == "tempCoverage")
                 {
-                    tempCoverage = Convert.ToSingle(strArr[1]);
+                    tempCoverage = float.Parse(strArr[1], CultureInfo.InvariantCulture);
                     Debug.Log($"tempCoverage {tempCoverage}");
                 }
                 else
@@ -248,7 +248,7 @@ namespace BOforUnity.Scripts
                 c += ob.key + ",";
             }
 
-            // Delete last / from string a and c
+            // Remove the trailing comma segments that were appended while building the strings
             b = b.Substring(0, b.Length - 1);
             c = c.Substring(0, c.Length - 1);
 

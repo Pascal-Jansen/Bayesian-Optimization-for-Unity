@@ -48,10 +48,10 @@ namespace BOforUnity.Scripts
 
             boManager = GameObject.FindWithTag("BOforUnityManager")?.GetComponent<BoForUnityManager>();
 
-            StartCoroutine(Start());
+            StartCoroutine(StartGame());
         }
 
-        private IEnumerator Start()
+        private IEnumerator StartGame()
         {
             // Read normalized params from BO
             float u_size = 0.5f, u_ecc = 0.5f;
