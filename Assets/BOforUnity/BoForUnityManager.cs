@@ -357,16 +357,6 @@ namespace BOforUnity
                 this.smallerIsBetter = smallerIsBetter;
                 this.numberOfSubMeasures = numberOfSubMeasures;
             }
-
-            /// <summary>
-            /// GetInitInfoStr(): a method that returns a string representing the initial configuration of this objective, including
-            /// the lower and upper bounds and the smallerIsBetter flag.
-            /// </summary>
-            /// <returns></returns>
-            public string GetInitInfoStr()
-            {
-                return $"{lowerBound},{upperBound},{(smallerIsBetter ? 1 : 0)}/";
-            }
         }
         // ------------------
         
@@ -418,16 +408,6 @@ namespace BOforUnity
             {
                 this.lowerBound = lowerBound;
                 this.upperBound = upperBound;
-            }
-
-            /// <summary>
-            /// GetInitInfoStr(): a method that returns a string representing the initial configuration of this parameter, including the lower
-            /// and upper bounds and the step size.
-            /// </summary>
-            /// <returns></returns>
-            public string GetInitInfoStr()
-            {
-                return $"{lowerBound},{upperBound}/";
             }
         }
 }

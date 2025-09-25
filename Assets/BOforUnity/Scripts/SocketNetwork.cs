@@ -1,3 +1,7 @@
+// SocketNetwork.cs
+// Unity <-> Python NDJSON protocol using Newtonsoft.Json.
+// Place Newtonsoft.Json source under Assets/<YourAsset>/ThirdParty/Newtonsoft.Json with an .asmdef.
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -7,74 +11,151 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using Newtonsoft.Json;
 
 namespace BOforUnity.Scripts
 {
-    // The SocketNetwork class implements a socket client to receive data from a server
+    // -------------------- JSON DTOs --------------------
+    [Serializable] class MsgBase { public string type; }
+
+    [Serializable] class InitMsg : MsgBase
+    {
+        public InitConfig config;
+        public List<ParamInfo> parameters;
+        public List<ObjInfo> objectives;
+        public UserInfo user;
+    }
+
+    [Serializable] class InitConfig
+    {
+        public int batchSize, numRestarts, rawSamples, numOptimizationIterations, mcSamples, numSamplingIterations, seed;
+        public int nParameters, nObjectives;
+        public bool warmStart;
+        public string initialParametersDataPath, initialObjectivesDataPath;
+    }
+
+    [Serializable] class ParamInit { public double low; public double high; }
+    [Serializable] class ObjInit   { public double low; public double high; public int minimize; }
+
+    [Serializable] class ParamInfo
+    {
+        public string key;
+        public ParamInit init;
+        public int optSeqOrder;
+    }
+
+    [Serializable] class ObjInfo
+    {
+        public string key;
+        public ObjInit init;
+        public int optSeqOrder;
+    }
+
+    [Serializable] class UserInfo
+    {
+        public string userId, conditionId, groupId;
+    }
+
+    [Serializable] class ParametersMsg : MsgBase
+    {
+        public Dictionary<string, float> values;
+    }
+
+    [Serializable] class ObjectivesMsg : MsgBase
+    {
+        public Dictionary<string, float> values;
+    }
+
+    [Serializable] class CoverageMsg : MsgBase
+    {
+        public float value;
+    }
+
+    // -------------------- SocketNetwork --------------------
     public class SocketNetwork : MonoBehaviour
     {
         private Socket _serverSocket;
         private IPAddress _ip;
         private IPEndPoint _ipEnd;
         private Thread _connectThread;
-        public float coverage = 0;
-        public float tempCoverage = 0;
+        private volatile bool _stopRequested;
+
+        public float coverage = 0f;
+        public float tempCoverage = 0f;
 
         private BoForUnityManager _bomanager;
-        
-        /// <summary>
-        /// The InitSocket method sets up the IP address and port number of the server,
-        /// and starts a new thread to receive data from the server
-        /// </summary>
+
+        // TCP buffer for NDJSON framing
+        private readonly byte[] _recvBuf = new byte[4096];
+        private readonly StringBuilder _lineBuf = new StringBuilder(4096);
+
+        // JSON settings
+        private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
+        {
+            Culture = CultureInfo.InvariantCulture,
+            Formatting = Formatting.None
+        };
+
+        // -------------------- Lifecycle --------------------
         public void InitSocket()
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
-            
             _ip = IPAddress.Parse("127.0.0.1");
             _ipEnd = new IPEndPoint(_ip, 56001);
-            //_ipEnd = new IPEndPoint(_ip, 56003);
-            
-            _connectThread = new Thread(new ThreadStart(SocketReceive));
+
+            _stopRequested = false;
+            _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
         }
 
+        private void OnDestroy()
+        {
+            try { SocketQuit(); } catch { }
+        }
 
-        /// <summary>
-        /// The SocketReceive method is the main method for receiving data from the server.
-        /// It first establishes a connection with the server using the SocketConnect method, then sends an
-        /// initialization message to the server using the SendInitInfo method.
-        /// </summary>
-        void SocketReceive()
+        // -------------------- Socket loop --------------------
+        private void SocketReceive()
         {
             try
             {
-                // Establish connection and send data for initialization
                 SocketConnect();
                 SendInitInfo();
 
-                // Keep receiving data
-                while (true)
+                while (!_stopRequested)
                 {
-                    var recvData = new byte[1024];
-                    var recvLen = _serverSocket.Receive(recvData);
+                    int recvLen = _serverSocket.Receive(_recvBuf);
                     if (recvLen == 0)
                     {
                         Debug.Log("Connection closed by server");
                         SocketQuit();
                         break;
                     }
-                    var recvStr = Encoding.ASCII.GetString(recvData, 0, recvLen);
 
-                    try
+                    var chunk = Encoding.UTF8.GetString(_recvBuf, 0, recvLen);
+                    _lineBuf.Append(chunk);
+
+                    int newlineIndex;
+                    while ((newlineIndex = _lineBuf.ToString().IndexOf('\n')) >= 0)
                     {
-                        ParseMessage(recvStr);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"Error in ParseMessage: {ex.Message}\n{ex.StackTrace}");
+                        string line = _lineBuf.ToString(0, newlineIndex).TrimEnd('\r');
+                        _lineBuf.Remove(0, newlineIndex + 1);
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        try
+                        {
+                            ParseJsonMessage(line);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"Error in ParseJsonMessage: {ex.Message}\n{ex.StackTrace}\nPayload: {line}");
+                        }
                     }
                 }
+            }
+            catch (SocketException ex)
+            {
+                Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
+                MainThreadDispatcher.Execute(OnSocketConnectionFailed);
             }
             catch (Exception ex)
             {
@@ -82,257 +163,221 @@ namespace BOforUnity.Scripts
             }
         }
 
-        /// <summary>
-        /// This code defines a function ParseMessage that takes in a string recvStr as input and
-        /// parses it to retrieve relevant information. The string is split into an array of
-        /// substrings using the comma separator.
-        /// If the message type is "parameters", the ParseMessage method extracts the parameter
-        /// values from the message and sets the values of the corresponding parameters in the
-        /// Optimizer object.
-        /// If the message type is "coverage" or "tempCoverage", the ParseMessage method extracts
-        /// the coverage value from the message and sets it to the coverage or tempCoverage field
-        /// of the SocketNetwork class, respectively.
-        /// </summary>
-        /// <param name="recvStr"></param>
-        private void ParseMessage(string recvStr)
+        private void SocketConnect()
         {
-            var strArr = recvStr.Split(',');
+            _serverSocket?.Close();
+            _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Debug.Log("Unity is ready to connect...");
+            _serverSocket.Connect(_ipEnd);
+        }
 
-            if (strArr.Length != 0)
+        private void OnSocketConnectionFailed()
+        {
+            // Optionally reload scene or surface UI feedback
+            // UnityEngine.SceneManagement.SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        // -------------------- Protocol: incoming --------------------
+        private void ParseJsonMessage(string json)
+        {
+            var peek = JsonConvert.DeserializeObject<MsgBase>(json);
+            if (peek == null || string.IsNullOrEmpty(peek.type))
             {
-                if (strArr[0] == "parameters")
+                Debug.LogWarning("Unknown or empty message.");
+                return;
+            }
+
+            switch (peek.type)
+            {
+                case "parameters":
                 {
-                    List<string> strList = strArr.ToList();
-                    strList.RemoveAt(0);
-                    List<float> floatList = strList.Select(s => float.Parse(s, CultureInfo.InvariantCulture)).ToList();
-                    
-                    MainThreadDispatcher.Execute((flist) =>
+                    var msg = JsonConvert.DeserializeObject<ParametersMsg>(json);
+                    if (msg?.values == null)
+                    {
+                        Debug.LogWarning("parameters.values missing");
+                        return;
+                    }
+
+                    MainThreadDispatcher.Execute(() =>
                     {
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
-                        
-                        // Update the parameter values
+
+                        // Apply values by key
                         foreach (var pa in _bomanager.parameters)
                         {
-                            pa.value.Value = flist[pa.value.optSeqOrder];
+                            if (msg.values.TryGetValue(pa.key, out var v))
+                                pa.value.Value = v;
                         }
 
+                        // Notify lifecycle: triggers measurement and later SendObjectives()
                         if (_bomanager.initialized)
-                        {
-                            // Tell the manager that the current iteration has finished
                             _bomanager.OptimizationDone();
-                        }
-                        else {
-                            // Tell the manager that the system was initialized
+                        else
                             _bomanager.InitializationDone();
-                        }
-                    }, floatList);
+                    });
+                    break;
                 }
-                else if (strArr[0] == "optimization_finished")
+
+                case "optimization_finished":
                 {
                     MainThreadDispatcher.Execute(() =>
                     {
                         Debug.Log(">>>>>> Optimization finished!");
-                        
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
-                        
                         _bomanager.optimizationFinished = true;
                         _bomanager.OptimizationDone();
                     });
+                    break;
                 }
-                else if (strArr[0] == "coverage")
+
+                case "coverage":
                 {
-                    coverage = float.Parse(strArr[1], CultureInfo.InvariantCulture);
-                    Debug.Log($"coverage {coverage}");
+                    var msg = JsonConvert.DeserializeObject<CoverageMsg>(json);
+                    if (msg != null)
+                    {
+                        coverage = msg.value;
+                        Debug.Log($"coverage {coverage}");
+                    }
+                    break;
                 }
-                else if (strArr[0] == "tempCoverage")
+
+                case "tempCoverage":
                 {
-                    tempCoverage = float.Parse(strArr[1], CultureInfo.InvariantCulture);
-                    Debug.Log($"tempCoverage {tempCoverage}");
+                    var msg = JsonConvert.DeserializeObject<CoverageMsg>(json);
+                    if (msg != null)
+                    {
+                        tempCoverage = msg.value;
+                        Debug.Log($"tempCoverage {tempCoverage}");
+                    }
+                    break;
                 }
-                else
+
+                case "objectives":
                 {
-                    Debug.LogWarning($"Unknown message type: {strArr[0]}");
+                    // Python never sends this unsolicited; Unity sends objectives to Python.
+                    break;
                 }
-            }
-            else
-            {
-                Debug.LogWarning("Received an empty message.");
+
+                default:
+                    Debug.LogWarning($"Unknown message type: {peek.type}");
+                    break;
             }
         }
-        
-        void SocketConnect()
-        {
-            try
-            {
-                if (_serverSocket != null)
-                    _serverSocket.Close();
 
-                _serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                Debug.Log("Unity is ready to connect...");
-
-                _serverSocket.Connect(_ipEnd);
-            }
-            catch (SocketException ex)
-            {
-                if (ex.SocketErrorCode == SocketError.ConnectionRefused)
-                {
-                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
-                    Debug.LogError("SocketException: " + ex.SocketErrorCode);
-                }
-                else
-                {
-                    Debug.LogError("SocketException: " + ex.SocketErrorCode);
-                }
-            }
-        }
-        
-        private void OnSocketConnectionFailed()
+        // -------------------- Protocol: outgoing --------------------
+        private void SendInitInfo()
         {
-            //SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-        }
-        
-        /// <summary>
-        /// This function sends the initialization information of the optimization problem to the
-        /// server using the SocketSend() function. It first creates an empty string a to which it
-        /// adds the initialization information of the parameters and objectives.
-        ///
-        /// For each parameter and objective in the Optimizer object, it sets its optSeqOrder attribute
-        /// to i and increments i. The optSeqOrder attribute represents the order in which the parameters
-        /// and objectives were added to the Optimizer object, which is important for correctly parsing
-        /// the incoming messages from the server.
-        ///
-        /// Then, for each parameter and objective, it adds the string returned by the GetInitInfoStr()
-        /// method to the string a. The GetInitInfoStr() method returns a string that represents the
-        /// initialization information of the parameter or objective in a format that can be parsed by
-        /// the server.
-        ///
-        /// Finally, it logs the initialization information to the console and sends it to the server
-        /// using the SocketSend() function.
-        /// </summary>
-        void SendInitInfo()
-        {
-            string a = "";
-            string b = "";
-            string c = "";
-            string d = "";
-            
-            a += $"{_bomanager.batchSize},{_bomanager.numRestarts},{_bomanager.rawSamples}," +
-                 $"{_bomanager.numOptimizationIterations},{_bomanager.mcSamples},{_bomanager.numSamplingIterations},{_bomanager.seed}," +
-                 $"{_bomanager.parameters.Count},{_bomanager.objectives.Count}_" +
-                 $"{_bomanager.warmStart},{_bomanager.initialParametersDataPath},{_bomanager.initialObjectivesDataPath}";
-
             int i = 0;
-            foreach (var pa in _bomanager.parameters)
-            {
-                pa.value.optSeqOrder = i;
-                i++;
-                b += pa.value.GetInitInfoStr();
-                
-                c += pa.key + ",";
-            }
-            
-            b = b.Substring(0, b.Length -1);
-            b += "_";
+            foreach (var pa in _bomanager.parameters) pa.value.optSeqOrder = i++;
             i = 0;
-           
-            c = c.Substring(0, c.Length - 1);
-            c += "_";
+            foreach (var ob in _bomanager.objectives) ob.value.optSeqOrder = i++;
 
-            //Debug.Log("Objective: " + Optimizer.objectives.Count);
-            foreach (var ob in _bomanager.objectives)
+            var init = new InitMsg
             {
-                ob.value.optSeqOrder = i;
-                i++;
-                b += ob.value.GetInitInfoStr();
-                
-                c += ob.key + ",";
-            }
+                type = "init",
+                config = new InitConfig
+                {
+                    batchSize = _bomanager.batchSize,
+                    numRestarts = _bomanager.numRestarts,
+                    rawSamples = _bomanager.rawSamples,
+                    numOptimizationIterations = _bomanager.numOptimizationIterations,
+                    mcSamples = _bomanager.mcSamples,
+                    numSamplingIterations = _bomanager.numSamplingIterations,
+                    seed = _bomanager.seed,
+                    nParameters = _bomanager.parameters.Count,
+                    nObjectives = _bomanager.objectives.Count,
+                    warmStart = _bomanager.warmStart,
+                    initialParametersDataPath = _bomanager.initialParametersDataPath,
+                    initialObjectivesDataPath = _bomanager.initialObjectivesDataPath
+                },
+                parameters = _bomanager.parameters.Select(p => new ParamInfo
+                {
+                    key = p.key,
+                    init = new ParamInit
+                    {
+                        // Adjust field names if your Parameter class differs:
+                        low = p.value.lowerBound,
+                        high = p.value.upperBound
+                    },
+                    optSeqOrder = p.value.optSeqOrder
+                }).ToList(),
+                objectives = _bomanager.objectives.Select(o => new ObjInfo
+                {
+                    key = o.key,
+                    init = new ObjInit
+                    {
+                        // Adjust field names if your Objective class differs:
+                        low = o.value.lowerBound,
+                        high = o.value.upperBound,
+                        minimize = o.value.smallerIsBetter ? 1 : 0
+                    },
+                    optSeqOrder = o.value.optSeqOrder
+                }).ToList(),
+                user = new UserInfo
+                {
+                    userId = _bomanager.userId,
+                    conditionId = _bomanager.conditionId,
+                    groupId = _bomanager.groupId
+                }
+            };
 
-            // Remove the trailing comma segments that were appended while building the strings
-            b = b.Substring(0, b.Length - 1);
-            c = c.Substring(0, c.Length - 1);
-
-            d += $"{_bomanager.userId},{_bomanager.conditionId},{_bomanager.groupId}";
-            
-            // Send string: Hyper-parameter info _ Parameter info _ Objectives info
-            Debug.Log("Send Init Info to Python process: " + a + "_" + b + "_" + c + "_" + d);
-            SocketSend(a + "_" + b + "_" + c + "_" + d);
+            string json = JsonConvert.SerializeObject(init, JsonSettings);
+            SocketSendLine(json);
         }
-        
-        /// <summary>
-        /// the SendObjectives method takes in a list of floats called finalObjectives, converts it to
-        /// a string sendStr with the objectives separated by commas, and then sends the string over the
-        /// socket connection using the SocketSend method.
-        ///
-        /// Before sending the string, it sets the canRead flag of the Optimizer object to false, which
-        /// may indicate that the program is waiting for a response from the server before continuing.
-        /// </summary>
+
         public void SendObjectives()
         {
-            var finalObjectives = new List<float>();
+            var finalObjectives = new Dictionary<string, float>(_bomanager.objectives.Count);
+
             foreach (var ob in _bomanager.objectives)
             {
                 var value = ob.value;
                 var tmpList = value.values;
-                tmpList.RemoveRange(0, value.values.Count - value.numberOfSubMeasures);
-                finalObjectives.Add(tmpList.Average());
-            }
-            
-            var sendStr = "";
-            foreach (var t in finalObjectives)
-            {
-                sendStr += t.ToString(CultureInfo.InvariantCulture) + ",";
-            }
-            
-            // remove unneeded , from the string's end
-            if (sendStr != "")
-            {
-                sendStr = sendStr.Remove(sendStr.Length - 1);
+                // keep the last N submeasures
+                tmpList.RemoveRange(0, Math.Max(0, value.values.Count - value.numberOfSubMeasures));
+                float val = tmpList.Count > 0 ? (float)tmpList.Average() : 0f;
+                finalObjectives[ob.key] = val;
             }
 
-            SocketSend(sendStr);
+            var msg = new ObjectivesMsg
+            {
+                type = "objectives",
+                values = finalObjectives
+            };
+
+            string json = JsonConvert.SerializeObject(msg, JsonSettings);
+            SocketSendLine(json);
         }
-        
-        /// <summary>
-        /// The purpose of this method is to send data over a network socket using a TCP/IP protocol.
-        ///
-        /// The method first converts the sendStr string to a byte array using the ASCII encoding method,
-        /// which returns a byte array containing the ASCII code for each character in the string. The byte
-        /// array is then assigned to the sendData variable.
-        /// 
-        /// Finally, the method calls the Send method of the serverSocket object, passing in the sendData
-        /// byte array, the length of the data, and the SocketFlags.None parameter. This sends the data over
-        /// the socket connection to the remote endpoint. 
-        /// </summary>
-        /// <param name="sendStr"></param>
-        private void SocketSend(string sendStr)
+
+        // -------------------- Low-level send/quit --------------------
+        private void SocketSendLine(string json)
         {
-            byte[] sendData = Encoding.ASCII.GetBytes(sendStr);
-            Debug.Log("Unity sending: " + sendStr);
+            string line = json + "\n"; // NDJSON framing
+            byte[] sendData = Encoding.UTF8.GetBytes(line);
+            Debug.Log("Unity sending: " + json);
             _serverSocket.Send(sendData, sendData.Length, SocketFlags.None);
         }
-        
-        /// <summary>
-        /// The purpose of this method is to gracefully close the network socket connection and stop the thread
-        /// that is managing the socket connection.
-        /// </summary>
+
         public void SocketQuit()
         {
-            //close thread
+            _stopRequested = true;
+
+            try { _bomanager?.pythonStarter?.StopPythonProcess(); } catch { }
+
+            try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
+            try { _serverSocket?.Close(); } catch { }
+
             if (_connectThread != null)
             {
-                _connectThread.Interrupt();
-                _connectThread.Abort();
+                try { _connectThread.Interrupt(); } catch { }
+                try { _connectThread.Join(200); } catch { }
+                if (_connectThread.IsAlive)
+                {
+                    try { _connectThread.Abort(); } catch { }
+                }
+                _connectThread = null;
+            }
 
-            }
-            //close socket
-            if (_serverSocket != null) { 
-                _serverSocket.Close();
-            }
-            
-            //stop the mobo.py
-            _bomanager.pythonStarter.StopPythonProcess();
-            
             Debug.Log("Unity disconnected socket");
         }
     }
