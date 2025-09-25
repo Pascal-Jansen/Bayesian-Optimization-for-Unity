@@ -1,11 +1,10 @@
-from matplotlib import pyplot as plt
+import json
 import socket
-import pickle
-import pandas as pd
 import time
 import csv
 import os
 import numpy as np
+import pandas as pd
 import torch
 
 from botorch.acquisition.multi_objective.logei import qLogNoisyExpectedHypervolumeImprovement
@@ -18,7 +17,7 @@ from botorch.utils.multi_objective.pareto import is_non_dominated
 from botorch.utils.multi_objective.hypervolume import Hypervolume
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
-# -------------------- placeholders (overwritten by Unity init) --------------------
+# -------------------- defaults (overwritten by Unity init) --------------------
 N_INITIAL = 5
 N_ITERATIONS = 10
 BATCH_SIZE = 1
@@ -26,15 +25,15 @@ NUM_RESTARTS = 10
 RAW_SAMPLES = 1024
 MC_SAMPLES = 512
 SEED = 3
-PROBLEM_DIM = None    # build tensors only AFTER init arrives
+
+PROBLEM_DIM = None
 NUM_OBJS = None
 
-# built after init:
+# derived at init
 ref_point = None
 problem_bounds = None
 
 # paths/state
-CURRENT_DIR = ""
 PROJECT_PATH = ""
 OBSERVATIONS_LOG_PATH = ""
 
@@ -48,80 +47,61 @@ USER_ID = ""
 CONDITION_ID = ""
 GROUP_ID = ""
 
+# names and meta parsed from init
+parameter_names = []
+objective_names = []
+parameters_info = []   # [(lo, hi)]
+objectives_info = []   # [(lo, hi, minimizeFlag)]
+
 # device
 tkwargs = {"dtype": torch.double, "device": torch.device("cpu")}
 device = torch.device("cpu")
 
-# -------------------- TCP server --------------------
+# -------------------- TCP server helpers --------------------
 HOST = ''
 PORT = 56001
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((HOST, PORT))
-s.listen(1)
-print('Server starts, waiting for connection...', flush=True)
-conn, addr = s.accept()
-print('Connected by', addr, flush=True)
 
-# wait for Unity init payload
-data = conn.recv(1024)
+def send_json_line(conn, obj):
+    line = json.dumps(obj, ensure_ascii=False) + "\n"
+    conn.sendall(line.encode("utf-8"))
 
-# -------------------- parse init --------------------
-init_data = data.decode("utf-8").split('_')
+def ndjson_reader(conn):
+    """Yield complete JSON objects from a TCP socket using newline framing."""
+    buf = ""
+    while True:
+        chunk = conn.recv(4096)
+        if not chunk:
+            if buf.strip():
+                try:
+                    yield json.loads(buf)
+                except Exception:
+                    pass
+            return
+        buf += chunk.decode("utf-8", errors="replace")
+        while True:
+            idx = buf.find("\n")
+            if idx < 0:
+                break
+            line = buf[:idx].rstrip("\r")
+            buf = buf[idx + 1:]
+            if line.strip():
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError as e:
+                    print("JSON decode error:", e, "line:", line, flush=True)
 
-# [0]: numeric params
-param_list = init_data[0].split(',')
-(BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, N_ITERATIONS,
- MC_SAMPLES, N_INITIAL, SEED, PROBLEM_DIM, NUM_OBJS) = map(int, param_list)
-
-# [1]: warm start
-warm = init_data[1].split(',')
-WARM_START = warm[0].lower() in ("true", "1", "yes")
-CSV_PATH_PARAMETERS = str(warm[1])
-CSV_PATH_OBJECTIVES = str(warm[2])
-
-print("Init:", BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, N_ITERATIONS, MC_SAMPLES,
-      N_INITIAL, SEED, PROBLEM_DIM, NUM_OBJS, flush=True)
-
-# [2]: parameter bounds "low,high/low,high/..."
-parameter_raw = init_data[2].split('/')
-parameters_info = [list(map(float, r.split(','))) for r in parameter_raw] if init_data[2] else []
-
-# [3]: objective bounds "low,high,minimizeFlag/..."
-objective_raw = init_data[3].split('/')
-objectives_info = [list(map(float, r.split(','))) for r in objective_raw] if init_data[3] else []
-
-# [4]: parameter names
-parameter_names = init_data[4].split(',') if init_data[4] else []
-
-# [5]: objective names
-objective_names = init_data[5].split(',') if init_data[5] else []
-
-# [6]: study info
-USER_ID, CONDITION_ID, GROUP_ID = init_data[6].split(',')
-
-# sanity checks and build tensors with real dims
-if len(parameters_info) != PROBLEM_DIM:
-    raise ValueError(f"parameters_info len {len(parameters_info)} != PROBLEM_DIM {PROBLEM_DIM}")
-if len(objectives_info) != NUM_OBJS:
-    raise ValueError(f"objectives_info len {len(objectives_info)} != NUM_OBJS {NUM_OBJS}")
-
-ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)  # model Y in [-1,1], max
-problem_bounds = torch.stack(
-    [torch.zeros(PROBLEM_DIM, dtype=torch.double),
-     torch.ones (PROBLEM_DIM, dtype=torch.double)],
-    dim=0
-)
-
-# -------------------- helpers --------------------
+# -------------------- IO utils --------------------
 def get_unique_folder(parent, folder_name):
     base_path = os.path.join(parent, folder_name)
     if not os.path.exists(base_path):
-        os.makedirs(base_path); return base_path
+        os.makedirs(base_path)
+        return base_path
     k = 1
     while True:
         p = os.path.join(parent, f"{folder_name}_{k}")
         if not os.path.exists(p):
-            os.makedirs(p); return p
+            os.makedirs(p)
+            return p
         k += 1
 
 def create_csv_file(csv_file_path, fieldnames):
@@ -130,7 +110,8 @@ def create_csv_file(csv_file_path, fieldnames):
         write_header = not os.path.exists(csv_file_path)
         with open(csv_file_path, 'a+', newline='') as f:
             w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-            if write_header: w.writeheader()
+            if write_header:
+                w.writeheader()
     except Exception as e:
         print("Error creating file:", str(e), flush=True)
 
@@ -143,38 +124,77 @@ def write_data_to_csv(csv_file_path, fieldnames, rows):
         print("Error writing to file:", str(e), flush=True)
 
 def denormalize_to_original_param(val01, lo, hi):
-    return np.round(lo + val01 * (hi - lo), 2)
+    return np.round(lo + val01 * (hi - lo), 3)
 
 def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
-    if smaller_is_better == 1: v_m1p1 *= -1
-    return np.round(lo + (v_m1p1 + 1) * 0.5 * (hi - lo), 2)
+    v = -v_m1p1 if int(smaller_is_better) == 1 else v_m1p1
+    return np.round(lo + (v + 1) * 0.5 * (hi - lo), 3)
+
+# -------------------- protocol parsing --------------------
+def parse_param_init(init_val):
+    # Accept typed JSON: {"low": ..., "high": ...}
+    if isinstance(init_val, dict):
+        return float(init_val["low"]), float(init_val["high"])
+    parts = [p.strip() for p in str(init_val).split(",")]
+    if len(parts) < 2:
+        raise ValueError(f"Parameter init parse error: '{init_val}'")
+    return float(parts[0]), float(parts[1])
+
+def parse_obj_init(init_val):
+    # Accept typed JSON: {"low": ..., "high": ..., "minimize": 0/1}
+    if isinstance(init_val, dict):
+        return float(init_val["low"]), float(init_val["high"]), int(init_val.get("minimize", 0))
+    parts = [p.strip() for p in str(init_val).split(",")]
+    if len(parts) < 3:
+        raise ValueError(f"Objective init parse error: '{init_val}'")
+    return float(parts[0]), float(parts[1]), int(float(parts[2]))
 
 # -------------------- objective evaluation --------------------
-def objective_function(x_tensor):
-    x = x_tensor.cpu().numpy()  # in [0,1]
-    x_denorm = [denormalize_to_original_param(x[i], parameters_info[i][0], parameters_info[i][1])
-                for i in range(PROBLEM_DIM)]
-    msg = "parameters," + ",".join(str(round(v,3)) for v in x_denorm)
-    print("Send Data:", msg, flush=True)
-    conn.sendall(msg.encode("utf-8"))
+def recv_objectives_blocking(conn):
+    for msg in ndjson_reader(conn):
+        t = msg.get("type")
+        if t == "objectives":
+            return msg.get("values") or {}
+        elif t in ("coverage", "tempCoverage", "optimization_finished"):
+            continue
+        elif t == "log":
+            print("LOG:", msg.get("message", ""), flush=True)
+            continue
 
-    data = conn.recv(1024)
-    rec = list(map(float, data.decode("utf-8").split(','))) if data else []
-    if len(rec) != NUM_OBJS:
-        print("received objective number not consistent", flush=True)
+def objective_function(conn, x_tensor):
+    x = x_tensor.cpu().numpy()
+    values = {}
+    for i, name in enumerate(parameter_names):
+        lo, hi = parameters_info[i]
+        values[name] = float(denormalize_to_original_param(x[i], lo, hi))
 
-    # map to [-1,1], higher is better
+    payload = {"type": "parameters", "values": values}
+    print("Send parameters:", payload, flush=True)
+    send_json_line(conn, payload)
+
+    resp = recv_objectives_blocking(conn)
+    if resp is None:
+        raise RuntimeError("No objectives received from Unity.")
+
     fs = []
-    for i in range(NUM_OBJS):
+    rec_missing = []
+    for i, name in enumerate(objective_names):
+        val = float(resp.get(name, 0.0))
+        if name not in resp:
+            rec_missing.append(name)
         lo, hi, minflag = objectives_info[i]
-        f = (rec[i] - lo) / (hi - lo) * 2 - 1
-        if int(minflag) == 1: f *= -1
+        f = 0.0 if hi == lo else (val - lo) / (hi - lo) * 2 - 1
+        if int(minflag) == 1:
+            f *= -1
         fs.append(max(-1.0, min(1.0, f)))
-    print("Objective normalized:", fs, flush=True)
+
+    if rec_missing:
+        print("Warning: missing objective(s) from Unity:", rec_missing, flush=True)
+
     return torch.tensor(fs, dtype=torch.double)
 
 # -------------------- data IO --------------------
-def generate_initial_data(n_samples):
+def generate_initial_data(conn, n_samples):
     global PROJECT_PATH
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     if not os.path.exists(obs_csv):
@@ -188,7 +208,7 @@ def generate_initial_data(n_samples):
     train_obj = []
     for i, x in enumerate(train_x):
         print(f"---- Initial Sample {i+1}", flush=True)
-        y = objective_function(x)
+        y = objective_function(conn, x)
         train_obj.append(y)
 
         x_np = x.cpu().numpy()
@@ -200,6 +220,7 @@ def generate_initial_data(n_samples):
                i+1, 'sampling', 'FALSE', *y_den, *x_den]
         with open(obs_csv, 'a', newline='') as f:
             csv.writer(f, delimiter=';').writerow(row)
+        send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
 
     Y = torch.tensor(np.stack([t.numpy() for t in train_obj], axis=0), dtype=torch.double)
     return train_x, Y
@@ -219,7 +240,8 @@ def initialize_model(train_x, train_obj):
 # -------------------- acquisition --------------------
 def optimize_qnehvi(model, sampler):
     X_baseline = model.train_inputs[0]
-    if X_baseline.dim() == 3: X_baseline = X_baseline[0]
+    if X_baseline.dim() == 3:
+        X_baseline = X_baseline[0]
     acq = qLogNoisyExpectedHypervolumeImprovement(
         model=model,
         ref_point=ref_point.tolist(),
@@ -236,20 +258,15 @@ def optimize_qnehvi(model, sampler):
         options={"batch_limit": 5, "maxiter": 200},
         sequential=True,
     )
-    return candidates.detach()  # in [0,1]
+    return candidates.detach()
 
 # -------------------- logging --------------------
 def save_xy(x_sample, y_sample, iteration):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
-    print("Project Path for Observations:", PROJECT_PATH, flush=True)
-
-    # recompute Pareto mask for all rows
     pareto_mask = is_non_dominated(y_sample).tolist()
-
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
 
-    # denormalize last row
     for j in range(PROBLEM_DIM):
         x_np[-1][j] = denormalize_to_original_param(x_np[-1][j], parameters_info[j][0], parameters_info[j][1])
     for j in range(NUM_OBJS):
@@ -261,40 +278,30 @@ def save_xy(x_sample, y_sample, iteration):
         cols = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase','IsPareto'] + objective_names + parameter_names
         df = pd.DataFrame(columns=cols)
 
-    new_row = pd.DataFrame([[
-        USER_ID,
-        CONDITION_ID,
-        GROUP_ID,
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-        iteration + N_INITIAL,
-        'optimization',
-        'FALSE',
-        *y_np[-1], *x_np[-1]
-    ]], columns=df.columns)
+    new_row = pd.DataFrame([[USER_ID, CONDITION_ID, GROUP_ID,
+                             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                             iteration + N_INITIAL, 'optimization', 'FALSE',
+                             *y_np[-1], *x_np[-1]]], columns=df.columns)
 
     df = pd.concat([df, new_row], ignore_index=True)
-
-    # update IsPareto for all rows
     flags = ['TRUE' if b else 'FALSE' for b in pareto_mask]
     if len(flags) == len(df):
         df['IsPareto'] = flags
-
     df.to_csv(obs_csv, sep=';', index=False)
 
 def save_hypervolume_to_file(hvs, iteration):
     hv_csv = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
-    print("Project Path for Hypervolumes:", PROJECT_PATH, flush=True)
     os.makedirs(os.path.dirname(hv_csv), exist_ok=True)
     write_header = not os.path.exists(hv_csv) or os.path.getsize(hv_csv) == 0
     with open(hv_csv, 'a', newline='') as f:
         w = csv.writer(f, delimiter=';')
-        if write_header: w.writerow(["Hypervolume", "Run"])
+        if write_header:
+            w.writerow(["Hypervolume", "Run"])
         w.writerow([hvs[-1], iteration])
 
 # -------------------- main loop --------------------
-def mobo_execute(seed, iterations, initial_samples):
+def mobo_execute(conn, seed, iterations, initial_samples):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH
-
     base = os.path.join(os.getcwd(), "LogData")
     os.makedirs(base, exist_ok=True)
     PROJECT_PATH = get_unique_folder(base, USER_ID)
@@ -308,11 +315,9 @@ def mobo_execute(seed, iterations, initial_samples):
     hvs = []
 
     if WARM_START:
-        print("Loading warm start data...", flush=True)
         train_x, train_y = load_data()
     else:
-        print("Generating initial training data...", flush=True)
-        train_x, train_y = generate_initial_data(n_samples=initial_samples)
+        train_x, train_y = generate_initial_data(conn, n_samples=initial_samples)
 
     mll, model = initialize_model(train_x, train_y)
 
@@ -320,22 +325,18 @@ def mobo_execute(seed, iterations, initial_samples):
     volume = hv_util.compute(train_y[pareto_mask])
     hvs.append(volume)
     save_hypervolume_to_file(hvs, 0)
+    send_json_line(conn, {"type": "coverage", "value": float(volume)})
 
     for it in range(1, iterations + 1):
-        print(f"---- MOBO Iteration {it}", flush=True)
         t0 = time.time()
-
         fit_gpytorch_mll(mll)
-
         sampler = SobolQMCNormalSampler(sample_shape=torch.Size([MC_SAMPLES]), seed=SEED)
         new_x = optimize_qnehvi(model, sampler)
-
         t_elapsed = time.time() - t0
-        write_data_to_csv(exec_csv, ['Optimization', 'Execution_Time'], [{'Optimization': it, 'Execution_Time': t_elapsed}])
-        print(f"Iter {it} time: {t_elapsed:.2f}s", flush=True)
+        write_data_to_csv(exec_csv, ['Optimization', 'Execution_Time'],
+                          [{'Optimization': it, 'Execution_Time': t_elapsed}])
 
-        new_y = objective_function(new_x[0])
-
+        new_y = objective_function(conn, new_x[0])
         train_x = torch.cat([train_x, new_x])
         train_y = torch.cat([train_y, new_y.unsqueeze(0)])
 
@@ -344,12 +345,93 @@ def mobo_execute(seed, iterations, initial_samples):
         hvs.append(volume)
         save_xy(train_x, train_y, it)
         save_hypervolume_to_file(hvs, it)
-
+        send_json_line(conn, {"type": "coverage", "value": float(volume)})
         mll, model = initialize_model(train_x, train_y)
 
-    print("Send Data: optimization_finished,", flush=True)
-    conn.sendall(b'optimization_finished,')
+    send_json_line(conn, {"type": "optimization_finished"})
     return hvs, train_x, train_y
 
-# -------------------- run --------------------
-hvs_qnehvi, train_x_qnehvi, train_obj_qnehvi = mobo_execute(SEED, N_ITERATIONS, N_INITIAL)
+# -------------------- boot --------------------
+def main():
+    global N_INITIAL, N_ITERATIONS, BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, MC_SAMPLES, SEED
+    global PROBLEM_DIM, NUM_OBJS, ref_point, problem_bounds
+    global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES
+    global USER_ID, CONDITION_ID, GROUP_ID
+    global parameter_names, objective_names, parameters_info, objectives_info
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((HOST, PORT))
+    s.listen(1)
+    print('Server starts, waiting for connection...', flush=True)
+    conn, addr = s.accept()
+    print('Connected by', addr, flush=True)
+
+    reader = ndjson_reader(conn)
+    init_msg = None
+    for msg in reader:
+        if msg.get("type") == "init":
+            init_msg = msg
+            break
+    if init_msg is None:
+        raise RuntimeError("Did not receive init message.")
+
+    cfg = init_msg.get("config", {}) or {}
+    N_INITIAL      = int(cfg.get("numSamplingIterations", N_INITIAL))
+    N_ITERATIONS   = int(cfg.get("numOptimizationIterations", N_ITERATIONS))
+    BATCH_SIZE     = int(cfg.get("batchSize", BATCH_SIZE))
+    NUM_RESTARTS   = int(cfg.get("numRestarts", NUM_RESTARTS))
+    RAW_SAMPLES    = int(cfg.get("rawSamples", RAW_SAMPLES))
+    MC_SAMPLES     = int(cfg.get("mcSamples", MC_SAMPLES))
+    SEED           = int(cfg.get("seed", SEED))
+    PROBLEM_DIM    = int(cfg.get("nParameters"))
+    NUM_OBJS       = int(cfg.get("nObjectives"))
+    WARM_START     = bool(cfg.get("warmStart", False))
+
+    CSV_PATH_PARAMETERS = str(cfg.get("initialParametersDataPath") or "")
+    CSV_PATH_OBJECTIVES = str(cfg.get("initialObjectivesDataPath") or "")
+
+    user = init_msg.get("user", {}) or {}
+    USER_ID      = str(user.get("userId", "user"))
+    CONDITION_ID = str(user.get("conditionId", "cond"))
+    GROUP_ID     = str(user.get("groupId", "grp"))
+
+    parameters = init_msg.get("parameters", []) or []
+    objectives = init_msg.get("objectives", []) or []
+
+    parameter_names = [p.get("key") for p in parameters]
+    objective_names = [o.get("key") for o in objectives]
+
+    if len(parameter_names) != PROBLEM_DIM:
+        raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
+    if len(objective_names) != NUM_OBJS:
+        raise ValueError(f"objective_names len {len(objective_names)} != nObjectives {NUM_OBJS}")
+
+    parameters_info = [parse_param_init(p.get("init")) for p in parameters]
+    objectives_info = [parse_obj_init(o.get("init")) for o in objectives]
+
+    ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)
+    problem_bounds = torch.stack(
+        [torch.zeros(PROBLEM_DIM, dtype=torch.double),
+         torch.ones(PROBLEM_DIM, dtype=torch.double)],
+        dim=0
+    )
+
+    print("Init OK:", dict(
+        BATCH_SIZE=BATCH_SIZE, NUM_RESTARTS=NUM_RESTARTS, RAW_SAMPLES=RAW_SAMPLES,
+        N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
+        N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS
+    ), flush=True)
+
+    try:
+        mobo_execute(conn, SEED, N_ITERATIONS, N_INITIAL)
+    finally:
+        try:
+            conn.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        conn.close()
+        s.close()
+
+if __name__ == "__main__":
+    main()
+

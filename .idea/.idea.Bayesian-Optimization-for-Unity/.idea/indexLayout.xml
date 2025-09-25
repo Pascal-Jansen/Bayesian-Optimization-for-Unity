@@ -3,8 +3,10 @@
   <component name="ContentModelUserStore">
     <attachedFolders />
     <explicitIncludes>
+      <Path>../../AppData/Local/Unity/cache/packages/packages.unity.com/com.unity.nuget.newtonsoft-json@3.2.1</Path>
       <Path>../../AppData/Local/Unity/cache/packages/packages.unity.com/com.unity.sysroot.linux-x86_64@2.0.9</Path>
       <Path>../../AppData/Local/Unity/cache/packages/packages.unity.com/com.unity.sysroot@2.0.10</Path>
+      <Path>../../AppData/Local/Unity/cache/packages/packages.unity.com/com.unity.toolchain.win-x86_64-linux-x86_64@2.0.10</Path>
       <Path>Packages</Path>
       <Path>ProjectSettings</Path>
     </explicitIncludes>
@@ -13,7 +15,6 @@
       <Path>.idea</Path>
       <Path>Library</Path>
       <Path>Logs</Path>
-      <Path>Temp</Path>
       <Path>UserSettings</Path>
       <Path>images</Path>
       <Path>obj</Path>
