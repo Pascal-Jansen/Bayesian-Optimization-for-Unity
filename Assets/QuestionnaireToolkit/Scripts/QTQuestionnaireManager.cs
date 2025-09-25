@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
  using System.Text;
@@ -650,9 +651,21 @@ namespace QuestionnaireToolkit.Scripts
             // reads and parses .json input file
             var JSONString = File.ReadAllText(jsonPath);
             var N = JSON.Parse(JSONString);
-            pageBackgroundColor = new Color(float.Parse(N["page_background_color"][0]), float.Parse(N["page_background_color"][1]), float.Parse(N["page_background_color"][2]), float.Parse(N["page_background_color"][3]));
-            pageBottomColor = new Color(float.Parse(N["page_panel_color"][0]), float.Parse(N["page_panel_color"][1]), float.Parse(N["page_panel_color"][2]), float.Parse(N["page_panel_color"][3]));
-            highlightColor = new Color(float.Parse(N["highlight_color"][0]), float.Parse(N["highlight_color"][1]), float.Parse(N["highlight_color"][2]), float.Parse(N["highlight_color"][3]));
+            pageBackgroundColor = new Color(
+                float.Parse(N["page_background_color"][0], CultureInfo.InvariantCulture),
+                float.Parse(N["page_background_color"][1], CultureInfo.InvariantCulture),
+                float.Parse(N["page_background_color"][2], CultureInfo.InvariantCulture),
+                float.Parse(N["page_background_color"][3], CultureInfo.InvariantCulture));
+            pageBottomColor = new Color(
+                float.Parse(N["page_panel_color"][0], CultureInfo.InvariantCulture),
+                float.Parse(N["page_panel_color"][1], CultureInfo.InvariantCulture),
+                float.Parse(N["page_panel_color"][2], CultureInfo.InvariantCulture),
+                float.Parse(N["page_panel_color"][3], CultureInfo.InvariantCulture));
+            highlightColor = new Color(
+                float.Parse(N["highlight_color"][0], CultureInfo.InvariantCulture),
+                float.Parse(N["highlight_color"][1], CultureInfo.InvariantCulture),
+                float.Parse(N["highlight_color"][2], CultureInfo.InvariantCulture),
+                float.Parse(N["highlight_color"][3], CultureInfo.InvariantCulture));
             sliderValue = N["background_transparency"].AsFloat;
             showBottomPanel = N["show_bottom_panel"].AsBool;
             showPageNumber = N["show_page_number"].AsBool;
@@ -772,7 +785,11 @@ namespace QuestionnaireToolkit.Scripts
                                 elem.wordSpacing = qItems[j]["word_spacing"].AsFloat;
                                 elem.lineSpacing = qItems[j]["line_spacing"].AsFloat;
                                 var cc = qItems[j]["color"].Value.Split(',');
-                                elem.color = new Color(float.Parse(cc[0].Substring(5)), float.Parse(cc[1]), float.Parse(cc[2]), float.Parse(cc[3].Trim(')')));
+                                elem.color = new Color(
+                                    float.Parse(cc[0].Substring(5), CultureInfo.InvariantCulture),
+                                    float.Parse(cc[1], CultureInfo.InvariantCulture),
+                                    float.Parse(cc[2], CultureInfo.InvariantCulture),
+                                    float.Parse(cc[3].Trim(')'), CultureInfo.InvariantCulture));
                                 elem.alignment = (TextAlignmentOptions) Enum.Parse( typeof(TextAlignmentOptions), qItems[j]["alignment"].Value );
                                 elem.enableWordWrapping = qItems[j]["word_wrapping"].AsBool;
                                 elem.overflowMode = (TextOverflowModes) Enum.Parse( typeof(TextOverflowModes), qItems[j]["overflow_mode"].Value );
@@ -1425,7 +1442,12 @@ namespace QuestionnaireToolkit.Scripts
                     
                     // add the current question item value as objective function value
                     // addObjectiveValue("Trust", 3f);
-                    if (boManager) { boForUnity.optimizer.AddObjectiveValue(resultsHeaderItems[boCounter], float.Parse(currVal)); }
+                    if (boManager)
+                    {
+                        boForUnity.optimizer.AddObjectiveValue(
+                            resultsHeaderItems[boCounter],
+                            float.Parse(currVal, CultureInfo.InvariantCulture));
+                    }
                     boCounter++;
                 }
             }
@@ -1438,7 +1460,12 @@ namespace QuestionnaireToolkit.Scripts
                     line += "\"" + currVal + "\",";
                     
                     // also add the additional csv item values defined in the inspector of the QTQuestionnaireManager
-                    if (boManager) { boForUnity.optimizer.AddObjectiveValue(resultsHeaderItems[boCounter], float.Parse(currVal)); }
+                    if (boManager)
+                    {
+                        boForUnity.optimizer.AddObjectiveValue(
+                            resultsHeaderItems[boCounter],
+                            float.Parse(currVal, CultureInfo.InvariantCulture));
+                    }
                     boCounter++;
                 }
                 else

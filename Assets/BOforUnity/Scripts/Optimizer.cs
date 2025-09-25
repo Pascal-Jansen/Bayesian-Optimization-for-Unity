@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
@@ -24,16 +25,15 @@ namespace BOforUnity.Scripts
         /// <summary>
         /// This method updates the values of the parameters in the optimization process using the data in the
         /// CSV file at the specified currentIndex. It loops through each parameter in the parameters dictionary
-        /// and sets its Value property to the corresponding value in the CSV file at the given index. After
-        /// updating the parameter values, it starts a coroutine called ShowIndexChange, which likely shows some
-        /// kind of visual feedback to the user that the parameter values have changed.
+        /// and sets its Value property to the corresponding value in the CSV file at the given index using
+        /// invariant culture parsing so number formats remain consistent across locales.
         /// </summary>
         /// <param name="currentIndex"></param>
         public void UpdateParameter(int currentIndex)
         {
             foreach (var pa in _bomanager.parameters)
             {
-                pa.value.Value = float.Parse(_csvData[currentIndex][pa.key].ToString());
+                pa.value.Value = float.Parse(_csvData[currentIndex][pa.key].ToString(), CultureInfo.InvariantCulture);
             }
         }
 
