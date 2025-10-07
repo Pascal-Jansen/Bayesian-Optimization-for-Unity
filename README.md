@@ -139,7 +139,7 @@ Set up the asset as follows:
    Files are in *Assets/StreamingAssets/BOData/Installation*.
 3. Install Unity Hub.
 4. Create or log in to your (student) Unity account.
-5. Install Unity 2022.3.21f1 or higher. We recommend Unity 6.2 or newer.
+5. Install Unity 2022.3.21f1 or higher. We recommend Unity v6.2.
 6. Add the project to Unity Hub by selecting the repository folder.
 7. Open the project and set the [Python Settings](#python-settings).
 
@@ -196,17 +196,15 @@ Click `+` at the bottom of the parameter list to add a prefilled entry, then edi
 
 > **Note:** If you use the [warm start option](#warm-start-settings), ensure CSV headers match after adding parameters.
 
-##### Change Parameter
+##### Adjust Parameter in the Unity Inspector
 Adjustable options, top to bottom:
 
 | **Name**              | **Description**                                                                   |
 |-----------------------|-----------------------------------------------------------------------------------|
-| **Value**             | Value assigned by the optimizer in each sampling/optimization iteration.                                       |
+| **Value**             | Value assigned by the optimizer in each sampling/optimization iteration.          |
 | **Lower/Upper Bound** | Bounds that restrict the parameter.                                               |
 
-> **Note:** You can read the current parameter values in each iteration directly from the parameter list in *BOforUnityManager* by index.
 <a id="parameter_settings"></a>
-
 ![Parameter Settings](./images/parameter_settings.png)
 
 ##### Remove Parameter
@@ -215,7 +213,6 @@ Select the parameter by clicking the `=` icon in its top-left corner (it turns b
 > **Note:** Ensure the removed parameter is **not** used in your simulation.
 
 > **Note:** Back up and remove the log folder *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* to refresh headers.
-
 
 
 ### Objectives
@@ -241,7 +238,7 @@ Options, top to bottom:
 
 | **Name**                       | **Description**                                                                                      |
 |--------------------------------|------------------------------------------------------------------------------------------------------|
-| **Number of Sub Measures**     | Number of values for this objective (e.g., count of questions). **Must be >= 1**.                           |
+| **Number of Sub Measures**     | Number of values for this objective (e.g., count of questions). **Must be >= 1**.                    |
 | **Values**                     | Values populated after the questionnaire is completed.                                               |
 | **Lower/Upper Bound**          | Bounds that restrict the objective values.                                                           |
 | **Smaller is Better**          | Whether lower values are preferable (default: higher is better).                                     |
@@ -254,6 +251,46 @@ Select the objective by clicking the `=` icon in its top-left corner (turns blue
 
 > **Note:** Reverse the steps you performed when adding the objective.
 
+
+
+### Get Parameter Values via Code
+You can read the current parameter values each iteration by indexing into the *parameter* list on the *BOforUnityManager* instance.
+Here is an example snippet:
+```csharp
+// assuming you have a reference to the manager
+BOforUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BOforUnityManager>();
+
+// during iteration i, read the j-th parameter
+float value = bo.parameter[j].Value.value;
+
+// or loop through all parameters
+for (int j = 0; j < bo.parameter.Count; j++) {
+    var param = bo.parameter[j];
+    Debug.Log($"Param {j} ({param.Value.name}) = {param.Value.value}");
+}
+```
+This gives you programmatic access to the parameter settings that the optimizer proposes.
+The index follows the order of the parameter list visible in the Unity inspector view.
+
+### Set Objective Values via Code
+By default, the *QuestionnaireToolkit* updates the objective values in each iteration. 
+If you want to override or set them manually, you can write into the *objective* list on the *BOforUnityManager* instance.
+Example:
+```csharp
+BOforUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BOforUnityManager>();
+
+// during iteration i, assign the j-th objective
+bo.objective[j].Value.value = myScore;
+
+// or multiple objectives
+for (int j = 0; j < bo.objective.Count; j++) {
+    double score = ComputeObjectiveFor(j);
+    bo.objective[j].Value.value = score;
+    Debug.Log($"Objective {j} ({bo.objective[j].Value.name}) = {score}");
+}
+```
+The index follows the order of the objective list visible in the Unity inspector view.
+Make sure you assign objective values before the optimizer proceeds so that the backend receives the feedback correctly.
 
 
 ### Python Settings
