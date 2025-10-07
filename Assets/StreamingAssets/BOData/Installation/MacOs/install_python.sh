@@ -1,10 +1,12 @@
 #!/bin/bash
 
+set -euo pipefail  # Exit on error, undefined variables, and pipe failures
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PYTHON_INSTALLER="$SCRIPT_DIR/Data/Installation_Objects/python-3.11.3-macos11.pkg"
+PYTHON_INSTALLER="$SCRIPT_DIR/Data/Installation_Objects/python-3.13.7-macos11.pkg"
 PYTHON_INSTALL_DIR="/usr"
-PYTHON_EXE="/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
+PYTHON_EXE="/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
 
 REQUIREMENTS="$SCRIPT_DIR/../requirements.txt"
 
