@@ -139,7 +139,7 @@ Set up the asset as follows:
    Files are in *Assets/StreamingAssets/BOData/Installation*.
 3. Install Unity Hub.
 4. Create or log in to your (student) Unity account.
-5. Install Unity 2022.3.21f1 or higher. We recommend Unity v6.2.
+5. Install Unity 2022.3.21f1 or higher. We recommend Unity 6.2 or newer.
 6. Add the project to Unity Hub by selecting the repository folder.
 7. Open the project and set the [Python Settings](#python-settings).
 
