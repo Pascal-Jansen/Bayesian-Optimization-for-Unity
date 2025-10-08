@@ -81,7 +81,6 @@ namespace BOforUnity.Scripts
         private volatile bool _stopRequested;
         private volatile bool _connectionClosedByPeer;
         private volatile bool _optimizationFinished;
-        private volatile bool _shutdownHandled;
 
         public float coverage = 0f;
         public float tempCoverage = 0f;
@@ -109,7 +108,6 @@ namespace BOforUnity.Scripts
             _stopRequested = false;
             _connectionClosedByPeer = false;
             _optimizationFinished = false;
-            _shutdownHandled = false;
             _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
         }
@@ -133,7 +131,17 @@ namespace BOforUnity.Scripts
                     if (recvLen == 0)
                     {
                         _connectionClosedByPeer = true;
-                        HandlePeerInitiatedShutdown();
+
+                        if (_optimizationFinished)
+                        {
+                            Debug.Log("Python optimization process closed the connection. Optimization iterations have finished successfully.");
+                        }
+                        else
+                        {
+                            Debug.LogError("Socket closed by Python unexpectedly before optimization completed.");
+                            MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                        }
+
                         SocketQuit();
                         break;
                     }
@@ -161,34 +169,13 @@ namespace BOforUnity.Scripts
             }
             catch (SocketException ex)
             {
-                bool stopRequested = _stopRequested;
-                bool peerIndicatedShutdown =
-                    ex.SocketErrorCode == SocketError.ConnectionAborted ||
-                    ex.SocketErrorCode == SocketError.ConnectionReset ||
-                    ex.SocketErrorCode == SocketError.Shutdown ||
-                    ex.SocketErrorCode == SocketError.OperationAborted;
-
-                if (stopRequested)
+                if (_stopRequested || _connectionClosedByPeer)
                 {
-                    // Unity explicitly requested shutdown; the socket closing is expected.
-                }
-                else if (peerIndicatedShutdown)
-                {
-                    _connectionClosedByPeer = true;
-                    HandlePeerInitiatedShutdown(ex);
-                    SocketQuit();
+                    Debug.Log("Socket connection closed.");
                 }
                 else
                 {
                     Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
-                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
-                }
-            }
-            catch (ObjectDisposedException)
-            {
-                if (!_stopRequested)
-                {
-                    Debug.LogError("SocketReceive encountered a disposed socket unexpectedly.");
                     MainThreadDispatcher.Execute(OnSocketConnectionFailed);
                 }
             }
