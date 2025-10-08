@@ -79,6 +79,8 @@ namespace BOforUnity.Scripts
         private IPEndPoint _ipEnd;
         private Thread _connectThread;
         private volatile bool _stopRequested;
+        private volatile bool _connectionClosedByPeer;
+        private volatile bool _optimizationFinished;
 
         public float coverage = 0f;
         public float tempCoverage = 0f;
@@ -104,6 +106,8 @@ namespace BOforUnity.Scripts
             _ipEnd = new IPEndPoint(_ip, 56001);
 
             _stopRequested = false;
+            _connectionClosedByPeer = false;
+            _optimizationFinished = false;
             _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
         }
@@ -126,7 +130,18 @@ namespace BOforUnity.Scripts
                     int recvLen = _serverSocket.Receive(_recvBuf);
                     if (recvLen == 0)
                     {
-                        Debug.Log("Connection closed by server");
+                        _connectionClosedByPeer = true;
+
+                        if (_optimizationFinished)
+                        {
+                            Debug.Log("Python optimization process closed the connection. Optimization iterations have finished successfully.");
+                        }
+                        else
+                        {
+                            Debug.LogError("Socket closed by Python unexpectedly before optimization completed.");
+                            MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                        }
+
                         SocketQuit();
                         break;
                     }
@@ -154,8 +169,21 @@ namespace BOforUnity.Scripts
             }
             catch (SocketException ex)
             {
-                Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
-                MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                bool expectedShutdown = _stopRequested || _connectionClosedByPeer;
+                bool gracefulPeerShutdown = _optimizationFinished &&
+                    (ex.SocketErrorCode == SocketError.ConnectionAborted ||
+                     ex.SocketErrorCode == SocketError.ConnectionReset ||
+                     ex.SocketErrorCode == SocketError.Shutdown);
+
+                if (expectedShutdown || gracefulPeerShutdown)
+                {
+                    Debug.Log("Socket connection closed.");
+                }
+                else
+                {
+                    Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
+                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                }
             }
             catch (Exception ex)
             {
@@ -227,6 +255,7 @@ namespace BOforUnity.Scripts
                         _bomanager.optimizationFinished = true;
                         _bomanager.OptimizationDone();
                     });
+                    _optimizationFinished = true;
                     break;
                 }
 
@@ -378,7 +407,6 @@ namespace BOforUnity.Scripts
                 _connectThread = null;
             }
 
-            Debug.Log("Unity disconnected socket");
         }
     }
 }
