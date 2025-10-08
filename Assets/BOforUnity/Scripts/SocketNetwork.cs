@@ -98,6 +98,8 @@ namespace BOforUnity.Scripts
             Formatting = Formatting.None
         };
 
+        private bool _shutdownHandled;
+
         // -------------------- Lifecycle --------------------
         public void InitSocket()
         {
@@ -181,7 +183,10 @@ namespace BOforUnity.Scripts
             }
             catch (Exception ex)
             {
-                Debug.LogError($"Error in SocketReceive: {ex.Message}\n{ex.StackTrace}");
+                if (ex.Message != "Thread was being aborted.")
+                {
+                    Debug.LogError($"Error in SocketReceive: {ex.Message}\n{ex.StackTrace}");
+                }
             }
         }
 

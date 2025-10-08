@@ -1,5 +1,5 @@
 Server starts, waiting for connection...
-Connected by ('127.0.0.1', 50946)
+Connected by ('127.0.0.1', 54288)
 Init OK: {'BATCH_SIZE': 1, 'NUM_RESTARTS': 10, 'RAW_SAMPLES': 1024, 'N_ITERATIONS': 5, 'MC_SAMPLES': 512, 'N_INITIAL': 5, 'SEED': 3, 'PROBLEM_DIM': 2, 'NUM_OBJS': 2}
 Initial Sobol X in [0,1]: tensor([[0.0685, 0.2245],
         [0.6992, 0.0626],
@@ -7,14 +7,17 @@ Initial Sobol X in [0,1]: tensor([[0.0685, 0.2245],
         [0.1474, 0.3385],
         [0.2702, 0.2726]], dtype=torch.float64)
 ---- Initial Sample 1
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.307, 'TargetEccentricity': 0.225}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.307, 'TargetEccentricity': 0.225}}
 ---- Initial Sample 2
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.37, 'TargetEccentricity': 0.063}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.37, 'TargetEccentricity': 0.063}}
 ---- Initial Sample 3
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.338, 'TargetEccentricity': 0.03}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.338, 'TargetEccentricity': 0.03}}
 ---- Initial Sample 4
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.315, 'TargetEccentricity': 0.339}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.315, 'TargetEccentricity': 0.339}}
 ---- Initial Sample 5
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.327, 'TargetEccentricity': 0.273}}
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.343, 'TargetEccentricity': 0.308}}
-Send parameters: {'type': 'parameters', 'values': {'Target-Size/_-123,352;4,': 0.327, 'TargetEccentricity': 0.34}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.327, 'TargetEccentricity': 0.273}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.376, 'TargetEccentricity': 0.0}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.381, 'TargetEccentricity': 0.079}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.368, 'TargetEccentricity': 0.088}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.4, 'TargetEccentricity': 0.596}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.3, 'TargetEccentricity': 0.829}}
