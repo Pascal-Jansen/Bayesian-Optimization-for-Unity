@@ -79,6 +79,8 @@ namespace BOforUnity.Scripts
         private IPEndPoint _ipEnd;
         private Thread _connectThread;
         private volatile bool _stopRequested;
+        private volatile bool _optimizationFinished;
+        private volatile bool _shutdownHandled;
 
         public float coverage = 0f;
         public float tempCoverage = 0f;
@@ -104,6 +106,8 @@ namespace BOforUnity.Scripts
             _ipEnd = new IPEndPoint(_ip, 56001);
 
             _stopRequested = false;
+            _optimizationFinished = false;
+            _shutdownHandled = false;
             _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
         }
@@ -126,8 +130,7 @@ namespace BOforUnity.Scripts
                     int recvLen = _serverSocket.Receive(_recvBuf);
                     if (recvLen == 0)
                     {
-                        Debug.Log("Connection closed by server");
-                        SocketQuit();
+                        HandlePeerInitiatedShutdownAndQuit();
                         break;
                     }
 
@@ -154,8 +157,34 @@ namespace BOforUnity.Scripts
             }
             catch (SocketException ex)
             {
-                Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
-                MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                bool stopRequested = _stopRequested;
+                bool peerIndicatedShutdown =
+                    ex.SocketErrorCode == SocketError.ConnectionAborted ||
+                    ex.SocketErrorCode == SocketError.ConnectionReset ||
+                    ex.SocketErrorCode == SocketError.Shutdown ||
+                    ex.SocketErrorCode == SocketError.OperationAborted;
+
+                if (stopRequested)
+                {
+                    // Unity explicitly requested shutdown; the socket closing is expected.
+                }
+                else if (peerIndicatedShutdown)
+                {
+                    HandlePeerInitiatedShutdownAndQuit(ex);
+                }
+                else
+                {
+                    Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
+                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                if (!_stopRequested)
+                {
+                    Debug.LogError("SocketReceive encountered a disposed socket unexpectedly.");
+                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                }
             }
             catch (Exception ex)
             {
@@ -227,6 +256,7 @@ namespace BOforUnity.Scripts
                         _bomanager.optimizationFinished = true;
                         _bomanager.OptimizationDone();
                     });
+                    _optimizationFinished = true;
                     break;
                 }
 
@@ -378,7 +408,37 @@ namespace BOforUnity.Scripts
                 _connectThread = null;
             }
 
-            Debug.Log("Unity disconnected socket");
+        }
+
+        private void HandlePeerInitiatedShutdownAndQuit(SocketException socketException = null)
+        {
+            HandlePeerInitiatedShutdown(socketException);
+            SocketQuit();
+        }
+
+        private void HandlePeerInitiatedShutdown(SocketException socketException = null)
+        {
+            if (_shutdownHandled)
+                return;
+
+            _shutdownHandled = true;
+
+            if (_optimizationFinished)
+            {
+                Debug.Log("Python optimization process closed the connection. Optimization iterations have finished successfully.");
+            }
+            else
+            {
+                if (socketException != null)
+                {
+                    Debug.LogError($"Socket closed by Python unexpectedly before optimization completed. Error: {socketException.SocketErrorCode} {socketException.Message}");
+                }
+                else
+                {
+                    Debug.LogError("Socket closed by Python unexpectedly before optimization completed.");
+                }
+                MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+            }
         }
     }
 }
