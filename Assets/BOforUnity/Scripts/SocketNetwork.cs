@@ -401,7 +401,31 @@ namespace BOforUnity.Scripts
                 _connectThread = null;
             }
 
-            Debug.Log("Unity disconnected socket");
+        }
+
+        private void HandlePeerInitiatedShutdown(SocketException socketException = null)
+        {
+            if (_shutdownHandled)
+                return;
+
+            _shutdownHandled = true;
+
+            if (_optimizationFinished)
+            {
+                Debug.Log("Python optimization process closed the connection. Optimization iterations have finished successfully.");
+            }
+            else
+            {
+                if (socketException != null)
+                {
+                    Debug.LogError($"Socket closed by Python unexpectedly before optimization completed. Error: {socketException.SocketErrorCode} {socketException.Message}");
+                }
+                else
+                {
+                    Debug.LogError("Socket closed by Python unexpectedly before optimization completed.");
+                }
+                MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+            }
         }
     }
 }
