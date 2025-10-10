@@ -261,12 +261,12 @@ Here is an example snippet:
 BOforUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BOforUnityManager>();
 
 // during iteration i, read the j-th parameter
-float value = bo.parameter[j].Value.value;
+float value = bo.parameters[j].value.Value;
 
 // or loop through all parameters
-for (int j = 0; j < bo.parameter.Count; j++) {
-    var param = bo.parameter[j];
-    Debug.Log($"Param {j} ({param.Value.name}) = {param.Value.value}");
+for (int j = 0; j < bo.parameters.Count; j++) {
+    var params = bo.parameters[j];
+    Debug.Log($"Param {j} ({params.value.name}) = {params.value.Value}");
 }
 ```
 This gives you programmatic access to the parameter settings that the optimizer proposes.
@@ -280,13 +280,13 @@ Example:
 BOforUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BOforUnityManager>();
 
 // during iteration i, assign the j-th objective
-bo.objective[j].Value.value = myScore;
+bo.objectives[j].value.Value = myScore;
 
 // or multiple objectives
-for (int j = 0; j < bo.objective.Count; j++) {
+for (int j = 0; j < bo.objectives.Count; j++) {
     double score = ComputeObjectiveFor(j);
-    bo.objective[j].Value.value = score;
-    Debug.Log($"Objective {j} ({bo.objective[j].Value.name}) = {score}");
+    bo.objectives[j].value.Value = score;
+    Debug.Log($"Objective {j} ({bo.objectives[j].value.name}) = {score}");
 }
 ```
 The index follows the order of the objective list visible in the Unity inspector view.
