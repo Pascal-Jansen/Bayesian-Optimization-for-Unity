@@ -258,15 +258,16 @@ You can read the current parameter values each iteration by indexing into the *p
 Here is an example snippet:
 ```csharp
 // assuming you have a reference to the manager
-BOforUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BOforUnityManager>();
+BoForUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BoForUnityManager>();
 
-// during iteration i, read the j-th parameter
-float value = bo.parameters[j].value.Value;
+var i = 0;
+// during an iteration, read the i-th parameter
+float value = bo.parameters[i].value.Value;
 
 // or loop through all parameters
 for (int j = 0; j < bo.parameters.Count; j++) {
-    var params = bo.parameters[j];
-    Debug.Log($"Param {j} ({params.value.name}) = {params.value.Value}");
+   var parameter = bo.parameters[j];
+   Debug.Log($"Parameter {j} ({parameter.key}) = {parameter.value.Value}");
 }
 ```
 This gives you programmatic access to the parameter settings that the optimizer proposes.
@@ -277,16 +278,33 @@ By default, the *QuestionnaireToolkit* updates the objective values in each iter
 If you want to override or set them manually, you can write into the *objective* list on the *BOforUnityManager* instance.
 Example:
 ```csharp
-BOforUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BOforUnityManager>();
+BoForUnityManager bo = GameObject.Find("BOforUnityManager").GetComponent<BoForUnityManager>();
 
-// during iteration i, assign the j-th objective
-bo.objectives[j].value.Value = myScore;
+var i = 0;
+// during an iteration, assign the i-th objective
+// this assumes that there is only one sub-measure for this objective:
+var myScore = 1.5f;
+bo.objectives[i].value.values[0] = myScore;
 
+// if you want to assign more than one sub-measure use the following...
+// their average value will be sent to the optimizer as a single value for this objective
+var myScoreA = 7.1f;
+var myScoreB = 10f;
+var myScoreC = 3.24f;
+bo.objectives[i].value.values[0] = myScoreA;
+bo.objectives[i].value.values[1] = myScoreB;
+bo.objectives[i].value.values[2] = myScoreC;
+        
+// the following lines are necessary if you did not define the number of sub-measures in the inspector view
+bo.objectives[i].value.numberOfSubMeasures = 3;
+bo.objectives[i].value.values.Add(myScoreA);
+bo.objectives[i].value.values.Add(myScoreB);
+bo.objectives[i].value.values.Add(myScoreC);
+        
 // or multiple objectives
 for (int j = 0; j < bo.objectives.Count; j++) {
-    double score = ComputeObjectiveFor(j);
-    bo.objectives[j].value.Value = score;
-    Debug.Log($"Objective {j} ({bo.objectives[j].value.name}) = {score}");
+   bo.objectives[j].value.values[0] = myScore + j;
+   Debug.Log($"Objective {j} ({bo.objectives[j].value.values[0]}) = {myScore + j}");
 }
 ```
 The index follows the order of the objective list visible in the Unity inspector view.
