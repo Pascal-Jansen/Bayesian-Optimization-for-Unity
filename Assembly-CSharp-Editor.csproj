@@ -835,9 +835,6 @@
     <Reference Include="System.Xml.XPath.XDocument">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.2.7f2\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\Facades\System.Xml.XPath.XDocument.dll</HintPath>
     </Reference>
-    <Reference Include="Unity.Toolchain.Win-x86_64-Linux-x86_64">
-      <HintPath>C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\ScriptAssemblies\Unity.Toolchain.Win-x86_64-Linux-x86_64.dll</HintPath>
-    </Reference>
     <Reference Include="Unity.Multiplayer.Center.Editor">
       <HintPath>C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\ScriptAssemblies\Unity.Multiplayer.Center.Editor.dll</HintPath>
     </Reference>

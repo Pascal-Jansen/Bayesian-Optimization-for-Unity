@@ -31,7 +31,7 @@ namespace BOforUnity.Scripts
         [Header("Outputs")]
         public List<float> clickTimes;
 
-        public int maxRounds = 3;
+        public int maxIterations = 3;
         public int currRound = 1;
 
         public QTQuestionnaireManager qtManager;
@@ -81,7 +81,7 @@ namespace BOforUnity.Scripts
         private IEnumerator RunGame()
         {
             currRound = 1;
-            while (currRound <= maxRounds)
+            while (currRound <= maxIterations)
             {
                 _clicked = false;
 

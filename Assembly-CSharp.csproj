@@ -49,6 +49,7 @@
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\ShaderPropAnimator.cs" />
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\TMP_TextSelector_A.cs" />
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\TMP_UiFrameRateCounter.cs" />
+    <Compile Include="Assets\BOforUnity\Scripts\ColorGuesser.cs" />
     <Compile Include="Assets\BOforUnity\Scripts\MainThreadDispatcher.cs" />
     <Compile Include="Assets\BOforUnity\Scripts\SocketNetwork.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\MemberReflection\Reflection\UnityReflectionException.cs" />
@@ -64,6 +65,7 @@
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\Benchmark01_UGUI.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\MemberReflection\Reflection\LabelTypeAfterAttribute.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\StandaloneFileBrowser\IStandaloneFileBrowser.cs" />
+    <Compile Include="Assets\BOforUnity\Scripts\ColorWheelMarker.cs" />
     <Compile Include="Assets\TextMesh Pro\Examples &amp; Extras\Scripts\SimpleScript.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\TagsAndLayers.cs" />
     <Compile Include="Assets\QuestionnaireToolkit\Scripts\QTQuestionnaireManager.cs" />
@@ -909,9 +911,6 @@
     </Reference>
     <Reference Include="System.Xml.Serialization">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.2.7f2\Editor\Data\NetStandard\compat\2.1.0\shims\netfx\System.Xml.Serialization.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.Toolchain.Win-x86_64-Linux-x86_64">
-      <HintPath>C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\ScriptAssemblies\Unity.Toolchain.Win-x86_64-Linux-x86_64.dll</HintPath>
     </Reference>
     <Reference Include="Unity.Multiplayer.Center.Editor">
       <HintPath>C:\Users\SunyyPC\Desktop\Bayesian-Optimization-for-Unity\Library\ScriptAssemblies\Unity.Multiplayer.Center.Editor.dll</HintPath>

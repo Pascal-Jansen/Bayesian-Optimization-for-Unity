@@ -138,10 +138,10 @@ namespace BOforUnity
             var isPerfect = false;
 
             // Check if perfect rating is active. If not skip the checks for a perfect rating.
-            if(perfectRatingActive == true)
+            if(perfectRatingActive)
             {
                 // Check if perfect rating can be achieved in the initial rounds (also known as: "sampling phase")
-                if(perfectRatingInInitialRounds == true)
+                if(perfectRatingInInitialRounds)
                 {
                     isPerfect = IsPerfectRating();
                 }

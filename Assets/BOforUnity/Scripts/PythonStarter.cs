@@ -102,7 +102,7 @@ namespace BOforUnity.Scripts
             Environment.SetEnvironmentVariable("KMP_DUPLICATE_LIB_OK", "TRUE");
 
             // Determine the Python script to execute
-            string moboScriptName = "mobo.py";
+            string moboScriptName = _bomanager.objectives.Count > 1 ? "mobo.py" : "bo.py";
 
             // Construct the full path to the Python script based on the platform.
 #if UNITY_EDITOR
@@ -118,8 +118,8 @@ namespace BOforUnity.Scripts
 #endif
 
             // Log the full path to the Python script.
-            UnityEngine.Debug.Log("Mobo Path: " + fullPath);
-            UnityEngine.Debug.Log("Mobo Exists: " + File.Exists(fullPath));
+            Debug.Log("Mobo Path: " + fullPath);
+            Debug.Log("Mobo Exists: " + File.Exists(fullPath));
 
             outputFilePath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", "output.txt");
             outputFileWriter = new StreamWriter(outputFilePath);

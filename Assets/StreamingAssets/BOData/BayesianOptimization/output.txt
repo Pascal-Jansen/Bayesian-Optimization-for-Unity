@@ -1,5 +1,5 @@
 Server starts, waiting for connection...
-Connected by ('127.0.0.1', 54288)
+Connected by ('127.0.0.1', 54841)
 Init OK: {'BATCH_SIZE': 1, 'NUM_RESTARTS': 10, 'RAW_SAMPLES': 1024, 'N_ITERATIONS': 5, 'MC_SAMPLES': 512, 'N_INITIAL': 5, 'SEED': 3, 'PROBLEM_DIM': 2, 'NUM_OBJS': 2}
 Initial Sobol X in [0,1]: tensor([[0.0685, 0.2245],
         [0.6992, 0.0626],
@@ -16,8 +16,5 @@ Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.338, 'TargetE
 Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.315, 'TargetEccentricity': 0.339}}
 ---- Initial Sample 5
 Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.327, 'TargetEccentricity': 0.273}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.376, 'TargetEccentricity': 0.0}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.381, 'TargetEccentricity': 0.079}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.368, 'TargetEccentricity': 0.088}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.4, 'TargetEccentricity': 0.596}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.3, 'TargetEccentricity': 0.829}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.384, 'TargetEccentricity': 0.137}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.366, 'TargetEccentricity': 0.039}}
