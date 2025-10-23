@@ -1,6 +1,6 @@
-torch >= 2.8.0
-botorch >= 0.15.1
+torch >= 2.9.0
+botorch >= 0.16.0
 scipy >= 1.16.2
-numpy>=2.3.3
-matplotlib >= 3.10.6
+numpy>=2.3.4
+matplotlib >= 3.10.7
 pandas >= 2.3.3
