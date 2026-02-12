@@ -38,6 +38,8 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
 - [Fly Away: Evaluating the Impact of Motion Fidelity on Optimized User Interface Design via Bayesian Optimization in Automated Urban Air Mobility Simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288)
 (CHI '25)
 
+- [ProVoice: Designing Proactive Functionality for In-Vehicle Conversational Assistants using Multi-Objective Bayesian Optimization to Enhance Driver Experience](https://arxiv.org/abs/2601.19421)
+(CHI '26)
 
 
 ## Table of Contents
