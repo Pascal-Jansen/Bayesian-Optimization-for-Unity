@@ -60,6 +60,7 @@ device = torch.device("cpu")
 # -------------------- TCP server helpers --------------------
 HOST = ''
 PORT = 56001
+SOCKET_RECV_BUF = ""
 
 def send_json_line(conn, obj):
     line = json.dumps(obj, ensure_ascii=False) + "\n"
@@ -89,6 +90,34 @@ def ndjson_reader(conn):
                     yield json.loads(line)
                 except json.JSONDecodeError as e:
                     print("JSON decode error:", e, "line:", line, flush=True)
+
+def recv_json_message(conn):
+    """Receive one NDJSON message while preserving unread bytes across calls."""
+    global SOCKET_RECV_BUF
+    while True:
+        idx = SOCKET_RECV_BUF.find("\n")
+        if idx >= 0:
+            line = SOCKET_RECV_BUF[:idx].rstrip("\r")
+            SOCKET_RECV_BUF = SOCKET_RECV_BUF[idx + 1:]
+            if not line.strip():
+                continue
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError as e:
+                print("JSON decode error:", e, "line:", line, flush=True)
+                continue
+
+        chunk = conn.recv(4096)
+        if not chunk:
+            if SOCKET_RECV_BUF.strip():
+                trailing = SOCKET_RECV_BUF
+                SOCKET_RECV_BUF = ""
+                try:
+                    return json.loads(trailing)
+                except Exception:
+                    return None
+            return None
+        SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
 
 # -------------------- IO utils --------------------
 def get_unique_folder(parent, folder_name):
@@ -123,12 +152,36 @@ def write_data_to_csv(csv_file_path, fieldnames, rows):
     except Exception as e:
         print("Error writing to file:", str(e), flush=True)
 
-def denormalize_to_original_param(val01, lo, hi):
-    return np.round(lo + val01 * (hi - lo), 3)
+def denormalize_to_original_param(val01, lo, hi, decimals=3):
+    v = lo + val01 * (hi - lo)
+    if decimals is None:
+        return float(v)
+    return np.round(v, decimals)
 
 def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
     v = -v_m1p1 if int(smaller_is_better) == 1 else v_m1p1
     return np.round(lo + (v + 1) * 0.5 * (hi - lo), 3)
+
+def normalize_param_column(col, lo, hi):
+    col = np.asarray(col, dtype=np.float64)
+    if np.all((-1e-8 <= col) & (col <= 1.0 + 1e-8)):
+        return np.clip(col, 0.0, 1.0)
+    if hi == lo:
+        return np.zeros_like(col)
+    return np.clip((col - lo) / (hi - lo), 0.0, 1.0)
+
+def normalize_obj_column(col, lo, hi, minflag):
+    col = np.asarray(col, dtype=np.float64)
+    if np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8)):
+        # Already normalized objective values: assume maximize-space convention.
+        y = np.clip(col, -1.0, 1.0)
+    elif hi == lo:
+        y = np.zeros_like(col)
+    else:
+        y = (col - lo) / (hi - lo) * 2.0 - 1.0
+        if int(minflag) == 1:
+            y = -y
+    return np.clip(y, -1.0, 1.0)
 
 # -------------------- protocol parsing --------------------
 def parse_param_init(init_val):
@@ -151,7 +204,10 @@ def parse_obj_init(init_val):
 
 # -------------------- objective evaluation --------------------
 def recv_objectives_blocking(conn):
-    for msg in ndjson_reader(conn):
+    while True:
+        msg = recv_json_message(conn)
+        if msg is None:
+            return None
         t = msg.get("type")
         if t == "objectives":
             return msg.get("values") or {}
@@ -166,7 +222,8 @@ def objective_function(conn, x_tensor):
     values = {}
     for i, name in enumerate(parameter_names):
         lo, hi = parameters_info[i]
-        values[name] = float(denormalize_to_original_param(x[i], lo, hi))
+        # Keep full precision for optimizer-proposed points sent to Unity.
+        values[name] = denormalize_to_original_param(x[i], lo, hi, decimals=None)
 
     payload = {"type": "parameters", "values": values}
     print("Send parameters:", payload, flush=True)
@@ -177,25 +234,28 @@ def objective_function(conn, x_tensor):
         raise RuntimeError("No objectives received from Unity.")
 
     fs = []
-    rec_missing = []
+    missing = [name for name in objective_names if name not in resp]
+    if missing:
+        raise KeyError(f"Unity objectives missing required key(s): {missing}")
+
     for i, name in enumerate(objective_names):
-        val = float(resp.get(name, 0.0))
-        if name not in resp:
-            rec_missing.append(name)
+        val = float(resp[name])
+        if not np.isfinite(val):
+            raise ValueError(f"Objective '{name}' is non-finite: {val}")
         lo, hi, minflag = objectives_info[i]
         f = 0.0 if hi == lo else (val - lo) / (hi - lo) * 2 - 1
         if int(minflag) == 1:
             f *= -1
         fs.append(max(-1.0, min(1.0, f)))
 
-    if rec_missing:
-        print("Warning: missing objective(s) from Unity:", rec_missing, flush=True)
-
     return torch.tensor(fs, dtype=torch.double)
 
 # -------------------- data IO --------------------
 def generate_initial_data(conn, n_samples):
     global PROJECT_PATH
+    if n_samples < 1:
+        raise ValueError("n_samples must be >= 1 for non-warm-start runs.")
+
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     if not os.path.exists(obs_csv):
         header = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase','IsPareto'] + objective_names + parameter_names
@@ -222,14 +282,49 @@ def generate_initial_data(conn, n_samples):
             csv.writer(f, delimiter=';').writerow(row)
         send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
 
-    Y = torch.tensor(np.stack([t.numpy() for t in train_obj], axis=0), dtype=torch.double)
+    Y = torch.stack(train_obj, dim=0).to(dtype=torch.double)
     return train_x, Y
 
 def load_data():
     cur = os.getcwd()
-    y = pd.read_csv(os.path.join(cur, "InitData", CSV_PATH_OBJECTIVES), delimiter=';').values
-    x = pd.read_csv(os.path.join(cur, "InitData", CSV_PATH_PARAMETERS), delimiter=';').values
-    return torch.tensor(x, dtype=torch.double), torch.tensor(y, dtype=torch.double)
+    if not CSV_PATH_PARAMETERS or not CSV_PATH_OBJECTIVES:
+        raise ValueError("Warm start is enabled, but initial CSV paths are missing.")
+
+    x_path = os.path.join(cur, "InitData", CSV_PATH_PARAMETERS)
+    y_path = os.path.join(cur, "InitData", CSV_PATH_OBJECTIVES)
+    if not os.path.exists(x_path):
+        raise FileNotFoundError(f"Warm-start parameter CSV not found: {x_path}")
+    if not os.path.exists(y_path):
+        raise FileNotFoundError(f"Warm-start objective CSV not found: {y_path}")
+
+    x_df = pd.read_csv(x_path, delimiter=';')
+    y_df = pd.read_csv(y_path, delimiter=';')
+
+    missing_param_cols = [k for k in parameter_names if k not in x_df.columns]
+    missing_obj_cols = [k for k in objective_names if k not in y_df.columns]
+    if missing_param_cols:
+        raise ValueError(f"Warm-start parameter CSV is missing columns: {missing_param_cols}")
+    if missing_obj_cols:
+        raise ValueError(f"Warm-start objective CSV is missing columns: {missing_obj_cols}")
+
+    x_raw = x_df[parameter_names].apply(pd.to_numeric, errors='raise').to_numpy(dtype=np.float64)
+    y_raw = y_df[objective_names].apply(pd.to_numeric, errors='raise').to_numpy(dtype=np.float64)
+    if x_raw.shape[0] != y_raw.shape[0]:
+        raise ValueError(f"Warm-start rows mismatch: parameters={x_raw.shape[0]}, objectives={y_raw.shape[0]}")
+    if x_raw.shape[0] < 1:
+        raise ValueError("Warm-start CSVs must contain at least one data row.")
+
+    x_norm = np.zeros_like(x_raw, dtype=np.float64)
+    for j in range(PROBLEM_DIM):
+        lo, hi = parameters_info[j]
+        x_norm[:, j] = normalize_param_column(x_raw[:, j], lo, hi)
+
+    y_norm = np.zeros_like(y_raw, dtype=np.float64)
+    for j in range(NUM_OBJS):
+        lo, hi, minflag = objectives_info[j]
+        y_norm[:, j] = normalize_obj_column(y_raw[:, j], lo, hi, minflag)
+
+    return torch.tensor(x_norm, dtype=torch.double), torch.tensor(y_norm, dtype=torch.double)
 
 # -------------------- model --------------------
 def initialize_model(train_x, train_obj):
@@ -287,6 +382,8 @@ def save_xy(x_sample, y_sample, iteration):
     flags = ['TRUE' if b else 'FALSE' for b in pareto_mask]
     if len(flags) == len(df):
         df['IsPareto'] = flags
+    elif len(df) > 0:
+        df.loc[df.index[-1], 'IsPareto'] = 'TRUE' if bool(pareto_mask[-1]) else 'FALSE'
     df.to_csv(obs_csv, sep=';', index=False)
 
 def save_hypervolume_to_file(hvs, iteration):
@@ -318,6 +415,13 @@ def mobo_execute(conn, seed, iterations, initial_samples):
         train_x, train_y = load_data()
     else:
         train_x, train_y = generate_initial_data(conn, n_samples=initial_samples)
+
+    if train_x.shape[0] != train_y.shape[0]:
+        raise ValueError(f"Training X/Y row mismatch: X={train_x.shape[0]}, Y={train_y.shape[0]}")
+    if train_x.shape[1] != PROBLEM_DIM:
+        raise ValueError(f"Training X has wrong dimension: got {train_x.shape[1]}, expected {PROBLEM_DIM}")
+    if train_y.shape[1] != NUM_OBJS:
+        raise ValueError(f"Training Y has wrong objective count: got {train_y.shape[1]}, expected {NUM_OBJS}")
 
     mll, model = initialize_model(train_x, train_y)
 
@@ -358,17 +462,22 @@ def main():
     global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES
     global USER_ID, CONDITION_ID, GROUP_ID
     global parameter_names, objective_names, parameters_info, objectives_info
+    global SOCKET_RECV_BUF
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((HOST, PORT))
     s.listen(1)
     print('Server starts, waiting for connection...', flush=True)
     conn, addr = s.accept()
     print('Connected by', addr, flush=True)
+    SOCKET_RECV_BUF = ""
 
-    reader = ndjson_reader(conn)
     init_msg = None
-    for msg in reader:
+    while True:
+        msg = recv_json_message(conn)
+        if msg is None:
+            break
         if msg.get("type") == "init":
             init_msg = msg
             break
@@ -390,6 +499,20 @@ def main():
     CSV_PATH_PARAMETERS = str(cfg.get("initialParametersDataPath") or "")
     CSV_PATH_OBJECTIVES = str(cfg.get("initialObjectivesDataPath") or "")
 
+    if PROBLEM_DIM < 1:
+        raise ValueError(f"nParameters must be >= 1, got {PROBLEM_DIM}")
+    if NUM_OBJS < 2:
+        raise ValueError(f"mobo.py expects at least 2 objectives, got {NUM_OBJS}")
+    if N_INITIAL < 0 or N_ITERATIONS < 0:
+        raise ValueError(f"Iteration counts must be non-negative, got sampling={N_INITIAL}, optimization={N_ITERATIONS}")
+    if NUM_RESTARTS < 1 or RAW_SAMPLES < 1 or MC_SAMPLES < 1:
+        raise ValueError(
+            f"numRestarts/rawSamples/mcSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}/{MC_SAMPLES}"
+        )
+    if BATCH_SIZE != 1:
+        print(f"Warning: batchSize={BATCH_SIZE} is not supported in this HITL loop; forcing batchSize=1.", flush=True)
+        BATCH_SIZE = 1
+
     user = init_msg.get("user", {}) or {}
     USER_ID      = str(user.get("userId", "user"))
     CONDITION_ID = str(user.get("conditionId", "cond"))
@@ -401,6 +524,11 @@ def main():
     parameter_names = [p.get("key") for p in parameters]
     objective_names = [o.get("key") for o in objectives]
 
+    if len(set(parameter_names)) != len(parameter_names):
+        raise ValueError("Duplicate parameter keys detected in init message.")
+    if len(set(objective_names)) != len(objective_names):
+        raise ValueError("Duplicate objective keys detected in init message.")
+
     if len(parameter_names) != PROBLEM_DIM:
         raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
     if len(objective_names) != NUM_OBJS:
@@ -408,6 +536,19 @@ def main():
 
     parameters_info = [parse_param_init(p.get("init")) for p in parameters]
     objectives_info = [parse_obj_init(o.get("init")) for o in objectives]
+
+    for i, (lo, hi) in enumerate(parameters_info):
+        if not np.isfinite(lo) or not np.isfinite(hi):
+            raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
+        if hi < lo:
+            raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
+    for i, (lo, hi, minflag) in enumerate(objectives_info):
+        if not np.isfinite(lo) or not np.isfinite(hi):
+            raise ValueError(f"Objective '{objective_names[i]}' bounds must be finite, got ({lo}, {hi})")
+        if hi < lo:
+            raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
+        if int(minflag) not in (0, 1):
+            raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
 
     ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)
     problem_bounds = torch.stack(
@@ -434,4 +575,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
