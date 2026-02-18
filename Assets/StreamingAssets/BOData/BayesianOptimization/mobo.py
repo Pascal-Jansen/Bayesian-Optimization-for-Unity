@@ -164,7 +164,13 @@ def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
 
 def normalize_param_column(col, lo, hi):
     col = np.asarray(col, dtype=np.float64)
+    in_raw_range = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
+    if in_raw_range:
+        if hi == lo:
+            return np.zeros_like(col)
+        return np.clip((col - lo) / (hi - lo), 0.0, 1.0)
     if np.all((-1e-8 <= col) & (col <= 1.0 + 1e-8)):
+        # Fallback for previously normalized warm-start files.
         return np.clip(col, 0.0, 1.0)
     if hi == lo:
         return np.zeros_like(col)
@@ -172,8 +178,16 @@ def normalize_param_column(col, lo, hi):
 
 def normalize_obj_column(col, lo, hi, minflag):
     col = np.asarray(col, dtype=np.float64)
-    if np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8)):
-        # Already normalized objective values: assume maximize-space convention.
+    in_raw_range = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
+    if in_raw_range:
+        if hi == lo:
+            y = np.zeros_like(col)
+        else:
+            y = (col - lo) / (hi - lo) * 2.0 - 1.0
+            if int(minflag) == 1:
+                y = -y
+    elif np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8)):
+        # Fallback for warm-start files that are already normalized in maximize-space.
         y = np.clip(col, -1.0, 1.0)
     elif hi == lo:
         y = np.zeros_like(col)
