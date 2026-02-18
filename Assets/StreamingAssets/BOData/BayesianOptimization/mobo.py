@@ -41,6 +41,7 @@ OBSERVATIONS_LOG_PATH = ""
 WARM_START = False
 CSV_PATH_PARAMETERS = ""
 CSV_PATH_OBJECTIVES = ""
+WARM_START_OBJECTIVE_FORMAT = "auto"  # auto|raw|normalized_max|normalized_native
 
 # study info
 USER_ID = ""
@@ -61,6 +62,7 @@ device = torch.device("cpu")
 HOST = ''
 PORT = 56001
 SOCKET_RECV_BUF = ""
+SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 
 def send_json_line(conn, obj):
     line = json.dumps(obj, ensure_ascii=False) + "\n"
@@ -107,15 +109,17 @@ def recv_json_message(conn):
                 print("JSON decode error:", e, "line:", line, flush=True)
                 continue
 
-        chunk = conn.recv(4096)
+        try:
+            chunk = conn.recv(4096)
+        except socket.timeout as e:
+            raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
         if not chunk:
             if SOCKET_RECV_BUF.strip():
                 trailing = SOCKET_RECV_BUF
                 SOCKET_RECV_BUF = ""
-                try:
-                    return json.loads(trailing)
-                except Exception:
-                    return None
+                # NDJSON requires newline framing. On close, remaining bytes are trailing partial data.
+                preview = trailing[-200:].replace("\n", "\\n")
+                print("Warning: discarding trailing unterminated socket data:", preview, flush=True)
             return None
         SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
 
@@ -179,16 +183,35 @@ def normalize_param_column(col, lo, hi):
 def normalize_obj_column(col, lo, hi, minflag):
     col = np.asarray(col, dtype=np.float64)
     in_raw_range = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
+    in_norm_range = np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8))
+
+    if WARM_START_OBJECTIVE_FORMAT == "raw":
+        in_raw_range = True
+        in_norm_range = False
+    elif WARM_START_OBJECTIVE_FORMAT == "normalized_max":
+        in_raw_range = False
+        in_norm_range = True
+    elif WARM_START_OBJECTIVE_FORMAT == "normalized_native":
+        in_raw_range = False
+        in_norm_range = True
+
     if in_raw_range:
+        if WARM_START_OBJECTIVE_FORMAT == "auto" and in_norm_range:
+            print(
+                "Warning: warm-start objective values are ambiguous (fit both raw bounds and [-1,1]); assuming raw scale.",
+                flush=True,
+            )
         if hi == lo:
             y = np.zeros_like(col)
         else:
             y = (col - lo) / (hi - lo) * 2.0 - 1.0
             if int(minflag) == 1:
                 y = -y
-    elif np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8)):
-        # Fallback for warm-start files that are already normalized in maximize-space.
+    elif in_norm_range:
+        # already normalized
         y = np.clip(col, -1.0, 1.0)
+        if WARM_START_OBJECTIVE_FORMAT == "normalized_native" and int(minflag) == 1:
+            y = -y
     elif hi == lo:
         y = np.zeros_like(col)
     else:
@@ -396,6 +419,10 @@ def save_xy(x_sample, y_sample, iteration):
     flags = ['TRUE' if b else 'FALSE' for b in pareto_mask]
     if len(flags) == len(df):
         df['IsPareto'] = flags
+    elif len(flags) > 0 and len(df) >= len(flags):
+        start = len(df) - len(flags)
+        df.loc[df.index[start:], 'IsPareto'] = flags
+        print("Warning: CSV row count mismatch; updated IsPareto only for current run rows.", flush=True)
     elif len(df) > 0:
         df.loc[df.index[-1], 'IsPareto'] = 'TRUE' if bool(pareto_mask[-1]) else 'FALSE'
     df.to_csv(obs_csv, sep=';', index=False)
@@ -473,7 +500,7 @@ def mobo_execute(conn, seed, iterations, initial_samples):
 def main():
     global N_INITIAL, N_ITERATIONS, BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, MC_SAMPLES, SEED
     global PROBLEM_DIM, NUM_OBJS, ref_point, problem_bounds
-    global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES
+    global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, WARM_START_OBJECTIVE_FORMAT
     global USER_ID, CONDITION_ID, GROUP_ID
     global parameter_names, objective_names, parameters_info, objectives_info
     global SOCKET_RECV_BUF
@@ -485,6 +512,9 @@ def main():
     print('Server starts, waiting for connection...', flush=True)
     conn, addr = s.accept()
     print('Connected by', addr, flush=True)
+    if SOCKET_TIMEOUT_SEC <= 0:
+        raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
+    conn.settimeout(SOCKET_TIMEOUT_SEC)
     SOCKET_RECV_BUF = ""
 
     init_msg = None
@@ -512,6 +542,13 @@ def main():
 
     CSV_PATH_PARAMETERS = str(cfg.get("initialParametersDataPath") or "")
     CSV_PATH_OBJECTIVES = str(cfg.get("initialObjectivesDataPath") or "")
+    WARM_START_OBJECTIVE_FORMAT = str(cfg.get("warmStartObjectiveFormat", WARM_START_OBJECTIVE_FORMAT) or "auto").strip().lower()
+
+    if WARM_START_OBJECTIVE_FORMAT not in ("auto", "raw", "normalized_max", "normalized_native"):
+        raise ValueError(
+            "warmStartObjectiveFormat must be one of: auto, raw, normalized_max, normalized_native; "
+            f"got '{WARM_START_OBJECTIVE_FORMAT}'"
+        )
 
     if PROBLEM_DIM < 1:
         raise ValueError(f"nParameters must be >= 1, got {PROBLEM_DIM}")
@@ -574,7 +611,8 @@ def main():
     print("Init OK:", dict(
         BATCH_SIZE=BATCH_SIZE, NUM_RESTARTS=NUM_RESTARTS, RAW_SAMPLES=RAW_SAMPLES,
         N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
-        N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS
+        N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS,
+        SOCKET_TIMEOUT_SEC=SOCKET_TIMEOUT_SEC, WARM_START_OBJECTIVE_FORMAT=WARM_START_OBJECTIVE_FORMAT
     ), flush=True)
 
     try:
