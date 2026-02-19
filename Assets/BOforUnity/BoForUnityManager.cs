@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using BOforUnity.Scripts;
@@ -91,6 +92,8 @@ namespace BOforUnity
         private bool _warnedMissingNextButton = false;
         private bool _finalDesignRoundPrepared = false;
         private bool _finalDesignRoundInProgress = false;
+        private bool _finalDesignRoundLogged = false;
+        private string _finalDesignObservationCsvPath = null;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -130,6 +133,8 @@ namespace BOforUnity
             _warnedMissingNextButton = false;
             _finalDesignRoundPrepared = false;
             _finalDesignRoundInProgress = false;
+            _finalDesignRoundLogged = false;
+            _finalDesignObservationCsvPath = null;
             simulationRunning = true; // the simulation to true to prevent 
         }
         
@@ -186,6 +191,18 @@ namespace BOforUnity
             }
             if (_finalDesignRoundInProgress)
             {
+                if (!_finalDesignRoundLogged)
+                {
+                    if (TryAppendFinalDesignObservationRow(out string logError))
+                    {
+                        _finalDesignRoundLogged = true;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Could not append finaldesign row to ObservationsPerEvaluation.csv: {logError}");
+                    }
+                }
+
                 Debug.Log("Final design round completed. Exiting loop.");
                 _finalDesignRoundInProgress = false;
                 CompleteLoop();
@@ -291,7 +308,8 @@ namespace BOforUnity
             optimizationRunning = false;
             simulationRunning = false;
 
-            SetOptimizerStatePanelVisible(false);
+            // Keep the status panel visible only when the ready-state UI lives inside it.
+            SetOptimizerStatePanelVisible(RequiresOptimizerPanelForReadyStateUi());
             SetLoadingVisible(false);
             SetOutputText(statusText);
 
@@ -445,6 +463,8 @@ namespace BOforUnity
             _pendingAdvanceRequest = false;
             _finalDesignRoundPrepared = false;
             _finalDesignRoundInProgress = false;
+            _finalDesignRoundLogged = false;
+            _finalDesignObservationCsvPath = null;
             CancelAutomaticAdvance();
 
             Debug.Log("<<<<<<< Exiting the loop ... ");
@@ -466,6 +486,25 @@ namespace BOforUnity
             {
                 Debug.LogWarning($"SocketQuit failed during loop termination: {e.Message}");
             }
+        }
+
+        private bool RequiresOptimizerPanelForReadyStateUi()
+        {
+            if (optimizerStatePanel == null)
+                return false;
+
+            var panelTransform = optimizerStatePanel.transform;
+            if (outputText != null && outputText.transform.IsChildOf(panelTransform))
+                return true;
+
+            if (iterationAdvanceMode == IterationAdvanceMode.NextButton &&
+                nextButton != null &&
+                nextButton.transform.IsChildOf(panelTransform))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private void SetLoadingVisible(bool visible)
@@ -502,27 +541,47 @@ namespace BOforUnity
         {
             _finalDesignRoundPrepared = false;
             _finalDesignRoundInProgress = false;
+            _finalDesignRoundLogged = false;
+            _finalDesignObservationCsvPath = null;
 
-            string logRoot = Path.Combine(
-                Application.dataPath,
-                "StreamingAssets",
-                "BOData",
-                "BayesianOptimization",
-                "LogData"
-            );
+            FinalDesignSelector.SelectionResult selected = null;
+            string selectedCsvPath = null;
+            string selectionError = null;
 
-            if (!FinalDesignSelector.TrySelectFromLatestObservationCsv(
-                    logRootPath: logRoot,
-                    userId: userId,
-                    parameters: parameters,
-                    objectives: objectives,
-                    distanceEpsilon: finalDesignDistanceEpsilon,
-                    maximinEpsilon: finalDesignMaximinEpsilon,
-                    aggressionEpsilon: finalDesignAggressionEpsilon,
-                    selection: out var selected,
-                    selectedCsvPath: out var selectedCsvPath,
-                    error: out error))
+            string[] logRootCandidates = GetFinalDesignLogRootCandidates();
+            bool selectedFromAnyRoot = false;
+            foreach (string logRoot in logRootCandidates)
             {
+                if (FinalDesignSelector.TrySelectFromLatestObservationCsv(
+                        logRootPath: logRoot,
+                        userId: userId,
+                        parameters: parameters,
+                        objectives: objectives,
+                        distanceEpsilon: finalDesignDistanceEpsilon,
+                        maximinEpsilon: finalDesignMaximinEpsilon,
+                        aggressionEpsilon: finalDesignAggressionEpsilon,
+                        selection: out selected,
+                        selectedCsvPath: out selectedCsvPath,
+                        error: out selectionError))
+                {
+                    selectedFromAnyRoot = true;
+                    if (!string.Equals(logRoot, logRootCandidates[0], StringComparison.Ordinal))
+                    {
+                        Debug.LogWarning(
+                            "Final design selector used fallback log root: " +
+                            $"{logRoot}. Primary path was: {logRootCandidates[0]}"
+                        );
+                    }
+                    break;
+                }
+            }
+
+            if (!selectedFromAnyRoot)
+            {
+                error =
+                    "No eligible observation log was found in any known log root. " +
+                    "Last error: " + selectionError + ". " +
+                    "Checked roots: " + string.Join(", ", logRootCandidates);
                 return false;
             }
 
@@ -556,6 +615,8 @@ namespace BOforUnity
             currentIteration = totalIterations + 1;
             _finalDesignRoundPrepared = true;
             _finalDesignRoundInProgress = false;
+            _finalDesignRoundLogged = false;
+            _finalDesignObservationCsvPath = selectedCsvPath;
 
             Debug.Log(
                 "Selected final design for last evaluation round: " +
@@ -565,6 +626,271 @@ namespace BOforUnity
 
             error = null;
             return true;
+        }
+
+        private bool TryAppendFinalDesignObservationRow(out string error)
+        {
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(_finalDesignObservationCsvPath))
+            {
+                error = "Final-design CSV path is empty.";
+                return false;
+            }
+            if (!File.Exists(_finalDesignObservationCsvPath))
+            {
+                error = $"Final-design CSV does not exist: {_finalDesignObservationCsvPath}";
+                return false;
+            }
+
+            string headerLine;
+            try
+            {
+                headerLine = File.ReadLines(_finalDesignObservationCsvPath).FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                error = $"Could not read CSV header: {ex.Message}";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(headerLine))
+            {
+                error = "Observation CSV has no header.";
+                return false;
+            }
+
+            string[] header = headerLine.Split(';');
+            if (header.Length == 0)
+            {
+                error = "Observation CSV header is empty.";
+                return false;
+            }
+
+            header[0] = header[0].Trim('\uFEFF');
+            var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < header.Length; i++)
+            {
+                string key = (header[i] ?? string.Empty).Trim();
+                if (!string.IsNullOrEmpty(key) && !columnIndex.ContainsKey(key))
+                    columnIndex[key] = i;
+            }
+
+            var row = Enumerable.Repeat(string.Empty, header.Length).ToArray();
+
+            void SetColumn(string columnName, string value)
+            {
+                if (columnIndex.TryGetValue(columnName, out int idx))
+                    row[idx] = value ?? string.Empty;
+            }
+
+            SetColumn("UserID", userId);
+            SetColumn("ConditionID", conditionId);
+            SetColumn("GroupID", groupId);
+            SetColumn("Timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+            SetColumn("Iteration", currentIteration.ToString(CultureInfo.InvariantCulture));
+            SetColumn("Phase", "finaldesign");
+            SetColumn("IsPareto", "NULL");
+            SetColumn("IsBest", "NULL");
+
+            foreach (var objective in objectives)
+            {
+                if (objective == null || string.IsNullOrWhiteSpace(objective.key))
+                    continue;
+
+                float objectiveValue = GetObjectiveAverageForLogging(objective);
+                SetColumn(objective.key, FormatCsvFloat(objectiveValue));
+            }
+
+            foreach (var parameter in parameters)
+            {
+                if (parameter == null || string.IsNullOrWhiteSpace(parameter.key) || parameter.value == null)
+                    continue;
+
+                float rawValue = parameter.value.Value;
+                if (!IsFinite(rawValue))
+                {
+                    float fallback = 0.5f * (parameter.value.lowerBound + parameter.value.upperBound);
+                    Debug.LogWarning(
+                        $"Parameter '{parameter.key}' is non-finite ({rawValue}) during finaldesign logging. " +
+                        $"Using midpoint fallback {fallback}."
+                    );
+                    rawValue = fallback;
+                }
+
+                float lo = Mathf.Min(parameter.value.lowerBound, parameter.value.upperBound);
+                float hi = Mathf.Max(parameter.value.lowerBound, parameter.value.upperBound);
+                if (rawValue < lo || rawValue > hi)
+                {
+                    float unclamped = rawValue;
+                    rawValue = Mathf.Clamp(rawValue, lo, hi);
+                    Debug.LogWarning(
+                        $"Parameter '{parameter.key}' value {unclamped} is outside bounds [{lo}, {hi}] " +
+                        $"during finaldesign logging. Clamped to {rawValue}."
+                    );
+                }
+
+                SetColumn(parameter.key, FormatCsvFloat(rawValue));
+            }
+
+            string rowLine = string.Join(";", row.Select(EscapeCsvCell));
+            string prefix = string.Empty;
+            try
+            {
+                using (var fs = new FileStream(_finalDesignObservationCsvPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    if (fs.Length > 0)
+                    {
+                        fs.Seek(-1, SeekOrigin.End);
+                        int last = fs.ReadByte();
+                        if (last != '\n' && last != '\r')
+                            prefix = Environment.NewLine;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = $"Could not inspect CSV newline state: {ex.Message}";
+                return false;
+            }
+
+            try
+            {
+                File.AppendAllText(_finalDesignObservationCsvPath, prefix + rowLine + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                error = $"Could not append finaldesign row: {ex.Message}";
+                return false;
+            }
+
+            Debug.Log(
+                $"Final design evaluation appended to observations CSV (phase=finaldesign, marker=NULL): {_finalDesignObservationCsvPath}"
+            );
+            return true;
+        }
+
+        private float GetObjectiveAverageForLogging(ObjectiveEntry objective)
+        {
+            if (objective == null || objective.value == null)
+                return 0f;
+
+            var arg = objective.value;
+            float lo = Mathf.Min(arg.lowerBound, arg.upperBound);
+            float hi = Mathf.Max(arg.lowerBound, arg.upperBound);
+
+            if (arg.values == null || arg.values.Count == 0)
+            {
+                float fallback = 0.5f * (lo + hi);
+                Debug.LogWarning(
+                    $"Objective '{objective.key}' has no values during finaldesign logging. " +
+                    $"Using midpoint fallback {fallback}."
+                );
+                return fallback;
+            }
+
+            int n = Mathf.Max(1, arg.numberOfSubMeasures);
+            int start = Mathf.Max(0, arg.values.Count - n);
+            int count = arg.values.Count - start;
+            if (count <= 0)
+            {
+                float fallback = 0.5f * (lo + hi);
+                Debug.LogWarning(
+                    $"Objective '{objective.key}' has no usable sub-measures during finaldesign logging. " +
+                    $"Using midpoint fallback {fallback}."
+                );
+                return fallback;
+            }
+
+            double sum = 0.0;
+            for (int i = start; i < arg.values.Count; i++)
+            {
+                float v = arg.values[i];
+                if (!IsFinite(v))
+                {
+                    float fallback = 0.5f * (lo + hi);
+                    Debug.LogWarning(
+                        $"Objective '{objective.key}' contains non-finite value ({v}) during finaldesign logging. " +
+                        $"Using midpoint fallback {fallback}."
+                    );
+                    return fallback;
+                }
+                sum += v;
+            }
+
+            float avg = (float)(sum / count);
+            if (!IsFinite(avg))
+            {
+                float fallback = 0.5f * (lo + hi);
+                Debug.LogWarning(
+                    $"Objective '{objective.key}' average is non-finite during finaldesign logging. " +
+                    $"Using midpoint fallback {fallback}."
+                );
+                return fallback;
+            }
+
+            if (avg < lo || avg > hi)
+            {
+                float raw = avg;
+                avg = Mathf.Clamp(avg, lo, hi);
+                Debug.LogWarning(
+                    $"Objective '{objective.key}' value {raw} is outside configured bounds [{lo}, {hi}] " +
+                    $"during finaldesign logging. Clamped to {avg}."
+                );
+            }
+
+            return avg;
+        }
+
+        private static string FormatCsvFloat(float value)
+        {
+            if (!IsFinite(value))
+                return string.Empty;
+            return Math.Round(value, 3, MidpointRounding.AwayFromZero).ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string EscapeCsvCell(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+
+            bool mustQuote =
+                value.IndexOf(';') >= 0 ||
+                value.IndexOf('"') >= 0 ||
+                value.IndexOf('\n') >= 0 ||
+                value.IndexOf('\r') >= 0;
+
+            if (!mustQuote)
+                return value;
+
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private string[] GetFinalDesignLogRootCandidates()
+        {
+            // Current runtime location used by Python process working directory.
+            string current = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "LogData"
+            );
+
+            // Legacy location from earlier versions / docs.
+            string legacy = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "BayesianOptimization",
+                "LogData"
+            );
+
+            return new[] { current, legacy }.Distinct().ToArray();
         }
         
         private bool IsPerfectRating()

@@ -1,20 +1,23 @@
 Server starts, waiting for connection...
-Connected by ('127.0.0.1', 54841)
-Init OK: {'BATCH_SIZE': 1, 'NUM_RESTARTS': 10, 'RAW_SAMPLES': 1024, 'N_ITERATIONS': 5, 'MC_SAMPLES': 512, 'N_INITIAL': 5, 'SEED': 3, 'PROBLEM_DIM': 2, 'NUM_OBJS': 2}
+Connected by ('127.0.0.1', 64882)
+Init OK: {'BATCH_SIZE': 1, 'NUM_RESTARTS': 10, 'RAW_SAMPLES': 1024, 'N_ITERATIONS': 5, 'MC_SAMPLES': 512, 'N_INITIAL': 5, 'SEED': 3, 'PROBLEM_DIM': 2, 'NUM_OBJS': 2, 'SOCKET_TIMEOUT_SEC': 3600.0, 'WARM_START_OBJECTIVE_FORMAT': 'auto'}
 Initial Sobol X in [0,1]: tensor([[0.0685, 0.2245],
         [0.6992, 0.0626],
         [0.3754, 0.0304],
         [0.1474, 0.3385],
         [0.2702, 0.2726]], dtype=torch.float64)
 ---- Initial Sample 1
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.307, 'TargetEccentricity': 0.225}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.30684652436694426, 'TargetEccentricity': 0.22452697157859802}}
 ---- Initial Sample 2
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.37, 'TargetEccentricity': 0.063}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.3699185270119596, 'TargetEccentricity': 0.06258568167686462}}
 ---- Initial Sample 3
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.338, 'TargetEccentricity': 0.03}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.33753953054311747, 'TargetEccentricity': 0.03042088821530342}}
 ---- Initial Sample 4
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.315, 'TargetEccentricity': 0.339}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.31473718793766636, 'TargetEccentricity': 0.33854007720947266}}
 ---- Initial Sample 5
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.327, 'TargetEccentricity': 0.273}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.384, 'TargetEccentricity': 0.137}}
-Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.366, 'TargetEccentricity': 0.039}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.3270156367411836, 'TargetEccentricity': 0.2725655138492584}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.3381001207867017, 'TargetEccentricity': 0.43235148178879823}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.30000001192092896, 'TargetEccentricity': 0.39253502671709467}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.30000001192092896, 'TargetEccentricity': 0.4653751633939511}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.30000001192092896, 'TargetEccentricity': 0.5613051909403063}}
+Send parameters: {'type': 'parameters', 'values': {'TargetSize': 0.336231236866547, 'TargetEccentricity': 0.38922316570416715}}

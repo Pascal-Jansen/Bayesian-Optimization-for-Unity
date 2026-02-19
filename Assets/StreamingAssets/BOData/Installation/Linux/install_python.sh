@@ -42,10 +42,10 @@ check_python_installed() {
     if command -v "python${PYTHON_VERSION}" &> /dev/null; then
         INSTALLED_VERSION=$("python${PYTHON_VERSION}" --version 2>&1 | awk '{print $2}')
         log_info "Python ${INSTALLED_VERSION} is currently installed at $(command -v python${PYTHON_VERSION})"
-        
-        # Check if there's a newer version available
-        log_info "Checking for updates..."
-        return 1  # Continue to update check
+        if [[ "$INSTALLED_VERSION" == ${PYTHON_VERSION}.* ]]; then
+            return 0
+        fi
+        return 1
     else
         log_warn "Python ${PYTHON_VERSION} is not installed."
         return 1
@@ -170,9 +170,11 @@ main() {
     
     check_privileges
     
-    # Always run install_python to ensure we have the latest version
-    check_python_installed
-    install_python
+    if check_python_installed; then
+        log_info "Target Python ${PYTHON_VERSION}.x already present. Skipping Python installation."
+    else
+        install_python
+    fi
     
     install_packages
     

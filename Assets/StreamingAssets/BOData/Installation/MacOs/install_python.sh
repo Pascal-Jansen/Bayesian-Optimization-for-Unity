@@ -7,10 +7,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_INSTALLER="$SCRIPT_DIR/Data/Installation_Objects/python-3.13.7-macos11.pkg"
 PYTHON_INSTALL_DIR="/usr"
 PYTHON_EXE="/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
+PYTHON_TARGET_MM="3.13"
 
 REQUIREMENTS="$SCRIPT_DIR/../requirements.txt"
 
 
+
+is_target_python_installed() {
+    if [ ! -x "$PYTHON_EXE" ]; then
+        return 1
+    fi
+    local installed_version
+    installed_version="$("$PYTHON_EXE" --version 2>&1 | awk '{print $2}')"
+    if [[ "$installed_version" == ${PYTHON_TARGET_MM}.* ]]; then
+        echo "Found target Python version: $installed_version ($PYTHON_EXE)"
+        return 0
+    fi
+    echo "Found Python $installed_version, but expected ${PYTHON_TARGET_MM}.x"
+    return 1
+}
 
 install_packages() {
     # Upgrade pip
@@ -33,16 +48,20 @@ install_packages() {
 
 
 
-# Install Python
-echo "Installing Python..."
-sudo installer -pkg "$PYTHON_INSTALLER" -target /
-
-# Check if the installation was successful
-if [ -x "$PYTHON_EXE" ]; then
-    echo "Python was successfully installed."
+# Install Python only when target version is not already present
+if is_target_python_installed; then
+    echo "Skipping Python installation."
 else
-    echo "Error installing Python."
-    exit 1
+    echo "Installing Python..."
+    sudo installer -pkg "$PYTHON_INSTALLER" -target /
+
+    # Check if the installation was successful
+    if is_target_python_installed; then
+        echo "Python was successfully installed."
+    else
+        echo "Error installing target Python version."
+        exit 1
+    fi
 fi
 
 install_packages

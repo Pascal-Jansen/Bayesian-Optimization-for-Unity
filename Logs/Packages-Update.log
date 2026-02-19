@@ -107,3 +107,18 @@ Update Mode: updateDependencies
 
 The following packages were updated:
   com.unity.ide.rider from version 3.0.36 to 3.0.37
+
+=== Thu Feb 19 12:49:05 2026
+
+Packages were changed.
+Update Mode: updateDependencies
+
+The following packages were added:
+  com.unity.modules.adaptiveperformance@1.0.0
+  com.unity.modules.vectorgraphics@1.0.0
+The following packages were updated:
+  com.unity.ide.rider from version 3.0.38 to 3.0.39
+  com.unity.multiplayer.center from version 1.0.0 to 1.0.1
+  com.unity.nuget.newtonsoft-json from version 3.2.1 to 3.2.2
+The following packages were removed:
+  com.unity.toolchain.win-x86_64-linux-x86_64@2.0.10

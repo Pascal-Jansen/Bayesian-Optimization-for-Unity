@@ -222,7 +222,7 @@ Use this path for a first successful run with the provided demo scene.
 
 Expected successful outcome:
 - Parameter values in the scene change between iterations.
-- `Assets/StreamingAssets/BOData/BayesianOptimization/LogData/<USER_ID>/` is created.
+- `Assets/StreamingAssets/BOData/LogData/<USER_ID>/` is created.
 - `ObservationsPerEvaluation.csv` and `ExecutionTimes.csv` are populated.
 - For MOBO (`m >= 2`), `HypervolumePerEvaluation.csv` is written and Unity receives `coverage` updates.
 
@@ -231,7 +231,7 @@ If these outputs appear, your full Unity-Python loop is working.
 
 ## Example Usage
 This section walks through the demo workflow. Install the asset first as described in [Installation](#installation).
-> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>` as set in [Study Settings](#study-settings)). You can delete the folder to recreate a clean one.
+> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>` as set in [Study Settings](#study-settings)). You can delete the folder to recreate a clean one.
 
 1. In Unity, open *Assets/BOforUnity* and double-click *BO-example-scene.unity*.
 2. Press the Play button (⏵).
@@ -241,7 +241,7 @@ This section walks through the demo workflow. Install the asset first as describ
 6. Answer, then press `Finish`. The optimizer saves your input and updates parameters.
 7. Press `Next` to start a new iteration. Repeat from step `3` until all iterations finish. The system then indicates you can close the application.
 
-> **Note:** Results are in *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`).
+> **Note:** Results are in *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`).
 
 
 
@@ -274,7 +274,7 @@ Click `+` at the bottom of the parameter list to add a prefilled entry, then edi
 
 > **Note:** Ensure the new parameter is used by your simulation.
 
-> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`) and then delete the folder to refresh headers.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`) and then delete the folder to refresh headers.
 
 > **Note:** If you use the [warm start option](#warm-start-settings), ensure CSV headers match after adding parameters.
 
@@ -294,7 +294,7 @@ Select the parameter by clicking the `=` icon in its top-left corner (it turns b
 
 > **Note:** Ensure the removed parameter is **not** used in your simulation.
 
-> **Note:** If headers are out of sync, back up and remove the log folder *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/*.
+> **Note:** If headers are out of sync, back up and remove the log folder *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/*.
 
 
 ### Objectives
@@ -305,7 +305,7 @@ Click `+` at the bottom of the objective list to add a prefilled entry, then edi
 
 > **Note:** Each objective must receive a value before optimization. In the demo, create a new questionnaire item or map an existing one to the objective (see below).
 
-> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* and then delete the folder.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* and then delete the folder.
 
 > **Note:** For [warm start](#warm-start-settings), CSV headers must match after adding objectives.
 
@@ -396,12 +396,16 @@ Make sure you assign objective values before the optimizer proceeds so that the 
 ### Python Settings
 **Default**: 
 If you leave `Manually Installed Python` unchecked, the system will automatically search for a valid Python path in the OS and install the requirements via pip.
+If only an older Python is found, the runtime now attempts to install the preferred target runtime (`3.13.x`) first (platform installer prompt may appear), then continues setup.
+On macOS the runtime auto-install path uses the bundled Python `.pkg` installer payload. The `install_python.sh` script remains available for manual terminal setup.
+The runtime now validates Python versions (`3.9+` supported) and prefers `3.13.x` automatically when it is installed.
+If the target-runtime installation is cancelled or fails, startup is aborted with a clear error instead of silently continuing on the old interpreter.
 
 You can **override** this behavior by checking `Manually Installed Python` and following the steps below:
  1. Open a terminal and search for Python installations:
     * Windows: `where python`
     * Linux/macOS: `which python3`   
-    Copy the path to the *newest* Python version shown.   
+    Copy the path to a compatible Python (`3.9+`, ideally `3.13.x`).   
  2. In *BOforUnityManager* → *Python Settings*, check the box
  3. Paste the path in the `Path of Python Executable` field.
 
@@ -545,6 +549,7 @@ What happens:
 2. Unity reads the latest `ObservationsPerEvaluation.csv` for the current `User ID`.
 3. Unity deterministically selects one final design and applies its parameter values.
 4. The user runs one final round (`totalIterations + 1`), but this round does **not** send objectives back to Python and does not continue optimization.
+5. Unity appends this last evaluation to `ObservationsPerEvaluation.csv` with `Phase=finaldesign` and marker column `IsPareto`/`IsBest` set to `NULL`.
 
 Selection logic (deterministic):
 1. Normalize each objective via min-max over all CSV rows, after objective direction handling (`Smaller is Better` is internally flipped).
@@ -598,7 +603,8 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 
 ### Output Files and Metrics
 All result files are written to:
-* *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/*
+* *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/*
+* Legacy runs may exist under *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/*; final-design selection checks both locations.
 
 Common files:
 * `ObservationsPerEvaluation.csv`: denormalized parameter/objective observations per evaluation.
@@ -627,7 +633,7 @@ During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 | Loop does not progress in `ExternalSignal` mode | `RequestNextIteration()` is not called from your custom flow | Add the explicit call after your evaluation step ends. |
 | Loop does not progress in `NextButton` mode | `Next Button` not assigned or not wired to `ButtonNextIteration()` | Assign the button reference and Unity `OnClick` event to `BoForUnityManager.ButtonNextIteration()`. |
 | Warm start fails on startup | Missing CSV files, wrong headers, non-numeric values, or wrong format setting | Validate files against [Warm-Start CSV Checklist (Required)](#warm-start-csv-checklist-required) and [Warm-Start CSV Examples](#warm-start-csv-examples). |
-| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/BayesianOptimization/LogData/<USER_ID>/`, then rerun to regenerate headers. |
+| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/LogData/<USER_ID>/`, then rerun to regenerate headers. |
 | No parameter changes between iterations | Simulation does not apply incoming parameter values from `bo.parameters` | Confirm your scene reads and applies updated parameter values each iteration. |
 | `coverage`/Pareto behavior seems inconsistent with minimize objectives | Misunderstanding of internal maximize-space conversion | See [Objective Direction Semantics](#objective-direction-semantics) and [Objective Direction Example (2 Minimize, 1 Maximize)](#objective-direction-example-2-minimize-1-maximize). |
 

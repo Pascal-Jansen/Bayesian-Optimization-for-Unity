@@ -2,6 +2,8 @@
 setlocal enabledelayedexpansion
 
 set PYTHON_EXE="C:\Program Files\Python313\python.exe"
+set TARGET_PY_MAJOR=3
+set TARGET_PY_MINOR=13
 
 cd /d %~dp0
 
@@ -54,10 +56,16 @@ if %errorlevel%==0 (
 REM Check if Python is already installed
 %PYTHON_EXE% --version >nul 2>&1
 if %errorlevel%==0 (
-    echo Python is already installed.
-    goto install_packages
+    %PYTHON_EXE% -c "import sys; raise SystemExit(0 if sys.version_info[:2]==(%TARGET_PY_MAJOR%,%TARGET_PY_MINOR%) else 1)" >nul 2>&1
+    if %errorlevel%==0 (
+        echo Target Python version %TARGET_PY_MAJOR%.%TARGET_PY_MINOR% is already installed.
+        goto install_packages
+    )
+    echo A different Python version is installed at %PYTHON_EXE%. Re-installing target version...
+    goto install_python
 )
 
+:install_python
 REM Run the Python installer
 echo Installing Python...
 %PYTHON_INSTALLER% /quiet InstallAllUsers=1 PrependPath=1
@@ -65,14 +73,14 @@ echo Installing Python...
 REM Wait a moment for installation to complete
 timeout /t 5 /nobreak >nul
 
-REM Check if the installation was successful
-%PYTHON_EXE% --version >nul 2>&1
+REM Check if the installation was successful and matches target version
+%PYTHON_EXE% -c "import sys; raise SystemExit(0 if sys.version_info[:2]==(%TARGET_PY_MAJOR%,%TARGET_PY_MINOR%) else 1)" >nul 2>&1
 if %errorlevel%==0 (
-    echo Python was successfully installed.
-) else (
-    echo Error installing Python.
-    exit /b 1
+    echo Target Python %TARGET_PY_MAJOR%.%TARGET_PY_MINOR% was successfully installed.
+    goto install_packages
 )
+echo Error installing target Python version %TARGET_PY_MAJOR%.%TARGET_PY_MINOR%.
+exit /b 1
 
 
 :install_packages

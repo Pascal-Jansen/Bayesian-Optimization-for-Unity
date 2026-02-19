@@ -144,7 +144,9 @@ namespace BOforUnity.Scripts
                             MainThreadDispatcher.Execute(OnSocketConnectionFailed);
                         }
 
-                        SocketQuit();
+                        _stopRequested = true;
+                        try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
+                        try { _serverSocket?.Close(); } catch { }
                         break;
                     }
 
@@ -374,6 +376,7 @@ namespace BOforUnity.Scripts
         public void SendObjectives()
         {
             var finalObjectives = new Dictionary<string, float>(_bomanager.objectives.Count);
+            bool hadClampedObjective = false;
 
             foreach (var ob in _bomanager.objectives)
             {
@@ -382,7 +385,39 @@ namespace BOforUnity.Scripts
                 // keep the last N submeasures
                 tmpList.RemoveRange(0, Math.Max(0, value.values.Count - value.numberOfSubMeasures));
                 float val = tmpList.Count > 0 ? (float)tmpList.Average() : 0f;
+
+                float lo = Mathf.Min(value.lowerBound, value.upperBound);
+                float hi = Mathf.Max(value.lowerBound, value.upperBound);
+                if (float.IsNaN(val) || float.IsInfinity(val))
+                {
+                    float fallback = 0.5f * (lo + hi);
+                    Debug.LogWarning(
+                        $"Objective '{ob.key}' produced a non-finite value ({val}). " +
+                        $"Using fallback midpoint {fallback} in [{lo}, {hi}]."
+                    );
+                    val = fallback;
+                    hadClampedObjective = true;
+                }
+                else if (val < lo || val > hi)
+                {
+                    float rawVal = val;
+                    val = Mathf.Clamp(val, lo, hi);
+                    Debug.LogWarning(
+                        $"Objective '{ob.key}' value {rawVal} is outside configured bounds [{lo}, {hi}]. " +
+                        $"Clamping to {val} before sending to Python."
+                    );
+                    hadClampedObjective = true;
+                }
+
                 finalObjectives[ob.key] = val;
+            }
+
+            if (hadClampedObjective)
+            {
+                Debug.LogWarning(
+                    "One or more objective values were clamped to configured bounds. " +
+                    "Consider widening the objective ranges in BoForUnityManager."
+                );
             }
 
             var msg = new ObjectivesMsg
