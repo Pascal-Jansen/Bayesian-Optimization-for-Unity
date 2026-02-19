@@ -44,6 +44,10 @@ namespace BOforUnity.Editor
         private SerializedProperty iterationAdvanceModeProp;
         private SerializedProperty automaticAdvanceDelaySecProp;
         private SerializedProperty reloadSceneOnIterationAdvanceProp;
+        private SerializedProperty enableFinalDesignRoundProp;
+        private SerializedProperty finalDesignDistanceEpsilonProp;
+        private SerializedProperty finalDesignMaximinEpsilonProp;
+        private SerializedProperty finalDesignAggressionEpsilonProp;
 
         private SerializedProperty totalIterationsProp;
 
@@ -101,6 +105,10 @@ namespace BOforUnity.Editor
             iterationAdvanceModeProp = serializedObject.FindProperty("iterationAdvanceMode");
             automaticAdvanceDelaySecProp = serializedObject.FindProperty("automaticAdvanceDelaySec");
             reloadSceneOnIterationAdvanceProp = serializedObject.FindProperty("reloadSceneOnIterationAdvance");
+            enableFinalDesignRoundProp = serializedObject.FindProperty("enableFinalDesignRound");
+            finalDesignDistanceEpsilonProp = serializedObject.FindProperty("finalDesignDistanceEpsilon");
+            finalDesignMaximinEpsilonProp = serializedObject.FindProperty("finalDesignMaximinEpsilon");
+            finalDesignAggressionEpsilonProp = serializedObject.FindProperty("finalDesignAggressionEpsilon");
 
             totalIterationsProp = serializedObject.FindProperty("totalIterations");
             
@@ -294,6 +302,36 @@ namespace BOforUnity.Editor
                     "If disabled, the manager will not reload the active scene when advancing to the next iteration."
                 )
             );
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Final Design Round", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(
+                enableFinalDesignRoundProp,
+                new GUIContent(
+                    "Enable Final Design Round",
+                    "After optimization ends, select one final design from the observation CSV and run one last evaluation round without BO updates."
+                )
+            );
+            if (enableFinalDesignRoundProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(
+                    finalDesignDistanceEpsilonProp,
+                    new GUIContent("Utopia Distance Epsilon", "Tie tolerance for closest-to-utopia selection.")
+                );
+                EditorGUILayout.PropertyField(
+                    finalDesignMaximinEpsilonProp,
+                    new GUIContent("Maximin Epsilon", "Tie tolerance for maximin tie-break.")
+                );
+                EditorGUILayout.PropertyField(
+                    finalDesignAggressionEpsilonProp,
+                    new GUIContent("Aggression Epsilon", "Tie tolerance for least-aggressive parameter tie-break.")
+                );
+                EditorGUILayout.LabelField(
+                    "This adds one extra participant-facing round (totalIterations + 1). " +
+                    "The final round does not send objectives back to Python.",
+                    EditorStyles.helpBox
+                );
+            }
 
             // ── Model & Algorithm Hyperparameters ───────────────────────────────────
             EditorGUILayout.Space();

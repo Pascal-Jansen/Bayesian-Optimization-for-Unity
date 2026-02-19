@@ -59,6 +59,7 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
     * [Optimization Budget](#optimization-budget)
     * [Warm-Start CSV Examples](#warm-start-csv-examples)
     * [Objective Direction Example (2 Minimize, 1 Maximize)](#objective-direction-example-2-minimize-1-maximize)
+    * [Final Design Round (Optional)](#final-design-round-optional)
     * [Model and Algorithm Hyperparameters](#model-and-algorithm-hyperparameters)
     * [Output Files and Metrics](#output-files-and-metrics)
 * [Troubleshooting](#troubleshooting)
@@ -535,6 +536,35 @@ bo.RequestNextIteration();
 ```
 
 If you use the bundled `QTQuestionnaireManager`, this request is queued automatically after questionnaire completion when `Iteration Advance Mode` is set to `ExternalSignal`.
+
+##### Final Design Round (Optional)
+If **Enable Final Design Round** is active, the system adds one extra participant-facing round after BO completes.
+
+What happens:
+1. The Python backend finishes normal BO iterations and sends `optimization_finished`.
+2. Unity reads the latest `ObservationsPerEvaluation.csv` for the current `User ID`.
+3. Unity deterministically selects one final design and applies its parameter values.
+4. The user runs one final round (`totalIterations + 1`), but this round does **not** send objectives back to Python and does not continue optimization.
+
+Selection logic (deterministic):
+1. Normalize each objective via min-max over all CSV rows, after objective direction handling (`Smaller is Better` is internally flipped).
+2. Primary criterion: smallest Euclidean distance to utopia (`[1,1,...,1]`) in normalized objective space.
+3. Tie-break 1: largest maximin (maximize the worst normalized objective).
+4. Tie-break 2: least-aggressive parameter profile (smallest L2 distance to parameter baseline in normalized parameter space; baseline uses parameter-range midpoints).
+5. Tie-break 3: earliest iteration index.
+
+Candidate rows:
+* MOBO: rows flagged by `IsPareto` are preferred.
+* BO: rows flagged by `IsBest` are preferred.
+* If no preferred rows exist, all rows are considered.
+
+Inspector controls:
+* **Enable Final Design Round**: activates the feature.
+* **Utopia Distance Epsilon**, **Maximin Epsilon**, **Aggression Epsilon**: tolerances for deterministic tie handling.
+
+Integration note:
+* If you use `QTQuestionnaireManager`, finishing the final round still triggers its normal completion flow.
+* `BoForUnityManager` detects that this is the final non-BO round and ends the loop without sending objectives to Python.
 
 <a id="py_st_ws_pr_settings"></a>
 

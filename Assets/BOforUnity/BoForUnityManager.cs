@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using BOforUnity.Scripts;
 using QuestionnaireToolkit.Scripts;
@@ -73,6 +74,12 @@ namespace BOforUnity
         [Min(0f)] public float automaticAdvanceDelaySec = 0f;
         public bool reloadSceneOnIterationAdvance = true;
 
+        [Header("Final Design Round")]
+        public bool enableFinalDesignRound = false;
+        [Min(0f)] public float finalDesignDistanceEpsilon = 1e-6f;
+        [Min(0f)] public float finalDesignMaximinEpsilon = 1e-6f;
+        [Min(0f)] public float finalDesignAggressionEpsilon = 1e-6f;
+
         public string userId = "-1";
         public string conditionId = "-1";
         public string groupId = "-1";
@@ -82,6 +89,8 @@ namespace BOforUnity
         private bool _loopTerminated = false;
         private Coroutine _automaticAdvanceCoroutine = null;
         private bool _warnedMissingNextButton = false;
+        private bool _finalDesignRoundPrepared = false;
+        private bool _finalDesignRoundInProgress = false;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -119,6 +128,8 @@ namespace BOforUnity
             _pendingAdvanceRequest = false;
             _loopTerminated = false;
             _warnedMissingNextButton = false;
+            _finalDesignRoundPrepared = false;
+            _finalDesignRoundInProgress = false;
             simulationRunning = true; // the simulation to true to prevent 
         }
         
@@ -168,9 +179,21 @@ namespace BOforUnity
         
         public void OptimizationStart()
         {
-            if (_loopTerminated || optimizationFinished)
+            if (_loopTerminated)
             {
                 Debug.LogWarning("OptimizationStart ignored because optimization loop is already finished.");
+                return;
+            }
+            if (_finalDesignRoundInProgress)
+            {
+                Debug.Log("Final design round completed. Exiting loop.");
+                _finalDesignRoundInProgress = false;
+                CompleteLoop();
+                return;
+            }
+            if (optimizationFinished)
+            {
+                Debug.LogWarning("OptimizationStart ignored because optimization is already finished.");
                 return;
             }
             if (optimizationRunning)
@@ -224,7 +247,25 @@ namespace BOforUnity
 
             Debug.Log(">>>>>> Optimization finished!");
             optimizationFinished = true;
-            CompleteLoop();
+            if (!enableFinalDesignRound)
+            {
+                CompleteLoop();
+                return;
+            }
+
+            if (!TryPrepareFinalDesignRound(out var selectionError))
+            {
+                Debug.LogWarning(
+                    "Final design round is enabled, but no final design could be selected. " +
+                    $"Falling back to normal completion. Reason: {selectionError}"
+                );
+                CompleteLoop();
+                return;
+            }
+
+            HandleParametersReady(
+                "Optimization has finished.\nThe selected final design is ready for one last evaluation round."
+            );
         }
         
         private void PythonInitializationDone()
@@ -311,6 +352,26 @@ namespace BOforUnity
                 return;
             }
 
+            if (_finalDesignRoundPrepared)
+            {
+                _finalDesignRoundPrepared = false;
+                _finalDesignRoundInProgress = true;
+
+                Debug.Log("--------------------------------------Current Iteration (Final Design Round): " + currentIteration);
+                simulationRunning = true;
+                SetOptimizerStatePanelVisible(false);
+
+                if (reloadSceneOnIterationAdvance)
+                {
+                    SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                }
+                else
+                {
+                    SetLoadingVisible(false);
+                }
+                return;
+            }
+
             bool isPerfect = ShouldStopForPerfectRating();
             if (isPerfect)
             {
@@ -382,6 +443,8 @@ namespace BOforUnity
 
             _loopTerminated = true;
             _pendingAdvanceRequest = false;
+            _finalDesignRoundPrepared = false;
+            _finalDesignRoundInProgress = false;
             CancelAutomaticAdvance();
 
             Debug.Log("<<<<<<< Exiting the loop ... ");
@@ -433,6 +496,75 @@ namespace BOforUnity
         {
             if (outputText != null)
                 outputText.text = value;
+        }
+
+        private bool TryPrepareFinalDesignRound(out string error)
+        {
+            _finalDesignRoundPrepared = false;
+            _finalDesignRoundInProgress = false;
+
+            string logRoot = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "BayesianOptimization",
+                "LogData"
+            );
+
+            if (!FinalDesignSelector.TrySelectFromLatestObservationCsv(
+                    logRootPath: logRoot,
+                    userId: userId,
+                    parameters: parameters,
+                    objectives: objectives,
+                    distanceEpsilon: finalDesignDistanceEpsilon,
+                    maximinEpsilon: finalDesignMaximinEpsilon,
+                    aggressionEpsilon: finalDesignAggressionEpsilon,
+                    selection: out var selected,
+                    selectedCsvPath: out var selectedCsvPath,
+                    error: out error))
+            {
+                return false;
+            }
+
+            if (selected.ParameterRaw.Length != parameters.Count)
+            {
+                error = "Selected final-design parameter count does not match current parameter list.";
+                return false;
+            }
+
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                float selectedValue = selected.ParameterRaw[i];
+                if (float.IsNaN(selectedValue) || float.IsInfinity(selectedValue))
+                {
+                    error = $"Selected parameter '{parameters[i].key}' is non-finite.";
+                    return false;
+                }
+
+                float lo = parameters[i].value.lowerBound;
+                float hi = parameters[i].value.upperBound;
+                float eps = 1e-4f;
+                if (selectedValue < lo - eps || selectedValue > hi + eps)
+                {
+                    error = $"Selected parameter '{parameters[i].key}'={selectedValue} is outside bounds [{lo}, {hi}].";
+                    return false;
+                }
+
+                parameters[i].value.Value = Mathf.Clamp(selectedValue, lo, hi);
+            }
+
+            currentIteration = totalIterations + 1;
+            _finalDesignRoundPrepared = true;
+            _finalDesignRoundInProgress = false;
+
+            Debug.Log(
+                "Selected final design for last evaluation round: " +
+                $"iteration={selected.Iteration}, utopiaDist={selected.UtopiaDistance}, " +
+                $"maximin={selected.Maximin}, aggression={selected.Aggression}, csv={selectedCsvPath}"
+            );
+
+            error = null;
+            return true;
         }
         
         private bool IsPerfectRating()
