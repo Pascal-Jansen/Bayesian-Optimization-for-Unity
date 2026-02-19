@@ -41,6 +41,9 @@ namespace BOforUnity.Editor
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
         private SerializedProperty warmStartObjectiveFormatProp;
+        private SerializedProperty iterationAdvanceModeProp;
+        private SerializedProperty automaticAdvanceDelaySecProp;
+        private SerializedProperty reloadSceneOnIterationAdvanceProp;
 
         private SerializedProperty totalIterationsProp;
 
@@ -95,6 +98,9 @@ namespace BOforUnity.Editor
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
             warmStartObjectiveFormatProp = serializedObject.FindProperty("warmStartObjectiveFormat");
+            iterationAdvanceModeProp = serializedObject.FindProperty("iterationAdvanceMode");
+            automaticAdvanceDelaySecProp = serializedObject.FindProperty("automaticAdvanceDelaySec");
+            reloadSceneOnIterationAdvanceProp = serializedObject.FindProperty("reloadSceneOnIterationAdvance");
 
             totalIterationsProp = serializedObject.FindProperty("totalIterations");
             
@@ -264,6 +270,31 @@ namespace BOforUnity.Editor
                 EditorStyles.helpBox
             );
 
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Iteration Progression", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(
+                iterationAdvanceModeProp,
+                new GUIContent(
+                    "Iteration Advance Mode",
+                    "Choose how the next iteration starts: Next Button, External Signal (call RequestNextIteration), or Automatic."
+                )
+            );
+            if ((BoForUnityManager.IterationAdvanceMode)iterationAdvanceModeProp.enumValueIndex ==
+                BoForUnityManager.IterationAdvanceMode.Automatic)
+            {
+                EditorGUILayout.PropertyField(
+                    automaticAdvanceDelaySecProp,
+                    new GUIContent("Automatic Advance Delay (s)", "Delay before auto-starting the next iteration.")
+                );
+            }
+            EditorGUILayout.PropertyField(
+                reloadSceneOnIterationAdvanceProp,
+                new GUIContent(
+                    "Reload Scene On Advance",
+                    "If disabled, the manager will not reload the active scene when advancing to the next iteration."
+                )
+            );
+
             // ── Model & Algorithm Hyperparameters ───────────────────────────────────
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
@@ -286,7 +317,15 @@ namespace BOforUnity.Editor
             EditorGUILayout.LabelField("GameObject References", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(outputTextProp);
             EditorGUILayout.PropertyField(loadingObjProp);
-            EditorGUILayout.PropertyField(nextButtonProp);
+            if ((BoForUnityManager.IterationAdvanceMode)iterationAdvanceModeProp.enumValueIndex ==
+                BoForUnityManager.IterationAdvanceMode.NextButton)
+            {
+                EditorGUILayout.PropertyField(nextButtonProp, new GUIContent("Next Button"));
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(nextButtonProp, new GUIContent("Next Button (Optional)"));
+            }
             EditorGUILayout.PropertyField(welcomePanelProp);
             EditorGUILayout.PropertyField(optimizerStatePanelProp);
         }

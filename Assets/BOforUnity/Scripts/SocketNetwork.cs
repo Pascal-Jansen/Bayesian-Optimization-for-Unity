@@ -249,10 +249,8 @@ namespace BOforUnity.Scripts
                 {
                     MainThreadDispatcher.Execute(() =>
                     {
-                        Debug.Log(">>>>>> Optimization finished!");
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
-                        _bomanager.optimizationFinished = true;
-                        _bomanager.OptimizationDone();
+                        _bomanager.OnOptimizationFinishedFromBackend();
                     });
                     _optimizationFinished = true;
                     break;

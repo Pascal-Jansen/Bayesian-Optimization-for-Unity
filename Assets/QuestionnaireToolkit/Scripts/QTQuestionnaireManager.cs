@@ -9,7 +9,9 @@ using System.Linq;
 using QuestionnaireToolkit.Scripts.SimpleJSON;
 using QuestionnaireToolkit.Scripts.StandaloneFileBrowser;
 using TMPro;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
  using UnityEngine;
 using UnityEngine.Events;
  using UnityEngine.EventSystems;
@@ -1213,12 +1215,21 @@ namespace QuestionnaireToolkit.Scripts
                         onQuestionnaireFinished.Invoke();
                     }
 
-                    // check for BO Manager and start the optimization as the questionnaire has finished
-                    var bomanager = GameObject.FindGameObjectWithTag("BOforUnityManager")
-                        .GetComponent<BoForUnityManager>();
-                    if (bomanager != null)
+                    // check for BO Manager and start optimization as the questionnaire has finished
+                    var boManagerObject = GameObject.FindGameObjectWithTag("BOforUnityManager");
+                    if (boManagerObject != null)
                     {
-                        bomanager.OptimizationStart();
+                        var bomanager = boManagerObject.GetComponent<BoForUnityManager>();
+                        if (bomanager != null)
+                        {
+                            bomanager.OptimizationStart();
+                            // In external-signal mode, queue progression so the manager advances
+                            // once new parameters arrive from Python.
+                            if (bomanager.iterationAdvanceMode == BoForUnityManager.IterationAdvanceMode.ExternalSignal)
+                            {
+                                bomanager.RequestNextIteration();
+                            }
+                        }
                     }
                 }
             }

@@ -43,8 +43,11 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
 
 
 ## Table of Contents
+* [Glossary (Plain Language)](#glossary-plain-language)
 * [Background](#background)
 * [Installation](#installation)
+* [Integration Checklist (Required)](#integration-checklist-required)
+* [Quick Start (10 Minutes)](#quick-start-10-minutes)
 * [Example Usage](#example-usage)
 * [Demo Video](#demo-video)
 * [Configuration](#configuration)
@@ -54,13 +57,34 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
     * [Study Settings](#study-settings)
     * [Problem Setup](#problem-setup)
     * [Optimization Budget](#optimization-budget)
+    * [Warm-Start CSV Examples](#warm-start-csv-examples)
+    * [Objective Direction Example (2 Minimize, 1 Maximize)](#objective-direction-example-2-minimize-1-maximize)
     * [Model and Algorithm Hyperparameters](#model-and-algorithm-hyperparameters)
     * [Output Files and Metrics](#output-files-and-metrics)
+* [Troubleshooting](#troubleshooting)
 * [System Architecture](#system-architecture)
 * [Portability to Your Own Project](#portability-to-your-own-project)
 * [Citation](#citation)
 * [License](#license)
 
+
+
+## Glossary (Plain Language)
+
+| Term | Meaning |
+|---|---|
+| **Parameter** | A setting Unity can change automatically (for example size, color, speed). |
+| **Objective** | A score the optimizer tries to improve (for example usability, trust, completion time). |
+| **Smaller is Better** | Unity flag for an objective where lower values are preferred (for example time or errors). |
+| **Sampling Iterations** | Initial rounds used to explore the space before model-based optimization starts. |
+| **Optimization Iterations** | Main BO rounds where the model proposes the next best design. |
+| **Warm Start** | Start from existing CSV data instead of collecting new initial samples. |
+| **Pareto Front** | Best trade-offs when you have multiple objectives and no single best point exists. |
+| **Dominated Point** | A point that is worse than another point in all objectives (and strictly worse in at least one). |
+| **Hypervolume** | Single MOBO progress metric computed from current non-dominated points in maximize-space. |
+| **coverage** | Runtime metric sent from Python to Unity (`hypervolume` for MOBO, best objective for BO). |
+| **tempCoverage** | Sampling-progress value in `[0,1]` during initial sampling rounds. |
+| **Seed** | Number used to make stochastic parts reproducible across runs with the same setup. |
 
 
 ## Background
@@ -148,7 +172,60 @@ Set up the asset as follows:
 
 > **Note:** You may set the Python path manually if you already have a local Python installation. See [Python Settings](#python-settings). Also, read [Configuration](#configuration) to ensure settings are saved.
 
+## Integration Checklist (Required)
+Before running your own scene, verify the following minimum setup:
 
+1. `BOforUnityManager` object exists in the scene and has the tag `BOforUnityManager`.
+2. The same object contains these components:
+   - `BoForUnityManager`
+   - `PythonStarter`
+   - `SocketNetwork`
+   - `Optimizer`
+   - `MainThreadDispatcher`
+3. In `BoForUnityManager`, required references are assigned:
+   - `Output Text`
+   - `Loading Obj`
+   - `Welcome Panel`
+   - `Optimizer State Panel`
+4. If `Iteration Advance Mode = NextButton`, `Next Button` is assigned and wired to `BoForUnityManager.ButtonNextIteration()`.
+5. If `Iteration Advance Mode = ExternalSignal`, your UI/game logic calls:
+   ```csharp
+   var bo = GameObject.FindWithTag("BOforUnityManager").GetComponent<BoForUnityManager>();
+   bo.RequestNextIteration();
+   ```
+6. Every objective key in `BoForUnityManager` has a matching data source (questionnaire item or manual script assignment).
+7. If you use QuestionnaireToolkit mapping, each question `Header Name` matches the objective key exactly.
+8. Parameter and objective keys are unique (no duplicates).
+9. Python settings are valid (`Manually Installed Python` path or automatic detection works).
+
+If any item above is missing, the loop may start but stall before sending/receiving valid optimization data.
+
+
+## Quick Start (10 Minutes)
+Use this path for a first successful run with the provided demo scene.
+
+1. Open `Assets/BOforUnity/BO-example-scene.unity`.
+2. Select `BOforUnityManager` in the hierarchy and verify the [Integration Checklist](#integration-checklist-required).
+3. In `BoForUnityManager` inspector:
+   - keep `Iteration Advance Mode = NextButton`
+   - keep `Warm Start = false`
+   - keep `Seed = 3`
+4. Confirm there are at least two objectives (`m >= 2`) so `mobo.py` is used.
+5. Press Play.
+6. Click `Next` to start initialization.
+7. Wait for "The system has been started successfully!".
+8. Click `Next` to start an evaluation.
+9. Run the simulation flow and click `End Simulation`.
+10. Complete the questionnaire and click `Finish`.
+11. Repeat at least one more iteration.
+
+Expected successful outcome:
+- Parameter values in the scene change between iterations.
+- `Assets/StreamingAssets/BOData/BayesianOptimization/LogData/<USER_ID>/` is created.
+- `ObservationsPerEvaluation.csv` and `ExecutionTimes.csv` are populated.
+- For MOBO (`m >= 2`), `HypervolumePerEvaluation.csv` is written and Unity receives `coverage` updates.
+
+If these outputs appear, your full Unity-Python loop is working.
 
 
 ## Example Usage
@@ -370,15 +447,95 @@ These options are in the lower part of this [image](#py_st_ws_pr_settings).
 * For best compatibility, provide parameter values in original parameter bounds (`Lower/Upper Bound`).
 * Objective values must follow the selected **Warm Start Objective Format**.
 
+##### Warm-Start CSV Examples
+The examples below use `;` as delimiter and require headers that match your exact parameter/objective keys.
+
+`raw` (original bounds):
+
+```csv
+ButtonSize;Contrast
+0.35;0.70
+0.55;0.40
+```
+
+```csv
+Usability;TaskTime;ErrorCount
+72;38;4
+68;31;3
+```
+
+`normalized_max` (already in maximize-space `[-1,1]`):
+
+```csv
+ButtonSize;Contrast
+0.35;0.70
+0.55;0.40
+```
+
+```csv
+Usability;TaskTime;ErrorCount
+0.44;0.36;0.60
+0.36;0.48;0.70
+```
+
+`normalized_native` (native direction `[-1,1]`, Python flips minimize objectives internally):
+
+```csv
+ButtonSize;Contrast
+0.35;0.70
+0.55;0.40
+```
+
+```csv
+Usability;TaskTime;ErrorCount
+0.44;-0.36;-0.60
+0.36;-0.48;-0.70
+```
+
 ##### Objective Direction Semantics
 * Internally, the optimizer always works in maximize-space.
 * If **Smaller is Better** is enabled for an objective, the backend flips that objective internally.
 * This flip is applied consistently in optimization, Pareto computation, and logging conversions.
 
+##### Objective Direction Example (2 Minimize, 1 Maximize)
+Assume these three Unity objectives:
+
+| Objective Key | Bounds | Smaller is Better | Example Raw Value | Internal Maximize-Space Value |
+|---|---|---|---|---|
+| `TaskTime` | `[0, 120]` | `true` | `30` | `+0.50` |
+| `ErrorCount` | `[0, 20]` | `true` | `4` | `+0.60` |
+| `Usability` | `[0, 100]` | `false` | `70` | `+0.40` |
+
+How this is handled:
+1. Values are normalized to `[-1,1]`.
+2. Objectives with `Smaller is Better = true` are multiplied by `-1`.
+3. Pareto checks (`is_non_dominated`) and hypervolume are computed on this consistent maximize-space representation.
+4. `ObservationsPerEvaluation.csv` stores denormalized values in your original objective units.
+
 ##### Perfect Rating Settings
 * Disabled by default.
 * Enable **Perfect Rating** to terminate when a perfect rating is achieved.
 * If **Perfect Rating In Initial Rounds** is checked (visible only when perfect rating is active), a perfect rating can also terminate during sampling.
+
+##### Iteration Progression Settings
+* **Iteration Advance Mode** controls how the next evaluation iteration starts:
+  * `NextButton`: legacy behavior (user presses the assigned Next button).
+  * `ExternalSignal`: no built-in button dependency; trigger progression from your own logic.
+  * `Automatic`: starts the next iteration automatically after a configurable delay.
+* **Automatic Advance Delay (s)** is used only in `Automatic` mode.
+* **Reload Scene On Advance** controls whether the manager reloads the active scene when progressing.
+  * Keep this enabled for the default sample-loop behavior.
+  * Disable it if your app handles iteration transitions without scene reloads.
+
+For `ExternalSignal`, call this from your own UI/event logic:
+
+```csharp
+var bo = GameObject.FindWithTag("BOforUnityManager").GetComponent<BoForUnityManager>();
+bo.RequestNextIteration();
+```
+
+If you use the bundled `QTQuestionnaireManager`, this request is queued automatically after questionnaire completion when `Iteration Advance Mode` is set to `ExternalSignal`.
+
 <a id="py_st_ws_pr_settings"></a>
 
 | **Name**       | **Default Value** | **Description**                                                                                   |
@@ -429,6 +586,20 @@ Single-objective BO (`bo.py`, `m = 1`):
 * Unity `coverage` corresponds to current best normalized objective.
 
 During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
+
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| "The system could not be started..." in Unity | Python path/setup failed or dependencies are missing | Re-check [Python Settings](#python-settings), rerun installer scripts in `Assets/StreamingAssets/BOData/Installation`, then restart Unity. |
+| Loop stalls after questionnaire `Finish` | Objective values were not assigned, or objective keys do not match questionnaire headers | Verify each objective key is mapped and receives a value each iteration. |
+| Loop does not progress in `ExternalSignal` mode | `RequestNextIteration()` is not called from your custom flow | Add the explicit call after your evaluation step ends. |
+| Loop does not progress in `NextButton` mode | `Next Button` not assigned or not wired to `ButtonNextIteration()` | Assign the button reference and Unity `OnClick` event to `BoForUnityManager.ButtonNextIteration()`. |
+| Warm start fails on startup | Missing CSV files, wrong headers, non-numeric values, or wrong format setting | Validate files against [Warm-Start CSV Checklist (Required)](#warm-start-csv-checklist-required) and [Warm-Start CSV Examples](#warm-start-csv-examples). |
+| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/BayesianOptimization/LogData/<USER_ID>/`, then rerun to regenerate headers. |
+| No parameter changes between iterations | Simulation does not apply incoming parameter values from `bo.parameters` | Confirm your scene reads and applies updated parameter values each iteration. |
+| `coverage`/Pareto behavior seems inconsistent with minimize objectives | Misunderstanding of internal maximize-space conversion | See [Objective Direction Semantics](#objective-direction-semantics) and [Objective Direction Example (2 Minimize, 1 Maximize)](#objective-direction-example-2-minimize-1-maximize). |
 
 
 

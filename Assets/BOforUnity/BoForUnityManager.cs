@@ -4,7 +4,9 @@ using System.Linq;
 using BOforUnity.Scripts;
 using QuestionnaireToolkit.Scripts;
 using TMPro;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 using UnityEngine.Assertions.Must;
 using UnityEngine.SceneManagement;
@@ -16,6 +18,13 @@ namespace BOforUnity
 {
     public class BoForUnityManager : MonoBehaviour
     {
+        public enum IterationAdvanceMode
+        {
+            NextButton = 0,
+            ExternalSignal = 1,
+            Automatic = 2
+        }
+
         public PythonStarter pythonStarter;
         public Optimizer optimizer;
         public MainThreadDispatcher mainThreadDispatcher;
@@ -59,11 +68,20 @@ namespace BOforUnity
         public string initialObjectivesDataPath;
         public string warmStartObjectiveFormat = "auto";
 
+        [Header("Loop Progression")]
+        public IterationAdvanceMode iterationAdvanceMode = IterationAdvanceMode.NextButton;
+        [Min(0f)] public float automaticAdvanceDelaySec = 0f;
+        public bool reloadSceneOnIterationAdvance = true;
+
         public string userId = "-1";
         public string conditionId = "-1";
         public string groupId = "-1";
 
         public bool hasNewDesignParameterValues;
+        private bool _pendingAdvanceRequest = false;
+        private bool _loopTerminated = false;
+        private Coroutine _automaticAdvanceCoroutine = null;
+        private bool _warnedMissingNextButton = false;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -90,19 +108,23 @@ namespace BOforUnity
         
         void Start()
         {
-            loadingObj.SetActive(true);
-            nextButton.SetActive(false);
+            SetLoadingVisible(true);
+            SetNextButtonVisible(false);
 
             initialized = false;
             _waitingForPythonProcess = true;
             perfectRating = false;
             perfectRatingStart = false;
+            optimizationFinished = false;
+            _pendingAdvanceRequest = false;
+            _loopTerminated = false;
+            _warnedMissingNextButton = false;
             simulationRunning = true; // the simulation to true to prevent 
         }
         
         void Update()
         {
-            if (_waitingForPythonProcess && pythonStarter.isPythonProcessRunning && pythonStarter.isSystemStarted)
+            if (_waitingForPythonProcess && pythonStarter != null && pythonStarter.isPythonProcessRunning && pythonStarter.isSystemStarted)
             {
                 _waitingForPythonProcess = false;
                 PythonInitializationDone();
@@ -123,112 +145,86 @@ namespace BOforUnity
         public bool optimizationRunning = false;
         public bool optimizationFinished = false;
 
-        //Starts a new iteration
+        // Legacy UI hook; use RequestNextIteration() for non-button flows.
         public void ButtonNextIteration()
         {
-            loadingObj.SetActive(true); // show loading
-            nextButton.SetActive(false); // hide next button
+            RequestNextIteration();
+        }
 
-            if (currentIteration == 0)
-            {
-                welcomePanel.SetActive(false);
-                optimizerStatePanel.SetActive(false);
+        // Public API for external mechanisms (questionnaire callbacks, timers, custom UI, etc.)
+        public void RequestNextIteration()
+        {
+            if (_loopTerminated)
                 return;
-            }
 
-            var isPerfect = false;
+            // In NextButton mode, never queue "early" requests while no fresh design is ready.
+            // This prevents double-click/external duplicate events from auto-advancing the next cycle.
+            if (iterationAdvanceMode == IterationAdvanceMode.NextButton && !hasNewDesignParameterValues)
+                return;
 
-            // Check if perfect rating is active. If not skip the checks for a perfect rating.
-            if(perfectRatingActive)
-            {
-                // Check if perfect rating can be achieved in the initial rounds (also known as: "sampling phase")
-                if(perfectRatingInInitialRounds)
-                {
-                    isPerfect = IsPerfectRating();
-                }
-                // Else wait until the initial rounds are over and then check for perfect rating
-                else if (perfectRatingInInitialRounds == false && currentIteration > numSamplingIterations)
-                {
-                    isPerfect = IsPerfectRating();
-                }
-            }
-            
-            // Check if there should be another iteration of the optimization
-            if (currentIteration <= totalIterations && !isPerfect)
-            {
-                // hide the panel as the next iteration starts after scene is reloaded
-                optimizerStatePanel.SetActive(false);
-                
-                Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
-
-                simulationRunning = true; // waiting for the simulation to finish
-                
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload scene
-            }
-            else if (currentIteration > totalIterations || isPerfect)
-            {
-                if (isPerfect)
-                {
-                    Debug.Log(">>>>> Perfect Rating");
-                }
-                
-                Debug.Log("<<<<<<< Exiting the loop ... ");
-                Debug.Log("------------------------------------------------");
-
-                simulationRunning = false; // the simulation must be finished
-                
-                socketNetwork.SocketQuit();
-                // load a final scene or...
-                // show the End Message
-                outputText.text = "The simulation has finished!\nYou can now close the application.";
-                loadingObj.SetActive(false);
-                nextButton.SetActive(false);
-            }
+            _pendingAdvanceRequest = true;
+            TryConsumeAdvanceRequest();
         }
         
         public void OptimizationStart()
         {
+            if (_loopTerminated || optimizationFinished)
+            {
+                Debug.LogWarning("OptimizationStart ignored because optimization loop is already finished.");
+                return;
+            }
+            if (optimizationRunning)
+            {
+                Debug.LogWarning("OptimizationStart ignored because optimization is already running.");
+                return;
+            }
+            if (socketNetwork == null)
+            {
+                Debug.LogError("OptimizationStart failed because SocketNetwork is not assigned.");
+                return;
+            }
+
             Debug.Log("Optimization START");
+            CancelAutomaticAdvance();
+            if (iterationAdvanceMode == IterationAdvanceMode.NextButton)
+            {
+                // Defensive reset against stale requests from duplicate UI events.
+                _pendingAdvanceRequest = false;
+            }
+
             socketNetwork.SendObjectives(); // send the current objective values to the Python process
             hasNewDesignParameterValues = false; // the current design parameter values are obsolete
             optimizationRunning = true;
             simulationRunning = false;
 
-            optimizerStatePanel.SetActive(true); // show that the optimizer is running
-            loadingObj.SetActive(true);
-            nextButton.SetActive(false);
-            outputText.text = "The system is loading, please wait ...";
+            SetOptimizerStatePanelVisible(true); // show that the optimizer is running
+            SetLoadingVisible(true);
+            SetNextButtonVisible(false);
+            SetOutputText("The system is loading, please wait ...");
         }
         
         public void OptimizationDone()
         {
             Debug.Log("Optimization DONE");
-            // ---------------
-            // now, apply the parameter value of the current iteration ...
-            hasNewDesignParameterValues = true;
-            // ---------------
-            optimizationRunning = false;
-            
-            loadingObj.SetActive(false); // hide as the optimizer has finished running
-            nextButton.SetActive(true);
-            outputText.text = "The system has finished loading.\nYou can now proceed.";
-            
             currentIteration++; // increase iteration counter
+            HandleParametersReady("The system has finished loading.\nYou can now proceed.");
         }
         
         public void InitializationDone()
         {
             Debug.Log("Initialization DONE");
-            // ---------------
-            // now, apply the parameter value of the current iteration ...
-            hasNewDesignParameterValues = true;
-            // ---------------
-            optimizationRunning = false;
-            
             initialized = true;
-            loadingObj.SetActive(false); // hide loading circle
-            nextButton.SetActive(true); // show next button
-            outputText.text = "The system has been started successfully!\nYou can now start the study.";
+            HandleParametersReady("The system has been started successfully!\nYou can now start the study.");
+        }
+
+        public void OnOptimizationFinishedFromBackend()
+        {
+            if (_loopTerminated)
+                return;
+
+            Debug.Log(">>>>>> Optimization finished!");
+            optimizationFinished = true;
+            CompleteLoop();
         }
         
         private void PythonInitializationDone()
@@ -237,7 +233,206 @@ namespace BOforUnity
             // Initialize the optimizer and socket connection ... only for Debug
             // optimizer.DebugOptimizer();
             // Start Optimization to receive the initialized parameter values for the first iteration
+            if (socketNetwork == null)
+            {
+                Debug.LogError("PythonInitializationDone failed because SocketNetwork is not assigned.");
+                return;
+            }
             socketNetwork.InitSocket();
+        }
+
+        private void HandleParametersReady(string statusText)
+        {
+            if (_loopTerminated)
+                return;
+
+            hasNewDesignParameterValues = true;
+            optimizationRunning = false;
+            simulationRunning = false;
+
+            SetOptimizerStatePanelVisible(false);
+            SetLoadingVisible(false);
+            SetOutputText(statusText);
+
+            switch (iterationAdvanceMode)
+            {
+                case IterationAdvanceMode.NextButton:
+                    SetNextButtonVisible(true);
+                    if (nextButton == null && !_warnedMissingNextButton)
+                    {
+                        _warnedMissingNextButton = true;
+                        Debug.LogWarning(
+                            "IterationAdvanceMode is set to NextButton, but no Next Button is assigned. " +
+                            "Assign a button, switch mode, or call RequestNextIteration() from your own logic."
+                        );
+                    }
+                    break;
+                case IterationAdvanceMode.ExternalSignal:
+                    SetNextButtonVisible(false);
+                    break;
+                case IterationAdvanceMode.Automatic:
+                    SetNextButtonVisible(false);
+                    ScheduleAutomaticAdvance();
+                    break;
+            }
+
+            // External-signal mode can otherwise stall before the very first evaluation
+            // when no UI button exists. Auto-kick only the initial transition.
+            if (iterationAdvanceMode == IterationAdvanceMode.ExternalSignal && currentIteration == 1)
+            {
+                _pendingAdvanceRequest = true;
+            }
+
+            // If an external signal was sent early while Python was still computing, honor it now.
+            TryConsumeAdvanceRequest();
+        }
+
+        private void TryConsumeAdvanceRequest()
+        {
+            if (_loopTerminated || !_pendingAdvanceRequest || !hasNewDesignParameterValues)
+                return;
+
+            _pendingAdvanceRequest = false;
+            AdvanceToNextIterationOrFinish();
+        }
+
+        private void AdvanceToNextIterationOrFinish()
+        {
+            SetLoadingVisible(true); // show loading while transitioning to next evaluation
+            SetNextButtonVisible(false);
+            // Lock progression until new parameters arrive from the backend.
+            hasNewDesignParameterValues = false;
+
+            if (currentIteration == 0)
+            {
+                SetWelcomePanelVisible(false);
+                SetOptimizerStatePanelVisible(false);
+                SetLoadingVisible(false);
+                return;
+            }
+
+            bool isPerfect = ShouldStopForPerfectRating();
+            if (isPerfect)
+            {
+                Debug.Log(">>>>> Perfect Rating");
+            }
+
+            if (optimizationFinished || currentIteration > totalIterations || isPerfect)
+            {
+                CompleteLoop();
+                return;
+            }
+
+            // hide the panel as the next iteration starts after scene transition
+            SetOptimizerStatePanelVisible(false);
+
+            Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
+
+            simulationRunning = true; // waiting for the simulation to finish
+
+            if (reloadSceneOnIterationAdvance)
+            {
+                SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload scene
+            }
+            else
+            {
+                SetLoadingVisible(false);
+            }
+        }
+
+        private bool ShouldStopForPerfectRating()
+        {
+            if (!perfectRatingActive)
+                return false;
+            if (!perfectRatingInInitialRounds && currentIteration <= numSamplingIterations)
+                return false;
+            return IsPerfectRating();
+        }
+
+        private void ScheduleAutomaticAdvance()
+        {
+            CancelAutomaticAdvance();
+            _automaticAdvanceCoroutine = StartCoroutine(AutomaticAdvanceRoutine());
+        }
+
+        private void CancelAutomaticAdvance()
+        {
+            if (_automaticAdvanceCoroutine == null)
+                return;
+
+            StopCoroutine(_automaticAdvanceCoroutine);
+            _automaticAdvanceCoroutine = null;
+        }
+
+        private System.Collections.IEnumerator AutomaticAdvanceRoutine()
+        {
+            if (automaticAdvanceDelaySec > 0f)
+            {
+                yield return new WaitForSeconds(automaticAdvanceDelaySec);
+            }
+
+            _automaticAdvanceCoroutine = null;
+            RequestNextIteration();
+        }
+
+        private void CompleteLoop()
+        {
+            if (_loopTerminated)
+                return;
+
+            _loopTerminated = true;
+            _pendingAdvanceRequest = false;
+            CancelAutomaticAdvance();
+
+            Debug.Log("<<<<<<< Exiting the loop ... ");
+            Debug.Log("------------------------------------------------");
+
+            simulationRunning = false;
+            optimizationRunning = false;
+
+            SetOptimizerStatePanelVisible(false);
+            SetLoadingVisible(false);
+            SetNextButtonVisible(false);
+            SetOutputText("The simulation has finished!\nYou can now close the application.");
+
+            try
+            {
+                socketNetwork?.SocketQuit();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"SocketQuit failed during loop termination: {e.Message}");
+            }
+        }
+
+        private void SetLoadingVisible(bool visible)
+        {
+            if (loadingObj != null)
+                loadingObj.SetActive(visible);
+        }
+
+        private void SetNextButtonVisible(bool visible)
+        {
+            if (nextButton != null)
+                nextButton.SetActive(visible);
+        }
+
+        private void SetOptimizerStatePanelVisible(bool visible)
+        {
+            if (optimizerStatePanel != null)
+                optimizerStatePanel.SetActive(visible);
+        }
+
+        private void SetWelcomePanelVisible(bool visible)
+        {
+            if (welcomePanel != null)
+                welcomePanel.SetActive(visible);
+        }
+
+        private void SetOutputText(string value)
+        {
+            if (outputText != null)
+                outputText.text = value;
         }
         
         private bool IsPerfectRating()

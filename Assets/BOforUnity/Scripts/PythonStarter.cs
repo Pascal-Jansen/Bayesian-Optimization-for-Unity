@@ -43,8 +43,8 @@ namespace BOforUnity.Scripts
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
 
-            _bomanager.loadingObj.SetActive(true);
-            _bomanager.nextButton.SetActive(false);
+            if (_bomanager.loadingObj != null) _bomanager.loadingObj.SetActive(true);
+            if (_bomanager.nextButton != null) _bomanager.nextButton.SetActive(false);
 
             // Run setup async, then start Python process only after pip finished
             StartCoroutine(SetupThenLaunchCoroutine());
@@ -142,8 +142,10 @@ namespace BOforUnity.Scripts
                 Debug.Log(">>>>> Python Process has EXITED!");
                 if (_bomanager.simulationRunning) // if the simulation is still running show an error message
                 {
-                    _bomanager.outputText.text = "The system could not be started...\nPlease restart the application.";
-                    _bomanager.loadingObj.SetActive(false);
+                    if (_bomanager.outputText != null)
+                        _bomanager.outputText.text = "The system could not be started...\nPlease restart the application.";
+                    if (_bomanager.loadingObj != null)
+                        _bomanager.loadingObj.SetActive(false);
                 }
             }
         }
