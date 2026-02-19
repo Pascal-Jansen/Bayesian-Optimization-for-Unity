@@ -63,35 +63,23 @@ HOST = ''
 PORT = 56001
 SOCKET_RECV_BUF = ""
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
+SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
+SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
 
 def send_json_line(conn, obj):
     line = json.dumps(obj, ensure_ascii=False) + "\n"
-    conn.sendall(line.encode("utf-8"))
+    try:
+        conn.sendall(line.encode("utf-8"))
+    except (BrokenPipeError, ConnectionResetError, OSError) as e:
+        t = obj.get("type") if isinstance(obj, dict) else "unknown"
+        raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
 
 def ndjson_reader(conn):
-    """Yield complete JSON objects from a TCP socket using newline framing."""
-    buf = ""
     while True:
-        chunk = conn.recv(4096)
-        if not chunk:
-            if buf.strip():
-                try:
-                    yield json.loads(buf)
-                except Exception:
-                    pass
+        msg = recv_json_message(conn)
+        if msg is None:
             return
-        buf += chunk.decode("utf-8", errors="replace")
-        while True:
-            idx = buf.find("\n")
-            if idx < 0:
-                break
-            line = buf[:idx].rstrip("\r")
-            buf = buf[idx + 1:]
-            if line.strip():
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError as e:
-                    print("JSON decode error:", e, "line:", line, flush=True)
+        yield msg
 
 def recv_json_message(conn):
     """Receive one NDJSON message while preserving unread bytes across calls."""
@@ -122,6 +110,13 @@ def recv_json_message(conn):
                 print("Warning: discarding trailing unterminated socket data:", preview, flush=True)
             return None
         SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
+        if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
+            preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
+            SOCKET_RECV_BUF = ""
+            raise RuntimeError(
+                f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
+                f"possible framing error or oversized message. Tail preview: {preview}"
+            )
 
 # -------------------- IO utils --------------------
 def get_unique_folder(parent, folder_name):
@@ -138,23 +133,17 @@ def get_unique_folder(parent, folder_name):
         k += 1
 
 def create_csv_file(csv_file_path, fieldnames):
-    try:
-        os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
-        write_header = not os.path.exists(csv_file_path)
-        with open(csv_file_path, 'a+', newline='') as f:
-            w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-            if write_header:
-                w.writeheader()
-    except Exception as e:
-        print("Error creating file:", str(e), flush=True)
+    os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
+    write_header = not os.path.exists(csv_file_path)
+    with open(csv_file_path, 'a+', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
+        if write_header:
+            w.writeheader()
 
 def write_data_to_csv(csv_file_path, fieldnames, rows):
-    try:
-        with open(csv_file_path, 'a+', newline='') as f:
-            w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-            w.writerows(rows)
-    except Exception as e:
-        print("Error writing to file:", str(e), flush=True)
+    with open(csv_file_path, 'a+', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
+        w.writerows(rows)
 
 def denormalize_to_original_param(val01, lo, hi, decimals=3):
     v = lo + val01 * (hi - lo)
@@ -166,32 +155,63 @@ def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
     v = -v_m1p1 if int(smaller_is_better) == 1 else v_m1p1
     return np.round(lo + (v + 1) * 0.5 * (hi - lo), 3)
 
+def expected_observation_columns():
+    return ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase','IsPareto'] + objective_names + parameter_names
+
 def normalize_param_column(col, lo, hi):
     col = np.asarray(col, dtype=np.float64)
-    in_raw_range = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
-    if in_raw_range:
-        if hi == lo:
+    eps = 1e-8
+    in_raw_range = np.all((lo - eps <= col) & (col <= hi + eps))
+    in_norm_range = np.all((-eps <= col) & (col <= 1.0 + eps))
+
+    if hi == lo:
+        if np.allclose(col, lo, rtol=0.0, atol=1e-8):
             return np.zeros_like(col)
+        if in_norm_range and np.allclose(col, 0.0, rtol=0.0, atol=1e-8):
+            return np.zeros_like(col)
+        raise ValueError(
+            f"Warm-start parameter values out of bounds for degenerate interval [{lo}, {hi}]"
+        )
+
+    if in_raw_range:
         return np.clip((col - lo) / (hi - lo), 0.0, 1.0)
-    if np.all((-1e-8 <= col) & (col <= 1.0 + 1e-8)):
+    if in_norm_range:
         # Fallback for previously normalized warm-start files.
         return np.clip(col, 0.0, 1.0)
-    if hi == lo:
-        return np.zeros_like(col)
-    return np.clip((col - lo) / (hi - lo), 0.0, 1.0)
+    raise ValueError(
+        f"Warm-start parameter values must be within raw bounds [{lo}, {hi}] or normalized [0,1], "
+        f"got range [{np.min(col)}, {np.max(col)}]"
+    )
 
 def normalize_obj_column(col, lo, hi, minflag):
     col = np.asarray(col, dtype=np.float64)
-    in_raw_range = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
-    in_norm_range = np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8))
+    raw_range_detected = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
+    norm_range_detected = np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8))
+    in_raw_range = raw_range_detected
+    in_norm_range = norm_range_detected
 
     if WARM_START_OBJECTIVE_FORMAT == "raw":
+        if not raw_range_detected:
+            raise ValueError(
+                f"warmStartObjectiveFormat=raw requires values in [{lo},{hi}], "
+                f"but received range [{np.min(col)}, {np.max(col)}]"
+            )
         in_raw_range = True
         in_norm_range = False
     elif WARM_START_OBJECTIVE_FORMAT == "normalized_max":
+        if not norm_range_detected:
+            raise ValueError(
+                f"warmStartObjectiveFormat=normalized_max requires values in [-1,1], "
+                f"but received range [{np.min(col)}, {np.max(col)}]"
+            )
         in_raw_range = False
         in_norm_range = True
     elif WARM_START_OBJECTIVE_FORMAT == "normalized_native":
+        if not norm_range_detected:
+            raise ValueError(
+                f"warmStartObjectiveFormat=normalized_native requires values in [-1,1], "
+                f"but received range [{np.min(col)}, {np.max(col)}]"
+            )
         in_raw_range = False
         in_norm_range = True
 
@@ -212,18 +232,19 @@ def normalize_obj_column(col, lo, hi, minflag):
         y = np.clip(col, -1.0, 1.0)
         if WARM_START_OBJECTIVE_FORMAT == "normalized_native" and int(minflag) == 1:
             y = -y
-    elif hi == lo:
-        y = np.zeros_like(col)
     else:
-        y = (col - lo) / (hi - lo) * 2.0 - 1.0
-        if int(minflag) == 1:
-            y = -y
+        raise ValueError(
+            f"Warm-start objective values must be within raw bounds [{lo}, {hi}] or normalized [-1,1], "
+            f"got range [{np.min(col)}, {np.max(col)}]"
+        )
     return np.clip(y, -1.0, 1.0)
 
 # -------------------- protocol parsing --------------------
 def parse_param_init(init_val):
     # Accept typed JSON: {"low": ..., "high": ...}
     if isinstance(init_val, dict):
+        if "low" not in init_val or "high" not in init_val:
+            raise ValueError(f"Parameter init parse error (missing 'low'/'high'): {init_val}")
         return float(init_val["low"]), float(init_val["high"])
     parts = [p.strip() for p in str(init_val).split(",")]
     if len(parts) < 2:
@@ -233,11 +254,25 @@ def parse_param_init(init_val):
 def parse_obj_init(init_val):
     # Accept typed JSON: {"low": ..., "high": ..., "minimize": 0/1}
     if isinstance(init_val, dict):
-        return float(init_val["low"]), float(init_val["high"]), int(init_val.get("minimize", 0))
+        if "low" not in init_val or "high" not in init_val:
+            raise ValueError(f"Objective init parse error (missing 'low'/'high'): {init_val}")
+        if "minimize" not in init_val:
+            raise ValueError(f"Objective init parse error (missing 'minimize'): {init_val}")
+        return float(init_val["low"]), float(init_val["high"]), int(init_val["minimize"])
     parts = [p.strip() for p in str(init_val).split(",")]
     if len(parts) < 3:
         raise ValueError(f"Objective init parse error: '{init_val}'")
     return float(parts[0]), float(parts[1]), int(float(parts[2]))
+
+def get_cfg_int(cfg, key, default=None, required=False):
+    if key in cfg and cfg.get(key) is not None:
+        try:
+            return int(cfg.get(key))
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Config field '{key}' must be an integer, got {cfg.get(key)!r}") from e
+    if required:
+        raise ValueError(f"Missing required config field '{key}'")
+    return int(default) if default is not None else None
 
 # -------------------- objective evaluation --------------------
 def recv_objectives_blocking(conn):
@@ -245,6 +280,8 @@ def recv_objectives_blocking(conn):
         msg = recv_json_message(conn)
         if msg is None:
             return None
+        if not isinstance(msg, dict):
+            continue
         t = msg.get("type")
         if t == "objectives":
             return msg.get("values") or {}
@@ -269,6 +306,8 @@ def objective_function(conn, x_tensor):
     resp = recv_objectives_blocking(conn)
     if resp is None:
         raise RuntimeError("No objectives received from Unity.")
+    if not isinstance(resp, dict):
+        raise TypeError(f"Unity objectives payload must be a dict, got {type(resp).__name__}")
 
     fs = []
     missing = [name for name in objective_names if name not in resp]
@@ -276,14 +315,25 @@ def objective_function(conn, x_tensor):
         raise KeyError(f"Unity objectives missing required key(s): {missing}")
 
     for i, name in enumerate(objective_names):
-        val = float(resp[name])
+        try:
+            val = float(resp[name])
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Objective '{name}' must be numeric, got {resp[name]!r}") from e
         if not np.isfinite(val):
             raise ValueError(f"Objective '{name}' is non-finite: {val}")
         lo, hi, minflag = objectives_info[i]
-        f = 0.0 if hi == lo else (val - lo) / (hi - lo) * 2 - 1
+        eps = 1e-9
+        if hi == lo:
+            if not np.isclose(val, lo, rtol=0.0, atol=eps):
+                raise ValueError(f"Objective '{name}' value {val} is out of bounds for degenerate interval [{lo}, {hi}]")
+            f = 0.0
+        else:
+            if val < (lo - eps) or val > (hi + eps):
+                raise ValueError(f"Objective '{name}' value {val} is out of bounds [{lo}, {hi}]")
+            f = (val - lo) / (hi - lo) * 2 - 1
         if int(minflag) == 1:
             f *= -1
-        fs.append(max(-1.0, min(1.0, f)))
+        fs.append(float(np.clip(f, -1.0, 1.0)))
 
     return torch.tensor(fs, dtype=torch.double)
 
@@ -295,7 +345,7 @@ def generate_initial_data(conn, n_samples):
 
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     if not os.path.exists(obs_csv):
-        header = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase','IsPareto'] + objective_names + parameter_names
+        header = expected_observation_columns()
         with open(obs_csv, 'w', newline='') as f:
             csv.writer(f, delimiter=';').writerow(header)
 
@@ -350,6 +400,10 @@ def load_data():
         raise ValueError(f"Warm-start rows mismatch: parameters={x_raw.shape[0]}, objectives={y_raw.shape[0]}")
     if x_raw.shape[0] < 1:
         raise ValueError("Warm-start CSVs must contain at least one data row.")
+    if not np.all(np.isfinite(x_raw)):
+        raise ValueError("Warm-start parameter CSV contains NaN/Inf values.")
+    if not np.all(np.isfinite(y_raw)):
+        raise ValueError("Warm-start objective CSV contains NaN/Inf values.")
 
     x_norm = np.zeros_like(x_raw, dtype=np.float64)
     for j in range(PROBLEM_DIM):
@@ -360,6 +414,11 @@ def load_data():
     for j in range(NUM_OBJS):
         lo, hi, minflag = objectives_info[j]
         y_norm[:, j] = normalize_obj_column(y_raw[:, j], lo, hi, minflag)
+
+    if not np.all(np.isfinite(x_norm)):
+        raise ValueError("Warm-start normalized parameters contain non-finite values.")
+    if not np.all(np.isfinite(y_norm)):
+        raise ValueError("Warm-start normalized objectives contain non-finite values.")
 
     return torch.tensor(x_norm, dtype=torch.double), torch.tensor(y_norm, dtype=torch.double)
 
@@ -406,16 +465,25 @@ def save_xy(x_sample, y_sample, iteration):
 
     if os.path.exists(obs_csv):
         df = pd.read_csv(obs_csv, delimiter=';')
+        expected_cols = expected_observation_columns()
+        if list(df.columns) != expected_cols:
+            raise ValueError(
+                f"ObservationsPerEvaluation.csv columns mismatch. "
+                f"Expected {expected_cols}, got {list(df.columns)}"
+            )
     else:
-        cols = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase','IsPareto'] + objective_names + parameter_names
+        cols = expected_observation_columns()
         df = pd.DataFrame(columns=cols)
 
     new_row = pd.DataFrame([[USER_ID, CONDITION_ID, GROUP_ID,
                              time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                             iteration + N_INITIAL, 'optimization', 'FALSE',
+                             int(x_sample.shape[0]), 'optimization', 'FALSE',
                              *y_np[-1], *x_np[-1]]], columns=df.columns)
 
-    df = pd.concat([df, new_row], ignore_index=True)
+    if df.empty:
+        df = new_row.copy()
+    else:
+        df = pd.concat([df, new_row], ignore_index=True)
     flags = ['TRUE' if b else 'FALSE' for b in pareto_mask]
     if len(flags) == len(df):
         df['IsPareto'] = flags
@@ -504,125 +572,139 @@ def main():
     global USER_ID, CONDITION_ID, GROUP_ID
     global parameter_names, objective_names, parameters_info, objectives_info
     global SOCKET_RECV_BUF
+    global SOCKET_ACCEPT_TIMEOUT_SEC
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind((HOST, PORT))
-    s.listen(1)
-    print('Server starts, waiting for connection...', flush=True)
-    conn, addr = s.accept()
-    print('Connected by', addr, flush=True)
-    if SOCKET_TIMEOUT_SEC <= 0:
-        raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
-    conn.settimeout(SOCKET_TIMEOUT_SEC)
-    SOCKET_RECV_BUF = ""
-
-    init_msg = None
-    while True:
-        msg = recv_json_message(conn)
-        if msg is None:
-            break
-        if msg.get("type") == "init":
-            init_msg = msg
-            break
-    if init_msg is None:
-        raise RuntimeError("Did not receive init message.")
-
-    cfg = init_msg.get("config", {}) or {}
-    N_INITIAL      = int(cfg.get("numSamplingIterations", N_INITIAL))
-    N_ITERATIONS   = int(cfg.get("numOptimizationIterations", N_ITERATIONS))
-    BATCH_SIZE     = int(cfg.get("batchSize", BATCH_SIZE))
-    NUM_RESTARTS   = int(cfg.get("numRestarts", NUM_RESTARTS))
-    RAW_SAMPLES    = int(cfg.get("rawSamples", RAW_SAMPLES))
-    MC_SAMPLES     = int(cfg.get("mcSamples", MC_SAMPLES))
-    SEED           = int(cfg.get("seed", SEED))
-    PROBLEM_DIM    = int(cfg.get("nParameters"))
-    NUM_OBJS       = int(cfg.get("nObjectives"))
-    WARM_START     = bool(cfg.get("warmStart", False))
-
-    CSV_PATH_PARAMETERS = str(cfg.get("initialParametersDataPath") or "")
-    CSV_PATH_OBJECTIVES = str(cfg.get("initialObjectivesDataPath") or "")
-    WARM_START_OBJECTIVE_FORMAT = str(cfg.get("warmStartObjectiveFormat", WARM_START_OBJECTIVE_FORMAT) or "auto").strip().lower()
-
-    if WARM_START_OBJECTIVE_FORMAT not in ("auto", "raw", "normalized_max", "normalized_native"):
-        raise ValueError(
-            "warmStartObjectiveFormat must be one of: auto, raw, normalized_max, normalized_native; "
-            f"got '{WARM_START_OBJECTIVE_FORMAT}'"
-        )
-
-    if PROBLEM_DIM < 1:
-        raise ValueError(f"nParameters must be >= 1, got {PROBLEM_DIM}")
-    if NUM_OBJS < 2:
-        raise ValueError(f"mobo.py expects at least 2 objectives, got {NUM_OBJS}")
-    if N_INITIAL < 0 or N_ITERATIONS < 0:
-        raise ValueError(f"Iteration counts must be non-negative, got sampling={N_INITIAL}, optimization={N_ITERATIONS}")
-    if NUM_RESTARTS < 1 or RAW_SAMPLES < 1 or MC_SAMPLES < 1:
-        raise ValueError(
-            f"numRestarts/rawSamples/mcSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}/{MC_SAMPLES}"
-        )
-    if BATCH_SIZE != 1:
-        print(f"Warning: batchSize={BATCH_SIZE} is not supported in this HITL loop; forcing batchSize=1.", flush=True)
-        BATCH_SIZE = 1
-
-    user = init_msg.get("user", {}) or {}
-    USER_ID      = str(user.get("userId", "user"))
-    CONDITION_ID = str(user.get("conditionId", "cond"))
-    GROUP_ID     = str(user.get("groupId", "grp"))
-
-    parameters = init_msg.get("parameters", []) or []
-    objectives = init_msg.get("objectives", []) or []
-
-    parameter_names = [p.get("key") for p in parameters]
-    objective_names = [o.get("key") for o in objectives]
-
-    if len(set(parameter_names)) != len(parameter_names):
-        raise ValueError("Duplicate parameter keys detected in init message.")
-    if len(set(objective_names)) != len(objective_names):
-        raise ValueError("Duplicate objective keys detected in init message.")
-
-    if len(parameter_names) != PROBLEM_DIM:
-        raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
-    if len(objective_names) != NUM_OBJS:
-        raise ValueError(f"objective_names len {len(objective_names)} != nObjectives {NUM_OBJS}")
-
-    parameters_info = [parse_param_init(p.get("init")) for p in parameters]
-    objectives_info = [parse_obj_init(o.get("init")) for o in objectives]
-
-    for i, (lo, hi) in enumerate(parameters_info):
-        if not np.isfinite(lo) or not np.isfinite(hi):
-            raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
-        if hi < lo:
-            raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
-    for i, (lo, hi, minflag) in enumerate(objectives_info):
-        if not np.isfinite(lo) or not np.isfinite(hi):
-            raise ValueError(f"Objective '{objective_names[i]}' bounds must be finite, got ({lo}, {hi})")
-        if hi < lo:
-            raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
-        if int(minflag) not in (0, 1):
-            raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
-
-    ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)
-    problem_bounds = torch.stack(
-        [torch.zeros(PROBLEM_DIM, dtype=torch.double),
-         torch.ones(PROBLEM_DIM, dtype=torch.double)],
-        dim=0
-    )
-
-    print("Init OK:", dict(
-        BATCH_SIZE=BATCH_SIZE, NUM_RESTARTS=NUM_RESTARTS, RAW_SAMPLES=RAW_SAMPLES,
-        N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
-        N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS,
-        SOCKET_TIMEOUT_SEC=SOCKET_TIMEOUT_SEC, WARM_START_OBJECTIVE_FORMAT=WARM_START_OBJECTIVE_FORMAT
-    ), flush=True)
-
+    conn = None
     try:
+        if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
+            raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
+        s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
+        s.bind((HOST, PORT))
+        s.listen(1)
+        print('Server starts, waiting for connection...', flush=True)
+        try:
+            conn, addr = s.accept()
+        except socket.timeout as e:
+            raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
+        print('Connected by', addr, flush=True)
+        if SOCKET_TIMEOUT_SEC <= 0:
+            raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
+        conn.settimeout(SOCKET_TIMEOUT_SEC)
+        SOCKET_RECV_BUF = ""
+
+        init_msg = None
+        while True:
+            msg = recv_json_message(conn)
+            if msg is None:
+                break
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("type") == "init":
+                init_msg = msg
+                break
+        if init_msg is None:
+            raise RuntimeError("Did not receive init message.")
+
+        cfg = init_msg.get("config", {}) or {}
+        N_INITIAL      = get_cfg_int(cfg, "numSamplingIterations", default=N_INITIAL)
+        N_ITERATIONS   = get_cfg_int(cfg, "numOptimizationIterations", default=N_ITERATIONS)
+        BATCH_SIZE     = get_cfg_int(cfg, "batchSize", default=BATCH_SIZE)
+        NUM_RESTARTS   = get_cfg_int(cfg, "numRestarts", default=NUM_RESTARTS)
+        RAW_SAMPLES    = get_cfg_int(cfg, "rawSamples", default=RAW_SAMPLES)
+        MC_SAMPLES     = get_cfg_int(cfg, "mcSamples", default=MC_SAMPLES)
+        SEED           = get_cfg_int(cfg, "seed", default=SEED)
+        PROBLEM_DIM    = get_cfg_int(cfg, "nParameters", required=True)
+        NUM_OBJS       = get_cfg_int(cfg, "nObjectives", required=True)
+        WARM_START     = bool(cfg.get("warmStart", False))
+
+        CSV_PATH_PARAMETERS = str(cfg.get("initialParametersDataPath") or "")
+        CSV_PATH_OBJECTIVES = str(cfg.get("initialObjectivesDataPath") or "")
+        WARM_START_OBJECTIVE_FORMAT = str(cfg.get("warmStartObjectiveFormat", WARM_START_OBJECTIVE_FORMAT) or "auto").strip().lower()
+
+        if WARM_START_OBJECTIVE_FORMAT not in ("auto", "raw", "normalized_max", "normalized_native"):
+            raise ValueError(
+                "warmStartObjectiveFormat must be one of: auto, raw, normalized_max, normalized_native; "
+                f"got '{WARM_START_OBJECTIVE_FORMAT}'"
+            )
+
+        if PROBLEM_DIM < 1:
+            raise ValueError(f"nParameters must be >= 1, got {PROBLEM_DIM}")
+        if NUM_OBJS < 2:
+            raise ValueError(f"mobo.py expects at least 2 objectives, got {NUM_OBJS}")
+        if N_INITIAL < 0 or N_ITERATIONS < 0:
+            raise ValueError(f"Iteration counts must be non-negative, got sampling={N_INITIAL}, optimization={N_ITERATIONS}")
+        if NUM_RESTARTS < 1 or RAW_SAMPLES < 1 or MC_SAMPLES < 1:
+            raise ValueError(
+                f"numRestarts/rawSamples/mcSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}/{MC_SAMPLES}"
+            )
+        if BATCH_SIZE != 1:
+            print(f"Warning: batchSize={BATCH_SIZE} is not supported in this HITL loop; forcing batchSize=1.", flush=True)
+            BATCH_SIZE = 1
+
+        user = init_msg.get("user", {}) or {}
+        USER_ID      = str(user.get("userId", "user"))
+        CONDITION_ID = str(user.get("conditionId", "cond"))
+        GROUP_ID     = str(user.get("groupId", "grp"))
+
+        parameters = init_msg.get("parameters", []) or []
+        objectives = init_msg.get("objectives", []) or []
+
+        parameter_names = [p.get("key") for p in parameters]
+        objective_names = [o.get("key") for o in objectives]
+
+        if len(set(parameter_names)) != len(parameter_names):
+            raise ValueError("Duplicate parameter keys detected in init message.")
+        if len(set(objective_names)) != len(objective_names):
+            raise ValueError("Duplicate objective keys detected in init message.")
+
+        if len(parameter_names) != PROBLEM_DIM:
+            raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
+        if len(objective_names) != NUM_OBJS:
+            raise ValueError(f"objective_names len {len(objective_names)} != nObjectives {NUM_OBJS}")
+
+        parameters_info = [parse_param_init(p.get("init")) for p in parameters]
+        objectives_info = [parse_obj_init(o.get("init")) for o in objectives]
+
+        for i, (lo, hi) in enumerate(parameters_info):
+            if not np.isfinite(lo) or not np.isfinite(hi):
+                raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
+            if hi < lo:
+                raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
+        for i, (lo, hi, minflag) in enumerate(objectives_info):
+            if not np.isfinite(lo) or not np.isfinite(hi):
+                raise ValueError(f"Objective '{objective_names[i]}' bounds must be finite, got ({lo}, {hi})")
+            if hi < lo:
+                raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
+            if int(minflag) not in (0, 1):
+                raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
+
+        ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)
+        problem_bounds = torch.stack(
+            [torch.zeros(PROBLEM_DIM, dtype=torch.double),
+             torch.ones(PROBLEM_DIM, dtype=torch.double)],
+            dim=0
+        )
+
+        print("Init OK:", dict(
+            BATCH_SIZE=BATCH_SIZE, NUM_RESTARTS=NUM_RESTARTS, RAW_SAMPLES=RAW_SAMPLES,
+            N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
+            N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS,
+            SOCKET_TIMEOUT_SEC=SOCKET_TIMEOUT_SEC, WARM_START_OBJECTIVE_FORMAT=WARM_START_OBJECTIVE_FORMAT
+        ), flush=True)
+
         mobo_execute(conn, SEED, N_ITERATIONS, N_INITIAL)
     finally:
-        try:
-            conn.shutdown(socket.SHUT_RDWR)
-        except Exception:
-            pass
-        conn.close()
+        if conn is not None:
+            try:
+                conn.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
         s.close()
 
 if __name__ == "__main__":

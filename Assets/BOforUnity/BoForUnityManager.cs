@@ -57,6 +57,7 @@ namespace BOforUnity
         public bool perfectRatingInInitialRounds = false;
         public string initialParametersDataPath;
         public string initialObjectivesDataPath;
+        public string warmStartObjectiveFormat = "auto";
 
         public string userId = "-1";
         public string conditionId = "-1";

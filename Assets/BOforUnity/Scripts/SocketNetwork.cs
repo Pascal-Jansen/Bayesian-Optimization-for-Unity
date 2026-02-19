@@ -31,7 +31,7 @@ namespace BOforUnity.Scripts
         public int batchSize, numRestarts, rawSamples, numOptimizationIterations, mcSamples, numSamplingIterations, seed;
         public int nParameters, nObjectives;
         public bool warmStart;
-        public string initialParametersDataPath, initialObjectivesDataPath;
+        public string initialParametersDataPath, initialObjectivesDataPath, warmStartObjectiveFormat;
     }
 
     [Serializable] class ParamInit { public double low; public double high; }
@@ -316,7 +316,8 @@ namespace BOforUnity.Scripts
                     nObjectives = _bomanager.objectives.Count,
                     warmStart = _bomanager.warmStart,
                     initialParametersDataPath = _bomanager.initialParametersDataPath,
-                    initialObjectivesDataPath = _bomanager.initialObjectivesDataPath
+                    initialObjectivesDataPath = _bomanager.initialObjectivesDataPath,
+                    warmStartObjectiveFormat = NormalizeWarmStartObjectiveFormat(_bomanager.warmStartObjectiveFormat)
                 },
                 parameters = _bomanager.parameters.Select(p => new ParamInfo
                 {
@@ -351,6 +352,25 @@ namespace BOforUnity.Scripts
 
             string json = JsonConvert.SerializeObject(init, JsonSettings);
             SocketSendLine(json);
+        }
+
+        private static string NormalizeWarmStartObjectiveFormat(string value)
+        {
+            string normalized = (value ?? "auto").Trim().ToLowerInvariant();
+            switch (normalized)
+            {
+                case "auto":
+                case "raw":
+                case "normalized_max":
+                case "normalized_native":
+                    return normalized;
+                default:
+                    Debug.LogWarning(
+                        $"Invalid warmStartObjectiveFormat '{value}'. Falling back to 'auto'. " +
+                        "Valid values: auto, raw, normalized_max, normalized_native."
+                    );
+                    return "auto";
+            }
         }
 
         public void SendObjectives()

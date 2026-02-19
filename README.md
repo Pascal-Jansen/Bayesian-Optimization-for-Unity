@@ -7,7 +7,7 @@ by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) 
 
 ## About
 
-This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Multi-Objective Bayesian Optimization (MOBO)** workflow built on [botorch.org](https://botorch.org/). It lets you declare **design parameters** and **objectives** in Unity, handles a Python backend for MOBO, and loops with users inside your Unity scene. The result is an efficient search over large design spaces yielding trade-off designs on the **Pareto front**.
+This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Optimization** workflow (single- and multi-objective) built on [botorch.org](https://botorch.org/). It lets you declare **design parameters** and **objectives** in Unity, runs a Python backend, and loops with users inside your Unity scene. The result is an efficient search over large design spaces, yielding trade-off designs on the **Pareto front**.
 
 **Why this matters.** Users typically have diverse preferences, needs, and abilities. Thus, manual design parameter tuning is often slow and potentially biased; A/B and grid search scale poorly. Instead, MOBO uses probabilistic surrogate models and principled acquisition to balance design exploration and exploitation, **reducing the number of user trials** required to reach a high-quality design for every user.
 
@@ -15,7 +15,7 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Multi-Object
 - Configure design parameters, objectives, and optimizer hyperparameters directly in Unity.
 - Automatic, robust communication with a BoTorch-based MOBO process.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
-- Automatic CSV logging of parameters, objectives, and hypervolume; warm-start from prior runs.
+- Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
 - Two example scenes demonstrating end-to-end optimization.
 
 #### Example Use Case
@@ -55,8 +55,9 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
     * [Problem Setup](#problem-setup)
     * [Optimization Budget](#optimization-budget)
     * [Model and Algorithm Hyperparameters](#model-and-algorithm-hyperparameters)
+    * [Output Files and Metrics](#output-files-and-metrics)
 * [System Architecture](#system-architecture)
-* [Portability to your own Project](#portability-to-your-own-project)
+* [Portability to Your Own Project](#portability-to-your-own-project)
 * [Citation](#citation)
 * [License](#license)
 
@@ -151,8 +152,8 @@ Set up the asset as follows:
 
 
 ## Example Usage
-This section walks through the demo experiment. Install the asset first as described in [Installation](#installation).
-> **Note:** *ObservationPerEvaluation.csv* must be empty (except the header). Find it at *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>` as set in [Study Settings](#study-settings)). You can delete the folder to recreate a clean one.
+This section walks through the demo workflow. Install the asset first as described in [Installation](#installation).
+> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>` as set in [Study Settings](#study-settings)). You can delete the folder to recreate a clean one.
 
 1. In Unity, open *Assets/BOforUnity* and double-click *BO-example-scene.unity*.
 2. Press the Play button (⏵).
@@ -162,7 +163,7 @@ This section walks through the demo experiment. Install the asset first as descr
 6. Answer, then press `Finish`. The optimizer saves your input and updates parameters.
 7. Press `Next` to start a new iteration. Repeat from step `3` until all iterations finish. The system then indicates you can close the application.
 
-> **Note:** Results are in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`).
+> **Note:** Results are in *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`).
 
 
 
@@ -184,6 +185,7 @@ All configuration is done in Unity. Open *Assets/BOforUnity/BO-example-scene.uni
 Save the scene after changes. Re-select *BOforUnityManager* to confirm your edits. The *BOforUnityManager* prefab must be correct; it overrides previous settings (see the inspector top left).
 
 > **Note:** All configuration lives in this object. The options below follow the inspector from top to bottom.
+> **Note:** If you add or remove parameters/objectives, back up and clear the current user log folder to regenerate CSV headers.
 
 
 ### Parameters
@@ -194,7 +196,7 @@ Click `+` at the bottom of the parameter list to add a prefilled entry, then edi
 
 > **Note:** Ensure the new parameter is used by your simulation.
 
-> **Note:** Back up logs in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`) and delete the folder to refresh headers.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`) and then delete the folder to refresh headers.
 
 > **Note:** If you use the [warm start option](#warm-start-settings), ensure CSV headers match after adding parameters.
 
@@ -214,7 +216,7 @@ Select the parameter by clicking the `=` icon in its top-left corner (it turns b
 
 > **Note:** Ensure the removed parameter is **not** used in your simulation.
 
-> **Note:** Back up and remove the log folder *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* to refresh headers.
+> **Note:** If headers are out of sync, back up and remove the log folder *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/*.
 
 
 ### Objectives
@@ -225,7 +227,7 @@ Click `+` at the bottom of the objective list to add a prefilled entry, then edi
 
 > **Note:** Each objective must receive a value before optimization. In the demo, create a new questionnaire item or map an existing one to the objective (see below).
 
-> **Note:** Back up logs in *Assets/BOforUnity/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* and delete the folder to refresh headers.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/* and then delete the folder.
 
 > **Note:** For [warm start](#warm-start-settings), CSV headers must match after adding objectives.
 
@@ -276,7 +278,7 @@ This gives you programmatic access to the parameter settings that the optimizer 
 The index follows the order of the parameter list visible in the Unity inspector view.
 
 ### Set Objective Values via Code
-By default, the *QuestionnaireToolkit* updates the objective values in each iteration. 
+By default, *QuestionnaireToolkit* updates objective values in each iteration.
 If you want to override or set them manually, you can write into the *objective* list on the *BOforUnityManager* instance.
 Example:
 ```csharp
@@ -317,8 +319,8 @@ Make sure you assign objective values before the optimizer proceeds so that the 
 **Default**: 
 If you leave `Manually Installed Python` unchecked, the system will automatically search for a valid Python path in the OS and install the requirements via pip.
 
-You can **overwrite** this behavior by checking `Manually Installed Python` and following the steps below:
- 1. Open a CMD window and search for all Python installations:
+You can **override** this behavior by checking `Manually Installed Python` and following the steps below:
+ 1. Open a terminal and search for Python installations:
     * Windows: `where python`
     * Linux/macOS: `which python3`   
     Copy the path to the *newest* Python version shown.   
@@ -329,7 +331,7 @@ You can **overwrite** this behavior by checking `Manually Installed Python` and 
 
 
 ### Study Settings
-Set `User ID`, `Condition ID`, and `Group ID` in the next section of the [image](#py_st_ws_pr_settings). 
+Set `User ID`, `Condition ID`, and `Group ID` in the inspector section shown in the [image](#py_st_ws_pr_settings).
 If your study does not use any of these IDs, leave the field at -1. The value will still be logged, but you can ignore it in analysis.
 
 ![Study Settings](./images/study_settings.png)
@@ -338,6 +340,10 @@ If your study does not use any of these IDs, leave the field at -1. The value wi
 ### Problem Setup
 Here, the current setup of design parameters (d) and design objectives (m) is shown as defined in the parameter and objectives list in the inspector. This serves as an overview to decide the optimization budget below.
 
+Backend selection is automatic:
+* `m = 1` uses the single-objective backend (`bo.py`).
+* `m >= 2` uses the multi-objective backend (`mobo.py`).
+
 ![Problem Setup](./images/problem_setup.png)
 
 
@@ -345,10 +351,29 @@ Here, the current setup of design parameters (d) and design objectives (m) is sh
 These options are in the lower part of this [image](#py_st_ws_pr_settings).
 
 ##### Warm Start Settings
-* Checking **Warm Start** skips the initial rounds. Optimization starts from prior results supplied as CSVs, formatted like the examples in *Assets/BOforUnity/BOData/BayesianOptimization/InitData*. Also, copy the prior *ObservationsPerEvaluation.csv* into the new study’s log folder (e.g., use *ExampleObservationsPerEvaluation.csv* as a template).
+* Checking **Warm Start** skips the initial rounds. Optimization starts from prior results supplied as CSVs, formatted like the examples in *Assets/StreamingAssets/BOData/BayesianOptimization/InitData*.
+* Copying a prior *ObservationsPerEvaluation.csv* into the new study’s log folder is optional and only needed if you want one continuous observation log across runs.
 * Leaving it unchecked uses the default start. After the specified number of initial iterations (minimum 2), optimization begins using the collected values.
+* **Warm Start Objective Format** controls how objective values in the warm-start objective CSV are interpreted:
+  * `auto` (default): detect format automatically.
+  * `raw`: values are in original objective bounds (`Lower/Upper Bound`), then converted internally.
+  * `normalized_max`: values are already normalized to `[-1, 1]` in maximize-space.
+  * `normalized_native`: values are normalized to `[-1, 1]` in native objective direction (entries with `Smaller is Better` are flipped internally).
 
 > **Note:** CSV formats for warm start **must** match the examples. Headers must match the current number of parameters and objectives. Using logs from a prior study with the same settings satisfies this.
+
+##### Warm-Start CSV Checklist (Required)
+* Both files must be in *Assets/StreamingAssets/BOData/BayesianOptimization/InitData* and referenced by file name in the inspector.
+* Parameter CSV headers must exactly match parameter keys; objective CSV headers must exactly match objective keys.
+* Parameter and objective CSVs must have the same number of rows and at least one row.
+* All values must be numeric and finite (no `NaN`/`Inf`).
+* For best compatibility, provide parameter values in original parameter bounds (`Lower/Upper Bound`).
+* Objective values must follow the selected **Warm Start Objective Format**.
+
+##### Objective Direction Semantics
+* Internally, the optimizer always works in maximize-space.
+* If **Smaller is Better** is enabled for an objective, the backend flips that objective internally.
+* This flip is applied consistently in optimization, Pareto computation, and logging conversions.
 
 ##### Perfect Rating Settings
 * Disabled by default.
@@ -371,17 +396,39 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 
 | **Name**       | **Default Value** | **Description**                                                                                   | **More Information**                                                                                                   |
 |-----------------|-------------------|---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|    
-| **Batch Size**  | 1                 | Number of evaluations performed in parallel.                                                      | [Batch Size Explanation](https://mljourney.com/how-does-batch-size-affect-training/)                                   |
+| **Batch Size**  | 1                 | Number of evaluations performed in parallel. **Current HITL implementation supports only `1`; larger values are forced to `1` at runtime.** | [Batch Size Explanation](https://mljourney.com/how-does-batch-size-affect-training/)                                   |
 | **Num Restarts**| 10                | Optimization restarts to escape local optima.                                                     |                                                                                                                        |
 | **Raw Samples** | 1024              | Random samples to initialize acquisition optimization.                                            |                                                                                                                        |
 | **MC Samples**  | 512               | Monte Carlo samples to approximate the acquisition function.                                      | [MC Samples Explanation](https://www.sciencedirect.com/topics/mathematics/monte-carlo-simulation)                      |
 | **Seed**        | 3                 | Random seed for reproducibility.                                                                  | [Seed Explanation](https://en.wikipedia.org/wiki/Random_seed)                                                          |
 
 
-> **Note:** **N Initial ≥ 2**. Use warm start if you want to skip sampling.
+> **Note:** Recommended: `Sampling Iterations >= 2` (default is `2d + 1`). Warm start sets sampling iterations to `0`.
 <a id="BO_hyper_settings"></a>
 
 ![Hyperparameter Settings](./images/BO_hyperparameter_settings.png)
+
+
+### Output Files and Metrics
+All result files are written to:
+* *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/*
+
+Common files:
+* `ObservationsPerEvaluation.csv`: denormalized parameter/objective observations per evaluation.
+* `ExecutionTimes.csv`: optimization-step runtimes.
+
+MOBO (`mobo.py`, `m >= 2`):
+* `ObservationsPerEvaluation.csv` uses `IsPareto`.
+* `HypervolumePerEvaluation.csv` stores hypervolume per iteration.
+* Unity `coverage` corresponds to current hypervolume.
+
+Single-objective BO (`bo.py`, `m = 1`):
+* `ObservationsPerEvaluation.csv` uses `IsBest`.
+* `BestObjectivePerEvaluation.csv` stores best-so-far objective per iteration.
+* `HypervolumePerEvaluation.csv` is also written for backward compatibility (mirrors the best-objective trace).
+* Unity `coverage` corresponds to current best normalized objective.
+
+During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 
 
 
@@ -393,7 +440,7 @@ This section explains the architecture to help you extend the asset. The diagram
 
 At the top is *BoForUnityManagerEditor.cs*, which edits the *BoForUnityManager.prefab* (what can be set and how it is described). The prefab’s settings are configured in the Unity Inspector as explained in [Configuration](#configuration).\
 *BoForUnityManager.cs* manages the process and first starts the Python server via *PythonStarter.cs*.\
-Once the server is running, *BoForUnityManager.cs* communicates with *mobo.py* using *SocketNetwork.cs*.\
+Once the server is running, *BoForUnityManager.cs* communicates with *mobo.py* (or *bo.py* for single-objective runs) using *SocketNetwork.cs*.\
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
@@ -408,7 +455,7 @@ To reuse this tool in another project, export it as a Unity package:
    - *BOforUnity*
    - *QuestionnaireToolkit*
    - *StreamingAssets*  
-6. Click **Export...** and save the package. 
+5. Click **Export...** and save the package.
 
 To import: `Assets` → **Import Package** → **Custom Package...**, select your package, keep all selected, and press **Import**.
 

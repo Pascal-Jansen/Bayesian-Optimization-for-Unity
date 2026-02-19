@@ -40,6 +40,7 @@ namespace BOforUnity.Editor
         private SerializedProperty perfectRatingInInitialRoundsProp;
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
+        private SerializedProperty warmStartObjectiveFormatProp;
 
         private SerializedProperty totalIterationsProp;
 
@@ -51,6 +52,8 @@ namespace BOforUnity.Editor
         private ReorderableList objectiveList;
 
         private string initDataPath;
+        private static readonly string[] WarmStartObjectiveFormatOptions =
+            { "auto", "raw", "normalized_max", "normalized_native" };
 
         private SerializedProperty enableSamplingEditProp;
 
@@ -91,6 +94,7 @@ namespace BOforUnity.Editor
             perfectRatingInInitialRoundsProp = serializedObject.FindProperty("perfectRatingInInitialRounds");
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
+            warmStartObjectiveFormatProp = serializedObject.FindProperty("warmStartObjectiveFormat");
 
             totalIterationsProp = serializedObject.FindProperty("totalIterations");
             
@@ -190,6 +194,26 @@ namespace BOforUnity.Editor
                 );
                 // Force sampling to zero when warm start is on
                 script.numSamplingIterations = 0;
+            }
+
+            if (warmStartObjectiveFormatProp != null)
+            {
+                string format = (warmStartObjectiveFormatProp.stringValue ?? "auto").Trim().ToLowerInvariant();
+                int idx = System.Array.IndexOf(WarmStartObjectiveFormatOptions, format);
+                if (idx < 0) idx = 0;
+
+                using (new EditorGUI.DisabledScope(!warmStartProp.boolValue))
+                {
+                    int selected = EditorGUILayout.Popup(
+                        new GUIContent(
+                            "Warm Start Objective Format",
+                            "How warm-start objective CSV values are interpreted: auto/raw/normalized_max/normalized_native."
+                        ),
+                        idx,
+                        WarmStartObjectiveFormatOptions
+                    );
+                    warmStartObjectiveFormatProp.stringValue = WarmStartObjectiveFormatOptions[selected];
+                }
             }
 
             // Sampling iterations: default (2*d)+1 unless user explicitly enables manual edit
