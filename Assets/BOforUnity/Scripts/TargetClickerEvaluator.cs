@@ -46,7 +46,7 @@ namespace BOforUnity.Scripts
             if (targetButton) targetButton.gameObject.SetActive(false);
             if (clickTimes == null) clickTimes = new List<float>();
 
-            boManager = GameObject.FindWithTag("BOforUnityManager")?.GetComponent<BoForUnityManager>();
+            boManager = FindObjectOfType<BoForUnityManager>();
 
             StartCoroutine(StartGame());
         }
@@ -55,10 +55,13 @@ namespace BOforUnity.Scripts
         {
             // Read normalized params from BO
             float u_size = 0.5f, u_ecc = 0.5f;
-            if (boManager && boManager.parameters.Count >= 2)
+            if (TryGetNormalizedParameterByIndex(0, out var normalizedSize))
             {
-                u_size = Mathf.Clamp01(boManager.parameters[0].value.Value);
-                u_ecc  = Mathf.Clamp01(boManager.parameters[1].value.Value);
+                u_size = normalizedSize;
+            }
+            if (TryGetNormalizedParameterByIndex(1, out var normalizedEccentricity))
+            {
+                u_ecc = normalizedEccentricity;
             }
 
             // Wait one frame so RectTransforms have valid geometry
@@ -108,11 +111,60 @@ namespace BOforUnity.Scripts
             }
 
             // set the click times as f2 (example)
-            if (boManager && boManager.objectives.Count > 1)
-                boManager.objectives[1].value.values = clickTimes;
+            if (!TrySetSecondObjectiveValues(clickTimes))
+            {
+                Debug.LogWarning("TargetClickerEvaluator: Could not assign click times to the second valid objective.");
+            }
 
             // call the questionnaire to receive the user feedback for perceived difficulty as f1
             if (qtManager) qtManager.StartQuestionnaire();
+        }
+
+        private bool TryGetNormalizedParameterByIndex(int validIndex, out float normalizedValue)
+        {
+            normalizedValue = 0.5f;
+            if (boManager == null || boManager.parameters == null || validIndex < 0)
+                return false;
+
+            int seenValid = 0;
+            for (int i = 0; i < boManager.parameters.Count; i++)
+            {
+                var parameter = boManager.parameters[i];
+                if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
+                    continue;
+
+                if (seenValid == validIndex)
+                {
+                    normalizedValue = Mathf.Clamp01(parameter.value.Value);
+                    return true;
+                }
+                seenValid++;
+            }
+
+            return false;
+        }
+
+        private bool TrySetSecondObjectiveValues(List<float> values)
+        {
+            if (boManager == null || boManager.objectives == null)
+                return false;
+
+            int seenValid = 0;
+            for (int i = 0; i < boManager.objectives.Count; i++)
+            {
+                var objective = boManager.objectives[i];
+                if (objective == null || objective.value == null || string.IsNullOrWhiteSpace(objective.key))
+                    continue;
+
+                if (seenValid == 1)
+                {
+                    objective.value.values = values ?? new List<float>();
+                    return true;
+                }
+                seenValid++;
+            }
+
+            return false;
         }
 
         private void PlaceTarget(float eccPx)

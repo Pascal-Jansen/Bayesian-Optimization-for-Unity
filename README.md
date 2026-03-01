@@ -85,6 +85,7 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
 | **Hypervolume** | Single MOBO progress metric computed from current non-dominated points in maximize-space. |
 | **coverage** | Runtime metric sent from Python to Unity (`hypervolume` for MOBO, best objective for BO). |
 | **tempCoverage** | Sampling-progress value in `[0,1]` during initial sampling rounds. |
+| **USER_LOG_ID** | Folder-safe log identifier derived from `User ID` (invalid path characters are normalized). |
 | **Seed** | Number used to make stochastic parts reproducible across runs with the same setup. |
 
 
@@ -136,6 +137,12 @@ The optimizer balances **exploitation** (refining known good regions) and **expl
 
 ### Questionnaires for User Feedback
 This asset uses the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback. This feedback serves as a design objective in the HITL process.
+
+#### Questionnaire Data Routing (Important)
+- Only questionnaire question-item outputs are considered for BO objective updates (via objective-key/header matching).
+- `additionalCsvItems` are written only to the questionnaire results CSV and are **not** forwarded to the BO manager/backend.
+- `User ID`, `Condition ID`, and `Group ID` are not BO objectives. They are logged as context columns in `ObservationsPerEvaluation.csv`.
+- Final-design selection uses the full context triad (`User ID`, `Condition ID`, `Group ID`) when filtering candidate observation rows.
 
 
 ### Results of Multi-Objective Bayesian Optimization (Pareto Front)
@@ -222,7 +229,7 @@ Use this path for a first successful run with the provided demo scene.
 
 Expected successful outcome:
 - Parameter values in the scene change between iterations.
-- `Assets/StreamingAssets/BOData/LogData/<USER_ID>/` is created.
+- `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/` is created.
 - `ObservationsPerEvaluation.csv` and `ExecutionTimes.csv` are populated.
 - For MOBO (`m >= 2`), `HypervolumePerEvaluation.csv` is written and Unity receives `coverage` updates.
 
@@ -231,7 +238,7 @@ If these outputs appear, your full Unity-Python loop is working.
 
 ## Example Usage
 This section walks through the demo workflow. Install the asset first as described in [Installation](#installation).
-> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>` as set in [Study Settings](#study-settings)). You can delete the folder to recreate a clean one.
+> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*. By default this equals `User ID`, but invalid path characters are normalized for folder safety. You can delete the folder to recreate a clean one.
 
 1. In Unity, open *Assets/BOforUnity* and double-click *BO-example-scene.unity*.
 2. Press the Play button (⏵).
@@ -241,7 +248,7 @@ This section walks through the demo workflow. Install the asset first as describ
 6. Answer, then press `Finish`. The optimizer saves your input and updates parameters.
 7. Press `Next` to start a new iteration. Repeat from step `3` until all iterations finish. The system then indicates you can close the application.
 
-> **Note:** Results are in *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`).
+> **Note:** Results are in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* (typically your `User ID`, normalized for folder-safe naming if needed).
 
 
 
@@ -274,7 +281,7 @@ Click `+` at the bottom of the parameter list to add a prefilled entry, then edi
 
 > **Note:** Ensure the new parameter is used by your simulation.
 
-> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* (replace `<USER_ID>`) and then delete the folder to refresh headers.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* and then delete the folder to refresh headers.
 
 > **Note:** If you use the [warm start option](#warm-start-settings), ensure CSV headers match after adding parameters.
 
@@ -294,7 +301,7 @@ Select the parameter by clicking the `=` icon in its top-left corner (it turns b
 
 > **Note:** Ensure the removed parameter is **not** used in your simulation.
 
-> **Note:** If headers are out of sync, back up and remove the log folder *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/*.
+> **Note:** If headers are out of sync, back up and remove the log folder *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*.
 
 
 ### Objectives
@@ -305,7 +312,7 @@ Click `+` at the bottom of the objective list to add a prefilled entry, then edi
 
 > **Note:** Each objective must receive a value before optimization. In the demo, create a new questionnaire item or map an existing one to the objective (see below).
 
-> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/* and then delete the folder.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* and then delete the folder.
 
 > **Note:** For [warm start](#warm-start-settings), CSV headers must match after adding objectives.
 
@@ -415,6 +422,7 @@ You can **override** this behavior by checking `Manually Installed Python` and f
 ### Study Settings
 Set `User ID`, `Condition ID`, and `Group ID` in the inspector section shown in the [image](#py_st_ws_pr_settings).
 If your study does not use any of these IDs, leave the field at -1. The value will still be logged, but you can ignore it in analysis.
+These three values are always logged as context columns in `ObservationsPerEvaluation.csv` and are used together for final-design row filtering.
 
 ![Study Settings](./images/study_settings.png)
 
@@ -546,7 +554,7 @@ If **Enable Final Design Round** is active, the system adds one extra participan
 
 What happens:
 1. The Python backend finishes normal BO iterations and sends `optimization_finished`.
-2. Unity reads the latest `ObservationsPerEvaluation.csv` for the current `User ID`.
+2. Unity reads the latest `ObservationsPerEvaluation.csv` for the current context (`User ID`, `Condition ID`, `Group ID`).
 3. Unity deterministically selects one final design and applies its parameter values.
 4. The user runs one final round (`totalIterations + 1`), but this round does **not** send objectives back to Python and does not continue optimization.
 5. Unity appends this last evaluation to `ObservationsPerEvaluation.csv` with `Phase=finaldesign` and marker column `IsPareto`/`IsBest` set to `NULL`.
@@ -603,8 +611,8 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 
 ### Output Files and Metrics
 All result files are written to:
-* *Assets/StreamingAssets/BOData/LogData/&lt;USER_ID&gt;/*
-* Legacy runs may exist under *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_ID&gt;/*; final-design selection checks both locations.
+* *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*
+* Legacy runs may exist under *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_LOG_ID&gt;/*; final-design selection checks both locations.
 
 Common files:
 * `ObservationsPerEvaluation.csv`: denormalized parameter/objective observations per evaluation.
@@ -633,7 +641,7 @@ During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 | Loop does not progress in `ExternalSignal` mode | `RequestNextIteration()` is not called from your custom flow | Add the explicit call after your evaluation step ends. |
 | Loop does not progress in `NextButton` mode | `Next Button` not assigned or not wired to `ButtonNextIteration()` | Assign the button reference and Unity `OnClick` event to `BoForUnityManager.ButtonNextIteration()`. |
 | Warm start fails on startup | Missing CSV files, wrong headers, non-numeric values, or wrong format setting | Validate files against [Warm-Start CSV Checklist (Required)](#warm-start-csv-checklist-required) and [Warm-Start CSV Examples](#warm-start-csv-examples). |
-| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/LogData/<USER_ID>/`, then rerun to regenerate headers. |
+| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/`, then rerun to regenerate headers. |
 | No parameter changes between iterations | Simulation does not apply incoming parameter values from `bo.parameters` | Confirm your scene reads and applies updated parameter values each iteration. |
 | `coverage`/Pareto behavior seems inconsistent with minimize objectives | Misunderstanding of internal maximize-space conversion | See [Objective Direction Semantics](#objective-direction-semantics) and [Objective Direction Example (2 Minimize, 1 Maximize)](#objective-direction-example-2-minimize-1-maximize). |
 

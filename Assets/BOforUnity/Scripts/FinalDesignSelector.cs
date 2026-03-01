@@ -38,6 +38,8 @@ namespace BOforUnity.Scripts
         public static bool TrySelectFromLatestObservationCsv(
             string logRootPath,
             string userId,
+            string conditionId,
+            string groupId,
             IList<ParameterEntry> parameters,
             IList<ObjectiveEntry> objectives,
             float distanceEpsilon,
@@ -52,12 +54,15 @@ namespace BOforUnity.Scripts
             selectedCsvPath = null;
             error = null;
 
-            if (parameters == null || parameters.Count == 0)
+            var effectiveParameters = BuildEffectiveParameterEntries(parameters);
+            var effectiveObjectives = BuildEffectiveObjectiveEntries(objectives);
+
+            if (effectiveParameters.Count == 0)
             {
                 error = "No parameters are defined.";
                 return false;
             }
-            if (objectives == null || objectives.Count == 0)
+            if (effectiveObjectives.Count == 0)
             {
                 error = "No objectives are defined.";
                 return false;
@@ -68,15 +73,18 @@ namespace BOforUnity.Scripts
                 return false;
             }
 
-            if (!TryGetLatestObservationCsvPath(logRootPath, userId, out selectedCsvPath, out error))
+            if (!TryGetLatestObservationCsvPath(logRootPath, userId, conditionId, groupId, out selectedCsvPath, out error))
             {
                 return false;
             }
 
             if (!TrySelectFinalDesign(
                     selectedCsvPath,
-                    parameters,
-                    objectives,
+                    NormalizeContextToken(userId),
+                    NormalizeContextToken(conditionId),
+                    NormalizeContextToken(groupId),
+                    effectiveParameters,
+                    effectiveObjectives,
                     distanceEpsilon,
                     maximinEpsilon,
                     aggressionEpsilon,
@@ -89,9 +97,57 @@ namespace BOforUnity.Scripts
             return true;
         }
 
+        private static List<ParameterEntry> BuildEffectiveParameterEntries(IList<ParameterEntry> parameters)
+        {
+            var result = new List<ParameterEntry>();
+            if (parameters == null)
+                return result;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                var parameter = parameters[i];
+                if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
+                    continue;
+
+                string key = parameter.key.Trim();
+                if (!seen.Add(key))
+                    continue;
+
+                result.Add(new ParameterEntry(key, parameter.value));
+            }
+
+            return result;
+        }
+
+        private static List<ObjectiveEntry> BuildEffectiveObjectiveEntries(IList<ObjectiveEntry> objectives)
+        {
+            var result = new List<ObjectiveEntry>();
+            if (objectives == null)
+                return result;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < objectives.Count; i++)
+            {
+                var objective = objectives[i];
+                if (objective == null || objective.value == null || string.IsNullOrWhiteSpace(objective.key))
+                    continue;
+
+                string key = objective.key.Trim();
+                if (!seen.Add(key))
+                    continue;
+
+                result.Add(new ObjectiveEntry(key, objective.value));
+            }
+
+            return result;
+        }
+
         private static bool TryGetLatestObservationCsvPath(
             string logRootPath,
             string userId,
+            string conditionId,
+            string groupId,
             out string csvPath,
             out string error
         )
@@ -105,39 +161,66 @@ namespace BOforUnity.Scripts
                 return false;
             }
 
-            string prefix = string.IsNullOrWhiteSpace(userId) ? "-1" : userId.Trim();
+            string rawPrefix = string.IsNullOrWhiteSpace(userId) ? "-1" : userId.Trim();
+            string normalizedPrefix = NormalizeLogFolderToken(rawPrefix);
+            var prefixCandidates = new HashSet<string>(StringComparer.Ordinal)
+            {
+                rawPrefix,
+                normalizedPrefix
+            };
+            string expectedUserId = NormalizeContextToken(userId);
+            string expectedConditionId = NormalizeContextToken(conditionId);
+            string expectedGroupId = NormalizeContextToken(groupId);
+
             string[] candidateDirs = Directory.GetDirectories(logRootPath)
                 .Where(d =>
                 {
                     string name = Path.GetFileName(d);
-                    return string.Equals(name, prefix, StringComparison.Ordinal) ||
-                           name.StartsWith(prefix + "_", StringComparison.Ordinal);
+                    foreach (string prefix in prefixCandidates)
+                    {
+                        if (string.Equals(name, prefix, StringComparison.Ordinal) ||
+                            name.StartsWith(prefix + "_", StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
                 })
                 .OrderByDescending(Directory.GetLastWriteTimeUtc)
                 .ToArray();
 
             if (candidateDirs.Length == 0)
             {
-                error = $"No log directory found for user prefix '{prefix}' in {logRootPath}.";
-                return false;
-            }
-
-            string newestDir = candidateDirs[0];
-            string candidate = Path.Combine(newestDir, "ObservationsPerEvaluation.csv");
-            if (!File.Exists(candidate))
-            {
                 error =
-                    "Latest log directory does not contain ObservationsPerEvaluation.csv. " +
-                    "This can happen when no observations were logged for the current run.";
+                    $"No log directory found for user prefix(es) '{string.Join("', '", prefixCandidates)}' in {logRootPath}.";
                 return false;
             }
 
-            csvPath = candidate;
-            return true;
+            foreach (string dir in candidateDirs)
+            {
+                string candidate = Path.Combine(dir, "ObservationsPerEvaluation.csv");
+                if (!File.Exists(candidate))
+                    continue;
+
+                if (CsvContainsContextRows(candidate, expectedUserId, expectedConditionId, expectedGroupId))
+                {
+                    csvPath = candidate;
+                    return true;
+                }
+            }
+
+            error =
+                "No observation CSV found for the current user/condition/group context. " +
+                $"Context: UserID='{expectedUserId}', ConditionID='{expectedConditionId}', GroupID='{expectedGroupId}'.";
+            return false;
         }
 
         private static bool TrySelectFinalDesign(
             string csvPath,
+            string expectedUserId,
+            string expectedConditionId,
+            string expectedGroupId,
             IList<ParameterEntry> parameters,
             IList<ObjectiveEntry> objectives,
             float distanceEpsilon,
@@ -198,6 +281,17 @@ namespace BOforUnity.Scripts
 
             bool hasIsPareto = columnIndex.TryGetValue("IsPareto", out int isParetoIndex);
             bool hasIsBest = columnIndex.TryGetValue("IsBest", out int isBestIndex);
+            bool hasPhase = columnIndex.TryGetValue("Phase", out int phaseIndex);
+            bool hasUserId = columnIndex.TryGetValue("UserID", out int userIdIndex);
+            bool hasConditionId = columnIndex.TryGetValue("ConditionID", out int conditionIdIndex);
+            bool hasGroupId = columnIndex.TryGetValue("GroupID", out int groupIdIndex);
+            if (!hasUserId || !hasConditionId || !hasGroupId)
+            {
+                error =
+                    "CSV is missing required context columns for final-design selection. " +
+                    "Expected columns: UserID, ConditionID, GroupID.";
+                return false;
+            }
 
             var rows = new List<CsvRow>(lines.Length - 1);
             var culture = CultureInfo.InvariantCulture;
@@ -213,6 +307,34 @@ namespace BOforUnity.Scripts
                     continue;
 
                 if (!int.TryParse(parts[iterationIndex], NumberStyles.Integer, culture, out int iterationValue))
+                    continue;
+
+                if (hasPhase)
+                {
+                    string phaseValue = parts[phaseIndex]?.Trim();
+                    if (string.Equals(phaseValue, "finaldesign", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Final-design rows are post-hoc evaluations and must never be selected again.
+                        continue;
+                    }
+                }
+
+                bool userMatches =
+                    string.Equals(
+                        NormalizeContextToken(parts[userIdIndex]),
+                        expectedUserId,
+                        StringComparison.Ordinal);
+                bool conditionMatches =
+                    string.Equals(
+                        NormalizeContextToken(parts[conditionIdIndex]),
+                        expectedConditionId,
+                        StringComparison.Ordinal);
+                bool groupMatches =
+                    string.Equals(
+                        NormalizeContextToken(parts[groupIdIndex]),
+                        expectedGroupId,
+                        StringComparison.Ordinal);
+                if (!userMatches || !conditionMatches || !groupMatches)
                     continue;
 
                 var row = new CsvRow
@@ -251,11 +373,11 @@ namespace BOforUnity.Scripts
 
                 if (hasIsPareto)
                 {
-                    row.IsCandidate = ParseBooleanLike(parts[isParetoIndex], true);
+                    row.IsCandidate = ParseBooleanLike(parts[isParetoIndex], false);
                 }
                 else if (hasIsBest)
                 {
-                    row.IsCandidate = ParseBooleanLike(parts[isBestIndex], true);
+                    row.IsCandidate = ParseBooleanLike(parts[isBestIndex], false);
                 }
 
                 rows.Add(row);
@@ -263,7 +385,9 @@ namespace BOforUnity.Scripts
 
             if (rows.Count == 0)
             {
-                error = "No valid observation rows could be parsed from CSV.";
+                error =
+                    "No valid observation rows could be parsed from CSV for the current context. " +
+                    $"Context: UserID='{expectedUserId}', ConditionID='{expectedConditionId}', GroupID='{expectedGroupId}'.";
                 return false;
             }
 
@@ -271,7 +395,16 @@ namespace BOforUnity.Scripts
 
             List<CsvRow> candidateRows = rows.Where(r => r.IsCandidate).ToList();
             if (candidateRows.Count == 0)
+            {
+                if (hasIsPareto || hasIsBest)
+                {
+                    error =
+                        "No candidate rows are marked in the current context. " +
+                        "All rows are non-candidates according to IsPareto/IsBest.";
+                    return false;
+                }
                 candidateRows = rows;
+            }
 
             ComputeMetrics(candidateRows, rows, parameters, objectives);
 
@@ -436,6 +569,104 @@ namespace BOforUnity.Scripts
             return defaultValue;
         }
 
+        private static string NormalizeContextToken(string value, string defaultToken = "-1")
+        {
+            string token = string.IsNullOrWhiteSpace(value) ? defaultToken : value.Trim();
+            return string.IsNullOrEmpty(token) ? defaultToken : token;
+        }
+
+        private static bool CsvContainsContextRows(
+            string csvPath,
+            string expectedUserId,
+            string expectedConditionId,
+            string expectedGroupId)
+        {
+            string[] lines;
+            try
+            {
+                lines = File.ReadAllLines(csvPath);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (lines.Length < 2)
+                return false;
+
+            string[] header = SplitCsvLine(lines[0], ';');
+            var colIdx = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < header.Length; i++)
+            {
+                string key = header[i]?.Trim();
+                if (!string.IsNullOrEmpty(key) && !colIdx.ContainsKey(key))
+                    colIdx[key] = i;
+            }
+
+            colIdx.TryGetValue("UserID", out int userIdx);
+            colIdx.TryGetValue("ConditionID", out int conditionIdx);
+            colIdx.TryGetValue("GroupID", out int groupIdx);
+            if (userIdx < 0 || conditionIdx < 0 || groupIdx < 0)
+                return false;
+
+            for (int lineIdx = 1; lineIdx < lines.Length; lineIdx++)
+            {
+                string line = lines[lineIdx];
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                string[] parts = SplitCsvLine(line, ';');
+                if (parts.Length < header.Length)
+                    continue;
+
+                bool userMatches =
+                    string.Equals(
+                        NormalizeContextToken(parts[userIdx]),
+                        expectedUserId,
+                        StringComparison.Ordinal);
+                bool conditionMatches =
+                    string.Equals(
+                        NormalizeContextToken(parts[conditionIdx]),
+                        expectedConditionId,
+                        StringComparison.Ordinal);
+                bool groupMatches =
+                    string.Equals(
+                        NormalizeContextToken(parts[groupIdx]),
+                        expectedGroupId,
+                        StringComparison.Ordinal);
+
+                if (userMatches && conditionMatches && groupMatches)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizeLogFolderToken(string value, string defaultToken = "-1")
+        {
+            string token = string.IsNullOrWhiteSpace(value) ? defaultToken : value.Trim();
+            if (string.IsNullOrEmpty(token))
+                token = defaultToken;
+
+            var sb = new StringBuilder(token.Length);
+            for (int i = 0; i < token.Length; i++)
+            {
+                char ch = token[i];
+                bool invalid =
+                    ch < 32 ||
+                    ch == '/' || ch == '\\' ||
+                    ch == ':' || ch == '*' || ch == '?' ||
+                    ch == '"' || ch == '<' || ch == '>' || ch == '|';
+                sb.Append(invalid ? '_' : ch);
+            }
+
+            string cleaned = sb.ToString().Trim().Trim('.');
+            if (string.IsNullOrEmpty(cleaned) || cleaned == "." || cleaned == "..")
+                return defaultToken;
+
+            return cleaned;
+        }
+
         private static bool IsFinite(float value)
         {
             return !float.IsNaN(value) && !float.IsInfinity(value);
@@ -451,6 +682,12 @@ namespace BOforUnity.Scripts
                 char c = line[i];
                 if (c == '"')
                 {
+                    if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                        continue;
+                    }
                     inQuotes = !inQuotes;
                     continue;
                 }

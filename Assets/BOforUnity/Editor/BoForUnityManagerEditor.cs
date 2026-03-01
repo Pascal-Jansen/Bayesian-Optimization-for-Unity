@@ -151,7 +151,7 @@ namespace BOforUnity.Editor
 
             if (script.getLocalPython())
             {
-                script.setPythonPath(EditorGUILayout.TextField("Path of Python Executable:", ""));
+                script.setPythonPath(EditorGUILayout.TextField("Path of Python Executable:", script.getPythonPath()));
                 EditorGUILayout.LabelField(
                     "Ensure a valid path for your OS (Windows/macOS differ).",
                     EditorStyles.helpBox

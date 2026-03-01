@@ -256,34 +256,48 @@ namespace QuestionnaireToolkit.Scripts
                     
                     if (!(File.Exists(userPath)))
                     {
-                        StreamWriter writer = new StreamWriter(userPath, true);
-                        var line = "response_id,";
-                        if (customUserId)
+                        using (var writer = new StreamWriter(userPath, true))
                         {
-                            line += "user_id,";
+                            var headerCells = new List<string> { "response_id" };
+                            if (customUserId)
+                            {
+                                headerCells.Add("user_id");
+                            }
+                            if (runsPerUser > 1)
+                            {
+                                headerCells.Add("run");
+                            }
+                            if (generateStartTimestamp)
+                            {
+                                headerCells.Add("started");
+                            }
+                            if (generateFinishTimestamp)
+                            {
+                                headerCells.Add("finished");
+                            }
+
+                            foreach (var t in resultsHeaderItems)
+                            {
+                                headerCells.Add(string.IsNullOrWhiteSpace(t) ? "NULL" : t);
+                            }
+
+                            if (additionalCsvItems != null)
+                            {
+                                foreach (var aci in additionalCsvItems)
+                                {
+                                    if (aci == null)
+                                    {
+                                        Debug.LogWarning("Skipping null entry in additionalCsvItems while creating questionnaire header.");
+                                        continue;
+                                    }
+
+                                    var header = string.IsNullOrWhiteSpace(aci.headerName) ? "NULL" : aci.headerName;
+                                    headerCells.Add(header);
+                                }
+                            }
+
+                            writer.WriteLine(string.Join(",", headerCells.Select(EscapeCsvCell)));
                         }
-                        if (runsPerUser > 1)
-                        {
-                            line += "run,";
-                        }
-                        if (generateStartTimestamp)
-                        {
-                            line += "started,";
-                        }
-                        if (generateFinishTimestamp)
-                        {
-                            line += "finished,";
-                        }
-                        foreach (var t in resultsHeaderItems)
-                        {
-                            line += "\"" + t + "\",";
-                        }
-                        foreach (var aci in additionalCsvItems)
-                        {
-                            line += "\"" + aci.headerName + "\",";
-                        }
-                        writer.WriteLine(line.TrimEnd(','));
-                        writer.Close();
                     }
                     Debug.Log("Questionnaire: " + resultsFileName + (newFileEachStart ? "_" + (currentResponseId + 1) : "") + 
                               (runsPerUser > 1 ? " run: " + (currentRun + 1) : "") + " started!");
@@ -1188,6 +1202,11 @@ namespace QuestionnaireToolkit.Scripts
                 }
                 else if (_currentPage == questionPages.Count-1) // finish and submit the questionnaire
                 {
+                    // Check for BO Manager and collect questionnaire answers even when results file writing is disabled.
+                    // Use type lookup instead of tag lookup to avoid hard dependency on a specific scene tag.
+                    var bomanager = FindObjectOfType<BoForUnityManager>();
+                    var shouldCollectForBo = bomanager != null;
+
                     if (generateResultsFile)
                     {
                         qtMetaData.currentResponseId++;
@@ -1203,6 +1222,12 @@ namespace QuestionnaireToolkit.Scripts
                             }
                         }
 
+                        // Keep runtime run counter aligned with persisted metadata.
+                        currentRun = qtMetaData.currentUserRun;
+                    }
+
+                    if (generateResultsFile || shouldCollectForBo)
+                    {
                         finishedTimestamp = DateTime.UtcNow + "";
                         WriteResults();
                     }
@@ -1210,25 +1235,17 @@ namespace QuestionnaireToolkit.Scripts
                     ResetQuestionnaire();
                     HideQuestionnaire();
                     running = false;
-                    if (onQuestionnaireFinished.GetPersistentEventCount() > 0)
-                    {
-                        onQuestionnaireFinished.Invoke();
-                    }
+                    onQuestionnaireFinished?.Invoke();
 
                     // check for BO Manager and start optimization as the questionnaire has finished
-                    var boManagerObject = GameObject.FindGameObjectWithTag("BOforUnityManager");
-                    if (boManagerObject != null)
+                    if (bomanager != null)
                     {
-                        var bomanager = boManagerObject.GetComponent<BoForUnityManager>();
-                        if (bomanager != null)
+                        bomanager.OptimizationStart();
+                        // In external-signal mode, queue progression so the manager advances
+                        // once new parameters arrive from Python.
+                        if (bomanager.iterationAdvanceMode == BoForUnityManager.IterationAdvanceMode.ExternalSignal)
                         {
-                            bomanager.OptimizationStart();
-                            // In external-signal mode, queue progression so the manager advances
-                            // once new parameters arrive from Python.
-                            if (bomanager.iterationAdvanceMode == BoForUnityManager.IterationAdvanceMode.ExternalSignal)
-                            {
-                                bomanager.RequestNextIteration();
-                            }
+                            bomanager.RequestNextIteration();
                         }
                     }
                 }
@@ -1284,26 +1301,51 @@ namespace QuestionnaireToolkit.Scripts
                     {
                         if (question.CompareTag("QTText") || question.CompareTag("QTImage") || question.CompareTag("QTButton") || question.CompareTag("QTVideo")) continue;
 
-                        if (question.CompareTag("QTCheckboxesGrid") || question.CompareTag("QTMultipleChoiceGrid"))
+                        if (question.CompareTag("QTCheckboxesGrid"))
                         {
                             var grid = question.transform.GetChild(1);
+                            var questionHeader = GetQuestionHeaderFromObjectName(question.name);
+                            var rowHeaders = new List<string>();
                             for (var i = 0; i < grid.childCount; i++)
                             {
-                                if (grid.GetChild(i).CompareTag("QTGridRowHeader"))
+                                var child = grid.GetChild(i);
+                                if (child.CompareTag("QTGridRowHeader"))
                                 {
-                                    resultsHeaderItems.Add(TryHeaderName("[" + grid.GetChild(i).GetChild(0).GetComponent<TextMeshProUGUI>().text + "]"));
+                                    rowHeaders.Add(GetGridRowHeaderLabel(child, rowHeaders.Count + 1));
                                 }
+                            }
+
+                            var checkboxGridScript = question.GetComponent<QTCheckboxesGrid>();
+                            var configuredRowCount = checkboxGridScript != null && checkboxGridScript.rowTexts != null
+                                ? checkboxGridScript.rowTexts.Count
+                                : 0;
+                            var emittedRowCount = configuredRowCount > 0 ? configuredRowCount : rowHeaders.Count;
+
+                            for (var rowIndex = 0; rowIndex < emittedRowCount; rowIndex++)
+                            {
+                                var header = rowIndex < rowHeaders.Count
+                                    ? rowHeaders[rowIndex]
+                                    : $"{questionHeader}_{rowIndex + 1}";
+                                resultsHeaderItems.Add(TryHeaderName(header));
+                            }
+                        }
+                        else if (question.CompareTag("QTMultipleChoiceGrid"))
+                        {
+                            var grid = question.transform.GetChild(1);
+                            var rowHeaderIndex = 1;
+                            for (var i = 0; i < grid.childCount; i++)
+                            {
+                                var child = grid.GetChild(i);
+                                if (!child.CompareTag("QTGridRowHeader"))
+                                    continue;
+
+                                resultsHeaderItems.Add(TryHeaderName(GetGridRowHeaderLabel(child, rowHeaderIndex)));
+                                rowHeaderIndex++;
                             }
                         }
                         else
                         {
-                            var headerItem = "";
-                            var nameComponents = question.name.Split('_');
-                            for (var i = 1; i < nameComponents.Length; i++)
-                            {
-                                headerItem += nameComponents[i] + "_";
-                            }
-                            resultsHeaderItems.Add(TryHeaderName(headerItem.TrimEnd('_')));
+                            resultsHeaderItems.Add(TryHeaderName(GetQuestionHeaderFromObjectName(question.name)));
                         }
                     }
                 }
@@ -1314,30 +1356,250 @@ namespace QuestionnaireToolkit.Scripts
             }
         }
 
+        private static void TryAddBoObjectiveValue(
+            BoForUnityManager boForUnity,
+            string headerName,
+            string rawValue,
+            string sourceName)
+        {
+            if (boForUnity == null || boForUnity.optimizer == null)
+            {
+                return;
+            }
+            if (boForUnity.objectives == null || boForUnity.objectives.Count == 0)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(headerName))
+            {
+                Debug.LogWarning($"Skipping BO objective update from '{sourceName}' because header name is empty.");
+                return;
+            }
+
+            var headerMatchesObjective = false;
+            foreach (var objective in boForUnity.objectives)
+            {
+                var objectiveKey = objective?.key?.Trim();
+                if (objective != null &&
+                    !string.IsNullOrWhiteSpace(objectiveKey) &&
+                    ContainsObjectiveKeyMatch(headerName, objectiveKey))
+                {
+                    headerMatchesObjective = true;
+                    break;
+                }
+            }
+
+            if (!headerMatchesObjective)
+            {
+                return;
+            }
+
+            if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            {
+                Debug.LogWarning(
+                    $"Objective value for '{headerName}' from '{sourceName}' is not numeric ('{rawValue}'). " +
+                    "Submitting NaN so this iteration uses BO fallback handling instead of reusing a stale value."
+                );
+                boForUnity.optimizer.AddObjectiveValue(headerName, float.NaN);
+                return;
+            }
+
+            boForUnity.optimizer.AddObjectiveValue(headerName, value);
+        }
+
+        private static bool ContainsObjectiveKeyMatch(string source, string objectiveKey)
+        {
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(objectiveKey))
+                return false;
+
+            int start = 0;
+            while (start < source.Length)
+            {
+                int idx = source.IndexOf(objectiveKey, start, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                    return false;
+
+                int end = idx + objectiveKey.Length;
+                if (IsObjectiveBoundary(source, idx) && IsObjectiveBoundary(source, end))
+                    return true;
+
+                start = idx + 1;
+            }
+
+            return false;
+        }
+
+        private static bool IsObjectiveBoundary(string text, int boundaryIndex)
+        {
+            if (boundaryIndex <= 0 || boundaryIndex >= text.Length)
+                return true;
+
+            char left = text[boundaryIndex - 1];
+            char right = text[boundaryIndex];
+            if (!char.IsLetterOrDigit(left) || !char.IsLetterOrDigit(right))
+                return true;
+
+            if (char.IsLetter(left) && char.IsLetter(right) && char.IsLower(left) && char.IsUpper(right))
+                return true;
+
+            if (char.IsLetter(left) && char.IsDigit(right))
+                return true;
+            if (char.IsDigit(left) && char.IsLetter(right))
+                return true;
+
+            return false;
+        }
+
+        private static string GetNameTokenOrDefault(string source, int tokenIndex, string fallback = "NULL")
+        {
+            if (string.IsNullOrEmpty(source))
+            {
+                return fallback;
+            }
+
+            var tokens = source.Split('_');
+            if (tokenIndex >= 0 && tokenIndex < tokens.Length && !string.IsNullOrEmpty(tokens[tokenIndex]))
+            {
+                return tokens[tokenIndex];
+            }
+
+            return fallback;
+        }
+
+        private static string GetQuestionHeaderFromObjectName(string objectName)
+        {
+            if (string.IsNullOrWhiteSpace(objectName))
+                return "NULL";
+
+            var nameComponents = objectName.Split('_');
+            if (nameComponents.Length <= 1)
+                return objectName;
+
+            var header = string.Join("_", nameComponents.Skip(1).Where(part => !string.IsNullOrEmpty(part)));
+            return string.IsNullOrWhiteSpace(header) ? objectName : header;
+        }
+
+        private static string GetQuestionHeaderName(GameObject question)
+        {
+            if (question == null)
+                return "NULL";
+            return GetQuestionHeaderFromObjectName(question.name);
+        }
+
+        private static string GetGridRowHeaderLabel(Transform rowHeaderTransform, int fallbackIndex)
+        {
+            if (rowHeaderTransform == null)
+                return $"[Row{fallbackIndex}]";
+
+            string label = null;
+            if (rowHeaderTransform.childCount > 0)
+            {
+                var textComponent = rowHeaderTransform.GetChild(0).GetComponent<TextMeshProUGUI>();
+                if (textComponent != null)
+                {
+                    label = textComponent.text;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                label = rowHeaderTransform.name;
+            }
+
+            return "[" + label + "]";
+        }
+
+        private static void AppendEmittedValue(
+            List<string> emittedValues,
+            List<string> emittedHeaders,
+            string value,
+            string header,
+            HashSet<string> usedHeaders)
+        {
+            if (emittedValues == null || emittedHeaders == null)
+                return;
+
+            emittedValues.Add(value ?? "NULL");
+            emittedHeaders.Add(GetUniqueHeaderName(header, usedHeaders));
+        }
+
+        private static string GetUniqueHeaderName(string header, HashSet<string> usedHeaders)
+        {
+            string baseHeader = string.IsNullOrWhiteSpace(header) ? "NULL" : header.Trim();
+            if (usedHeaders == null)
+                return baseHeader;
+
+            if (!usedHeaders.Contains(baseHeader))
+            {
+                usedHeaders.Add(baseHeader);
+                return baseHeader;
+            }
+
+            int suffix = 1;
+            while (true)
+            {
+                string candidate = baseHeader + "_" + suffix.ToString(CultureInfo.InvariantCulture);
+                if (!usedHeaders.Contains(candidate))
+                {
+                    usedHeaders.Add(candidate);
+                    return candidate;
+                }
+                suffix++;
+            }
+        }
+
+        private string ResolveObjectiveHeaderName(string fallbackHeader, int emittedIndex)
+        {
+            if (!overwriteResultsHeaderItems || resultsHeaderItems == null)
+                return fallbackHeader;
+            if (emittedIndex < 0 || emittedIndex >= resultsHeaderItems.Count)
+                return fallbackHeader;
+
+            string configuredHeader = resultsHeaderItems[emittedIndex];
+            return string.IsNullOrWhiteSpace(configuredHeader) ? fallbackHeader : configuredHeader.Trim();
+        }
+
+        private static string EscapeCsvCell(string value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            bool mustQuote =
+                value.IndexOf(',') >= 0 ||
+                value.IndexOf('"') >= 0 ||
+                value.IndexOf('\n') >= 0 ||
+                value.IndexOf('\r') >= 0;
+
+            if (!mustQuote)
+                return value;
+
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
         /// <summary>
         /// Writes the results of the current questionnaire run in the specified results file.
         /// </summary>
         private void WriteResults()
         {
-            StreamWriter writer = new StreamWriter(userPath, true);
-            var line = currentResponseId + ",";
+            var rowCells = new List<string> { currentResponseId.ToString(CultureInfo.InvariantCulture) };
             if (customUserId)
             {
-                line += "\"" + userId + "\",";
-                if (runsPerUser == 1)
+                rowCells.Add(userId);
+                if (generateResultsFile && runsPerUser == 1)
                     userId = "";
             }
             if (runsPerUser > 1)
             {
-                line += currentRun + ",";
+                rowCells.Add(currentRun.ToString(CultureInfo.InvariantCulture));
             }
             if (generateStartTimestamp)
             {
-                line += startedTimestamp + ",";
+                rowCells.Add(startedTimestamp);
             }
             if (generateFinishTimestamp)
             {
-                line += finishedTimestamp + ",";
+                rowCells.Add(finishedTimestamp);
             }
 
             //-----------
@@ -1348,10 +1610,13 @@ namespace QuestionnaireToolkit.Scripts
             {
                 boManager = true;
             }
-            var boCounter = 0; // count which item we are currently looking at to find the header name
+            HashSet<string> boHeadersUsed = boManager
+                ? new HashSet<string>(StringComparer.Ordinal)
+                : null;
             //-----------
             
             var currVal = ""; // this is the value that is assigned to each question item value in the following
+            var emittedQuestionValueCount = 0;
             
             foreach (var page in questionPages)
             {
@@ -1359,12 +1624,31 @@ namespace QuestionnaireToolkit.Scripts
                 
                 foreach (var question in page.GetComponent<QTQuestionPageManager>().questionItems)
                 {
+                    if (question.CompareTag("QTText") || question.CompareTag("QTImage") ||
+                        question.CompareTag("QTButton") || question.CompareTag("QTVideo"))
+                    {
+                        continue;
+                    }
+
+                    var emittedValues = new List<string>();
+                    var emittedHeaders = new List<string>();
+                    var questionHeader = GetQuestionHeaderName(question);
                     switch (question.tag)
                     {
                         case "QTLinearScale":
                             var toggleGroup = question.transform.GetChild(1).GetComponent<ToggleGroup>();
-                            currVal = toggleGroup.ActiveToggles().FirstOrDefault().gameObject.name.Split('_')[0];
-                            line += currVal + ",";
+                            var activeLinearToggle = toggleGroup.ActiveToggles().FirstOrDefault();
+                            if (activeLinearToggle == null)
+                            {
+                                currVal = "NULL";
+                                rowCells.Add("NULL");
+                            }
+                            else
+                            {
+                                currVal = GetNameTokenOrDefault(activeLinearToggle.gameObject.name, 0, activeLinearToggle.gameObject.name);
+                                rowCells.Add(currVal);
+                            }
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTCheckboxes":
                             var checkboxesResults = "";
@@ -1379,44 +1663,99 @@ namespace QuestionnaireToolkit.Scripts
                                     }
                                     else
                                     {
-                                        checkboxesResults += checkbox.name.Split('_')[0] + ";";
+                                        checkboxesResults += GetNameTokenOrDefault(checkbox.name, 0, checkbox.name) + ";";
                                     }
                                 }
                             }
                             currVal = checkboxesResults.TrimEnd(';');
-                            line += currVal + ",";
+                            rowCells.Add(currVal);
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTSlider":
-                            currVal = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>().value + "";
-                            line += currVal + ",";
+                            currVal = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>().value
+                                .ToString(CultureInfo.InvariantCulture);
+                            rowCells.Add(currVal);
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTMultipleChoice":
                             var toggleGroupMc = question.transform.GetChild(1).GetComponent<ToggleGroup>();
                             var toggledOption = toggleGroupMc.ActiveToggles().FirstOrDefault();
-                            if (toggledOption.CompareTag("QTOptionOther"))
+                            if (toggledOption == null)
+                            {
+                                currVal = "NULL";
+                                rowCells.Add("NULL");
+                            }
+                            else if (toggledOption.CompareTag("QTOptionOther"))
                             {
                                 currVal = toggledOption.transform.GetChild(1).GetComponent<TMP_InputField>().text;
-                                line += "\"" + currVal + "\",";
+                                rowCells.Add(currVal);
                             }
                             else
                             {
-                                currVal = toggledOption.gameObject.name.Split('_')[0];
-                                line += currVal + ",";
+                                currVal = GetNameTokenOrDefault(toggledOption.gameObject.name, 0, toggledOption.gameObject.name);
+                                rowCells.Add(currVal);
                             }
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTTextInput":
                             currVal = question.transform.GetChild(1).GetComponent<TMP_InputField>().text;
-                            line += "\"" + currVal + "\",";
+                            rowCells.Add(currVal);
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTDropdown":
-                            var tmp = question.transform.GetChild(1).GetComponent<TMP_Dropdown>().value;
-                            currVal = question.transform.GetChild(1).GetComponent<TMP_Dropdown>().options[tmp].text;
-                            line += "\"" + currVal + "\",";
+                            var dropdown = question.transform.GetChild(1).GetComponent<TMP_Dropdown>();
+                            var tmp = dropdown.value;
+                            if (dropdown.options == null || dropdown.options.Count == 0 || tmp < 0 || tmp >= dropdown.options.Count)
+                            {
+                                currVal = "NULL";
+                                rowCells.Add("NULL");
+                            }
+                            else
+                            {
+                                currVal = dropdown.options[tmp].text;
+                                rowCells.Add(currVal);
+                            }
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTCheckboxesGrid":
                             var checkboxGrid = question.transform.GetChild(1);
                             var optionCounter = 0;
-                            var columnCount = question.GetComponent<QTCheckboxesGrid>().columnTexts.Count;
+                            var checkboxGridScript = question.GetComponent<QTCheckboxesGrid>();
+                            var rowHeaders = new List<string>();
+                            for (var i = 0; i < checkboxGrid.childCount; i++)
+                            {
+                                var child = checkboxGrid.GetChild(i);
+                                if (child.CompareTag("QTGridRowHeader"))
+                                {
+                                    rowHeaders.Add(GetGridRowHeaderLabel(child, rowHeaders.Count + 1));
+                                }
+                            }
+                            var columnCount = checkboxGridScript != null && checkboxGridScript.columnTexts != null
+                                ? checkboxGridScript.columnTexts.Count
+                                : 0;
+                            var rowCount = checkboxGridScript != null && checkboxGridScript.rowTexts != null
+                                ? checkboxGridScript.rowTexts.Count
+                                : rowHeaders.Count;
+                            string GetCheckboxGridRowHeader(int rowIndex)
+                            {
+                                if (rowIndex >= 0 && rowIndex < rowHeaders.Count)
+                                    return rowHeaders[rowIndex];
+                                return $"{questionHeader}_{rowIndex + 1}";
+                            }
+
+                            if (columnCount <= 0)
+                            {
+                                for (var r = 0; r < rowCount; r++)
+                                {
+                                    currVal = "";
+                                    rowCells.Add(currVal);
+                                    AppendEmittedValue(emittedValues, emittedHeaders, currVal, GetCheckboxGridRowHeader(r), boHeadersUsed);
+                                }
+                                break;
+                            }
+
+                            var rowSelections = "";
+                            var rowOutputIndex = 0;
                             for (var i = 0; i < checkboxGrid.childCount; i++)
                             {
                                 var currChild = checkboxGrid.GetChild(i);
@@ -1424,16 +1763,44 @@ namespace QuestionnaireToolkit.Scripts
                                 {
                                     if (currChild.GetComponent<Toggle>().isOn)
                                     {
-                                        currVal = currChild.name.Split('_')[1];
-                                        line += "" + currVal + ";";
+                                        currVal = GetNameTokenOrDefault(currChild.name, 1);
+                                        rowSelections += "" + currVal + ";";
                                     }
                                     optionCounter++;
                                 }
                                 if (optionCounter == columnCount)
                                 {
                                     optionCounter = 0;
-                                    line = line.TrimEnd(';') + ",";
+                                    if (rowOutputIndex >= rowCount)
+                                    {
+                                        rowSelections = "";
+                                        continue;
+                                    }
+
+                                    currVal = rowSelections.TrimEnd(';');
+                                    rowCells.Add(currVal);
+                                    AppendEmittedValue(
+                                        emittedValues,
+                                        emittedHeaders,
+                                        currVal,
+                                        GetCheckboxGridRowHeader(rowOutputIndex),
+                                        boHeadersUsed);
+                                    rowSelections = "";
+                                    rowOutputIndex++;
                                 }
+                            }
+
+                            while (rowOutputIndex < rowCount)
+                            {
+                                currVal = "";
+                                rowCells.Add(currVal);
+                                AppendEmittedValue(
+                                    emittedValues,
+                                    emittedHeaders,
+                                    currVal,
+                                    GetCheckboxGridRowHeader(rowOutputIndex),
+                                    boHeadersUsed);
+                                rowOutputIndex++;
                             }
                             break;
                         case "QTMultipleChoiceGrid":
@@ -1443,11 +1810,27 @@ namespace QuestionnaireToolkit.Scripts
                                 var currChild = grid.GetChild(i);
                                 if (currChild.CompareTag("QTGridRowHeader"))
                                 {
+                                    string rowHeader = GetGridRowHeaderLabel(currChild, emittedValues.Count + 1);
                                     var toggleGroupRow = currChild.GetComponent<ToggleGroup>();
-                                    currVal = toggleGroupRow.ActiveToggles().FirstOrDefault().gameObject.name.Split('_')[1];
-                                    line += "" + currVal + ",";
+                                    var activeRowToggle = toggleGroupRow.ActiveToggles().FirstOrDefault();
+                                    if (activeRowToggle == null)
+                                    {
+                                        currVal = "NULL";
+                                        rowCells.Add("NULL");
+                                    }
+                                    else
+                                    {
+                                        currVal = GetNameTokenOrDefault(activeRowToggle.gameObject.name, 1);
+                                        rowCells.Add(currVal);
+                                    }
+                                    AppendEmittedValue(emittedValues, emittedHeaders, currVal, rowHeader, boHeadersUsed);
                                 }
                             }
+                            break;
+                        default:
+                            currVal = "NULL";
+                            rowCells.Add("NULL");
+                            AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                     }
                     
@@ -1455,49 +1838,62 @@ namespace QuestionnaireToolkit.Scripts
                     // addObjectiveValue("Trust", 3f);
                     if (boManager)
                     {
-                        boForUnity.optimizer.AddObjectiveValue(
-                            resultsHeaderItems[boCounter],
-                            float.Parse(currVal, CultureInfo.InvariantCulture));
+                        for (var i = 0; i < emittedValues.Count; i++)
+                        {
+                            string objectiveHeader = i < emittedHeaders.Count ? emittedHeaders[i] : questionHeader;
+                            objectiveHeader = ResolveObjectiveHeaderName(objectiveHeader, emittedQuestionValueCount);
+                            TryAddBoObjectiveValue(
+                                boForUnity,
+                                objectiveHeader,
+                                emittedValues[i],
+                                question.name
+                            );
+                            emittedQuestionValueCount++;
+                        }
                     }
-                    boCounter++;
                 }
             }
 
-            foreach (var aci in additionalCsvItems)
+            if (additionalCsvItems != null)
             {
-                if (aci.itemValue.isAssigned)
+                foreach (var aci in additionalCsvItems)
                 {
-                    currVal = aci.itemValue.Get() + "";
-                    line += "\"" + currVal + "\",";
-                    
-                    // also add the additional csv item values defined in the inspector of the QTQuestionnaireManager
-                    if (boManager)
+                    if (aci == null)
                     {
-                        boForUnity.optimizer.AddObjectiveValue(
-                            resultsHeaderItems[boCounter],
-                            float.Parse(currVal, CultureInfo.InvariantCulture));
+                        Debug.LogWarning("Skipping null entry in additionalCsvItems while writing questionnaire results.");
+                        continue;
                     }
-                    boCounter++;
-                }
-                else
-                {
-                    line += "\"NULL\",";
+
+                    if (aci.itemValue != null && aci.itemValue.isAssigned)
+                    {
+                        currVal = aci.itemValue.Get() + "";
+                        rowCells.Add(currVal);
+                    }
+                    else
+                    {
+                        rowCells.Add("NULL");
+                    }
                 }
             }
 
             try
             {
-                writer.WriteLine(line.TrimEnd(','));
-                writer.Close();
-                Debug.Log("Write results for: " + resultsFileName + (newFileEachStart ? "_" + currentResponseId : "") + 
-                          (runsPerUser > 1 ? " run: " + currentRun : "") + ".\n@ " + userPath);
-                if (currentRun == runsPerUser)
+                if (generateResultsFile)
                 {
-                    qtMetaData.currentUserRun = 0;
-                    currentRun = 0;
-                    userId = "";
+                    using (var writer = new StreamWriter(userPath, true))
+                    {
+                        writer.WriteLine(string.Join(",", rowCells.Select(EscapeCsvCell)));
+                    }
+                    Debug.Log("Write results for: " + resultsFileName + (newFileEachStart ? "_" + currentResponseId : "") +
+                              (runsPerUser > 1 ? " run: " + currentRun : "") + ".\n@ " + userPath);
+                    if (currentRun == runsPerUser)
+                    {
+                        qtMetaData.currentUserRun = 0;
+                        currentRun = 0;
+                        userId = "";
+                    }
+                    SaveMetaData(currentResponseId, currentRun);
                 }
-                SaveMetaData(currentResponseId, currentRun);
             }
             catch (Exception)
             {
@@ -1659,7 +2055,13 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTDropdown":
                             if (question.GetComponent<QTDropdown>().answerRequired)
                             {
-                                if (question.transform.GetChild(1).GetComponent<TMP_Dropdown>().options[0].text.Equals(""))
+                                var dropdown = question.transform.GetChild(1).GetComponent<TMP_Dropdown>();
+                                var selectedIndex = dropdown.value;
+                                var hasValidSelection = dropdown.options != null &&
+                                                        selectedIndex >= 0 &&
+                                                        selectedIndex < dropdown.options.Count &&
+                                                        !string.IsNullOrWhiteSpace(dropdown.options[selectedIndex].text);
+                                if (!hasValidSelection)
                                 {
                                     question.GetComponent<Image>().color = new Color(1, 0.316f, 0.316f, 0.2235f);
                                     pending = true;

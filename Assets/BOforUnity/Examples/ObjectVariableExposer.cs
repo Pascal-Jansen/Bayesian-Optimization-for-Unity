@@ -21,10 +21,31 @@ namespace BOforUnity.Examples
         void Start()
         {
             _renderer = GetComponent<MeshRenderer>();
+            if (_renderer == null)
+            {
+                Debug.LogWarning("ObjectVariableExposer: MeshRenderer is missing.");
+                return;
+            }
 
-            var bo = GameObject.FindWithTag("BOforUnityManager").GetComponent<BoForUnityManager>().parameters;
+            var manager = FindObjectOfType<BoForUnityManager>();
+            if (manager == null || manager.parameters == null)
+            {
+                Debug.LogWarning("ObjectVariableExposer: BoForUnityManager or parameters are missing.");
+                return;
+            }
+            var bo = manager.parameters;
             
             var i = isCube? 0 : 5;
+            if (bo.Count <= i + 4 ||
+                bo[i] == null || bo[i].value == null ||
+                bo[i + 1] == null || bo[i + 1].value == null ||
+                bo[i + 2] == null || bo[i + 2].value == null ||
+                bo[i + 3] == null || bo[i + 3].value == null ||
+                bo[i + 4] == null || bo[i + 4].value == null)
+            {
+                Debug.LogWarning("ObjectVariableExposer: Not enough valid BO parameters to expose object variables.");
+                return;
+            }
 
             _renderer.material.color = new Color(bo[i].value.Value, bo[i+1].value.Value, bo[i+2].value.Value, bo[i+3].value.Value);
             
@@ -33,8 +54,14 @@ namespace BOforUnity.Examples
 
         public void StartQuestionnaire()
         {
-            GameObject.FindWithTag("QTQuestionnaireManager").GetComponent<QTQuestionnaireManager>()
-                .StartQuestionnaire();
+            var questionnaire = FindObjectOfType<QTQuestionnaireManager>();
+            if (questionnaire == null)
+            {
+                Debug.LogWarning("ObjectVariableExposer: QTQuestionnaireManager is missing.");
+                return;
+            }
+
+            questionnaire.StartQuestionnaire();
         }
     }
 }

@@ -113,9 +113,17 @@ namespace BOforUnity
             optimizer = gameObject.GetComponent<Optimizer>();
             mainThreadDispatcher = gameObject.GetComponent<MainThreadDispatcher>();
             socketNetwork = gameObject.GetComponent<SocketNetwork>();
+            if (mainThreadDispatcher == null)
+            {
+                mainThreadDispatcher = gameObject.AddComponent<MainThreadDispatcher>();
+                Debug.LogWarning(
+                    "BoForUnityManager added a missing MainThreadDispatcher component at runtime. " +
+                    "Please add MainThreadDispatcher to the manager prefab/scene object."
+                );
+            }
 
             currentIteration = 1;
-            totalIterations = numSamplingIterations + numOptimizationIterations; // set how many iterations the optimizer should run for
+            totalIterations = GetConfiguredTotalIterations(); // set how many iterations the optimizer should run for
         }
         
         void Start()
@@ -135,7 +143,11 @@ namespace BOforUnity
             _finalDesignRoundInProgress = false;
             _finalDesignRoundLogged = false;
             _finalDesignObservationCsvPath = null;
+            // Start each run from a clean measurement state so the first objective payload
+            // cannot reuse stale values from a prior session or serialized inspector data.
+            ClearObjectiveMeasurements();
             simulationRunning = true; // the simulation to true to prevent 
+            totalIterations = GetConfiguredTotalIterations();
         }
         
         void Update()
@@ -232,7 +244,26 @@ namespace BOforUnity
                 _pendingAdvanceRequest = false;
             }
 
-            socketNetwork.SendObjectives(); // send the current objective values to the Python process
+            try
+            {
+                socketNetwork.SendObjectives(); // send the current objective values to the Python process
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"OptimizationStart failed while sending objectives: {e.Message}");
+                SetLoadingVisible(false);
+                SetNextButtonVisible(false);
+                SetOutputText("Could not send objective values to the optimizer. Check configuration and logs.");
+                try
+                {
+                    socketNetwork?.SocketQuit();
+                }
+                catch (Exception quitEx)
+                {
+                    Debug.LogWarning($"SocketQuit failed after objective-send error: {quitEx.Message}");
+                }
+                return;
+            }
             hasNewDesignParameterValues = false; // the current design parameter values are obsolete
             optimizationRunning = true;
             simulationRunning = false;
@@ -374,6 +405,7 @@ namespace BOforUnity
             {
                 _finalDesignRoundPrepared = false;
                 _finalDesignRoundInProgress = true;
+                ClearObjectiveMeasurements();
 
                 Debug.Log("--------------------------------------Current Iteration (Final Design Round): " + currentIteration);
                 simulationRunning = true;
@@ -407,6 +439,7 @@ namespace BOforUnity
 
             Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
 
+            ClearObjectiveMeasurements();
             simulationRunning = true; // waiting for the simulation to finish
 
             if (reloadSceneOnIterationAdvance)
@@ -419,13 +452,35 @@ namespace BOforUnity
             }
         }
 
+        private void ClearObjectiveMeasurements()
+        {
+            if (objectives == null)
+                return;
+
+            foreach (var objective in objectives)
+            {
+                if (objective?.value?.values == null)
+                    continue;
+
+                objective.value.values.Clear();
+            }
+        }
+
         private bool ShouldStopForPerfectRating()
         {
             if (!perfectRatingActive)
                 return false;
-            if (!perfectRatingInInitialRounds && currentIteration <= numSamplingIterations)
+            int initialRounds = warmStart ? 0 : Mathf.Max(0, numSamplingIterations);
+            if (!perfectRatingInInitialRounds && currentIteration <= initialRounds)
                 return false;
             return IsPerfectRating();
+        }
+
+        private int GetConfiguredTotalIterations()
+        {
+            int samplingIterations = Mathf.Max(0, numSamplingIterations);
+            int optimizationIterations = Mathf.Max(0, numOptimizationIterations);
+            return warmStart ? optimizationIterations : samplingIterations + optimizationIterations;
         }
 
         private void ScheduleAutomaticAdvance()
@@ -537,12 +592,96 @@ namespace BOforUnity
                 outputText.text = value;
         }
 
+        private static List<ParameterEntry> BuildEffectiveParameterEntries(
+            IList<ParameterEntry> source,
+            string context,
+            bool logWarnings = true)
+        {
+            var result = new List<ParameterEntry>();
+            if (source == null)
+                return result;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < source.Count; i++)
+            {
+                var entry = source[i];
+                if (entry == null || entry.value == null || string.IsNullOrWhiteSpace(entry.key))
+                {
+                    if (logWarnings)
+                    {
+                        Debug.LogWarning($"Skipping invalid parameter entry at index {i} during {context}.");
+                    }
+                    continue;
+                }
+
+                string key = entry.key.Trim();
+                if (!seen.Add(key))
+                {
+                    if (logWarnings)
+                    {
+                        Debug.LogWarning($"Skipping duplicate parameter key '{key}' during {context}.");
+                    }
+                    continue;
+                }
+
+                result.Add(new ParameterEntry(key, entry.value));
+            }
+
+            return result;
+        }
+
+        private static List<ObjectiveEntry> BuildEffectiveObjectiveEntries(
+            IList<ObjectiveEntry> source,
+            string context,
+            bool logWarnings = true)
+        {
+            var result = new List<ObjectiveEntry>();
+            if (source == null)
+                return result;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < source.Count; i++)
+            {
+                var entry = source[i];
+                if (entry == null || entry.value == null || string.IsNullOrWhiteSpace(entry.key))
+                {
+                    if (logWarnings)
+                    {
+                        Debug.LogWarning($"Skipping invalid objective entry at index {i} during {context}.");
+                    }
+                    continue;
+                }
+
+                string key = entry.key.Trim();
+                if (!seen.Add(key))
+                {
+                    if (logWarnings)
+                    {
+                        Debug.LogWarning($"Skipping duplicate objective key '{key}' during {context}.");
+                    }
+                    continue;
+                }
+
+                result.Add(new ObjectiveEntry(key, entry.value));
+            }
+
+            return result;
+        }
+
         private bool TryPrepareFinalDesignRound(out string error)
         {
             _finalDesignRoundPrepared = false;
             _finalDesignRoundInProgress = false;
             _finalDesignRoundLogged = false;
             _finalDesignObservationCsvPath = null;
+
+            var effectiveParameters = BuildEffectiveParameterEntries(parameters, "final-design selection");
+            var effectiveObjectives = BuildEffectiveObjectiveEntries(objectives, "final-design selection");
+            if (effectiveParameters.Count == 0 || effectiveObjectives.Count == 0)
+            {
+                error = "No valid parameters or objectives are configured for final-design selection.";
+                return false;
+            }
 
             FinalDesignSelector.SelectionResult selected = null;
             string selectedCsvPath = null;
@@ -555,8 +694,10 @@ namespace BOforUnity
                 if (FinalDesignSelector.TrySelectFromLatestObservationCsv(
                         logRootPath: logRoot,
                         userId: userId,
-                        parameters: parameters,
-                        objectives: objectives,
+                        conditionId: conditionId,
+                        groupId: groupId,
+                        parameters: effectiveParameters,
+                        objectives: effectiveObjectives,
                         distanceEpsilon: finalDesignDistanceEpsilon,
                         maximinEpsilon: finalDesignMaximinEpsilon,
                         aggressionEpsilon: finalDesignAggressionEpsilon,
@@ -585,31 +726,44 @@ namespace BOforUnity
                 return false;
             }
 
-            if (selected.ParameterRaw.Length != parameters.Count)
+            if (selected == null || selected.ParameterRaw == null)
+            {
+                error = "Final design selector returned an invalid result.";
+                return false;
+            }
+
+            if (selected.ParameterRaw.Length != effectiveParameters.Count)
             {
                 error = "Selected final-design parameter count does not match current parameter list.";
                 return false;
             }
 
-            for (int i = 0; i < parameters.Count; i++)
+            for (int i = 0; i < effectiveParameters.Count; i++)
             {
+                var parameterEntry = effectiveParameters[i];
+                if (parameterEntry == null || parameterEntry.value == null || string.IsNullOrWhiteSpace(parameterEntry.key))
+                {
+                    error = $"Parameter entry at index {i} is invalid.";
+                    return false;
+                }
+
                 float selectedValue = selected.ParameterRaw[i];
                 if (float.IsNaN(selectedValue) || float.IsInfinity(selectedValue))
                 {
-                    error = $"Selected parameter '{parameters[i].key}' is non-finite.";
+                    error = $"Selected parameter '{parameterEntry.key}' is non-finite.";
                     return false;
                 }
 
-                float lo = parameters[i].value.lowerBound;
-                float hi = parameters[i].value.upperBound;
+                float lo = parameterEntry.value.lowerBound;
+                float hi = parameterEntry.value.upperBound;
                 float eps = 1e-4f;
                 if (selectedValue < lo - eps || selectedValue > hi + eps)
                 {
-                    error = $"Selected parameter '{parameters[i].key}'={selectedValue} is outside bounds [{lo}, {hi}].";
+                    error = $"Selected parameter '{parameterEntry.key}'={selectedValue} is outside bounds [{lo}, {hi}].";
                     return false;
                 }
 
-                parameters[i].value.Value = Mathf.Clamp(selectedValue, lo, hi);
+                parameterEntry.value.Value = Mathf.Clamp(selectedValue, lo, hi);
             }
 
             currentIteration = totalIterations + 1;
@@ -693,16 +847,15 @@ namespace BOforUnity
             SetColumn("IsPareto", "NULL");
             SetColumn("IsBest", "NULL");
 
-            foreach (var objective in objectives)
+            var effectiveObjectives = BuildEffectiveObjectiveEntries(objectives, "finaldesign logging");
+            foreach (var objective in effectiveObjectives)
             {
-                if (objective == null || string.IsNullOrWhiteSpace(objective.key))
-                    continue;
-
                 float objectiveValue = GetObjectiveAverageForLogging(objective);
                 SetColumn(objective.key, FormatCsvFloat(objectiveValue));
             }
 
-            foreach (var parameter in parameters)
+            var effectiveParameters = BuildEffectiveParameterEntries(parameters, "finaldesign logging");
+            foreach (var parameter in effectiveParameters)
             {
                 if (parameter == null || string.IsNullOrWhiteSpace(parameter.key) || parameter.value == null)
                     continue;
@@ -895,19 +1048,47 @@ namespace BOforUnity
         
         private bool IsPerfectRating()
         {
-            foreach (var ob in objectives)
+            var effectiveObjectives = BuildEffectiveObjectiveEntries(
+                objectives,
+                "perfect-rating evaluation",
+                logWarnings: false
+            );
+            if (effectiveObjectives.Count == 0)
             {
+                return false;
+            }
+
+            var hasValidObjective = false;
+            foreach (var ob in effectiveObjectives)
+            {
+                if (ob == null || ob.value == null || ob.value.values == null)
+                {
+                    return false;
+                }
+
+                hasValidObjective = true;
                 if (ob.value.values.Count == 0)
                 {
                     return false;
                 }
-                
+
+                float avg = (float)ob.value.values.Average();
+                if (!IsFinite(avg))
+                {
+                    return false;
+                }
+
                 if (ob.value.smallerIsBetter ?
-                        ob.value.values.Average() > ob.value.lowerBound : 
-                        ob.value.values.Average() < ob.value.upperBound)
+                        avg > ob.value.lowerBound :
+                        avg < ob.value.upperBound)
                 {
                     return false; // the rating is imperfect!
                 }
+            }
+
+            if (!hasValidObjective)
+            {
+                return false;
             }
             
             Debug.Log("Could be perfect rating ...");

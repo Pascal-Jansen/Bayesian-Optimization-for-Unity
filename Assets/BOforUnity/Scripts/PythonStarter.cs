@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using TMPro;
 #if UNITY_EDITOR
@@ -47,6 +48,12 @@ namespace BOforUnity.Scripts
         private void Start()
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
+            if (_bomanager == null)
+            {
+                Debug.LogError("PythonStarter requires a BoForUnityManager component on the same GameObject.");
+                enabled = false;
+                return;
+            }
 
             if (_bomanager.loadingObj != null) _bomanager.loadingObj.SetActive(true);
             if (_bomanager.nextButton != null) _bomanager.nextButton.SetActive(false);
@@ -62,12 +69,26 @@ namespace BOforUnity.Scripts
 
         private IEnumerator SetupThenLaunchCoroutine()
         {
+            if (_bomanager == null)
+            {
+                Debug.LogError("PythonStarter setup aborted: BoForUnityManager is missing.");
+                yield break;
+            }
+
             // use either the user specified python path or find the path automatically
             if (_bomanager.getLocalPython())
             {
                 if (_bomanager.getPythonPath() == "")
                 {
                     Debug.LogError("No Python path found -> You must specify a Python path in the BOforUnityManager inspector's python settings!");
+                    _bomanager.simulationRunning = false;
+                    if (_bomanager.outputText != null)
+                    {
+                        _bomanager.outputText.text =
+                            "No Python executable path is configured.\nSet it in BoForUnityManager and restart.";
+                    }
+                    if (_bomanager.loadingObj != null)
+                        _bomanager.loadingObj.SetActive(false);
                     yield break;
                 }
                 pythonExecutable = _bomanager.getPythonPath();
@@ -162,8 +183,81 @@ namespace BOforUnity.Scripts
             // Set an environment variable to allow for multiple instances of a dynamic link library.
             Environment.SetEnvironmentVariable("KMP_DUPLICATE_LIB_OK", "TRUE");
 
+            int effectiveParameterCount = CountDistinctValidParameterKeys(_bomanager?.parameters);
+            int effectiveObjectiveCount = CountDistinctValidObjectiveKeys(_bomanager?.objectives);
+            if (effectiveParameterCount < 1 || effectiveObjectiveCount < 1)
+            {
+                Debug.LogError(
+                    $"Invalid optimization configuration. Effective parameters={effectiveParameterCount}, " +
+                    $"effective objectives={effectiveObjectiveCount}. At least one of each is required."
+                );
+                if (_bomanager != null)
+                {
+                    _bomanager.simulationRunning = false;
+                    if (_bomanager.outputText != null)
+                    {
+                        _bomanager.outputText.text =
+                            "Invalid optimization configuration.\nEnsure at least one valid parameter and objective key are set.";
+                    }
+                    if (_bomanager.loadingObj != null)
+                        _bomanager.loadingObj.SetActive(false);
+                }
+                yield break;
+            }
+
+            var parameterKeys = GetDistinctValidParameterKeys(_bomanager?.parameters);
+            var objectiveKeys = GetDistinctValidObjectiveKeys(_bomanager?.objectives);
+            var overlap = parameterKeys
+                .Intersect(objectiveKeys, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (overlap.Count > 0)
+            {
+                Debug.LogError(
+                    "Python startup aborted because parameter and objective keys overlap: " +
+                    string.Join(", ", overlap)
+                );
+                if (_bomanager != null)
+                {
+                    _bomanager.simulationRunning = false;
+                    if (_bomanager.outputText != null)
+                    {
+                        _bomanager.outputText.text =
+                            "Invalid BO configuration.\n" +
+                            "Parameter and objective keys must be distinct.";
+                    }
+                    if (_bomanager.loadingObj != null)
+                        _bomanager.loadingObj.SetActive(false);
+                }
+                yield break;
+            }
+
+            int configuredParameterCount = _bomanager?.parameters?.Count ?? 0;
+            int configuredObjectiveCount = _bomanager?.objectives?.Count ?? 0;
+            if (configuredParameterCount != effectiveParameterCount || configuredObjectiveCount != effectiveObjectiveCount)
+            {
+                Debug.LogError(
+                    "Python startup aborted due to invalid/duplicate parameter or objective entries. " +
+                    $"Configured counts: parameters={configuredParameterCount}, objectives={configuredObjectiveCount}; " +
+                    $"effective counts: parameters={effectiveParameterCount}, objectives={effectiveObjectiveCount}."
+                );
+                if (_bomanager != null)
+                {
+                    _bomanager.simulationRunning = false;
+                    if (_bomanager.outputText != null)
+                    {
+                        _bomanager.outputText.text =
+                            "Invalid BO configuration.\n" +
+                            "Remove duplicate or empty parameter/objective keys and restart.";
+                    }
+                    if (_bomanager.loadingObj != null)
+                        _bomanager.loadingObj.SetActive(false);
+                }
+                yield break;
+            }
+
             // Determine the Python script to execute
-            string moboScriptName = _bomanager.objectives.Count > 1 ? "mobo.py" : "bo.py";
+            string moboScriptName = effectiveObjectiveCount > 1 ? "mobo.py" : "bo.py";
 
             // Construct the full path to the Python script based on the platform.
 #if UNITY_EDITOR
@@ -189,6 +283,76 @@ namespace BOforUnity.Scripts
             CreateProcess(fullPath);
         }
 
+        private static int CountDistinctValidParameterKeys(IList<BOforUnity.ParameterEntry> parameters)
+        {
+            if (parameters == null)
+                return 0;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                var parameter = parameters[i];
+                if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
+                    continue;
+
+                seen.Add(parameter.key.Trim());
+            }
+            return seen.Count;
+        }
+
+        private static HashSet<string> GetDistinctValidParameterKeys(IList<BOforUnity.ParameterEntry> parameters)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (parameters == null)
+                return seen;
+
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                var parameter = parameters[i];
+                if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
+                    continue;
+
+                seen.Add(parameter.key.Trim());
+            }
+
+            return seen;
+        }
+
+        private static int CountDistinctValidObjectiveKeys(IList<BOforUnity.ObjectiveEntry> objectives)
+        {
+            if (objectives == null)
+                return 0;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < objectives.Count; i++)
+            {
+                var objective = objectives[i];
+                if (objective == null || objective.value == null || string.IsNullOrWhiteSpace(objective.key))
+                    continue;
+
+                seen.Add(objective.key.Trim());
+            }
+            return seen.Count;
+        }
+
+        private static HashSet<string> GetDistinctValidObjectiveKeys(IList<BOforUnity.ObjectiveEntry> objectives)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (objectives == null)
+                return seen;
+
+            for (int i = 0; i < objectives.Count; i++)
+            {
+                var objective = objectives[i];
+                if (objective == null || objective.value == null || string.IsNullOrWhiteSpace(objective.key))
+                    continue;
+
+                seen.Add(objective.key.Trim());
+            }
+
+            return seen;
+        }
+
         private void Update()
         {
             // Live status during install
@@ -201,7 +365,7 @@ namespace BOforUnity.Scripts
             {
                 _exitMessageShown = true;
                 Debug.Log(">>>>> Python Process has EXITED!");
-                if (_bomanager.simulationRunning) // if the simulation is still running show an error message
+                if (_bomanager != null && _bomanager.simulationRunning) // if the simulation is still running show an error message
                 {
                     if (_bomanager.outputText != null)
                         _bomanager.outputText.text = "The system could not be started...\nPlease restart the application.";
@@ -251,7 +415,12 @@ namespace BOforUnity.Scripts
                     Debug.LogError("Python Error: " + e.Data);
                 }
             };
-            pythonProcess.Exited += (sender, args) => Debug.LogWarning("Python process exited with code: " + pythonProcess.ExitCode);
+            pythonProcess.Exited += (sender, args) =>
+            {
+                isPythonProcessRunning = false;
+                isSystemStarted = false;
+                Debug.LogWarning("Python process exited with code: " + pythonProcess.ExitCode);
+            };
 
             try
             {
@@ -265,9 +434,10 @@ namespace BOforUnity.Scripts
             {
                 Debug.Log("Failed to start Python process: " + ex.Message);
                 isPythonProcessRunning = false;
+                isSystemStarted = false;
                 if (_bomanager?.outputText != null)
                     _bomanager.outputText.text = "The system could not be started...\nPlease restart the application.";
-                if (_bomanager != null) _bomanager.loadingObj.SetActive(false);
+                if (_bomanager?.loadingObj != null) _bomanager.loadingObj.SetActive(false);
             }
         }
 
@@ -288,6 +458,9 @@ namespace BOforUnity.Scripts
                 pythonProcess.Dispose();
                 pythonProcess = null;
             }
+
+            isPythonProcessRunning = false;
+            isSystemStarted = false;
         }
 
         private void OnDestroy()

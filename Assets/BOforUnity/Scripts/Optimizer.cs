@@ -31,9 +31,29 @@ namespace BOforUnity.Scripts
         /// <param name="currentIndex"></param>
         public void UpdateParameter(int currentIndex)
         {
+            if (_bomanager == null || _bomanager.parameters == null)
+            {
+                return;
+            }
+            if (_csvData == null || currentIndex < 0 || currentIndex >= _csvData.Count)
+            {
+                Debug.LogWarning($"UpdateParameter skipped: CSV data missing or index {currentIndex} out of range.");
+                return;
+            }
+
+            var row = _csvData[currentIndex];
             foreach (var pa in _bomanager.parameters)
             {
-                pa.value.Value = float.Parse(_csvData[currentIndex][pa.key].ToString(), CultureInfo.InvariantCulture);
+                if (pa == null || pa.value == null || string.IsNullOrWhiteSpace(pa.key))
+                    continue;
+
+                string lookupKey = pa.key.Trim();
+                if ((!row.TryGetValue(lookupKey, out var raw) && !row.TryGetValue(pa.key, out raw)) || raw == null)
+                    continue;
+                if (!float.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+                    continue;
+
+                pa.value.Value = parsed;
             }
         }
 
@@ -47,6 +67,11 @@ namespace BOforUnity.Scripts
         /// <param name="upperBound"></param>
         public void AddParameter(string name, float lowerBound, float upperBound)
         {
+            if (_bomanager == null || _bomanager.parameters == null)
+            {
+                return;
+            }
+
             try
             {
                 _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound)));
@@ -69,11 +94,19 @@ namespace BOforUnity.Scripts
         {
             var value = 0.0f;
             //Debug.Log("Parameters: " + parameters[name].Value);
+            if (_bomanager == null || _bomanager.parameters == null)
+                return value;
+
+            string targetName = (name ?? string.Empty).Trim();
+
             try
             {
                 foreach (var pa in _bomanager.parameters)
                 {
-                    if (pa.key == name)
+                    if (pa == null || pa.value == null)
+                        continue;
+
+                    if (string.Equals((pa.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
                     {
                         value = pa.value.Value;
                     }
@@ -97,11 +130,19 @@ namespace BOforUnity.Scripts
         public ParameterArgs GetParameter(string name)
         {
             ParameterArgs value = new ParameterArgs();
+            if (_bomanager == null || _bomanager.parameters == null)
+                return value;
+
+            string targetName = (name ?? string.Empty).Trim();
+
             try
             {
                 foreach (var pa in _bomanager.parameters)
                 {
-                    if (pa.key == name)
+                    if (pa == null || pa.value == null)
+                        continue;
+
+                    if (string.Equals((pa.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
                     {
                         value = pa.value;
                     }
@@ -124,9 +165,27 @@ namespace BOforUnity.Scripts
         /// <param name="args"></param>
         public void AddObjective(string name, ObjectiveArgs args)
         {
+            if (_bomanager == null || _bomanager.objectives == null)
+            {
+                return;
+            }
+
+            string targetName = (name ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(targetName))
+            {
+                return;
+            }
+            if (args == null)
+            {
+                args = new ObjectiveArgs();
+            }
+
             foreach (var ob in _bomanager.objectives)
             {
-                if (ob.key == name)
+                if (ob == null)
+                    continue;
+
+                if (string.Equals((ob.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
                 {
                     // if found in the list ... update the value
                     ob.value = args;
@@ -134,20 +193,87 @@ namespace BOforUnity.Scripts
                 }
             }
             // if not found in the list ... add as new entry
-            _bomanager.objectives.Add(new ObjectiveEntry(name, args));
+            _bomanager.objectives.Add(new ObjectiveEntry(targetName, args));
         }
 
         public void AddObjectiveValue(string name, float currVal)
         {
+            if (string.IsNullOrWhiteSpace(name) || _bomanager == null || _bomanager.objectives == null)
+            {
+                return;
+            }
+
+            string targetName = name.Trim();
+
+            ObjectiveEntry bestMatch = null;
+            var bestMatchLength = -1;
             foreach (var ob in _bomanager.objectives)
             {
-                if (name.Contains(ob.key))
+                if (ob == null || ob.value == null || string.IsNullOrWhiteSpace(ob.key))
                 {
-                    // if name found in the list ... add the current value to the list of values
-                    ob.value.values.Add(currVal);
-                    return;
+                    continue;
+                }
+
+                string objectiveKey = ob.key.Trim();
+                if (ContainsObjectiveKeyMatch(targetName, objectiveKey) && objectiveKey.Length > bestMatchLength)
+                {
+                    bestMatch = ob;
+                    bestMatchLength = objectiveKey.Length;
                 }
             }
+
+            if (bestMatch != null)
+            {
+                // If multiple objective keys are substrings of the same header, use the most specific (longest) key.
+                if (bestMatch.value.values == null)
+                {
+                    bestMatch.value.values = new List<float>();
+                }
+                bestMatch.value.values.Add(currVal);
+            }
+        }
+
+        private static bool ContainsObjectiveKeyMatch(string source, string objectiveKey)
+        {
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(objectiveKey))
+                return false;
+
+            int start = 0;
+            while (start < source.Length)
+            {
+                int idx = source.IndexOf(objectiveKey, start, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0)
+                    return false;
+
+                int end = idx + objectiveKey.Length;
+                if (IsObjectiveBoundary(source, idx) && IsObjectiveBoundary(source, end))
+                    return true;
+
+                start = idx + 1;
+            }
+
+            return false;
+        }
+
+        private static bool IsObjectiveBoundary(string text, int boundaryIndex)
+        {
+            if (boundaryIndex <= 0 || boundaryIndex >= text.Length)
+                return true;
+
+            char left = text[boundaryIndex - 1];
+            char right = text[boundaryIndex];
+            if (!char.IsLetterOrDigit(left) || !char.IsLetterOrDigit(right))
+                return true;
+
+            if (char.IsLetter(left) && char.IsLetter(right) && char.IsLower(left) && char.IsUpper(right))
+                return true;
+
+            if (char.IsLetter(left) && char.IsDigit(right))
+                return true;
+            if (char.IsDigit(left) && char.IsLetter(right))
+                return true;
+
+            return false;
         }
 
 
@@ -164,9 +290,23 @@ namespace BOforUnity.Scripts
         /// <param name="smallerIsBetter"></param>
         public void AddObjective(string name, float lowerBound, float upperBound, int numberOfSubMeasures, bool smallerIsBetter = false)
         {
+            if (_bomanager == null || _bomanager.objectives == null)
+            {
+                return;
+            }
+
+            string targetName = (name ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(targetName))
+            {
+                return;
+            }
+
             foreach (var ob in _bomanager.objectives)
             {
-                if (ob.key == name)
+                if (ob == null || ob.value == null)
+                    continue;
+
+                if (string.Equals((ob.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
                 {
                     // if found in the list ... update the values
                     ob.value.lowerBound = lowerBound;
@@ -177,7 +317,7 @@ namespace BOforUnity.Scripts
                 }
             }
             // if not found in the list ... add as new entry
-            _bomanager.objectives.Add(new ObjectiveEntry(name, new ObjectiveArgs(lowerBound, upperBound, smallerIsBetter,numberOfSubMeasures)));
+            _bomanager.objectives.Add(new ObjectiveEntry(targetName, new ObjectiveArgs(lowerBound, upperBound, smallerIsBetter,numberOfSubMeasures)));
         }
 
 
@@ -191,9 +331,17 @@ namespace BOforUnity.Scripts
         public ObjectiveArgs GetObjective(string name)
         {
             ObjectiveArgs value = new ObjectiveArgs();
+            if (_bomanager == null || _bomanager.objectives == null)
+                return value;
+
+            string targetName = (name ?? string.Empty).Trim();
+
             foreach (var ob in _bomanager.objectives)
             {
-                if (ob.key == name)
+                if (ob == null || ob.value == null)
+                    continue;
+
+                if (string.Equals((ob.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
                 {
                     value = ob.value;
                 }

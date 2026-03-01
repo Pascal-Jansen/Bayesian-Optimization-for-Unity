@@ -47,6 +47,7 @@ WARM_START_OBJECTIVE_FORMAT = "auto"  # auto|raw|normalized_max|normalized_nativ
 USER_ID = ""
 CONDITION_ID = ""
 GROUP_ID = ""
+USER_LOG_ID = ""
 
 # names and meta parsed from init
 parameter_names = []
@@ -65,6 +66,26 @@ SOCKET_RECV_BUF = ""
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
+
+
+def normalize_user_token(value, default="-1"):
+    token = str(value).strip() if value is not None else ""
+    return token if token else default
+
+
+def normalize_log_folder_token(value, default="-1"):
+    token = normalize_user_token(value, default=default)
+    invalid_chars = set('/\\:*?"<>|')
+    cleaned_chars = []
+    for ch in token:
+        if ch in invalid_chars or ord(ch) < 32:
+            cleaned_chars.append("_")
+        else:
+            cleaned_chars.append(ch)
+    cleaned = "".join(cleaned_chars).strip().strip(".")
+    if cleaned in ("", ".", ".."):
+        return default
+    return cleaned
 
 def send_json_line(conn, obj):
     line = json.dumps(obj, ensure_ascii=False) + "\n"
@@ -94,8 +115,10 @@ def recv_json_message(conn):
             try:
                 return json.loads(line)
             except json.JSONDecodeError as e:
-                print("JSON decode error:", e, "line:", line, flush=True)
-                continue
+                preview = line[:200]
+                raise RuntimeError(
+                    f"Received malformed JSON line from Unity: {e}. Payload preview: {preview!r}"
+                ) from e
 
         try:
             chunk = conn.recv(4096)
@@ -281,15 +304,17 @@ def recv_objectives_blocking(conn):
         if msg is None:
             return None
         if not isinstance(msg, dict):
-            continue
+            raise RuntimeError(
+                f"Received non-object message while waiting for objectives: {msg!r}"
+            )
         t = msg.get("type")
         if t == "objectives":
-            return msg.get("values") or {}
-        elif t in ("coverage", "tempCoverage", "optimization_finished"):
-            continue
-        elif t == "log":
-            print("LOG:", msg.get("message", ""), flush=True)
-            continue
+            values = msg.get("values")
+            if not isinstance(values, dict):
+                raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
+            return values
+        else:
+            raise RuntimeError(f"Received unexpected message type while waiting for objectives: {t!r}")
 
 def objective_function(conn, x_tensor):
     x = x_tensor.cpu().numpy()
@@ -313,6 +338,9 @@ def objective_function(conn, x_tensor):
     missing = [name for name in objective_names if name not in resp]
     if missing:
         raise KeyError(f"Unity objectives missing required key(s): {missing}")
+    unexpected = sorted([k for k in resp.keys() if k not in set(objective_names)])
+    if unexpected:
+        raise KeyError(f"Unity objectives payload contains unexpected key(s): {unexpected}")
 
     for i, name in enumerate(objective_names):
         try:
@@ -370,6 +398,14 @@ def generate_initial_data(conn, n_samples):
         send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
 
     Y = torch.stack(train_obj, dim=0).to(dtype=torch.double)
+    # Ensure sampling-only runs (N_ITERATIONS=0) have globally-correct IsPareto flags.
+    pareto_flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(Y).tolist()]
+    if pareto_flags:
+        df = pd.read_csv(obs_csv, delimiter=';')
+        if len(df) >= len(pareto_flags):
+            df.loc[df.index[:len(pareto_flags)], 'IsPareto'] = pareto_flags
+            df.to_csv(obs_csv, sep=';', index=False)
+
     return train_x, Y
 
 def load_data():
@@ -454,9 +490,9 @@ def optimize_qnehvi(model, sampler):
 # -------------------- logging --------------------
 def save_xy(x_sample, y_sample, iteration):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
-    pareto_mask = is_non_dominated(y_sample).tolist()
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
+    iteration_index = int(iteration) + (0 if WARM_START else int(N_INITIAL))
 
     for j in range(PROBLEM_DIM):
         x_np[-1][j] = denormalize_to_original_param(x_np[-1][j], parameters_info[j][0], parameters_info[j][1])
@@ -477,22 +513,21 @@ def save_xy(x_sample, y_sample, iteration):
 
     new_row = pd.DataFrame([[USER_ID, CONDITION_ID, GROUP_ID,
                              time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                             int(x_sample.shape[0]), 'optimization', 'FALSE',
+                             iteration_index, 'optimization', 'FALSE',
                              *y_np[-1], *x_np[-1]]], columns=df.columns)
 
     if df.empty:
         df = new_row.copy()
     else:
         df = pd.concat([df, new_row], ignore_index=True)
-    flags = ['TRUE' if b else 'FALSE' for b in pareto_mask]
+
+    logged_count = len(df)
+    logged_y = y_sample[-logged_count:] if logged_count > 0 and y_sample.shape[0] >= logged_count else y_sample
+    flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(logged_y).tolist()]
     if len(flags) == len(df):
         df['IsPareto'] = flags
-    elif len(flags) > 0 and len(df) >= len(flags):
-        start = len(df) - len(flags)
-        df.loc[df.index[start:], 'IsPareto'] = flags
-        print("Warning: CSV row count mismatch; updated IsPareto only for current run rows.", flush=True)
     elif len(df) > 0:
-        df.loc[df.index[-1], 'IsPareto'] = 'TRUE' if bool(pareto_mask[-1]) else 'FALSE'
+        df.loc[df.index[-1], 'IsPareto'] = 'TRUE' if bool(flags[-1]) else 'FALSE'
     df.to_csv(obs_csv, sep=';', index=False)
 
 def save_hypervolume_to_file(hvs, iteration):
@@ -510,7 +545,7 @@ def mobo_execute(conn, seed, iterations, initial_samples):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH
     base = os.path.join(os.getcwd(), "LogData")
     os.makedirs(base, exist_ok=True)
-    PROJECT_PATH = get_unique_folder(base, USER_ID)
+    PROJECT_PATH = get_unique_folder(base, USER_LOG_ID)
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
 
     exec_csv = os.path.join(PROJECT_PATH, 'ExecutionTimes.csv')
@@ -569,7 +604,7 @@ def main():
     global N_INITIAL, N_ITERATIONS, BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, MC_SAMPLES, SEED
     global PROBLEM_DIM, NUM_OBJS, ref_point, problem_bounds
     global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, WARM_START_OBJECTIVE_FORMAT
-    global USER_ID, CONDITION_ID, GROUP_ID
+    global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID
     global parameter_names, objective_names, parameters_info, objectives_info
     global SOCKET_RECV_BUF
     global SOCKET_ACCEPT_TIMEOUT_SEC
@@ -600,10 +635,13 @@ def main():
             if msg is None:
                 break
             if not isinstance(msg, dict):
-                continue
+                raise RuntimeError(f"Received non-object message while waiting for init: {msg!r}")
             if msg.get("type") == "init":
                 init_msg = msg
                 break
+            raise RuntimeError(
+                f"Received unexpected message type while waiting for init: {msg.get('type')!r}"
+            )
         if init_msg is None:
             raise RuntimeError("Did not receive init message.")
 
@@ -635,6 +673,11 @@ def main():
             raise ValueError(f"mobo.py expects at least 2 objectives, got {NUM_OBJS}")
         if N_INITIAL < 0 or N_ITERATIONS < 0:
             raise ValueError(f"Iteration counts must be non-negative, got sampling={N_INITIAL}, optimization={N_ITERATIONS}")
+        if (not WARM_START) and N_INITIAL < 1:
+            raise ValueError(
+                "numSamplingIterations must be >= 1 when warmStart is disabled. "
+                f"Got sampling={N_INITIAL}, warmStart={WARM_START}."
+            )
         if NUM_RESTARTS < 1 or RAW_SAMPLES < 1 or MC_SAMPLES < 1:
             raise ValueError(
                 f"numRestarts/rawSamples/mcSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}/{MC_SAMPLES}"
@@ -644,9 +687,15 @@ def main():
             BATCH_SIZE = 1
 
         user = init_msg.get("user", {}) or {}
-        USER_ID      = str(user.get("userId", "user"))
-        CONDITION_ID = str(user.get("conditionId", "cond"))
-        GROUP_ID     = str(user.get("groupId", "grp"))
+        USER_ID      = normalize_user_token(user.get("userId"), default="-1")
+        CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
+        GROUP_ID     = normalize_user_token(user.get("groupId"), default="-1")
+        USER_LOG_ID  = normalize_log_folder_token(USER_ID, default="-1")
+        if USER_LOG_ID != USER_ID:
+            print(
+                f"Warning: userId '{USER_ID}' was normalized to safe log-folder token '{USER_LOG_ID}'.",
+                flush=True,
+            )
 
         parameters = init_msg.get("parameters", []) or []
         objectives = init_msg.get("objectives", []) or []
@@ -658,6 +707,9 @@ def main():
             raise ValueError("Duplicate parameter keys detected in init message.")
         if len(set(objective_names)) != len(objective_names):
             raise ValueError("Duplicate objective keys detected in init message.")
+        overlap = sorted(set(parameter_names).intersection(set(objective_names)))
+        if overlap:
+            raise ValueError(f"Parameter and objective keys must be distinct. Overlap: {overlap}")
 
         if len(parameter_names) != PROBLEM_DIM:
             raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")

@@ -50,6 +50,7 @@ WARM_START_OBJECTIVE_FORMAT = "auto"  # auto|raw|normalized_max|normalized_nativ
 USER_ID = ""
 CONDITION_ID = ""
 GROUP_ID = ""
+USER_LOG_ID = ""
 
 # names and meta parsed from init
 parameter_names = []
@@ -68,6 +69,26 @@ SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
 SOCKET_RECV_BUF = ""
+
+
+def normalize_user_token(value, default="-1"):
+    token = str(value).strip() if value is not None else ""
+    return token if token else default
+
+
+def normalize_log_folder_token(value, default="-1"):
+    token = normalize_user_token(value, default=default)
+    invalid_chars = set('/\\:*?"<>|')
+    cleaned_chars = []
+    for ch in token:
+        if ch in invalid_chars or ord(ch) < 32:
+            cleaned_chars.append("_")
+        else:
+            cleaned_chars.append(ch)
+    cleaned = "".join(cleaned_chars).strip().strip(".")
+    if cleaned in ("", ".", ".."):
+        return default
+    return cleaned
 
 def send_json_line(conn, obj):
     line = json.dumps(obj, ensure_ascii=False) + "\n"
@@ -90,8 +111,10 @@ def recv_json_message(conn):
             try:
                 return json.loads(line)
             except json.JSONDecodeError as e:
-                print("JSON decode error:", e, "line:", line, flush=True)
-                continue
+                preview = line[:200]
+                raise RuntimeError(
+                    f"Received malformed JSON line from Unity: {e}. Payload preview: {preview!r}"
+                ) from e
         try:
             chunk = conn.recv(4096)
         except socket.timeout as e:
@@ -159,15 +182,28 @@ def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
 
 def normalize_param_column(col, lo, hi):
     col = np.asarray(col, dtype=np.float64)
+    eps = 1e-8
+    in_raw_range = np.all((lo - eps <= col) & (col <= hi + eps))
+    in_norm_range = np.all((-eps <= col) & (col <= 1.0 + eps))
+
     if hi == lo:
-        if not np.allclose(col, lo, rtol=0.0, atol=1e-12):
-            raise ValueError(f"Parameter values out of bounds for degenerate interval [{lo}, {hi}]")
-        return np.zeros_like(col, dtype=np.float64)
-    eps = 1e-9
-    if np.any(col < (lo - eps)) or np.any(col > (hi + eps)):
-        raise ValueError(f"Parameter values out of bounds [{lo}, {hi}]")
-    x01 = (col - lo) / (hi - lo)
-    return np.clip(x01, 0.0, 1.0)
+        if np.allclose(col, lo, rtol=0.0, atol=1e-8):
+            return np.zeros_like(col)
+        if in_norm_range and np.allclose(col, 0.0, rtol=0.0, atol=1e-8):
+            return np.zeros_like(col)
+        raise ValueError(
+            f"Warm-start parameter values out of bounds for degenerate interval [{lo}, {hi}]"
+        )
+
+    if in_raw_range:
+        return np.clip((col - lo) / (hi - lo), 0.0, 1.0)
+    if in_norm_range:
+        # Fallback for previously normalized warm-start files.
+        return np.clip(col, 0.0, 1.0)
+    raise ValueError(
+        f"Warm-start parameter values must be within raw bounds [{lo}, {hi}] or normalized [0,1], "
+        f"got range [{np.min(col)}, {np.max(col)}]"
+    )
 
 
 def normalize_obj_column(col, lo, hi, minflag):
@@ -270,15 +306,17 @@ def recv_objectives_blocking(conn):
         if msg is None:
             return None
         if not isinstance(msg, dict):
-            continue
+            raise RuntimeError(
+                f"Received non-object message while waiting for objectives: {msg!r}"
+            )
         t = msg.get("type")
         if t == "objectives":
-            return msg.get("values") or {}
-        elif t in ("coverage", "tempCoverage", "optimization_finished"):
-            continue
-        elif t == "log":
-            print("LOG:", msg.get("message", ""), flush=True)
-            continue
+            values = msg.get("values")
+            if not isinstance(values, dict):
+                raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
+            return values
+        else:
+            raise RuntimeError(f"Received unexpected message type while waiting for objectives: {t!r}")
 
 def objective_function(conn, x_tensor):
     x = x_tensor.cpu().numpy()
@@ -298,8 +336,12 @@ def objective_function(conn, x_tensor):
 
     # normalize to [-1,1] and maximize
     name = objective_names[0]
-    if name not in resp:
-        raise KeyError(f"Unity objectives missing required key(s): {[name]}")
+    missing = [k for k in objective_names if k not in resp]
+    if missing:
+        raise KeyError(f"Unity objectives missing required key(s): {missing}")
+    unexpected = sorted([k for k in resp.keys() if k not in set(objective_names)])
+    if unexpected:
+        raise KeyError(f"Unity objectives payload contains unexpected key(s): {unexpected}")
     try:
         val = float(resp[name])
     except (TypeError, ValueError) as e:
@@ -350,7 +392,7 @@ def generate_initial_data(conn, n_samples):
         y_den = denormalize_to_original_obj(y_np[0], objectives_info[0][0], objectives_info[0][1], objectives_info[0][2])
         x_den = [denormalize_to_original_param(x_np[j], parameters_info[j][0], parameters_info[j][1]) for j in range(PROBLEM_DIM)]
 
-        # IsBest for this row compared to best_so_far
+        # Provisional IsBest flag (best-so-far); recomputed globally after sampling finishes.
         is_best = float(y_np[0]) > best_so_far + 1e-12
         if is_best:
             best_so_far = float(y_np[0])
@@ -362,6 +404,16 @@ def generate_initial_data(conn, n_samples):
             csv.writer(f, delimiter=';').writerow(row)
 
         send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
+
+    # Ensure sampling-only runs (N_ITERATIONS=0) have globally-correct IsBest flags.
+    if train_obj:
+        vals_norm = [float(t.item()) for t in train_obj]
+        best_norm = max(vals_norm)
+        flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in vals_norm]
+        df = pd.read_csv(obs_csv, delimiter=';')
+        if len(df) >= len(flags):
+            df.loc[df.index[:len(flags)], 'IsBest'] = flags
+            df.to_csv(obs_csv, sep=';', index=False)
 
     Y = torch.tensor(np.stack([t.numpy() for t in train_obj], axis=0), dtype=torch.double)  # shape [n,1]
     return train_x, Y
@@ -450,6 +502,7 @@ def save_xy(x_sample, y_sample, iteration):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
+    iteration_index = int(iteration) + (0 if WARM_START else int(N_INITIAL))
 
     # denormalize last row
     for j in range(PROBLEM_DIM):
@@ -470,26 +523,21 @@ def save_xy(x_sample, y_sample, iteration):
 
     new_row = pd.DataFrame([[USER_ID, CONDITION_ID, GROUP_ID,
                              time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                             int(x_sample.shape[0]), 'optimization', 'FALSE',
+                             iteration_index, 'optimization', 'FALSE',
                              y_np[-1][0], *x_np[-1]]], columns=df.columns)
     if df.empty:
         df = new_row.copy()
     else:
         df = pd.concat([df, new_row], ignore_index=True)
 
-    # Recompute IsBest across all rows: mark rows whose normalized objective equals current best
-    vals_norm = y_sample.squeeze(-1).detach().cpu().tolist()  # length == number of rows in y_sample
-    best_norm = max(vals_norm) if len(vals_norm) > 0 else float(y_sample[-1].item())
-
-    # df rows correspond to all past + current rows. The number of objective entries equals df length.
-    # Build flags from vals_norm.
-    flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in vals_norm]
+    # Recompute IsBest across the rows actually logged in this CSV.
+    vals_norm = y_sample.squeeze(-1).detach().cpu().tolist()
+    logged_count = len(df)
+    relevant_vals = vals_norm[-logged_count:] if logged_count > 0 and len(vals_norm) >= logged_count else vals_norm
+    best_norm = max(relevant_vals) if len(relevant_vals) > 0 else float(y_sample[-1].item())
+    flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in relevant_vals]
     if len(flags) == len(df):
         df['IsBest'] = flags
-    elif len(flags) > 0 and len(df) >= len(flags):
-        start = len(df) - len(flags)
-        df.loc[df.index[start:], 'IsBest'] = flags
-        print("Warning: CSV row count mismatch; updated IsBest only for current run rows.", flush=True)
     elif len(df) > 0:
         df.loc[df.index[-1], 'IsBest'] = 'TRUE' if abs(float(y_sample[-1][0]) - best_norm) < 1e-12 else 'FALSE'
 
@@ -520,7 +568,7 @@ def bo_execute(conn, seed, iterations, initial_samples):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH
     base = os.path.join(os.getcwd(), "LogData")
     os.makedirs(base, exist_ok=True)
-    PROJECT_PATH = get_unique_folder(base, USER_ID)
+    PROJECT_PATH = get_unique_folder(base, USER_LOG_ID)
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
 
     exec_csv = os.path.join(PROJECT_PATH, 'ExecutionTimes.csv')
@@ -571,7 +619,7 @@ def main():
     global N_INITIAL, N_ITERATIONS, BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, MC_SAMPLES, SEED
     global PROBLEM_DIM, NUM_OBJS, problem_bounds
     global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, WARM_START_OBJECTIVE_FORMAT
-    global USER_ID, CONDITION_ID, GROUP_ID
+    global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID
     global parameter_names, objective_names, parameters_info, objectives_info
     global SOCKET_ACCEPT_TIMEOUT_SEC
     global SOCKET_RECV_BUF
@@ -603,10 +651,13 @@ def main():
             if msg is None:
                 break
             if not isinstance(msg, dict):
-                continue
+                raise RuntimeError(f"Received non-object message while waiting for init: {msg!r}")
             if msg.get("type") == "init":
                 init_msg = msg
                 break
+            raise RuntimeError(
+                f"Received unexpected message type while waiting for init: {msg.get('type')!r}"
+            )
         if init_msg is None:
             raise RuntimeError("Did not receive init message.")
 
@@ -633,6 +684,11 @@ def main():
             raise ValueError(f"bo.py expects exactly 1 objective, got {NUM_OBJS}")
         if N_INITIAL < 0 or N_ITERATIONS < 0:
             raise ValueError(f"Iteration counts must be non-negative, got sampling={N_INITIAL}, optimization={N_ITERATIONS}")
+        if (not WARM_START) and N_INITIAL < 1:
+            raise ValueError(
+                "numSamplingIterations must be >= 1 when warmStart is disabled. "
+                f"Got sampling={N_INITIAL}, warmStart={WARM_START}."
+            )
         if NUM_RESTARTS < 1 or RAW_SAMPLES < 1 or MC_SAMPLES < 1:
             raise ValueError(
                 f"numRestarts/rawSamples/mcSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}/{MC_SAMPLES}"
@@ -647,9 +703,15 @@ def main():
             BATCH_SIZE = 1
 
         user = init_msg.get("user", {}) or {}
-        USER_ID      = str(user.get("userId", "user"))
-        CONDITION_ID = str(user.get("conditionId", "cond"))
-        GROUP_ID     = str(user.get("groupId", "grp"))
+        USER_ID      = normalize_user_token(user.get("userId"), default="-1")
+        CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
+        GROUP_ID     = normalize_user_token(user.get("groupId"), default="-1")
+        USER_LOG_ID  = normalize_log_folder_token(USER_ID, default="-1")
+        if USER_LOG_ID != USER_ID:
+            print(
+                f"Warning: userId '{USER_ID}' was normalized to safe log-folder token '{USER_LOG_ID}'.",
+                flush=True,
+            )
 
         parameters = init_msg.get("parameters", []) or []
         objectives = init_msg.get("objectives", []) or []
@@ -660,6 +722,9 @@ def main():
             raise ValueError("Duplicate parameter keys in init message.")
         if len(set(objective_names)) != len(objective_names):
             raise ValueError("Duplicate objective keys in init message.")
+        overlap = sorted(set(parameter_names).intersection(set(objective_names)))
+        if overlap:
+            raise ValueError(f"Parameter and objective keys must be distinct. Overlap: {overlap}")
 
         if len(parameter_names) != PROBLEM_DIM:
             raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")

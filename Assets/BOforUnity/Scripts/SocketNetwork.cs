@@ -110,6 +110,8 @@ namespace BOforUnity.Scripts
             _stopRequested = false;
             _connectionClosedByPeer = false;
             _optimizationFinished = false;
+            _shutdownHandled = false;
+            _lineBuf.Length = 0;
             _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
         }
@@ -134,7 +136,11 @@ namespace BOforUnity.Scripts
                     {
                         _connectionClosedByPeer = true;
 
-                        if (_optimizationFinished)
+                        if (_stopRequested)
+                        {
+                            Debug.Log("Socket connection closed.");
+                        }
+                        else if (_optimizationFinished)
                         {
                             Debug.Log("Python optimization process closed the connection. Optimization iterations have finished successfully.");
                         }
@@ -154,6 +160,7 @@ namespace BOforUnity.Scripts
                     _lineBuf.Append(chunk);
 
                     int newlineIndex;
+                    bool protocolError = false;
                     while ((newlineIndex = _lineBuf.ToString().IndexOf('\n')) >= 0)
                     {
                         string line = _lineBuf.ToString(0, newlineIndex).TrimEnd('\r');
@@ -167,13 +174,24 @@ namespace BOforUnity.Scripts
                         catch (Exception ex)
                         {
                             Debug.LogError($"Error in ParseJsonMessage: {ex.Message}\n{ex.StackTrace}\nPayload: {line}");
+                            protocolError = true;
+                            _stopRequested = true;
+                            MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                            try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
+                            try { _serverSocket?.Close(); } catch { }
+                            break;
                         }
+                    }
+
+                    if (protocolError)
+                    {
+                        break;
                     }
                 }
             }
             catch (SocketException ex)
             {
-                if (_stopRequested || _connectionClosedByPeer)
+                if (_stopRequested || _connectionClosedByPeer || _optimizationFinished)
                 {
                     Debug.Log("Socket connection closed.");
                 }
@@ -182,13 +200,30 @@ namespace BOforUnity.Scripts
                     Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
                     MainThreadDispatcher.Execute(OnSocketConnectionFailed);
                 }
+
+                _stopRequested = true;
+                try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
+                try { _serverSocket?.Close(); } catch { }
             }
             catch (Exception ex)
             {
-                if (ex.Message != "Thread was being aborted.")
+                if (_stopRequested || _connectionClosedByPeer)
+                {
+                    Debug.Log("Socket connection closed.");
+                }
+                else if (ex is ThreadAbortException)
+                {
+                    Debug.Log("Socket receive thread was aborted.");
+                }
+                else
                 {
                     Debug.LogError($"Error in SocketReceive: {ex.Message}\n{ex.StackTrace}");
+                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
                 }
+
+                _stopRequested = true;
+                try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
+                try { _serverSocket?.Close(); } catch { }
             }
         }
 
@@ -202,8 +237,32 @@ namespace BOforUnity.Scripts
 
         private void OnSocketConnectionFailed()
         {
-            // Optionally reload scene or surface UI feedback
-            // UnityEngine.SceneManagement.SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            _bomanager = _bomanager ?? gameObject.GetComponent<BoForUnityManager>();
+            if (_bomanager == null)
+                return;
+
+            _bomanager.optimizationRunning = false;
+            _bomanager.simulationRunning = false;
+            _bomanager.hasNewDesignParameterValues = false;
+
+            if (_bomanager.loadingObj != null)
+                _bomanager.loadingObj.SetActive(false);
+            if (_bomanager.nextButton != null)
+                _bomanager.nextButton.SetActive(false);
+            if (_bomanager.outputText != null)
+            {
+                _bomanager.outputText.text =
+                    "Optimizer connection failed.\nCheck parameter/objective configuration and Python logs, then restart.";
+            }
+
+            try
+            {
+                _bomanager.pythonStarter?.StopPythonProcess();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to stop Python process after socket connection failure: {ex.Message}");
+            }
         }
 
         // -------------------- Protocol: incoming --------------------
@@ -212,8 +271,7 @@ namespace BOforUnity.Scripts
             var peek = JsonConvert.DeserializeObject<MsgBase>(json);
             if (peek == null || string.IsNullOrEmpty(peek.type))
             {
-                Debug.LogWarning("Unknown or empty message.");
-                return;
+                throw new InvalidOperationException("Received protocol message without a valid 'type' field.");
             }
 
             switch (peek.type)
@@ -223,19 +281,109 @@ namespace BOforUnity.Scripts
                     var msg = JsonConvert.DeserializeObject<ParametersMsg>(json);
                     if (msg?.values == null)
                     {
-                        Debug.LogWarning("parameters.values missing");
-                        return;
+                        throw new InvalidOperationException("Received 'parameters' message without a valid 'values' payload.");
                     }
 
                     MainThreadDispatcher.Execute(() =>
                     {
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
+                        if (_bomanager == null || _bomanager.parameters == null)
+                        {
+                            Debug.LogError(
+                                "Cannot apply parameters because BoForUnityManager parameters are not configured. " +
+                                "Terminating optimizer session to avoid backend deadlock."
+                            );
+                            OnSocketConnectionFailed();
+                            SocketQuit();
+                            return;
+                        }
 
-                        // Apply values by key
+                        var incomingValues = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+                        var nonFiniteKeys = new List<string>();
+                        foreach (var kv in msg.values)
+                        {
+                            if (string.IsNullOrWhiteSpace(kv.Key))
+                                continue;
+
+                            string key = kv.Key.Trim();
+                            float value = kv.Value;
+                            if (float.IsNaN(value) || float.IsInfinity(value))
+                            {
+                                nonFiniteKeys.Add(key);
+                                continue;
+                            }
+
+                            incomingValues[key] = value;
+                        }
+
+                        if (nonFiniteKeys.Count > 0)
+                        {
+                            Debug.LogError(
+                                "Received non-finite parameter values from Python for key(s): " +
+                                string.Join(", ", nonFiniteKeys)
+                            );
+                            OnSocketConnectionFailed();
+                            SocketQuit();
+                            return;
+                        }
+
+                        var expectedParameters = new List<BOforUnity.ParameterEntry>();
+                        var seenParameterKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         foreach (var pa in _bomanager.parameters)
                         {
-                            if (msg.values.TryGetValue(pa.key, out var v))
-                                pa.value.Value = v;
+                            if (pa == null || pa.value == null || string.IsNullOrWhiteSpace(pa.key))
+                                continue;
+
+                            string expectedKey = pa.key.Trim();
+                            if (!seenParameterKeys.Add(expectedKey))
+                                continue;
+
+                            expectedParameters.Add(pa);
+                        }
+
+                        var missingKeys = new List<string>();
+                        var expectedKeySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var pa in expectedParameters)
+                        {
+                            string expectedKey = pa.key.Trim();
+                            expectedKeySet.Add(expectedKey);
+                            if (!incomingValues.ContainsKey(expectedKey))
+                            {
+                                missingKeys.Add(expectedKey);
+                            }
+                        }
+
+                        if (missingKeys.Count > 0)
+                        {
+                            Debug.LogError(
+                                "Received incomplete parameter payload from Python. Missing key(s): " +
+                                string.Join(", ", missingKeys)
+                            );
+                            OnSocketConnectionFailed();
+                            SocketQuit();
+                            return;
+                        }
+
+                        var unexpectedKeys = incomingValues.Keys
+                            .Where(k => !expectedKeySet.Contains(k))
+                            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        if (unexpectedKeys.Count > 0)
+                        {
+                            Debug.LogError(
+                                "Received parameter payload with unexpected key(s): " +
+                                string.Join(", ", unexpectedKeys)
+                            );
+                            OnSocketConnectionFailed();
+                            SocketQuit();
+                            return;
+                        }
+
+                        // Apply values only after payload completeness has been validated.
+                        foreach (var pa in expectedParameters)
+                        {
+                            string expectedKey = pa.key.Trim();
+                            pa.value.Value = incomingValues[expectedKey];
                         }
 
                         // Notify lifecycle: triggers measurement and later SendObjectives()
@@ -252,6 +400,11 @@ namespace BOforUnity.Scripts
                     MainThreadDispatcher.Execute(() =>
                     {
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
+                        if (_bomanager == null)
+                        {
+                            Debug.LogWarning("Received optimization_finished, but BoForUnityManager is missing.");
+                            return;
+                        }
                         _bomanager.OnOptimizationFinishedFromBackend();
                     });
                     _optimizationFinished = true;
@@ -266,6 +419,10 @@ namespace BOforUnity.Scripts
                         coverage = msg.value;
                         Debug.Log($"coverage {coverage}");
                     }
+                    else
+                    {
+                        throw new InvalidOperationException("Received malformed 'coverage' message.");
+                    }
                     break;
                 }
 
@@ -277,28 +434,150 @@ namespace BOforUnity.Scripts
                         tempCoverage = msg.value;
                         Debug.Log($"tempCoverage {tempCoverage}");
                     }
+                    else
+                    {
+                        throw new InvalidOperationException("Received malformed 'tempCoverage' message.");
+                    }
                     break;
                 }
 
                 case "objectives":
                 {
-                    // Python never sends this unsolicited; Unity sends objectives to Python.
-                    break;
+                    throw new InvalidOperationException(
+                        "Received unexpected 'objectives' message from backend. " +
+                        "This message type is Unity->Python only."
+                    );
                 }
 
                 default:
-                    Debug.LogWarning($"Unknown message type: {peek.type}");
-                    break;
+                    throw new InvalidOperationException($"Received unknown protocol message type '{peek.type}'.");
             }
         }
 
         // -------------------- Protocol: outgoing --------------------
         private void SendInitInfo()
         {
-            int i = 0;
-            foreach (var pa in _bomanager.parameters) pa.value.optSeqOrder = i++;
-            i = 0;
-            foreach (var ob in _bomanager.objectives) ob.value.optSeqOrder = i++;
+            _bomanager = _bomanager ?? gameObject.GetComponent<BoForUnityManager>();
+            if (_bomanager == null)
+            {
+                throw new InvalidOperationException("Cannot send init message because BoForUnityManager is missing.");
+            }
+
+            var parameterPayload = new List<ParamInfo>();
+            var objectivePayload = new List<ObjInfo>();
+            var seenParameterKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenObjectiveKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var invalidParameterEntries = new List<string>();
+            var duplicateParameterKeys = new List<string>();
+            var invalidObjectiveEntries = new List<string>();
+            var duplicateObjectiveKeys = new List<string>();
+
+            if (_bomanager.parameters != null)
+            {
+                for (int i = 0; i < _bomanager.parameters.Count; i++)
+                {
+                    var parameter = _bomanager.parameters[i];
+                    if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
+                    {
+                        invalidParameterEntries.Add($"index {i}");
+                        continue;
+                    }
+
+                    string key = parameter.key.Trim();
+                    if (!seenParameterKeys.Add(key))
+                    {
+                        if (!duplicateParameterKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                            duplicateParameterKeys.Add(key);
+                        continue;
+                    }
+
+                    parameter.value.optSeqOrder = parameterPayload.Count;
+                    parameterPayload.Add(new ParamInfo
+                    {
+                        key = key,
+                        init = new ParamInit
+                        {
+                            low = parameter.value.lowerBound,
+                            high = parameter.value.upperBound
+                        },
+                        optSeqOrder = parameter.value.optSeqOrder
+                    });
+                }
+            }
+
+            if (_bomanager.objectives != null)
+            {
+                for (int i = 0; i < _bomanager.objectives.Count; i++)
+                {
+                    var objective = _bomanager.objectives[i];
+                    if (objective == null || objective.value == null || string.IsNullOrWhiteSpace(objective.key))
+                    {
+                        invalidObjectiveEntries.Add($"index {i}");
+                        continue;
+                    }
+
+                    string key = objective.key.Trim();
+                    if (!seenObjectiveKeys.Add(key))
+                    {
+                        if (!duplicateObjectiveKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                            duplicateObjectiveKeys.Add(key);
+                        continue;
+                    }
+
+                    objective.value.optSeqOrder = objectivePayload.Count;
+                    objectivePayload.Add(new ObjInfo
+                    {
+                        key = key,
+                        init = new ObjInit
+                        {
+                            low = objective.value.lowerBound,
+                            high = objective.value.upperBound,
+                            minimize = objective.value.smallerIsBetter ? 1 : 0
+                        },
+                        optSeqOrder = objective.value.optSeqOrder
+                    });
+                }
+            }
+
+            if (invalidParameterEntries.Count > 0 || duplicateParameterKeys.Count > 0 ||
+                invalidObjectiveEntries.Count > 0 || duplicateObjectiveKeys.Count > 0)
+            {
+                var details = new List<string>();
+                if (invalidParameterEntries.Count > 0)
+                    details.Add("invalid parameter entries at " + string.Join(", ", invalidParameterEntries));
+                if (duplicateParameterKeys.Count > 0)
+                    details.Add("duplicate parameter key(s): " + string.Join(", ", duplicateParameterKeys));
+                if (invalidObjectiveEntries.Count > 0)
+                    details.Add("invalid objective entries at " + string.Join(", ", invalidObjectiveEntries));
+                if (duplicateObjectiveKeys.Count > 0)
+                    details.Add("duplicate objective key(s): " + string.Join(", ", duplicateObjectiveKeys));
+
+                throw new InvalidOperationException(
+                    "Cannot start optimization with invalid parameter/objective configuration. " +
+                    string.Join("; ", details)
+                );
+            }
+
+            if (parameterPayload.Count == 0 || objectivePayload.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot send init message with empty effective payload. " +
+                    $"parameters={parameterPayload.Count}, objectives={objectivePayload.Count}."
+                );
+            }
+
+            var overlappingKeys = parameterPayload
+                .Select(p => p.key)
+                .Intersect(objectivePayload.Select(o => o.key), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (overlappingKeys.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Parameter and objective keys must be distinct. Overlapping key(s): " +
+                    string.Join(", ", overlappingKeys)
+                );
+            }
 
             var init = new InitMsg
             {
@@ -312,36 +591,15 @@ namespace BOforUnity.Scripts
                     mcSamples = _bomanager.mcSamples,
                     numSamplingIterations = _bomanager.numSamplingIterations,
                     seed = _bomanager.seed,
-                    nParameters = _bomanager.parameters.Count,
-                    nObjectives = _bomanager.objectives.Count,
+                    nParameters = parameterPayload.Count,
+                    nObjectives = objectivePayload.Count,
                     warmStart = _bomanager.warmStart,
                     initialParametersDataPath = _bomanager.initialParametersDataPath,
                     initialObjectivesDataPath = _bomanager.initialObjectivesDataPath,
                     warmStartObjectiveFormat = NormalizeWarmStartObjectiveFormat(_bomanager.warmStartObjectiveFormat)
                 },
-                parameters = _bomanager.parameters.Select(p => new ParamInfo
-                {
-                    key = p.key,
-                    init = new ParamInit
-                    {
-                        // Adjust field names if your Parameter class differs:
-                        low = p.value.lowerBound,
-                        high = p.value.upperBound
-                    },
-                    optSeqOrder = p.value.optSeqOrder
-                }).ToList(),
-                objectives = _bomanager.objectives.Select(o => new ObjInfo
-                {
-                    key = o.key,
-                    init = new ObjInit
-                    {
-                        // Adjust field names if your Objective class differs:
-                        low = o.value.lowerBound,
-                        high = o.value.upperBound,
-                        minimize = o.value.smallerIsBetter ? 1 : 0
-                    },
-                    optSeqOrder = o.value.optSeqOrder
-                }).ToList(),
+                parameters = parameterPayload,
+                objectives = objectivePayload,
                 user = new UserInfo
                 {
                     userId = _bomanager.userId,
@@ -375,19 +633,73 @@ namespace BOforUnity.Scripts
 
         public void SendObjectives()
         {
-            var finalObjectives = new Dictionary<string, float>(_bomanager.objectives.Count);
-            bool hadClampedObjective = false;
-
-            foreach (var ob in _bomanager.objectives)
+            _bomanager = _bomanager ?? gameObject.GetComponent<BoForUnityManager>();
+            if (_bomanager == null || _bomanager.objectives == null)
             {
+                throw new InvalidOperationException("Cannot send objectives because BoForUnityManager objectives are not configured.");
+            }
+
+            var finalObjectives = new Dictionary<string, float>(_bomanager.objectives.Count);
+            bool hadAdjustedObjective = false;
+            var seenObjectiveKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var invalidObjectiveEntries = new List<string>();
+            var duplicateObjectiveKeys = new List<string>();
+
+            for (int i = 0; i < _bomanager.objectives.Count; i++)
+            {
+                var ob = _bomanager.objectives[i];
+                if (ob == null || ob.value == null || string.IsNullOrWhiteSpace(ob.key))
+                {
+                    invalidObjectiveEntries.Add($"index {i}");
+                    continue;
+                }
+
+                string key = ob.key.Trim();
+                if (!seenObjectiveKeys.Add(key))
+                {
+                    if (!duplicateObjectiveKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                        duplicateObjectiveKeys.Add(key);
+                    continue;
+                }
+
                 var value = ob.value;
-                var tmpList = value.values;
+                var tmpList = value.values ?? (value.values = new List<float>());
+
+                int subMeasureWindow = value.numberOfSubMeasures;
+                if (subMeasureWindow <= 0)
+                {
+                    Debug.LogWarning(
+                        $"Objective '{ob.key}' has invalid numberOfSubMeasures={subMeasureWindow}. " +
+                        "Using 1 as fallback window size."
+                    );
+                    subMeasureWindow = 1;
+                }
+
                 // keep the last N submeasures
-                tmpList.RemoveRange(0, Math.Max(0, value.values.Count - value.numberOfSubMeasures));
-                float val = tmpList.Count > 0 ? (float)tmpList.Average() : 0f;
+                int removeCount = Math.Max(0, tmpList.Count - subMeasureWindow);
+                if (removeCount > 0)
+                {
+                    tmpList.RemoveRange(0, removeCount);
+                }
 
                 float lo = Mathf.Min(value.lowerBound, value.upperBound);
                 float hi = Mathf.Max(value.lowerBound, value.upperBound);
+                float val;
+                if (tmpList.Count == 0)
+                {
+                    float fallback = 0.5f * (lo + hi);
+                    Debug.LogWarning(
+                        $"Objective '{ob.key}' has no values for this iteration. " +
+                        $"Using fallback midpoint {fallback} in [{lo}, {hi}]."
+                    );
+                    val = fallback;
+                    hadAdjustedObjective = true;
+                }
+                else
+                {
+                    val = (float)tmpList.Average();
+                }
+
                 if (float.IsNaN(val) || float.IsInfinity(val))
                 {
                     float fallback = 0.5f * (lo + hi);
@@ -396,7 +708,7 @@ namespace BOforUnity.Scripts
                         $"Using fallback midpoint {fallback} in [{lo}, {hi}]."
                     );
                     val = fallback;
-                    hadClampedObjective = true;
+                    hadAdjustedObjective = true;
                 }
                 else if (val < lo || val > hi)
                 {
@@ -406,17 +718,39 @@ namespace BOforUnity.Scripts
                         $"Objective '{ob.key}' value {rawVal} is outside configured bounds [{lo}, {hi}]. " +
                         $"Clamping to {val} before sending to Python."
                     );
-                    hadClampedObjective = true;
+                    hadAdjustedObjective = true;
                 }
 
-                finalObjectives[ob.key] = val;
+                finalObjectives[key] = val;
             }
 
-            if (hadClampedObjective)
+            if (invalidObjectiveEntries.Count > 0 || duplicateObjectiveKeys.Count > 0)
+            {
+                var details = new List<string>();
+                if (invalidObjectiveEntries.Count > 0)
+                    details.Add("invalid objective entries at " + string.Join(", ", invalidObjectiveEntries));
+                if (duplicateObjectiveKeys.Count > 0)
+                    details.Add("duplicate objective key(s): " + string.Join(", ", duplicateObjectiveKeys));
+
+                throw new InvalidOperationException(
+                    "Cannot send objectives with invalid objective configuration. " +
+                    string.Join("; ", details)
+                );
+            }
+
+            if (finalObjectives.Count == 0)
+            {
+                Debug.LogError(
+                    "No valid objective values are available to send to Python. " +
+                    "Sending an empty objective payload so the backend can fail fast."
+                );
+            }
+
+            if (hadAdjustedObjective)
             {
                 Debug.LogWarning(
-                    "One or more objective values were clamped to configured bounds. " +
-                    "Consider widening the objective ranges in BoForUnityManager."
+                    "One or more objective values were adjusted (fallback/clamped) before sending to Python. " +
+                    "Consider checking objective instrumentation and configured bounds in BoForUnityManager."
                 );
             }
 
@@ -433,6 +767,11 @@ namespace BOforUnity.Scripts
         // -------------------- Low-level send/quit --------------------
         private void SocketSendLine(string json)
         {
+            if (_serverSocket == null || !_serverSocket.Connected)
+            {
+                throw new InvalidOperationException("Socket is not connected.");
+            }
+
             string line = json + "\n"; // NDJSON framing
             byte[] sendData = Encoding.UTF8.GetBytes(line);
             Debug.Log("Unity sending: " + json);
