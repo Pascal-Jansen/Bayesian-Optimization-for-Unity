@@ -3,6 +3,8 @@ using System.Windows.Forms;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using Application = UnityEngine.Application;
 
 namespace QuestionnaireToolkit.Scripts
@@ -46,6 +48,11 @@ namespace QuestionnaireToolkit.Scripts
         private TextMeshProUGUI half;
         private TextMeshProUGUI threeQuarter;
         private TextMeshProUGUI full;
+        private RectTransform priorRatingHintRect;
+        private Image priorRatingHintImage;
+        private const string PriorRatingHintObjectName = "PriorRatingHint";
+        private bool runtimeAnswered;
+        private QTSliderPointerRelay pointerRelay;
 
 //#if UNITY_EDITOR
         private void Start()
@@ -72,6 +79,12 @@ namespace QuestionnaireToolkit.Scripts
             }
 
             GetReferences();
+            HidePriorRatingHint();
+            if (Application.isPlaying)
+            {
+                RegisterRuntimeTracking();
+                ResetRuntimeAnswerState();
+            }
         }
 
         private void GetReferences()
@@ -169,7 +182,156 @@ namespace QuestionnaireToolkit.Scripts
             
             UpdateSlider();
         }
+
+        public void ApplyPriorRatingHint(bool enabled, float priorValue, float alpha = 0.16f)
+        {
+            if (!enabled || sliderScript == null || maxValue <= minValue)
+            {
+                HidePriorRatingHint();
+                return;
+            }
+
+            if (!EnsurePriorRatingHint())
+                return;
+
+            float clampedValue = Mathf.Clamp(priorValue, minValue, maxValue);
+            float normalized = Mathf.InverseLerp(minValue, maxValue, clampedValue);
+            bool horizontal =
+                sliderScript.direction == UnityEngine.UI.Slider.Direction.LeftToRight ||
+                sliderScript.direction == UnityEngine.UI.Slider.Direction.RightToLeft;
+
+            if (sliderScript.direction == UnityEngine.UI.Slider.Direction.RightToLeft ||
+                sliderScript.direction == UnityEngine.UI.Slider.Direction.TopToBottom)
+            {
+                normalized = 1f - normalized;
+            }
+
+            if (horizontal)
+            {
+                priorRatingHintRect.anchorMin = new Vector2(normalized, 0f);
+                priorRatingHintRect.anchorMax = new Vector2(normalized, 1f);
+                priorRatingHintRect.sizeDelta = new Vector2(2f, 0f);
+            }
+            else
+            {
+                priorRatingHintRect.anchorMin = new Vector2(0f, normalized);
+                priorRatingHintRect.anchorMax = new Vector2(1f, normalized);
+                priorRatingHintRect.sizeDelta = new Vector2(0f, 2f);
+            }
+
+            priorRatingHintRect.anchoredPosition = Vector2.zero;
+            priorRatingHintRect.gameObject.SetActive(true);
+
+            float subtleAlpha = Mathf.Clamp(alpha, 0.05f, 0.45f);
+            Color markerColor = new Color(0f, 0f, 0f, subtleAlpha);
+            if (sliderScript.targetGraphic is Graphic targetGraphic)
+            {
+                Color baseColor = targetGraphic.color;
+                float luminance = (0.2126f * baseColor.r) + (0.7152f * baseColor.g) + (0.0722f * baseColor.b);
+                markerColor = luminance < 0.5f
+                    ? new Color(1f, 1f, 1f, subtleAlpha)
+                    : new Color(0f, 0f, 0f, subtleAlpha);
+            }
+            priorRatingHintImage.color = markerColor;
+        }
+
+        public bool HasRuntimeAnswer()
+        {
+            return runtimeAnswered;
+        }
+
+        public void ResetRuntimeAnswerState()
+        {
+            runtimeAnswered = false;
+        }
+
+        public void HidePriorRatingHint()
+        {
+            if (priorRatingHintRect != null)
+                priorRatingHintRect.gameObject.SetActive(false);
+        }
+
+        private void RegisterRuntimeTracking()
+        {
+            if (sliderScript == null)
+                return;
+
+            sliderScript.onValueChanged.RemoveListener(HandleSliderValueChanged);
+            sliderScript.onValueChanged.AddListener(HandleSliderValueChanged);
+
+            pointerRelay = sliderScript.GetComponent<QTSliderPointerRelay>();
+            if (pointerRelay == null)
+            {
+                pointerRelay = sliderScript.gameObject.AddComponent<QTSliderPointerRelay>();
+            }
+            pointerRelay.owner = this;
+        }
+
+        private void OnDestroy()
+        {
+            if (sliderScript != null)
+            {
+                sliderScript.onValueChanged.RemoveListener(HandleSliderValueChanged);
+            }
+            if (pointerRelay != null && pointerRelay.owner == this)
+            {
+                pointerRelay.owner = null;
+            }
+        }
+
+        private void HandleSliderValueChanged(float _)
+        {
+            runtimeAnswered = true;
+        }
+
+        private bool EnsurePriorRatingHint()
+        {
+            if (priorRatingHintRect != null && priorRatingHintImage != null)
+                return true;
+
+            RectTransform parent = null;
+            if (sliderScript != null && sliderScript.handleRect != null)
+                parent = sliderScript.handleRect.parent as RectTransform;
+            if (parent == null && sliderScript != null && sliderScript.fillRect != null)
+                parent = sliderScript.fillRect.parent as RectTransform;
+            if (parent == null && sliderScript != null)
+                parent = sliderScript.GetComponent<RectTransform>();
+            if (parent == null)
+                return false;
+
+            var existing = parent.Find(PriorRatingHintObjectName) as RectTransform;
+            if (existing != null)
+            {
+                priorRatingHintRect = existing;
+                priorRatingHintImage = priorRatingHintRect.GetComponent<Image>();
+                if (priorRatingHintImage == null)
+                    priorRatingHintImage = priorRatingHintRect.gameObject.AddComponent<Image>();
+            }
+            else
+            {
+                var go = new GameObject(PriorRatingHintObjectName, typeof(RectTransform), typeof(Image));
+                priorRatingHintRect = go.GetComponent<RectTransform>();
+                priorRatingHintRect.SetParent(parent, false);
+                priorRatingHintImage = go.GetComponent<Image>();
+            }
+
+            priorRatingHintImage.raycastTarget = false;
+            priorRatingHintImage.maskable = true;
+            return true;
+        }
+
+        private sealed class QTSliderPointerRelay : MonoBehaviour, IPointerDownHandler
+        {
+            public QTSlider owner;
+
+            public void OnPointerDown(PointerEventData eventData)
+            {
+                if (owner != null)
+                {
+                    owner.runtimeAnswered = true;
+                }
+            }
+        }
 //#endif
     }
 }
-

@@ -54,6 +54,8 @@ namespace BOforUnity.Editor
         private SerializedProperty userIdProp;
         private SerializedProperty conditionIdProp;
         private SerializedProperty groupIdProp;
+        private SerializedProperty enablePriorSliderRatingHintProp;
+        private SerializedProperty priorSliderRatingHintAlphaProp;
         
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
@@ -115,6 +117,8 @@ namespace BOforUnity.Editor
             userIdProp = serializedObject.FindProperty("userId");
             conditionIdProp = serializedObject.FindProperty("conditionId");
             groupIdProp = serializedObject.FindProperty("groupId");
+            enablePriorSliderRatingHintProp = serializedObject.FindProperty("enablePriorSliderRatingHint");
+            priorSliderRatingHintAlphaProp = serializedObject.FindProperty("priorSliderRatingHintAlpha");
             
             initDataPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData", "InitData");
 
@@ -171,6 +175,32 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(conditionIdProp);
             EditorGUILayout.PropertyField(groupIdProp);
             EditorGUILayout.LabelField("Default values for userID, conditionID and groupID are -1.", EditorStyles.helpBox);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Questionnaire Prior Rating Hint", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(
+                enablePriorSliderRatingHintProp,
+                new GUIContent(
+                    "Show Prior Rating Hint",
+                    "Show a subtle marker on questionnaire sliders and Likert (linear scale) items indicating the participant's rating from the previous completed iteration."
+                )
+            );
+            if (enablePriorSliderRatingHintProp.boolValue)
+            {
+                EditorGUILayout.Slider(
+                    priorSliderRatingHintAlphaProp,
+                    0.05f,
+                    0.45f,
+                    new GUIContent(
+                        "Hint Opacity",
+                        "Lower opacity reduces bias while still making the prior rating visible."
+                    )
+                );
+                EditorGUILayout.LabelField(
+                    "The hint is visual-only. It does not prefill slider/Likert answers and does not count as an answer.",
+                    EditorStyles.helpBox
+                );
+            }
 
             // ── Problem Setup (not hyperparameters) ─────────────────────────────────
             EditorGUILayout.Space();

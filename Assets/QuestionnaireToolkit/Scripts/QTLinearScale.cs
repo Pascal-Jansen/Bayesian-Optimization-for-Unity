@@ -31,6 +31,8 @@ namespace QuestionnaireToolkit.Scripts
 
         [HideInInspector]
         public int selectedIndex;
+        private const string PriorRatingHintObjectName = "PriorRatingHint";
+        private readonly Dictionary<GameObject, Image> _priorHintImagesByOption = new Dictionary<GameObject, Image>();
 
         private QTQuestionnaireManager _questionnaireManager;
         private QTQuestionPageManager _questionPageManager;
@@ -76,6 +78,8 @@ namespace QuestionnaireToolkit.Scripts
             {
                 // ignored
             }
+
+            HidePriorRatingHint();
         }
 
         private void OnValidate()
@@ -192,6 +196,8 @@ namespace QuestionnaireToolkit.Scripts
         {
             if (listCount < options.Count) // item was removed
             {
+                var optionToDelete = options[sel];
+                _priorHintImagesByOption.Remove(optionToDelete);
                 DestroyImmediate(options[sel]);
                 options.RemoveAt(sel);
                 #if UNITY_EDITOR
@@ -213,6 +219,125 @@ namespace QuestionnaireToolkit.Scripts
                     options[i].name = (i+1) + "_" + options[i].name.Split('_')[1];
                 }
             }
+        }
+
+        public void ApplyPriorRatingHint(bool enabled, string priorAnswerValue, float alpha = 0.16f)
+        {
+            HidePriorRatingHint();
+            if (!enabled || string.IsNullOrWhiteSpace(priorAnswerValue))
+                return;
+
+            string targetValue = priorAnswerValue.Trim();
+            foreach (var option in options)
+            {
+                if (option == null)
+                    continue;
+
+                string optionValue = GetOptionValue(option);
+                if (!string.Equals(optionValue, targetValue, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var hintImage = EnsurePriorRatingHint(option);
+                if (hintImage == null)
+                    return;
+
+                float subtleAlpha = Mathf.Clamp(alpha, 0.05f, 0.45f);
+                Color markerColor = new Color(0f, 0f, 0f, subtleAlpha);
+                var backgroundImage = option.transform.childCount > 0
+                    ? option.transform.GetChild(0).GetComponent<Image>()
+                    : null;
+                if (backgroundImage != null)
+                {
+                    Color baseColor = backgroundImage.color;
+                    float luminance = (0.2126f * baseColor.r) + (0.7152f * baseColor.g) + (0.0722f * baseColor.b);
+                    markerColor = luminance < 0.5f
+                        ? new Color(1f, 1f, 1f, subtleAlpha)
+                        : new Color(0f, 0f, 0f, subtleAlpha);
+                }
+
+                hintImage.color = markerColor;
+                hintImage.gameObject.SetActive(true);
+                break;
+            }
+        }
+
+        public void HidePriorRatingHint()
+        {
+            foreach (var hintImage in _priorHintImagesByOption.Values)
+            {
+                if (hintImage != null)
+                {
+                    hintImage.gameObject.SetActive(false);
+                }
+            }
+        }
+
+        private static string GetOptionValue(GameObject option)
+        {
+            if (option == null || string.IsNullOrWhiteSpace(option.name))
+                return string.Empty;
+
+            return option.name.Split('_')[0].Trim();
+        }
+
+        private Image EnsurePriorRatingHint(GameObject option)
+        {
+            if (option == null)
+                return null;
+
+            if (_priorHintImagesByOption.TryGetValue(option, out var existingHint) && existingHint != null)
+                return existingHint;
+
+            RectTransform parent = null;
+            Image backgroundImage = null;
+            if (option.transform.childCount > 0)
+            {
+                parent = option.transform.GetChild(0) as RectTransform;
+                backgroundImage = option.transform.GetChild(0).GetComponent<Image>();
+            }
+            if (parent == null)
+            {
+                parent = option.GetComponent<RectTransform>();
+            }
+            if (parent == null)
+                return null;
+
+            var existingTransform = parent.Find(PriorRatingHintObjectName) as RectTransform;
+            Image hintImage;
+            if (existingTransform != null)
+            {
+                hintImage = existingTransform.GetComponent<Image>();
+                if (hintImage == null)
+                {
+                    hintImage = existingTransform.gameObject.AddComponent<Image>();
+                }
+            }
+            else
+            {
+                var hintGo = new GameObject(PriorRatingHintObjectName, typeof(RectTransform), typeof(Image));
+                var hintRect = hintGo.GetComponent<RectTransform>();
+                hintRect.SetParent(parent, false);
+                hintRect.SetAsFirstSibling();
+                hintImage = hintGo.GetComponent<Image>();
+            }
+
+            var rectTransform = hintImage.rectTransform;
+            rectTransform.anchorMin = Vector2.zero;
+            rectTransform.anchorMax = Vector2.one;
+            rectTransform.sizeDelta = Vector2.zero;
+            rectTransform.anchoredPosition = Vector2.zero;
+
+            if (backgroundImage != null)
+            {
+                hintImage.sprite = backgroundImage.sprite;
+                hintImage.type = backgroundImage.type;
+                hintImage.preserveAspect = backgroundImage.preserveAspect;
+            }
+
+            hintImage.raycastTarget = false;
+            hintImage.maskable = true;
+            _priorHintImagesByOption[option] = hintImage;
+            return hintImage;
         }
 
 #if UNITY_EDITOR

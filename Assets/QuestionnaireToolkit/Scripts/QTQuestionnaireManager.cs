@@ -159,6 +159,7 @@ namespace QuestionnaireToolkit.Scripts
         private int currentRun;
         [HideInInspector]
         public QTManager _qtManager;
+        private BoForUnityManager _cachedBoForUnityManager;
 
         /// <summary>
         /// Start this questionnaire.
@@ -1487,6 +1488,148 @@ namespace QuestionnaireToolkit.Scripts
             return GetQuestionHeaderFromObjectName(question.name);
         }
 
+        private BoForUnityManager GetBoForUnityManager()
+        {
+            if (_cachedBoForUnityManager == null)
+            {
+                _cachedBoForUnityManager = FindObjectOfType<BoForUnityManager>();
+            }
+
+            return _cachedBoForUnityManager;
+        }
+
+        private string BuildPriorRatingHintKey(GameObject question)
+        {
+            if (question == null)
+                return string.Empty;
+
+            string questionnaireToken = string.IsNullOrWhiteSpace(resultsFileName) ? gameObject.name : resultsFileName.Trim();
+            var page = question.GetComponentInParent<QTQuestionPageManager>();
+            string pageToken = page != null && !string.IsNullOrWhiteSpace(page.name) ? page.name : "Page";
+            string headerToken = GetQuestionHeaderName(question);
+            int questionIndex = -1;
+            if (page != null && page.questionItems != null)
+            {
+                questionIndex = page.questionItems.IndexOf(question);
+            }
+            if (questionIndex < 0)
+            {
+                questionIndex = question.transform.GetSiblingIndex();
+            }
+
+            return questionnaireToken + "::" + pageToken + "::" + question.tag + "::" +
+                   questionIndex.ToString(CultureInfo.InvariantCulture) + "::" + headerToken;
+        }
+
+        private void TryStorePriorSliderRatingHint(BoForUnityManager boForUnity, GameObject question, string rawValue)
+        {
+            if (boForUnity == null || question == null)
+                return;
+
+            if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float sliderValue))
+                return;
+
+            if (float.IsNaN(sliderValue) || float.IsInfinity(sliderValue))
+                return;
+
+            string key = BuildPriorRatingHintKey(question);
+            if (string.IsNullOrWhiteSpace(key))
+                return;
+
+            boForUnity.SetPriorSliderRatingHint(key, sliderValue);
+        }
+
+        private void TryClearPriorSliderRatingHint(BoForUnityManager boForUnity, GameObject question)
+        {
+            if (boForUnity == null || question == null)
+                return;
+
+            string key = BuildPriorRatingHintKey(question);
+            if (string.IsNullOrWhiteSpace(key))
+                return;
+
+            boForUnity.RemovePriorSliderRatingHint(key);
+        }
+
+        private void TryStorePriorLinearScaleRatingHint(BoForUnityManager boForUnity, GameObject question, string rawValue)
+        {
+            if (boForUnity == null || question == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(rawValue) || string.Equals(rawValue, "NULL", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            string key = BuildPriorRatingHintKey(question);
+            if (string.IsNullOrWhiteSpace(key))
+                return;
+
+            boForUnity.SetPriorLinearScaleRatingHint(key, rawValue.Trim());
+        }
+
+        private void TryClearPriorLinearScaleRatingHint(BoForUnityManager boForUnity, GameObject question)
+        {
+            if (boForUnity == null || question == null)
+                return;
+
+            string key = BuildPriorRatingHintKey(question);
+            if (string.IsNullOrWhiteSpace(key))
+                return;
+
+            boForUnity.RemovePriorLinearScaleRatingHint(key);
+        }
+
+        private void ApplyPriorSliderRatingHint(GameObject question, QTSlider sliderQuestion)
+        {
+            if (sliderQuestion == null)
+                return;
+
+            BoForUnityManager boForUnity = GetBoForUnityManager();
+            if (boForUnity == null || !boForUnity.enablePriorSliderRatingHint)
+            {
+                sliderQuestion.HidePriorRatingHint();
+                return;
+            }
+
+            string key = BuildPriorRatingHintKey(question);
+            if (!boForUnity.TryGetPriorSliderRatingHint(key, out float priorValue))
+            {
+                sliderQuestion.HidePriorRatingHint();
+                return;
+            }
+
+            sliderQuestion.ApplyPriorRatingHint(
+                enabled: true,
+                priorValue: priorValue,
+                alpha: boForUnity.priorSliderRatingHintAlpha
+            );
+        }
+
+        private void ApplyPriorLinearScaleRatingHint(GameObject question, QTLinearScale linearScaleQuestion)
+        {
+            if (linearScaleQuestion == null)
+                return;
+
+            BoForUnityManager boForUnity = GetBoForUnityManager();
+            if (boForUnity == null || !boForUnity.enablePriorSliderRatingHint)
+            {
+                linearScaleQuestion.HidePriorRatingHint();
+                return;
+            }
+
+            string key = BuildPriorRatingHintKey(question);
+            if (!boForUnity.TryGetPriorLinearScaleRatingHint(key, out string priorValue))
+            {
+                linearScaleQuestion.HidePriorRatingHint();
+                return;
+            }
+
+            linearScaleQuestion.ApplyPriorRatingHint(
+                enabled: true,
+                priorAnswerValue: priorValue,
+                alpha: boForUnity.priorSliderRatingHintAlpha
+            );
+        }
+
         private static string GetGridRowHeaderLabel(Transform rowHeaderTransform, int fallbackIndex)
         {
             if (rowHeaderTransform == null)
@@ -1649,6 +1792,14 @@ namespace QuestionnaireToolkit.Scripts
                                 rowCells.Add(currVal);
                             }
                             AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
+                            if (!string.Equals(currVal, "NULL", StringComparison.OrdinalIgnoreCase))
+                            {
+                                TryStorePriorLinearScaleRatingHint(boForUnity, question, currVal);
+                            }
+                            else
+                            {
+                                TryClearPriorLinearScaleRatingHint(boForUnity, question);
+                            }
                             break;
                         case "QTCheckboxes":
                             var checkboxesResults = "";
@@ -1672,10 +1823,26 @@ namespace QuestionnaireToolkit.Scripts
                             AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             break;
                         case "QTSlider":
-                            currVal = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>().value
-                                .ToString(CultureInfo.InvariantCulture);
+                            var sliderQuestion = question.GetComponent<QTSlider>();
+                            var sliderComponent = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>();
+                            if (sliderQuestion != null && !sliderQuestion.HasRuntimeAnswer())
+                            {
+                                currVal = "NULL";
+                            }
+                            else
+                            {
+                                currVal = sliderComponent.value.ToString(CultureInfo.InvariantCulture);
+                            }
                             rowCells.Add(currVal);
                             AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
+                            if (!string.Equals(currVal, "NULL", StringComparison.OrdinalIgnoreCase))
+                            {
+                                TryStorePriorSliderRatingHint(boForUnity, question, currVal);
+                            }
+                            else
+                            {
+                                TryClearPriorSliderRatingHint(boForUnity, question);
+                            }
                             break;
                         case "QTMultipleChoice":
                             var toggleGroupMc = question.transform.GetChild(1).GetComponent<ToggleGroup>();
@@ -1916,11 +2083,13 @@ namespace QuestionnaireToolkit.Scripts
                     switch (question.tag)
                     {
                         case "QTLinearScale":
+                            var linearScaleQuestion = question.GetComponent<QTLinearScale>();
                             try
                             {
                                 question.transform.GetChild(1).GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault().isOn = false;
                             }
                             catch (Exception) { }
+                            ApplyPriorLinearScaleRatingHint(question, linearScaleQuestion);
                             break;
                         case "QTCheckboxes":
                             for (var c = 0; c < question.transform.GetChild(1).childCount; c++)
@@ -1932,7 +2101,14 @@ namespace QuestionnaireToolkit.Scripts
                             }
                             break;
                         case "QTSlider":
-                            question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>().value = 0;
+                            var slider = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>();
+                            var sliderQuestion = question.GetComponent<QTSlider>();
+                            if (sliderQuestion != null)
+                            {
+                                sliderQuestion.ResetRuntimeAnswerState();
+                            }
+                            slider.SetValueWithoutNotify(slider.minValue);
+                            ApplyPriorSliderRatingHint(question, sliderQuestion);
                             break;
                         case "QTMultipleChoice":
                             try
@@ -2018,9 +2194,10 @@ namespace QuestionnaireToolkit.Scripts
                             }
                             break;
                         case "QTSlider":
-                            if (question.GetComponent<QTSlider>().answerRequired)
+                            var sliderQuestion = question.GetComponent<QTSlider>();
+                            if (sliderQuestion.answerRequired)
                             {
-                                if (question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>().value == 0)
+                                if (!sliderQuestion.HasRuntimeAnswer())
                                 {
                                     question.GetComponent<Image>().color = new Color(1, 0.316f, 0.316f, 0.2235f);
                                     pending = true;

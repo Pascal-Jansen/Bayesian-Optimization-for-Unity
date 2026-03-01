@@ -81,6 +81,10 @@ namespace BOforUnity
         [Min(0f)] public float finalDesignMaximinEpsilon = 1e-6f;
         [Min(0f)] public float finalDesignAggressionEpsilon = 1e-6f;
 
+        [Header("Questionnaire")]
+        public bool enablePriorSliderRatingHint = false;
+        [Range(0.05f, 0.45f)] public float priorSliderRatingHintAlpha = 0.16f;
+
         public string userId = "-1";
         public string conditionId = "-1";
         public string groupId = "-1";
@@ -94,6 +98,8 @@ namespace BOforUnity
         private bool _finalDesignRoundInProgress = false;
         private bool _finalDesignRoundLogged = false;
         private string _finalDesignObservationCsvPath = null;
+        private readonly Dictionary<string, float> _priorSliderRatingHints = new Dictionary<string, float>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _priorLinearScaleRatingHints = new Dictionary<string, string>(StringComparer.Ordinal);
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -143,6 +149,8 @@ namespace BOforUnity
             _finalDesignRoundInProgress = false;
             _finalDesignRoundLogged = false;
             _finalDesignObservationCsvPath = null;
+            ClearPriorSliderRatingHints();
+            ClearPriorLinearScaleRatingHints();
             // Start each run from a clean measurement state so the first objective payload
             // cannot reuse stale values from a prior session or serialized inspector data.
             ClearObjectiveMeasurements();
@@ -1022,6 +1030,73 @@ namespace BOforUnity
         private static bool IsFinite(float value)
         {
             return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        public void ClearPriorSliderRatingHints()
+        {
+            _priorSliderRatingHints.Clear();
+        }
+
+        public void SetPriorSliderRatingHint(string questionKey, float sliderValue)
+        {
+            if (string.IsNullOrWhiteSpace(questionKey) || !IsFinite(sliderValue))
+                return;
+
+            _priorSliderRatingHints[questionKey] = sliderValue;
+        }
+
+        public bool TryGetPriorSliderRatingHint(string questionKey, out float sliderValue)
+        {
+            sliderValue = 0f;
+            if (string.IsNullOrWhiteSpace(questionKey))
+                return false;
+
+            return _priorSliderRatingHints.TryGetValue(questionKey, out sliderValue) && IsFinite(sliderValue);
+        }
+
+        public void RemovePriorSliderRatingHint(string questionKey)
+        {
+            if (string.IsNullOrWhiteSpace(questionKey))
+                return;
+
+            _priorSliderRatingHints.Remove(questionKey);
+        }
+
+        public void ClearPriorLinearScaleRatingHints()
+        {
+            _priorLinearScaleRatingHints.Clear();
+        }
+
+        public void SetPriorLinearScaleRatingHint(string questionKey, string answerValue)
+        {
+            if (string.IsNullOrWhiteSpace(questionKey) || string.IsNullOrWhiteSpace(answerValue))
+                return;
+
+            _priorLinearScaleRatingHints[questionKey] = answerValue.Trim();
+        }
+
+        public bool TryGetPriorLinearScaleRatingHint(string questionKey, out string answerValue)
+        {
+            answerValue = string.Empty;
+            if (string.IsNullOrWhiteSpace(questionKey))
+                return false;
+
+            if (!_priorLinearScaleRatingHints.TryGetValue(questionKey, out string storedValue))
+                return false;
+
+            if (string.IsNullOrWhiteSpace(storedValue))
+                return false;
+
+            answerValue = storedValue;
+            return true;
+        }
+
+        public void RemovePriorLinearScaleRatingHint(string questionKey)
+        {
+            if (string.IsNullOrWhiteSpace(questionKey))
+                return;
+
+            _priorLinearScaleRatingHints.Remove(questionKey);
         }
 
         private string[] GetFinalDesignLogRootCandidates()

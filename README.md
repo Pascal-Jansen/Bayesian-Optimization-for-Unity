@@ -55,6 +55,7 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
     * [Objectives](#objectives)
     * [Python Settings](#python-settings)
     * [Study Settings](#study-settings)
+    * [Questionnaire Prior Rating Hint (Optional)](#questionnaire-prior-rating-hint-optional)
     * [Problem Setup](#problem-setup)
     * [Optimization Budget](#optimization-budget)
     * [Warm-Start CSV Examples](#warm-start-csv-examples)
@@ -425,6 +426,21 @@ If your study does not use any of these IDs, leave the field at -1. The value wi
 These three values are always logged as context columns in `ObservationsPerEvaluation.csv` and are used together for final-design row filtering.
 
 ![Study Settings](./images/study_settings.png)
+
+### Questionnaire Prior Rating Hint (Optional)
+In `BoForUnityManager` (Inspector), you can enable **Show Prior Rating Hint**.
+
+Behavior:
+- On slider questions (`QTSlider`) and Likert/linear scale questions (`QTLinearScale`), the questionnaire shows a subtle marker indicating the participant's previous rating for that same question.
+- The question is still reset to unanswered for the new iteration. The hint is visual-only and does not submit an answer.
+- If no previous rating exists yet, no hint is shown.
+
+Bias control:
+- Use **Hint Opacity** to keep the marker subtle (recommended range: low opacity).
+- This helps users calibrate relative to their last response while minimizing anchoring pressure.
+
+Technical note:
+- The hint is keyed per questionnaire and question identity (slider/Likert) and persists across BO iterations during the same app run.
 
 
 ### Problem Setup
