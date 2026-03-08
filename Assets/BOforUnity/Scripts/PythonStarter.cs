@@ -256,25 +256,38 @@ namespace BOforUnity.Scripts
                 yield break;
             }
 
-            // Determine the Python script to execute
-            string moboScriptName = effectiveObjectiveCount > 1 ? "mobo.py" : "bo.py";
+            // Determine the Python script to execute based on backend + objective mode.
+            string optimizerScriptName;
+            if (!TryResolveOptimizerScriptName(_bomanager, effectiveObjectiveCount, out optimizerScriptName, out string scriptError))
+            {
+                Debug.LogError("Python startup aborted: " + scriptError);
+                if (_bomanager != null)
+                {
+                    _bomanager.simulationRunning = false;
+                    if (_bomanager.outputText != null)
+                        _bomanager.outputText.text = "Invalid optimizer settings.\n" + scriptError;
+                    if (_bomanager.loadingObj != null)
+                        _bomanager.loadingObj.SetActive(false);
+                }
+                yield break;
+            }
 
             // Construct the full path to the Python script based on the platform.
 #if UNITY_EDITOR
-            string fullPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", moboScriptName);
+            string fullPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", optimizerScriptName);
 #elif UNITY_STANDALONE_WIN
             string bayesianOptimizationPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization");
-            string fullPath = Path.Combine(bayesianOptimizationPath, moboScriptName);
+            string fullPath = Path.Combine(bayesianOptimizationPath, optimizerScriptName);
 #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
             string bayesianOptimizationPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization");
-            string fullPath = Path.Combine(bayesianOptimizationPath, moboScriptName);
+            string fullPath = Path.Combine(bayesianOptimizationPath, optimizerScriptName);
 #else
-            string fullPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", moboScriptName);
+            string fullPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", optimizerScriptName);
 #endif
 
             // Log the full path to the Python script.
-            Debug.Log("Mobo Path: " + fullPath);
-            Debug.Log("Mobo Exists: " + File.Exists(fullPath));
+            Debug.Log("Optimizer script path: " + fullPath);
+            Debug.Log("Optimizer script exists: " + File.Exists(fullPath));
 
             outputFilePath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", "output.txt");
             outputFileWriter = new StreamWriter(outputFilePath);
@@ -351,6 +364,60 @@ namespace BOforUnity.Scripts
             }
 
             return seen;
+        }
+
+        private static bool TryResolveOptimizerScriptName(
+            BOforUnity.BoForUnityManager manager,
+            int effectiveObjectiveCount,
+            out string scriptName,
+            out string error)
+        {
+            scriptName = null;
+            error = null;
+
+            if (manager == null)
+            {
+                error = "BoForUnityManager is missing.";
+                return false;
+            }
+
+            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch)
+            {
+                scriptName = effectiveObjectiveCount > 1 ? "mobo.py" : "bo.py";
+                return true;
+            }
+
+            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            {
+                if (manager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.SingleObjective)
+                {
+                    if (effectiveObjectiveCount != 1)
+                    {
+                        error =
+                            "CABOP SingleObjective mode requires exactly one configured objective.";
+                        return false;
+                    }
+
+                    scriptName = "cabop_bo.py";
+                    return true;
+                }
+
+                if (manager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized)
+                {
+                    if (effectiveObjectiveCount < 2)
+                    {
+                        error =
+                            "CABOP MultiObjectiveScalarized mode requires at least two configured objectives.";
+                        return false;
+                    }
+
+                    scriptName = "cabop_mobo.py";
+                    return true;
+                }
+            }
+
+            error = "Unsupported optimizer backend/objective mode combination.";
+            return false;
         }
 
         private void Update()

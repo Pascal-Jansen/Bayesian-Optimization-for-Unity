@@ -116,9 +116,12 @@ def recv_json_message(conn):
                 return json.loads(line)
             except json.JSONDecodeError as e:
                 preview = line[:200]
-                raise RuntimeError(
-                    f"Received malformed JSON line from Unity: {e}. Payload preview: {preview!r}"
-                ) from e
+                # Keep the reader tolerant to non-critical malformed lines.
+                print(
+                    f"Warning: skipping malformed JSON line from Unity: {e}. Payload preview: {preview!r}",
+                    flush=True,
+                )
+                continue
 
         try:
             chunk = conn.recv(4096)
@@ -304,17 +307,11 @@ def recv_objectives_blocking(conn):
         if msg is None:
             return None
         if not isinstance(msg, dict):
-            raise RuntimeError(
-                f"Received non-object message while waiting for objectives: {msg!r}"
-            )
+            continue
         t = msg.get("type")
         if t == "objectives":
-            values = msg.get("values")
-            if not isinstance(values, dict):
-                raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
-            return values
-        else:
-            raise RuntimeError(f"Received unexpected message type while waiting for objectives: {t!r}")
+            return msg.get("values")
+        continue
 
 def objective_function(conn, x_tensor):
     x = x_tensor.cpu().numpy()
@@ -403,6 +400,7 @@ def generate_initial_data(conn, n_samples):
     if pareto_flags:
         df = pd.read_csv(obs_csv, delimiter=';')
         if len(df) >= len(pareto_flags):
+            df['IsPareto'] = df['IsPareto'].astype(str)
             df.loc[df.index[:len(pareto_flags)], 'IsPareto'] = pareto_flags
             df.to_csv(obs_csv, sep=';', index=False)
 
@@ -492,7 +490,7 @@ def save_xy(x_sample, y_sample, iteration):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
-    iteration_index = int(iteration) + (0 if WARM_START else int(N_INITIAL))
+    iteration_index = int(y_np.shape[0])
 
     for j in range(PROBLEM_DIM):
         x_np[-1][j] = denormalize_to_original_param(x_np[-1][j], parameters_info[j][0], parameters_info[j][1])
@@ -521,13 +519,14 @@ def save_xy(x_sample, y_sample, iteration):
     else:
         df = pd.concat([df, new_row], ignore_index=True)
 
-    logged_count = len(df)
-    logged_y = y_sample[-logged_count:] if logged_count > 0 and y_sample.shape[0] >= logged_count else y_sample
-    flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(logged_y).tolist()]
-    if len(flags) == len(df):
-        df['IsPareto'] = flags
-    elif len(df) > 0:
-        df.loc[df.index[-1], 'IsPareto'] = 'TRUE' if bool(flags[-1]) else 'FALSE'
+    # Update IsPareto for the current run tail while preserving any older, unrelated rows.
+    flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(y_sample).tolist()]
+    df['IsPareto'] = df['IsPareto'].astype(str)
+    if len(flags) >= len(df):
+        df['IsPareto'] = flags[-len(df):]
+    elif len(flags) > 0:
+        tail = df.index[-len(flags):]
+        df.loc[tail, 'IsPareto'] = flags
     df.to_csv(obs_csv, sep=';', index=False)
 
 def save_hypervolume_to_file(hvs, iteration):
@@ -635,13 +634,11 @@ def main():
             if msg is None:
                 break
             if not isinstance(msg, dict):
-                raise RuntimeError(f"Received non-object message while waiting for init: {msg!r}")
+                continue
             if msg.get("type") == "init":
                 init_msg = msg
                 break
-            raise RuntimeError(
-                f"Received unexpected message type while waiting for init: {msg.get('type')!r}"
-            )
+            continue
         if init_msg is None:
             raise RuntimeError("Did not receive init message.")
 

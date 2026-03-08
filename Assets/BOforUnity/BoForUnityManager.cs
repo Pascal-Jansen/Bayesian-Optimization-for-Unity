@@ -27,6 +27,25 @@ namespace BOforUnity
             Automatic = 2
         }
 
+        public enum OptimizerBackend
+        {
+            BoTorch = 0,
+            CABOP = 1
+        }
+
+        public enum CabopObjectiveMode
+        {
+            SingleObjective = 0,
+            MultiObjectiveScalarized = 1
+        }
+
+        public enum CabopUpdateRule
+        {
+            Actual = 0,
+            Intended = 1,
+            Both = 2
+        }
+
         public PythonStarter pythonStarter;
         public Optimizer optimizer;
         public MainThreadDispatcher mainThreadDispatcher;
@@ -69,6 +88,17 @@ namespace BOforUnity
         public string initialParametersDataPath;
         public string initialObjectivesDataPath;
         public string warmStartObjectiveFormat = "auto";
+
+        [Header("Optimizer Backend")]
+        public OptimizerBackend optimizerBackend = OptimizerBackend.BoTorch;
+
+        [Header("CABOP Settings")]
+        public CabopObjectiveMode cabopObjectiveMode = CabopObjectiveMode.SingleObjective;
+        public bool cabopUseCostAwareAcquisition = true;
+        public CabopUpdateRule cabopUpdateRule = CabopUpdateRule.Actual;
+        public bool cabopEnableCostBudget = false;
+        [Min(-1f)] public float cabopMaxCumulativeCost = -1f;
+        public List<CabopGroupCostEntry> cabopGroupCosts = new List<CabopGroupCostEntry>();
 
         [Header("Loop Progression")]
         public IterationAdvanceMode iterationAdvanceMode = IterationAdvanceMode.NextButton;
@@ -1118,7 +1148,68 @@ namespace BOforUnity
                 "LogData"
             );
 
-            return new[] { current, legacy }.Distinct().ToArray();
+            // CABOP stores runs under dedicated subfolders to keep metrics/logs separate.
+            string cabopSingle = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "LogData",
+                "CABOP",
+                "single"
+            );
+
+            string cabopMulti = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "LogData",
+                "CABOP",
+                "multi"
+            );
+
+            string cabopLegacySingle = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "BayesianOptimization",
+                "LogData",
+                "CABOP",
+                "single"
+            );
+
+            string cabopLegacyMulti = Path.Combine(
+                Application.dataPath,
+                "StreamingAssets",
+                "BOData",
+                "BayesianOptimization",
+                "LogData",
+                "CABOP",
+                "multi"
+            );
+
+            var ordered = new List<string>();
+            if (optimizerBackend == OptimizerBackend.CABOP)
+            {
+                if (cabopObjectiveMode == CabopObjectiveMode.SingleObjective)
+                {
+                    ordered.Add(cabopSingle);
+                    ordered.Add(cabopLegacySingle);
+                }
+                else
+                {
+                    ordered.Add(cabopMulti);
+                    ordered.Add(cabopLegacyMulti);
+                }
+            }
+
+            ordered.Add(current);
+            ordered.Add(legacy);
+            ordered.Add(cabopSingle);
+            ordered.Add(cabopMulti);
+            ordered.Add(cabopLegacySingle);
+            ordered.Add(cabopLegacyMulti);
+
+            return ordered.Distinct().ToArray();
         }
         
         private bool IsPerfectRating()
@@ -1212,6 +1303,40 @@ namespace BOforUnity
         
         //-----------------------------------------------
     }
+
+        [System.Serializable]
+        public class CabopCostTriplet
+        {
+            public float unchanged = 1f;
+            public float swapped = 10f;
+            public float acquired = 100f;
+
+            public CabopCostTriplet() { }
+
+            public CabopCostTriplet(float unchanged, float swapped, float acquired)
+            {
+                this.unchanged = unchanged;
+                this.swapped = swapped;
+                this.acquired = acquired;
+            }
+        }
+
+        [System.Serializable]
+        public class CabopGroupCostEntry
+        {
+            public string group = "default";
+            public CabopCostTriplet cost = new CabopCostTriplet();
+            public CabopCostTriplet actualCost = new CabopCostTriplet();
+
+            public CabopGroupCostEntry() { }
+
+            public CabopGroupCostEntry(string group, CabopCostTriplet cost, CabopCostTriplet actualCost)
+            {
+                this.group = group;
+                this.cost = cost ?? new CabopCostTriplet();
+                this.actualCost = actualCost ?? new CabopCostTriplet();
+            }
+        }
     
             // ------------------
         // the objective entries:
@@ -1245,6 +1370,7 @@ namespace BOforUnity
             public float lowerBound = 0.0f;
             public float upperBound = 0.0f;
             public bool smallerIsBetter = false;
+            [Min(0f)] public float cabopWeight = 1.0f;
 
             /// <summary>
             /// ObjectiveArgs(): a constructor that creates an empty instance of the ObjectiveArgs class.
@@ -1302,6 +1428,9 @@ namespace BOforUnity
             public float lowerBound = 0.0f;
             public float upperBound = 0.0f;
             public float Value = 0.0f;
+            public string cabopGroup = "default";
+            [Min(0f)] public float cabopTolerance = 0.05f;
+            public List<float> cabopPrefabricatedValues = new List<float>();
 
             /// <summary>
             /// ParameterArgs(): a constructor that creates an empty instance of the ParameterArgs class.

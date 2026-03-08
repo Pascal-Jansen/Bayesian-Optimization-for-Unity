@@ -219,7 +219,7 @@ Use this path for a first successful run with the provided demo scene.
    - keep `Iteration Advance Mode = NextButton`
    - keep `Warm Start = false`
    - keep `Seed = 3`
-4. Confirm there are at least two objectives (`m >= 2`) so `mobo.py` is used.
+4. Set `Optimizer Backend = BoTorch` and confirm there are at least two objectives (`m >= 2`) so `mobo.py` is used.
 5. Press Play.
 6. Click `Next` to start initialization.
 7. Wait for "The system has been started successfully!".
@@ -293,6 +293,9 @@ Adjustable options, top to bottom:
 |-----------------------|-----------------------------------------------------------------------------------|
 | **Value**             | Value assigned by the optimizer in each sampling/optimization iteration.          |
 | **Lower/Upper Bound** | Bounds that restrict the parameter.                                               |
+| **CABOP Group**       | Parameter group used by CABOP for group-wise cost modeling (`default` if empty). |
+| **CABOP Tolerance**   | Matching tolerance for reuse/swap decisions in CABOP (`>= 0`).                   |
+| **CABOP Prefabricated Values** | Optional discrete values for CABOP snapping (nearest value is used). |
 
 <a id="parameter_settings"></a>
 ![Parameter Settings](./images/parameter_settings.png)
@@ -332,6 +335,7 @@ Options, top to bottom:
 | **Values**                     | Values populated after the questionnaire is completed.                                               |
 | **Lower/Upper Bound**          | Bounds that restrict the objective values.                                                           |
 | **Smaller is Better**          | Whether lower values are preferable (default: higher is better).                                     |
+| **CABOP Weight**               | Weight used only in CABOP multi-objective scalarization (must be `> 0`).                            |
 <a id="objective_settings"></a>
 
 ![Objective Settings](./images/objective_settings.png)
@@ -427,6 +431,39 @@ These three values are always logged as context columns in `ObservationsPerEvalu
 
 ![Study Settings](./images/study_settings.png)
 
+### Optimizer Backend and CABOP Settings
+`BoForUnityManager` now supports two backends:
+
+* **BoTorch**: existing behavior (`bo.py` for single-objective, `mobo.py` for multi-objective).
+* **CABOP**: cost-aware optimization backend with selectable objective mode:
+  * `SingleObjective` -> `cabop_bo.py` (requires exactly 1 objective).
+  * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
+
+CABOP inspector settings:
+
+* **CABOP Use Cost Aware Acquisition**: enables EI-per-cost behavior.
+* **CABOP Update Rule**: `Actual` (recommended), `Intended`, or `Both`.
+* **CABOP Enable Cost Budget** + **CABOP Max Cumulative Cost**: optional stopping criterion in addition to iteration counts.
+* **CABOP Group Costs**: group-level `unchanged/swapped/acquired` costs for both model cost (`cost`) and realized cost (`actual_cost`).
+
+API equivalents are available directly on `BoForUnityManager` fields:
+* `optimizerBackend`
+* `cabopObjectiveMode`
+* `cabopUseCostAwareAcquisition`
+* `cabopUpdateRule`
+* `cabopEnableCostBudget`
+* `cabopMaxCumulativeCost`
+* `cabopGroupCosts`
+* Parameter-level CABOP fields in `parameters[i].value`:
+  * `cabopGroup`
+  * `cabopTolerance`
+  * `cabopPrefabricatedValues`
+* Objective-level CABOP field in `objectives[i].value`:
+  * `cabopWeight`
+
+**What “prefabricated values / prefab snapping” means here**
+This is **not** a Unity prefab asset reference. In CABOP, “prefab” means a predefined list of numeric parameter values that already exist (for example, already manufactured/fabricated settings). If a list is provided for a parameter, CABOP snaps proposals to the nearest listed value before sending parameters to Unity.
+
 ### Questionnaire Prior Rating Hint (Optional)
 In `BoForUnityManager` (Inspector), you can enable **Show Prior Rating Hint**.
 
@@ -446,9 +483,14 @@ Technical note:
 ### Problem Setup
 Here, the current setup of design parameters (d) and design objectives (m) is shown as defined in the parameter and objectives list in the inspector. This serves as an overview to decide the optimization budget below.
 
-Backend selection is automatic:
-* `m = 1` uses the single-objective backend (`bo.py`).
-* `m >= 2` uses the multi-objective backend (`mobo.py`).
+Backend selection:
+* `Optimizer Backend = BoTorch`
+  * `m = 1` uses `bo.py`.
+  * `m >= 2` uses `mobo.py`.
+* `Optimizer Backend = CABOP`
+  * `CABOP Objective Mode = SingleObjective` uses `cabop_bo.py`.
+  * `CABOP Objective Mode = MultiObjectiveScalarized` uses `cabop_mobo.py`.
+  * CABOP internally minimizes a scalar objective. For multi-objective mode, scalarization uses objective bounds, direction (`Smaller is Better`), and `CABOP Weight`.
 
 ![Problem Setup](./images/problem_setup.png)
 
@@ -628,6 +670,8 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 ### Output Files and Metrics
 All result files are written to:
 * *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*
+* *Assets/StreamingAssets/BOData/LogData/CABOP/single/&lt;USER_LOG_ID&gt;/* (CABOP single-objective runs)
+* *Assets/StreamingAssets/BOData/LogData/CABOP/multi/&lt;USER_LOG_ID&gt;/* (CABOP multi-objective-scalarized runs)
 * Legacy runs may exist under *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_LOG_ID&gt;/*; final-design selection checks both locations.
 
 Common files:
@@ -644,6 +688,16 @@ Single-objective BO (`bo.py`, `m = 1`):
 * `BestObjectivePerEvaluation.csv` stores best-so-far objective per iteration.
 * `HypervolumePerEvaluation.csv` is also written for backward compatibility (mirrors the best-objective trace).
 * Unity `coverage` corresponds to current best normalized objective.
+
+CABOP (`cabop_bo.py` / `cabop_mobo.py`):
+* Logs are separated under `LogData/CABOP/single` and `LogData/CABOP/multi`.
+* `ObservationsPerEvaluation.csv` is reused (`IsBest` for single mode, `IsPareto` marker column for multi mode).
+* `ExecutionTimes.csv` is reused.
+* `CABOPMetricsPerEvaluation.csv` stores scalarized objective trace and realized/cumulative cost.
+* Compatibility metric file:
+  * single mode: `BestObjectivePerEvaluation.csv`
+  * multi mode: `HypervolumePerEvaluation.csv` (stores CABOP coverage trace for compatibility)
+* Unity `coverage` is `1 - best_scalarized_objective` (higher is better).
 
 During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 
@@ -671,7 +725,7 @@ This section explains the architecture to help you extend the asset. The diagram
 
 At the top is *BoForUnityManagerEditor.cs*, which edits the *BoForUnityManager.prefab* (what can be set and how it is described). The prefab’s settings are configured in the Unity Inspector as explained in [Configuration](#configuration).\
 *BoForUnityManager.cs* manages the process and first starts the Python server via *PythonStarter.cs*.\
-Once the server is running, *BoForUnityManager.cs* communicates with *mobo.py* (or *bo.py* for single-objective runs) using *SocketNetwork.cs*.\
+Once the server is running, *BoForUnityManager.cs* communicates with the selected backend script (*bo.py*/*mobo.py* or *cabop_bo.py*/*cabop_mobo.py*) using *SocketNetwork.cs*.\
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 

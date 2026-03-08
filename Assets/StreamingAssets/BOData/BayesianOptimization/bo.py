@@ -112,9 +112,12 @@ def recv_json_message(conn):
                 return json.loads(line)
             except json.JSONDecodeError as e:
                 preview = line[:200]
-                raise RuntimeError(
-                    f"Received malformed JSON line from Unity: {e}. Payload preview: {preview!r}"
-                ) from e
+                # Keep the reader tolerant to non-critical malformed lines.
+                print(
+                    f"Warning: skipping malformed JSON line from Unity: {e}. Payload preview: {preview!r}",
+                    flush=True,
+                )
+                continue
         try:
             chunk = conn.recv(4096)
         except socket.timeout as e:
@@ -306,17 +309,11 @@ def recv_objectives_blocking(conn):
         if msg is None:
             return None
         if not isinstance(msg, dict):
-            raise RuntimeError(
-                f"Received non-object message while waiting for objectives: {msg!r}"
-            )
+            continue
         t = msg.get("type")
         if t == "objectives":
-            values = msg.get("values")
-            if not isinstance(values, dict):
-                raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
-            return values
-        else:
-            raise RuntimeError(f"Received unexpected message type while waiting for objectives: {t!r}")
+            return msg.get("values")
+        continue
 
 def objective_function(conn, x_tensor):
     x = x_tensor.cpu().numpy()
@@ -502,7 +499,7 @@ def save_xy(x_sample, y_sample, iteration):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
-    iteration_index = int(iteration) + (0 if WARM_START else int(N_INITIAL))
+    iteration_index = int(y_np.shape[0])
 
     # denormalize last row
     for j in range(PROBLEM_DIM):
@@ -530,16 +527,19 @@ def save_xy(x_sample, y_sample, iteration):
     else:
         df = pd.concat([df, new_row], ignore_index=True)
 
-    # Recompute IsBest across the rows actually logged in this CSV.
+    # Update IsBest for the current run tail while preserving any older, unrelated rows.
     vals_norm = y_sample.squeeze(-1).detach().cpu().tolist()
-    logged_count = len(df)
-    relevant_vals = vals_norm[-logged_count:] if logged_count > 0 and len(vals_norm) >= logged_count else vals_norm
-    best_norm = max(relevant_vals) if len(relevant_vals) > 0 else float(y_sample[-1].item())
-    flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in relevant_vals]
-    if len(flags) == len(df):
-        df['IsBest'] = flags
-    elif len(df) > 0:
-        df.loc[df.index[-1], 'IsBest'] = 'TRUE' if abs(float(y_sample[-1][0]) - best_norm) < 1e-12 else 'FALSE'
+    if isinstance(vals_norm, (float, int)):
+        vals_norm = [float(vals_norm)]
+    best_norm = max(vals_norm) if len(vals_norm) > 0 else float(y_sample[-1].item())
+    flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in vals_norm]
+
+    df['IsBest'] = df['IsBest'].astype(str)
+    if len(flags) >= len(df):
+        df['IsBest'] = flags[-len(df):]
+    elif len(flags) > 0:
+        tail = df.index[-len(flags):]
+        df.loc[tail, 'IsBest'] = flags
 
     df.to_csv(obs_csv, sep=';', index=False)
 
@@ -651,13 +651,11 @@ def main():
             if msg is None:
                 break
             if not isinstance(msg, dict):
-                raise RuntimeError(f"Received non-object message while waiting for init: {msg!r}")
+                continue
             if msg.get("type") == "init":
                 init_msg = msg
                 break
-            raise RuntimeError(
-                f"Received unexpected message type while waiting for init: {msg.get('type')!r}"
-            )
+            continue
         if init_msg is None:
             raise RuntimeError("Did not receive init message.")
 

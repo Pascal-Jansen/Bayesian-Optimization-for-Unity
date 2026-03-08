@@ -41,6 +41,13 @@ namespace BOforUnity.Editor
         private SerializedProperty initialParametersDataPathProp;
         private SerializedProperty initialObjectivesDataPathProp;
         private SerializedProperty warmStartObjectiveFormatProp;
+        private SerializedProperty optimizerBackendProp;
+        private SerializedProperty cabopObjectiveModeProp;
+        private SerializedProperty cabopUseCostAwareAcquisitionProp;
+        private SerializedProperty cabopUpdateRuleProp;
+        private SerializedProperty cabopEnableCostBudgetProp;
+        private SerializedProperty cabopMaxCumulativeCostProp;
+        private SerializedProperty cabopGroupCostsProp;
         private SerializedProperty iterationAdvanceModeProp;
         private SerializedProperty automaticAdvanceDelaySecProp;
         private SerializedProperty reloadSceneOnIterationAdvanceProp;
@@ -104,6 +111,13 @@ namespace BOforUnity.Editor
             initialParametersDataPathProp = serializedObject.FindProperty("initialParametersDataPath");
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
             warmStartObjectiveFormatProp = serializedObject.FindProperty("warmStartObjectiveFormat");
+            optimizerBackendProp = serializedObject.FindProperty("optimizerBackend");
+            cabopObjectiveModeProp = serializedObject.FindProperty("cabopObjectiveMode");
+            cabopUseCostAwareAcquisitionProp = serializedObject.FindProperty("cabopUseCostAwareAcquisition");
+            cabopUpdateRuleProp = serializedObject.FindProperty("cabopUpdateRule");
+            cabopEnableCostBudgetProp = serializedObject.FindProperty("cabopEnableCostBudget");
+            cabopMaxCumulativeCostProp = serializedObject.FindProperty("cabopMaxCumulativeCost");
+            cabopGroupCostsProp = serializedObject.FindProperty("cabopGroupCosts");
             iterationAdvanceModeProp = serializedObject.FindProperty("iterationAdvanceMode");
             automaticAdvanceDelaySecProp = serializedObject.FindProperty("automaticAdvanceDelaySec");
             reloadSceneOnIterationAdvanceProp = serializedObject.FindProperty("reloadSceneOnIterationAdvance");
@@ -208,6 +222,75 @@ namespace BOforUnity.Editor
             EditorGUILayout.LabelField("Problem Setup", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Design Parameters (d)", parameterList.count.ToString(), EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Design Objectives (m)", objectiveList.count.ToString(), EditorStyles.boldLabel);
+
+            // ── Optimizer Backend / CABOP ──────────────────────────────────────────
+            EditorGUILayout.Space();
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+            EditorGUILayout.LabelField("Optimizer Backend", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(
+                optimizerBackendProp,
+                new GUIContent(
+                    "Backend",
+                    "Choose BoTorch (bo.py/mobo.py) or CABOP (cost-aware backend)."
+                )
+            );
+
+            bool useCabop = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
+                            BoForUnityManager.OptimizerBackend.CABOP;
+            if (useCabop)
+            {
+                EditorGUILayout.PropertyField(
+                    cabopObjectiveModeProp,
+                    new GUIContent(
+                        "CABOP Objective Mode",
+                        "SingleObjective requires exactly one objective. MultiObjectiveScalarized requires two or more objectives."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    cabopUseCostAwareAcquisitionProp,
+                    new GUIContent("CABOP Use Cost Aware Acquisition")
+                );
+                EditorGUILayout.PropertyField(
+                    cabopUpdateRuleProp,
+                    new GUIContent("CABOP Update Rule")
+                );
+                EditorGUILayout.PropertyField(
+                    cabopEnableCostBudgetProp,
+                    new GUIContent(
+                        "CABOP Enable Cost Budget",
+                        "If enabled, CABOP stops when cumulative evaluation cost reaches the configured limit."
+                    )
+                );
+                if (cabopEnableCostBudgetProp.boolValue)
+                {
+                    EditorGUILayout.PropertyField(
+                        cabopMaxCumulativeCostProp,
+                        new GUIContent("CABOP Max Cumulative Cost")
+                    );
+                }
+
+                EditorGUILayout.PropertyField(
+                    cabopGroupCostsProp,
+                    new GUIContent(
+                        "CABOP Group Costs",
+                        "Per-group unchanged/swapped/acquired costs for model and realized execution costs."
+                    ),
+                    true
+                );
+
+                int objectiveCount = objectiveList.count;
+                int mode = cabopObjectiveModeProp.enumValueIndex;
+                bool singleInvalid = mode == (int)BoForUnityManager.CabopObjectiveMode.SingleObjective && objectiveCount != 1;
+                bool multiInvalid = mode == (int)BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized && objectiveCount < 2;
+                if (singleInvalid || multiInvalid)
+                {
+                    EditorGUILayout.HelpBox(
+                        "CABOP mode/objective count mismatch. " +
+                        "SingleObjective needs exactly 1 objective; MultiObjectiveScalarized needs at least 2.",
+                        MessageType.Warning
+                    );
+                }
+            }
 
             // ── Optimization Budget (iterations & termination) ──────────────────────
             EditorGUILayout.Space();
@@ -444,6 +527,9 @@ namespace BOforUnity.Editor
             SerializedProperty Value = value.FindPropertyRelative("Value");
             SerializedProperty lowerBound = value.FindPropertyRelative("lowerBound");
             SerializedProperty upperBound = value.FindPropertyRelative("upperBound");
+            SerializedProperty cabopGroup = value.FindPropertyRelative("cabopGroup");
+            SerializedProperty cabopTolerance = value.FindPropertyRelative("cabopTolerance");
+            SerializedProperty cabopPrefabricatedValues = value.FindPropertyRelative("cabopPrefabricatedValues");
 
             float padding = 1.5f;
             float singleLineHeight = EditorGUIUtility.singleLineHeight;
@@ -468,6 +554,18 @@ namespace BOforUnity.Editor
                 EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), lowerBound);
                 yOffset += fieldHeight;
                 EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), upperBound);
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), cabopGroup);
+                yOffset += fieldHeight;
+                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), cabopTolerance);
+                yOffset += fieldHeight;
+                float prefabHeight = EditorGUI.GetPropertyHeight(cabopPrefabricatedValues, true);
+                EditorGUI.PropertyField(
+                    new Rect(rect.x, yOffset, rect.width, prefabHeight),
+                    cabopPrefabricatedValues,
+                    new GUIContent("CABOP Prefabricated Values"),
+                    true
+                );
 
                 EditorGUI.indentLevel--;
             }
@@ -485,7 +583,9 @@ namespace BOforUnity.Editor
 
             if (value.isExpanded)
             {
-                totalHeight += singleLineHeight * 3 + 1.5f * 3; // 5 fields
+                SerializedProperty cabopPrefabricatedValues = value.FindPropertyRelative("cabopPrefabricatedValues");
+                totalHeight += singleLineHeight * 5 + 1.5f * 5;
+                totalHeight += EditorGUI.GetPropertyHeight(cabopPrefabricatedValues, true) + 1.5f;
             }
 
             return totalHeight;

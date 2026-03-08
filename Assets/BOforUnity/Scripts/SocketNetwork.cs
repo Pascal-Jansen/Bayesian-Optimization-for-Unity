@@ -23,6 +23,7 @@ namespace BOforUnity.Scripts
         public InitConfig config;
         public List<ParamInfo> parameters;
         public List<ObjInfo> objectives;
+        public List<CabopGroupCostInfo> cabopGroupCosts;
         public UserInfo user;
     }
 
@@ -32,16 +33,36 @@ namespace BOforUnity.Scripts
         public int nParameters, nObjectives;
         public bool warmStart;
         public string initialParametersDataPath, initialObjectivesDataPath, warmStartObjectiveFormat;
+        public string optimizerBackend, cabopObjectiveMode, cabopUpdateRule;
+        public bool cabopUseCostAwareAcquisition, cabopEnableCostBudget;
+        public float cabopMaxCumulativeCost;
     }
 
     [Serializable] class ParamInit { public double low; public double high; }
     [Serializable] class ObjInit   { public double low; public double high; public int minimize; }
+
+    [Serializable] class CabopCostTripletInfo
+    {
+        public float unchanged;
+        public float swapped;
+        public float acquired;
+    }
+
+    [Serializable] class CabopGroupCostInfo
+    {
+        public string group;
+        public CabopCostTripletInfo cost;
+        public CabopCostTripletInfo actualCost;
+    }
 
     [Serializable] class ParamInfo
     {
         public string key;
         public ParamInit init;
         public int optSeqOrder;
+        public string group;
+        public float tolerance;
+        public List<float> prefabValues;
     }
 
     [Serializable] class ObjInfo
@@ -49,6 +70,7 @@ namespace BOforUnity.Scripts
         public string key;
         public ObjInit init;
         public int optSeqOrder;
+        public float weight;
     }
 
     [Serializable] class UserInfo
@@ -465,6 +487,7 @@ namespace BOforUnity.Scripts
 
             var parameterPayload = new List<ParamInfo>();
             var objectivePayload = new List<ObjInfo>();
+            var parameterGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenParameterKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenObjectiveKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var invalidParameterEntries = new List<string>();
@@ -492,6 +515,8 @@ namespace BOforUnity.Scripts
                     }
 
                     parameter.value.optSeqOrder = parameterPayload.Count;
+                    string cabopGroup = NormalizeCabopGroup(parameter.value.cabopGroup);
+                    parameterGroups.Add(cabopGroup);
                     parameterPayload.Add(new ParamInfo
                     {
                         key = key,
@@ -500,7 +525,10 @@ namespace BOforUnity.Scripts
                             low = parameter.value.lowerBound,
                             high = parameter.value.upperBound
                         },
-                        optSeqOrder = parameter.value.optSeqOrder
+                        optSeqOrder = parameter.value.optSeqOrder,
+                        group = cabopGroup,
+                        tolerance = NormalizeCabopTolerance(parameter.value.cabopTolerance),
+                        prefabValues = NormalizeCabopPrefabricatedValues(parameter.value.cabopPrefabricatedValues)
                     });
                 }
             }
@@ -534,7 +562,8 @@ namespace BOforUnity.Scripts
                             high = objective.value.upperBound,
                             minimize = objective.value.smallerIsBetter ? 1 : 0
                         },
-                        optSeqOrder = objective.value.optSeqOrder
+                        optSeqOrder = objective.value.optSeqOrder,
+                        weight = NormalizeCabopObjectiveWeight(objective.value.cabopWeight)
                     });
                 }
             }
@@ -564,6 +593,25 @@ namespace BOforUnity.Scripts
                     $"Cannot send init message with empty effective payload. " +
                     $"parameters={parameterPayload.Count}, objectives={objectivePayload.Count}."
                 );
+            }
+
+            if (_bomanager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            {
+                if (_bomanager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.SingleObjective &&
+                    objectivePayload.Count != 1)
+                {
+                    throw new InvalidOperationException(
+                        "CABOP single-objective mode requires exactly one configured objective."
+                    );
+                }
+
+                if (_bomanager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized &&
+                    objectivePayload.Count < 2)
+                {
+                    throw new InvalidOperationException(
+                        "CABOP multi-objective mode requires at least two configured objectives."
+                    );
+                }
             }
 
             var overlappingKeys = parameterPayload
@@ -596,10 +644,17 @@ namespace BOforUnity.Scripts
                     warmStart = _bomanager.warmStart,
                     initialParametersDataPath = _bomanager.initialParametersDataPath,
                     initialObjectivesDataPath = _bomanager.initialObjectivesDataPath,
-                    warmStartObjectiveFormat = NormalizeWarmStartObjectiveFormat(_bomanager.warmStartObjectiveFormat)
+                    warmStartObjectiveFormat = NormalizeWarmStartObjectiveFormat(_bomanager.warmStartObjectiveFormat),
+                    optimizerBackend = NormalizeOptimizerBackend(_bomanager.optimizerBackend),
+                    cabopObjectiveMode = NormalizeCabopObjectiveMode(_bomanager.cabopObjectiveMode),
+                    cabopUseCostAwareAcquisition = _bomanager.cabopUseCostAwareAcquisition,
+                    cabopUpdateRule = NormalizeCabopUpdateRule(_bomanager.cabopUpdateRule),
+                    cabopEnableCostBudget = _bomanager.cabopEnableCostBudget,
+                    cabopMaxCumulativeCost = _bomanager.cabopMaxCumulativeCost
                 },
                 parameters = parameterPayload,
                 objectives = objectivePayload,
+                cabopGroupCosts = BuildCabopGroupCosts(parameterGroups),
                 user = new UserInfo
                 {
                     userId = _bomanager.userId,
@@ -629,6 +684,171 @@ namespace BOforUnity.Scripts
                     );
                     return "auto";
             }
+        }
+
+        private static string NormalizeOptimizerBackend(BOforUnity.BoForUnityManager.OptimizerBackend backend)
+        {
+            return backend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP ? "cabop" : "botorch";
+        }
+
+        private static string NormalizeCabopObjectiveMode(BOforUnity.BoForUnityManager.CabopObjectiveMode mode)
+        {
+            switch (mode)
+            {
+                case BOforUnity.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized:
+                    return "multi";
+                case BOforUnity.BoForUnityManager.CabopObjectiveMode.SingleObjective:
+                default:
+                    return "single";
+            }
+        }
+
+        private static string NormalizeCabopUpdateRule(BOforUnity.BoForUnityManager.CabopUpdateRule updateRule)
+        {
+            switch (updateRule)
+            {
+                case BOforUnity.BoForUnityManager.CabopUpdateRule.Intended:
+                    return "intended";
+                case BOforUnity.BoForUnityManager.CabopUpdateRule.Both:
+                    return "both";
+                case BOforUnity.BoForUnityManager.CabopUpdateRule.Actual:
+                default:
+                    return "actual";
+            }
+        }
+
+        private static string NormalizeCabopGroup(string rawGroup)
+        {
+            string group = (rawGroup ?? string.Empty).Trim();
+            return string.IsNullOrEmpty(group) ? "default" : group;
+        }
+
+        private static float NormalizeCabopTolerance(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
+                return 0f;
+            return value;
+        }
+
+        private static float NormalizeCabopObjectiveWeight(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value) || value <= 0f)
+                return 1f;
+            return value;
+        }
+
+        private static List<float> NormalizeCabopPrefabricatedValues(List<float> values)
+        {
+            if (values == null || values.Count == 0)
+                return new List<float>();
+
+            var deduped = new SortedSet<float>();
+            for (int i = 0; i < values.Count; i++)
+            {
+                float value = values[i];
+                if (float.IsNaN(value) || float.IsInfinity(value))
+                    continue;
+                deduped.Add(value);
+            }
+
+            return deduped.ToList();
+        }
+
+        private List<CabopGroupCostInfo> BuildCabopGroupCosts(HashSet<string> parameterGroups)
+        {
+            var result = new List<CabopGroupCostInfo>();
+            if (_bomanager == null)
+                return result;
+
+            var groupMap = new Dictionary<string, CabopGroupCostInfo>(StringComparer.OrdinalIgnoreCase);
+
+            if (_bomanager.cabopGroupCosts != null)
+            {
+                for (int i = 0; i < _bomanager.cabopGroupCosts.Count; i++)
+                {
+                    var entry = _bomanager.cabopGroupCosts[i];
+                    if (entry == null)
+                        continue;
+
+                    string group = NormalizeCabopGroup(entry.group);
+                    if (groupMap.ContainsKey(group))
+                    {
+                        Debug.LogWarning($"Duplicate CABOP group cost entry for group '{group}'. Using first occurrence.");
+                        continue;
+                    }
+
+                    groupMap[group] = new CabopGroupCostInfo
+                    {
+                        group = group,
+                        cost = NormalizeCabopCostTriplet(entry.cost),
+                        actualCost = NormalizeCabopCostTriplet(entry.actualCost)
+                    };
+                }
+            }
+
+            foreach (string group in parameterGroups)
+            {
+                if (groupMap.ContainsKey(group))
+                    continue;
+
+                groupMap[group] = new CabopGroupCostInfo
+                {
+                    group = group,
+                    cost = DefaultCabopCostTriplet(),
+                    actualCost = DefaultCabopCostTriplet()
+                };
+            }
+
+            // Keep deterministic order: explicit inspector order first, then auto-added groups alphabetically.
+            if (_bomanager.cabopGroupCosts != null)
+            {
+                foreach (var entry in _bomanager.cabopGroupCosts)
+                {
+                    if (entry == null)
+                        continue;
+                    string group = NormalizeCabopGroup(entry.group);
+                    if (groupMap.TryGetValue(group, out var payload))
+                    {
+                        result.Add(payload);
+                        groupMap.Remove(group);
+                    }
+                }
+            }
+
+            foreach (var payload in groupMap.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => kv.Value))
+                result.Add(payload);
+
+            return result;
+        }
+
+        private static CabopCostTripletInfo NormalizeCabopCostTriplet(BOforUnity.CabopCostTriplet source)
+        {
+            if (source == null)
+                return DefaultCabopCostTriplet();
+
+            return new CabopCostTripletInfo
+            {
+                unchanged = NormalizeCabopCostValue(source.unchanged, 1f),
+                swapped = NormalizeCabopCostValue(source.swapped, 10f),
+                acquired = NormalizeCabopCostValue(source.acquired, 100f)
+            };
+        }
+
+        private static CabopCostTripletInfo DefaultCabopCostTriplet()
+        {
+            return new CabopCostTripletInfo
+            {
+                unchanged = 1f,
+                swapped = 10f,
+                acquired = 100f
+            };
+        }
+
+        private static float NormalizeCabopCostValue(float value, float fallback)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
+                return fallback;
+            return value;
         }
 
         public void SendObjectives()
