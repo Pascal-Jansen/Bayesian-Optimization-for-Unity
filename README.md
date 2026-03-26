@@ -641,7 +641,7 @@ Integration note:
 
 | **Name**       | **Default Value** | **Description**                                                                                   |
 |-----------------|-------------------|---------------------------------------------------------------------------------------------------|
-| **Sampling Iterations**   | [2d+1](https://botorch.org/docs/tutorials/multi_objective_bo/)                 | Number of sampling iterations before optimization; the recommended value is 2*Number of Design Parameters + 1. You can overwrite this default by checking `Set Sampling Iterations Manually`.                     |
+| **Sampling Iterations**   | [2(d+1)](https://botorch.org/docs/tutorials/constrained_multi_objective_bo/)   | Number of sampling iterations before optimization; the recommended value is `2 * (Number of Design Parameters + 1)`. You can overwrite this default by checking `Set Sampling Iterations Manually`.              |
 | **Optimization Iterations**|                 | Number of iterations used to refine results; here, the actual optimization takes place.                       |
 | **Total Iterations** |            | Sum of `Sampling Iterations` and `Optimization Iterations`. This is how long the HITL process will run in total.                                                           |
 
@@ -661,7 +661,7 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 | **Seed**        | 3                 | Random seed for reproducibility.                                                                  | [Seed Explanation](https://en.wikipedia.org/wiki/Random_seed)                                                          |
 
 
-> **Note:** Recommended: `Sampling Iterations >= 2` (default is `2d + 1`). Warm start sets sampling iterations to `0`.
+> **Note:** Recommended default: `Sampling Iterations = 2(d + 1)`, where `d` is the number of design parameters. Warm start sets sampling iterations to `0`.
 <a id="BO_hyper_settings"></a>
 
 ![Hyperparameter Settings](./images/BO_hyperparameter_settings.png)

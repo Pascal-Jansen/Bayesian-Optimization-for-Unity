@@ -161,6 +161,113 @@ namespace QuestionnaireToolkit.Scripts
         public QTManager _qtManager;
         private BoForUnityManager _cachedBoForUnityManager;
 
+        private bool EnsureVisiblePage(string caller)
+        {
+            if (questionPages == null || questionPages.Count == 0)
+            {
+                _visiblePage = null;
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{caller}: No question pages are available.");
+                return false;
+            }
+
+            if (_currentPage < 0 || _currentPage >= questionPages.Count)
+            {
+                _currentPage = Mathf.Clamp(_currentPage, 0, questionPages.Count - 1);
+            }
+
+            if (_visiblePage == null || !questionPages.Contains(_visiblePage))
+            {
+                _visiblePage = questionPages[_currentPage];
+            }
+
+            if (_visiblePage == null)
+            {
+                for (var i = 0; i < questionPages.Count; i++)
+                {
+                    if (questionPages[i] == null)
+                        continue;
+
+                    _currentPage = i;
+                    _visiblePage = questionPages[i];
+                    break;
+                }
+            }
+
+            if (_visiblePage == null)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{caller}: No valid (non-null) question page is available.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool TryGetVisiblePageManager(string caller, out QTQuestionPageManager pageManager)
+        {
+            pageManager = null;
+            if (!EnsureVisiblePage(caller))
+                return false;
+
+            pageManager = _visiblePage.GetComponent<QTQuestionPageManager>();
+            if (pageManager == null)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{caller}: Visible page '{_visiblePage.name}' has no QTQuestionPageManager.");
+                return false;
+            }
+
+            if (pageManager.questionItems == null)
+            {
+                pageManager.questionItems = new List<GameObject>();
+            }
+
+            return true;
+        }
+
+        private bool HasMetaDataAsset()
+        {
+            return qtMetaData != null;
+        }
+
+        private bool HasAnyValidPage()
+        {
+            return questionPages != null && questionPages.Any(page => page != null);
+        }
+
+        private void SetPendingMessageVisibility(bool visible, string caller)
+        {
+            if (!EnsureVisiblePage(caller))
+                return;
+
+            if (_visiblePage.transform.childCount <= 4)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{caller}: Missing pending-message child on page '{_visiblePage.name}'.");
+                return;
+            }
+
+            var pendingLabel = _visiblePage.transform.GetChild(4).GetComponent<TextMeshProUGUI>();
+            if (pendingLabel == null)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{caller}: Pending-message label component missing on page '{_visiblePage.name}'.");
+                return;
+            }
+
+            pendingLabel.enabled = visible;
+        }
+
+        private void SetPrevButtonVisibility(bool visible, string caller)
+        {
+            if (!EnsureVisiblePage(caller))
+                return;
+
+            if (_visiblePage.transform.childCount <= 5)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{caller}: Missing previous-button child on page '{_visiblePage.name}'.");
+                return;
+            }
+
+            _visiblePage.transform.GetChild(5).gameObject.SetActive(visible);
+        }
+
         /// <summary>
         /// Start this questionnaire.
         /// </summary>
@@ -170,6 +277,12 @@ namespace QuestionnaireToolkit.Scripts
         /// <returns>True if the questionnaire was initialized. False if the questionnaire is already running.</returns>
         public bool StartQuestionnaire(bool restart = true, Vector3 position = default, Quaternion rotation = default)
         {
+            if (!HasAnyValidPage())
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{nameof(StartQuestionnaire)}: Cannot start because no valid pages exist.");
+                return false;
+            }
+
             if (running && !restart)
             {
                 ShowQuestionnaire();
@@ -185,14 +298,15 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         public bool InitQuestionnaire(Vector3 position = default, Quaternion rotation = default)
         {
+            questionnaireInitialized = false;
             try
             {
 #if UNITY_EDITOR
                 if (!EditorApplication.isPlayingOrWillChangePlaymode) return false;
 #endif
-                if (questionPages.Count == 0)
+                if (!HasAnyValidPage())
                 {
-                    Debug.Log("No question pages!");
+                    Debug.LogWarning("No valid question pages!");
                     return false;
                 }
 
@@ -202,8 +316,17 @@ namespace QuestionnaireToolkit.Scripts
                 currentRun = int.Parse(metaDataStr.Split(';')[1]);
 #endif
 #if UNITY_EDITOR
-                currentResponseId = qtMetaData.currentResponseId;
-                currentRun = qtMetaData.currentUserRun;
+                if (HasMetaDataAsset())
+                {
+                    currentResponseId = qtMetaData.currentResponseId;
+                    currentRun = qtMetaData.currentUserRun;
+                }
+                else
+                {
+                    Debug.LogWarning($"{nameof(QTQuestionnaireManager)}: qtMetaData is not assigned. Runtime counters will not persist in editor.");
+                    currentResponseId = Mathf.Max(0, currentResponseId);
+                    currentRun = Mathf.Max(0, currentRun);
+                }
 #endif
                 
                 if(!overwriteResultsHeaderItems) 
@@ -312,13 +435,22 @@ namespace QuestionnaireToolkit.Scripts
                 SetEventCamera();                
                 _currentPage = 0;
                 _visiblePage = questionPages[_currentPage];
+                if (!EnsureVisiblePage(nameof(InitQuestionnaire)))
+                {
+                    questionnaireInitialized = false;
+                    running = false;
+                    return false;
+                }
+
                 ShowQuestionnaire();
+                questionnaireInitialized = true;
                 running = true;
                 return true;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                questionnaireInitialized = false;
                 return false;
             }
         }
@@ -1167,15 +1299,24 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         public void PrevPage()
         {
+            if (!running)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{nameof(PrevPage)} was called while questionnaire is not running.");
+                return;
+            }
+
+            if (!EnsureVisiblePage(nameof(PrevPage)))
+                return;
+
             if (_currentPage > 0)
             {
                 _currentPage--;
                 ShowPage(_currentPage);
                 if(_currentPage == 0)
-                    _visiblePage.transform.GetChild(5).gameObject.SetActive(false);
+                    SetPrevButtonVisibility(false, nameof(PrevPage));
                 
                 var pageSizeDelta = _visiblePage.GetComponent<RectTransform>().sizeDelta;
-                if(displayMode == DisplayMode.VR) 
+                if(displayMode == DisplayMode.VR && background != null) 
                     background.transform.localScale = new Vector3(pageSizeDelta.x, pageSizeDelta.y, 20);
             }
         }
@@ -1185,20 +1326,29 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         public void NextPage()
         {
+            if (!running)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{nameof(NextPage)} was called while questionnaire is not running.");
+                return;
+            }
+
+            if (!EnsureVisiblePage(nameof(NextPage)))
+                return;
+
             if (AnswersPending())
             {
-                _visiblePage.transform.GetChild(4).GetComponent<TextMeshProUGUI>().enabled = true;
+                SetPendingMessageVisibility(true, nameof(NextPage));
             }
             else
             {
-                _visiblePage.transform.GetChild(4).GetComponent<TextMeshProUGUI>().enabled = false;
+                SetPendingMessageVisibility(false, nameof(NextPage));
                 if (_currentPage < questionPages.Count-1) // show only next page
                 {
                     _currentPage++;
                     ShowPage(_currentPage);
-                    _visiblePage.transform.GetChild(5).gameObject.SetActive(showPrevButton);
+                    SetPrevButtonVisibility(showPrevButton, nameof(NextPage));
                     var pageSizeDelta = _visiblePage.GetComponent<RectTransform>().sizeDelta;
-                    if(displayMode == DisplayMode.VR) 
+                    if(displayMode == DisplayMode.VR && background != null) 
                         background.transform.localScale = new Vector3(pageSizeDelta.x, pageSizeDelta.y, 20);
                 }
                 else if (_currentPage == questionPages.Count-1) // finish and submit the questionnaire
@@ -1210,21 +1360,22 @@ namespace QuestionnaireToolkit.Scripts
 
                     if (generateResultsFile)
                     {
-                        qtMetaData.currentResponseId++;
                         currentResponseId++;
-                        if (runsPerUser > 1 && qtMetaData.currentUserRun < runsPerUser)
+                        if (runsPerUser > 1 && currentRun < runsPerUser)
                         {
-                            qtMetaData.currentUserRun++;
-                            if (qtMetaData.currentUserRun > 1)
+                            currentRun++;
+                            if (currentRun > 1)
                             {
                                 // revert the ++ operation if the response_id should stay the same
-                                qtMetaData.currentResponseId--;
                                 currentResponseId--;
                             }
                         }
 
-                        // Keep runtime run counter aligned with persisted metadata.
-                        currentRun = qtMetaData.currentUserRun;
+                        if (HasMetaDataAsset())
+                        {
+                            qtMetaData.currentResponseId = currentResponseId;
+                            qtMetaData.currentUserRun = currentRun;
+                        }
                     }
 
                     if (generateResultsFile || shouldCollectForBo)
@@ -1276,13 +1427,24 @@ namespace QuestionnaireToolkit.Scripts
             
             foreach (var page in questionPages)
             {
-                page.SetActive(false);
+                if (page != null)
+                    page.SetActive(false);
             }
+
+            _currentPage = pageNumber;
             _visiblePage = questionPages[pageNumber];
+            if (_visiblePage == null)
+            {
+                if (!EnsureVisiblePage(nameof(ShowPage)))
+                {
+                    Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{nameof(ShowPage)}: Page {pageNumber} is null and no fallback page was found.");
+                    return;
+                }
+            }
             _visiblePage.SetActive(true);
             
-            selectedPage = pageNumber;
-            _currentPage = pageNumber;
+            selectedPage = _currentPage;
+            questionnaireInitialized = true;
         }
 
         /// <summary>
@@ -2055,7 +2217,10 @@ namespace QuestionnaireToolkit.Scripts
                               (runsPerUser > 1 ? " run: " + currentRun : "") + ".\n@ " + userPath);
                     if (currentRun == runsPerUser)
                     {
-                        qtMetaData.currentUserRun = 0;
+                        if (HasMetaDataAsset())
+                        {
+                            qtMetaData.currentUserRun = 0;
+                        }
                         currentRun = 0;
                         userId = "";
                     }
@@ -2073,88 +2238,125 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         public void ResetQuestionnaire()
         {
+            if (!HasAnyValidPage())
+            {
+                _currentPage = 0;
+                _visiblePage = null;
+                questionnaireInitialized = false;
+                return;
+            }
+
             _currentPage = 0;
             _visiblePage = questionPages[_currentPage];
+            if (_visiblePage == null)
+            {
+                EnsureVisiblePage(nameof(ResetQuestionnaire));
+            }
+
             foreach (var page in questionPages)
             {
+                if (page == null)
+                    continue;
+
                 page.SetActive(true);
-                foreach (var question in page.GetComponent<QTQuestionPageManager>().questionItems)
+                var pageManager = page.GetComponent<QTQuestionPageManager>();
+                if (pageManager == null || pageManager.questionItems == null)
                 {
-                    switch (question.tag)
+                    Debug.LogWarning($"{nameof(QTQuestionnaireManager)}.{nameof(ResetQuestionnaire)}: Skipping malformed page '{page.name}'.");
+                    page.SetActive(false);
+                    continue;
+                }
+
+                foreach (var question in pageManager.questionItems)
+                {
+                    if (question == null)
+                        continue;
+
+                    try
                     {
-                        case "QTLinearScale":
-                            var linearScaleQuestion = question.GetComponent<QTLinearScale>();
-                            try
-                            {
-                                question.transform.GetChild(1).GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault().isOn = false;
-                            }
-                            catch (Exception) { }
-                            ApplyPriorLinearScaleRatingHint(question, linearScaleQuestion);
-                            break;
-                        case "QTCheckboxes":
-                            for (var c = 0; c < question.transform.GetChild(1).childCount; c++)
-                            {
-                                var checkbox = question.transform.GetChild(1).GetChild(c);
-                                checkbox.GetComponent<Toggle>().isOn = false;
-                                if (checkbox.CompareTag("QTOptionOther"))
-                                    checkbox.transform.GetChild(1).GetComponent<TMP_InputField>().text = "";
-                            }
-                            break;
-                        case "QTSlider":
-                            var slider = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>();
-                            var sliderQuestion = question.GetComponent<QTSlider>();
-                            if (sliderQuestion != null)
-                            {
-                                sliderQuestion.ResetRuntimeAnswerState();
-                            }
-                            slider.SetValueWithoutNotify(slider.minValue);
-                            ApplyPriorSliderRatingHint(question, sliderQuestion);
-                            break;
-                        case "QTMultipleChoice":
-                            try
-                            {
-                                var activeToggle = question.transform.GetChild(1).GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault();
-                                activeToggle.isOn = false;
-                                activeToggle.transform.GetChild(1).GetComponent<TMP_InputField>().text = "";
-                            } catch (Exception) { }
-                            break;
-                        case "QTTextInput":
-                            question.transform.GetChild(1).GetComponent<TMP_InputField>().text = "";
-                            break;
-                        case "QTDropdown":
-                            question.transform.GetChild(1).GetComponent<TMP_Dropdown>().value = 0;
-                            break;
-                        case "QTCheckboxesGrid":
-                            var checkboxGrid = question.transform.GetChild(1);
-                            for (var c = 0; c < checkboxGrid.childCount; c++)
-                            {
-                                var currChild = checkboxGrid.GetChild(c);
-                                if (currChild.CompareTag("QTGridOption"))
+                        switch (question.tag)
+                        {
+                            case "QTLinearScale":
+                                var linearScaleQuestion = question.GetComponent<QTLinearScale>();
+                                try
                                 {
-                                    currChild.GetComponent<Toggle>().isOn = false;
+                                    question.transform.GetChild(1).GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault().isOn = false;
                                 }
-                            }
-                            break;
-                        case "QTMultipleChoiceGrid":
-                            var grid = question.transform.GetChild(1);
-                            for (var c = 0; c < grid.childCount; c++)
-                            {
-                                var currChild = grid.GetChild(c);
-                                if (currChild.CompareTag("QTGridRowHeader"))
+                                catch (Exception) { }
+                                ApplyPriorLinearScaleRatingHint(question, linearScaleQuestion);
+                                break;
+                            case "QTCheckboxes":
+                                for (var c = 0; c < question.transform.GetChild(1).childCount; c++)
                                 {
-                                    try
+                                    var checkbox = question.transform.GetChild(1).GetChild(c);
+                                    checkbox.GetComponent<Toggle>().isOn = false;
+                                    if (checkbox.CompareTag("QTOptionOther"))
+                                        checkbox.transform.GetChild(1).GetComponent<TMP_InputField>().text = "";
+                                }
+                                break;
+                            case "QTSlider":
+                                var slider = question.transform.GetChild(1).GetComponent<UnityEngine.UI.Slider>();
+                                var sliderQuestion = question.GetComponent<QTSlider>();
+                                if (sliderQuestion != null)
+                                {
+                                    sliderQuestion.ResetRuntimeAnswerState();
+                                }
+                                slider.SetValueWithoutNotify(slider.minValue);
+                                ApplyPriorSliderRatingHint(question, sliderQuestion);
+                                break;
+                            case "QTMultipleChoice":
+                                try
+                                {
+                                    var activeToggle = question.transform.GetChild(1).GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault();
+                                    activeToggle.isOn = false;
+                                    activeToggle.transform.GetChild(1).GetComponent<TMP_InputField>().text = "";
+                                } catch (Exception) { }
+                                break;
+                            case "QTTextInput":
+                                question.transform.GetChild(1).GetComponent<TMP_InputField>().text = "";
+                                break;
+                            case "QTDropdown":
+                                question.transform.GetChild(1).GetComponent<TMP_Dropdown>().value = 0;
+                                break;
+                            case "QTCheckboxesGrid":
+                                var checkboxGrid = question.transform.GetChild(1);
+                                for (var c = 0; c < checkboxGrid.childCount; c++)
+                                {
+                                    var currChild = checkboxGrid.GetChild(c);
+                                    if (currChild.CompareTag("QTGridOption"))
                                     {
-                                        currChild.GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault().isOn = false;
+                                        currChild.GetComponent<Toggle>().isOn = false;
                                     }
-                                    catch (Exception) { }
                                 }
-                            }
-                            break;
+                                break;
+                            case "QTMultipleChoiceGrid":
+                                var grid = question.transform.GetChild(1);
+                                for (var c = 0; c < grid.childCount; c++)
+                                {
+                                    var currChild = grid.GetChild(c);
+                                    if (currChild.CompareTag("QTGridRowHeader"))
+                                    {
+                                        try
+                                        {
+                                            currChild.GetComponent<ToggleGroup>().ActiveToggles().FirstOrDefault().isOn = false;
+                                        }
+                                        catch (Exception) { }
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // Skip malformed question items and continue resetting remaining content.
                     }
                 }
                 page.SetActive(false);
             }
-            _visiblePage.SetActive(true);
+            if (_visiblePage != null)
+            {
+                _visiblePage.SetActive(true);
+            }
         }
         
         /// <summary>
@@ -2162,9 +2364,15 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         public bool AnswersPending()
         {
+            if (!TryGetVisiblePageManager(nameof(AnswersPending), out var pageManager))
+                return true;
+
             var pending = false;
-            foreach (var question in _visiblePage.GetComponent<QTQuestionPageManager>().questionItems)
+            foreach (var question in pageManager.questionItems)
             {
+                if (question == null)
+                    continue;
+
                 try
                 {
                     switch (question.tag)
@@ -2298,7 +2506,11 @@ namespace QuestionnaireToolkit.Scripts
                 }
                 catch (Exception)
                 {
-                    question.GetComponent<Image>().color = new Color(1, 0.316f, 0.316f, 0.2235f);
+                    var questionImage = question.GetComponent<Image>();
+                    if (questionImage != null)
+                    {
+                        questionImage.color = new Color(1, 0.316f, 0.316f, 0.2235f);
+                    }
                     pending = true;
                 }
             }
@@ -2310,15 +2522,20 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         public void ShowQuestionnaire()
         {
+            if (!EnsureVisiblePage(nameof(ShowQuestionnaire)))
+                return;
+
             foreach (var page in questionPages)
             {
-                page.SetActive(false);
+                if (page != null)
+                    page.SetActive(false);
             }
             
-            questionPages[_currentPage].SetActive(true);
+            _visiblePage.SetActive(true);
+            questionnaireInitialized = true;
             
             if(displayMode == DisplayMode.VR && running)
-                background.SetActive(true);
+                background?.SetActive(true);
         }
 
         /// <summary>
@@ -2328,11 +2545,12 @@ namespace QuestionnaireToolkit.Scripts
         {
             foreach (var page in questionPages)
             {
-                page.SetActive(false);
+                if (page != null)
+                    page.SetActive(false);
             }
             
             if(displayMode == DisplayMode.VR && running)
-                background.SetActive(false);
+                background?.SetActive(false);
         }
 
 #if UNITY_EDITOR

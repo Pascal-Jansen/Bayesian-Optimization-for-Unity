@@ -343,17 +343,17 @@ namespace BOforUnity.Editor
                 }
             }
 
-            // Sampling iterations: default (2*d)+1 unless user explicitly enables manual edit
+            // Sampling iterations: default 2(d+1) unless user explicitly enables manual edit
             EditorGUILayout.Space();
             using (new EditorGUI.DisabledScope(warmStartProp.boolValue))
             {
                 EditorGUILayout.PropertyField(
                     enableSamplingEditProp,
                     new GUIContent("Set Sampling Iterations Manually",
-                        "Default is (2·d)+1. Enable to override.")
+                        "Default is 2·(d+1). Enable to override.")
                 );
 
-                int defaultSampling = (2 * parameterList.count) + 1;
+                int defaultSampling = BoForUnityManager.ComputeRecommendedSamplingIterations(parameterList.count);
 
                 // When manual edit is OFF, keep the default and lock the field.
                 if (!enableSamplingEditProp.boolValue)
@@ -373,7 +373,7 @@ namespace BOforUnity.Editor
                 }
 
                 EditorGUILayout.LabelField(
-                    "Recommended sampling iterations default: (2 · d) + 1, where d is the number of design parameters.",
+                    "Recommended sampling iterations default: 2 · (d + 1), where d is the number of design parameters.",
                     EditorStyles.helpBox
                 );
             }
@@ -387,7 +387,7 @@ namespace BOforUnity.Editor
 
             EditorGUILayout.LabelField("Total Iterations", total.ToString(), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(
-                "Total = Sampling Iterations + Optimization Iterations. Sampling must be ≥ 3 unless warm start is used.",
+                "Total = Sampling Iterations + Optimization Iterations. Warm start sets sampling iterations to 0; otherwise the recommended default is 2 · (d + 1).",
                 EditorStyles.helpBox
             );
 

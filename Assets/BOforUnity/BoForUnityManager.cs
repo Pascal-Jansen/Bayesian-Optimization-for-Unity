@@ -76,7 +76,7 @@ namespace BOforUnity
         public int numRestarts = 10;
         public int rawSamples = 1024;
         public int mcSamples = 512;
-        public int numSamplingIterations = 5; // in typical MOBO problems, this should be 2(d+1), where d is the number of objectives
+        public int numSamplingIterations = 4; // Auto-default is 2(d+1), where d is the number of design parameters.
         public int numOptimizationIterations = 10;
         public int seed = 3;
         
@@ -135,6 +135,8 @@ namespace BOforUnity
         //-----------------------------------------------
         private void Awake()
         {
+            SyncSamplingIterationDefaults();
+
             // If there is already an instance of this object, destroy the new one
             if (_instance != null)
             {
@@ -160,6 +162,12 @@ namespace BOforUnity
 
             currentIteration = 1;
             totalIterations = GetConfiguredTotalIterations(); // set how many iterations the optimizer should run for
+        }
+
+        private void OnValidate()
+        {
+            SyncSamplingIterationDefaults();
+            totalIterations = GetConfiguredTotalIterations();
         }
         
         void Start()
@@ -512,6 +520,25 @@ namespace BOforUnity
             if (!perfectRatingInInitialRounds && currentIteration <= initialRounds)
                 return false;
             return IsPerfectRating();
+        }
+
+        public static int ComputeRecommendedSamplingIterations(int designParameterCount)
+        {
+            return 2 * (Mathf.Max(0, designParameterCount) + 1);
+        }
+
+        private void SyncSamplingIterationDefaults()
+        {
+            if (warmStart)
+            {
+                numSamplingIterations = 0;
+                return;
+            }
+
+            if (enableSamplingEdit)
+                return;
+
+            numSamplingIterations = ComputeRecommendedSamplingIterations(parameters?.Count ?? 0);
         }
 
         private int GetConfiguredTotalIterations()

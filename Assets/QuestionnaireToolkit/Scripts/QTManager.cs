@@ -75,6 +75,27 @@ namespace QuestionnaireToolkit.Scripts
         public int currentRunningQuestionnaireIndex;
         private bool _inspectorChanged;
 
+        private void RefreshQuestionnaireListIfNeeded()
+        {
+            if (questionnaires == null)
+            {
+                questionnaires = new List<QTQuestionnaireManager>();
+            }
+
+            questionnaires.RemoveAll(q => q == null);
+            var synchronizedQuestionnaires = new List<QTQuestionnaireManager>();
+            for (var i = 0; i < transform.childCount; i++)
+            {
+                var childQuestionnaire = transform.GetChild(i).GetComponent<QTQuestionnaireManager>();
+                if (childQuestionnaire != null)
+                {
+                    synchronizedQuestionnaires.Add(childQuestionnaire);
+                }
+            }
+
+            questionnaires = synchronizedQuestionnaires;
+        }
+
         private void Start()
         {
 #if UNITY_EDITOR
@@ -113,6 +134,53 @@ namespace QuestionnaireToolkit.Scripts
                 }
             }
 #endif
+
+            RefreshQuestionnaireListIfNeeded();
+            if (questionnaires.Count > 0)
+            {
+                currentRunningQuestionnaireIndex = Mathf.Clamp(currentRunningQuestionnaireIndex, 0, questionnaires.Count - 1);
+                selectedQuestionnaire = currentRunningQuestionnaireIndex;
+                _visibleQuestionnaire = questionnaires[currentRunningQuestionnaireIndex];
+            }
+        }
+
+        public bool StartQuestionnaire(int questionnaireIndex = -1, bool restart = true, Vector3 position = default, Quaternion rotation = default)
+        {
+            RefreshQuestionnaireListIfNeeded();
+            if (questionnaires.Count == 0)
+            {
+                Debug.LogWarning($"{nameof(QTManager)}.{nameof(StartQuestionnaire)}: No questionnaires are available.");
+                return false;
+            }
+
+            if (questionnaireIndex < 0 || questionnaireIndex >= questionnaires.Count)
+            {
+                var preferredIndex = selectedQuestionnaire;
+                if (preferredIndex < 0 || preferredIndex >= questionnaires.Count)
+                {
+                    preferredIndex = currentRunningQuestionnaireIndex;
+                }
+                questionnaireIndex = Mathf.Clamp(preferredIndex, 0, questionnaires.Count - 1);
+            }
+
+            currentRunningQuestionnaireIndex = questionnaireIndex;
+            _visibleQuestionnaire = questionnaires[currentRunningQuestionnaireIndex];
+            if (_visibleQuestionnaire == null)
+            {
+                Debug.LogWarning($"{nameof(QTManager)}.{nameof(StartQuestionnaire)}: Selected questionnaire is null at index {currentRunningQuestionnaireIndex}.");
+                return false;
+            }
+
+            for (var i = 0; i < questionnaires.Count; i++)
+            {
+                var questionnaire = questionnaires[i];
+                if (questionnaire == null || i == currentRunningQuestionnaireIndex)
+                    continue;
+
+                questionnaire.HideQuestionnaire();
+            }
+
+            return _visibleQuestionnaire.StartQuestionnaire(restart, position, rotation);
         }
 
         
@@ -405,19 +473,34 @@ namespace QuestionnaireToolkit.Scripts
         public void ShowSelectedQuestionnaire(int sel)
         {
             if (questionnaires.Count == 0) return;
+            if (sel < 0 || sel >= questionnaires.Count)
+            {
+                Debug.LogWarning($"{nameof(QTManager)}.{nameof(ShowSelectedQuestionnaire)}: Index {sel} is out of range.");
+                return;
+            }
             
             foreach (var q in questionnaires)
             {
+                if (q == null)
+                    continue;
+
                 q.HideQuestionnaire();
                 if (!q.name.EndsWith(" [ACTIVE]")) continue;
                 q.name = q.name.Substring(0, q.name.LastIndexOf(" [ACTIVE]", StringComparison.Ordinal));
             }
             
             _visibleQuestionnaire = questionnaires[sel];
+            if (_visibleQuestionnaire == null)
+            {
+                Debug.LogWarning($"{nameof(QTManager)}.{nameof(ShowSelectedQuestionnaire)}: Selected questionnaire is null.");
+                return;
+            }
+
             _visibleQuestionnaire.ShowQuestionnaire();
             _visibleQuestionnaire.name += " [ACTIVE]";
 
             selectedQuestionnaire = sel;
+            currentRunningQuestionnaireIndex = sel;
         }
 #endif
 

@@ -7402,7 +7402,7 @@ MonoBehaviour:
       upperBound: 3000
       smallerIsBetter: 1
   currentIteration: 0
-  totalIterations: 10
+  totalIterations: 11
   perfectRating: 0
   perfectRatingStart: 0
   perfectRatingIteration: 0
@@ -7412,7 +7412,7 @@ MonoBehaviour:
   numRestarts: 10
   rawSamples: 1024
   mcSamples: 512
-  numSamplingIterations: 5
+  numSamplingIterations: 6
   numOptimizationIterations: 5
   seed: 3
   enableSamplingEdit: 0
