@@ -26,6 +26,8 @@ namespace BOforUnity.Editor
         //private SerializedProperty endSimProp;
         private SerializedProperty welcomePanelProp;
         private SerializedProperty optimizerStatePanelProp;
+        private SerializedProperty localPythonProp;
+        private SerializedProperty pythonPathProp;
         
         private SerializedProperty nSamplingIterProp;
         private SerializedProperty nOptimizationIterProp;
@@ -95,6 +97,8 @@ namespace BOforUnity.Editor
             nextButtonProp = serializedObject.FindProperty("nextButton");
             welcomePanelProp = serializedObject.FindProperty("welcomePanel");
             optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
+            localPythonProp = serializedObject.FindProperty("localPython");
+            pythonPathProp = serializedObject.FindProperty("pythonPath");
             //endSimProp = serializedObject.FindProperty("endOfSimulation");
             
             nSamplingIterProp = serializedObject.FindProperty("numSamplingIterations");
@@ -141,8 +145,6 @@ namespace BOforUnity.Editor
 
         public override void OnInspectorGUI()
         {
-            BoForUnityManager script = (BoForUnityManager)target;
-
             serializedObject.Update();
 
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(2));
@@ -151,12 +153,12 @@ namespace BOforUnity.Editor
             EditorGUILayout.Space();
             objectiveList.DoLayoutList();
 
-            DrawSettingsConfiguration(script);
+            DrawSettingsConfiguration();
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawSettingsConfiguration(BoForUnityManager script)
+        private void DrawSettingsConfiguration()
         {
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
 
@@ -164,12 +166,12 @@ namespace BOforUnity.Editor
             EditorGUILayout.LabelField("Python Settings", EditorStyles.boldLabel);
             var localPyLabel = new GUIContent("Manually Installed Python",
                 "Use a locally installed Python instead of the project’s installer.");
-            script.setLocalPython(EditorGUILayout.Toggle(localPyLabel, script.getLocalPython()));
+            EditorGUILayout.PropertyField(localPythonProp, localPyLabel);
             EditorGUILayout.Space();
 
-            if (script.getLocalPython())
+            if (localPythonProp.boolValue)
             {
-                script.setPythonPath(EditorGUILayout.TextField("Path of Python Executable:", script.getPythonPath()));
+                EditorGUILayout.PropertyField(pythonPathProp, new GUIContent("Path of Python Executable:"));
                 EditorGUILayout.LabelField(
                     "Ensure a valid path for your OS (Windows/macOS differ).",
                     EditorStyles.helpBox
@@ -181,9 +183,9 @@ namespace BOforUnity.Editor
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
             EditorGUILayout.LabelField("Study Settings", EditorStyles.boldLabel);
 
-            if (string.IsNullOrEmpty(script.userId))      script.userId = "-1";
-            if (string.IsNullOrEmpty(script.conditionId)) script.conditionId = "-1";
-            if (string.IsNullOrEmpty(script.groupId))     script.groupId = "-1";
+            if (string.IsNullOrEmpty(userIdProp.stringValue)) userIdProp.stringValue = "-1";
+            if (string.IsNullOrEmpty(conditionIdProp.stringValue)) conditionIdProp.stringValue = "-1";
+            if (string.IsNullOrEmpty(groupIdProp.stringValue)) groupIdProp.stringValue = "-1";
 
             EditorGUILayout.PropertyField(userIdProp);
             EditorGUILayout.PropertyField(conditionIdProp);
@@ -320,7 +322,7 @@ namespace BOforUnity.Editor
                     EditorStyles.helpBox
                 );
                 // Force sampling to zero when warm start is on
-                script.numSamplingIterations = 0;
+                nSamplingIterProp.intValue = 0;
             }
 
             if (warmStartObjectiveFormatProp != null)
@@ -530,6 +532,9 @@ namespace BOforUnity.Editor
             SerializedProperty cabopGroup = value.FindPropertyRelative("cabopGroup");
             SerializedProperty cabopTolerance = value.FindPropertyRelative("cabopTolerance");
             SerializedProperty cabopPrefabricatedValues = value.FindPropertyRelative("cabopPrefabricatedValues");
+            bool showCabopFields = optimizerBackendProp != null &&
+                                   (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
+                                   BoForUnityManager.OptimizerBackend.CABOP;
 
             float padding = 1.5f;
             float singleLineHeight = EditorGUIUtility.singleLineHeight;
@@ -555,17 +560,20 @@ namespace BOforUnity.Editor
                 yOffset += fieldHeight;
                 EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), upperBound);
                 yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), cabopGroup);
-                yOffset += fieldHeight;
-                EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), cabopTolerance);
-                yOffset += fieldHeight;
-                float prefabHeight = EditorGUI.GetPropertyHeight(cabopPrefabricatedValues, true);
-                EditorGUI.PropertyField(
-                    new Rect(rect.x, yOffset, rect.width, prefabHeight),
-                    cabopPrefabricatedValues,
-                    new GUIContent("CABOP Prefabricated Values"),
-                    true
-                );
+                if (showCabopFields)
+                {
+                    EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), cabopGroup);
+                    yOffset += fieldHeight;
+                    EditorGUI.PropertyField(new Rect(rect.x, yOffset, rect.width, singleLineHeight), cabopTolerance);
+                    yOffset += fieldHeight;
+                    float prefabHeight = EditorGUI.GetPropertyHeight(cabopPrefabricatedValues, true);
+                    EditorGUI.PropertyField(
+                        new Rect(rect.x, yOffset, rect.width, prefabHeight),
+                        cabopPrefabricatedValues,
+                        new GUIContent("CABOP Prefabricated Values"),
+                        true
+                    );
+                }
 
                 EditorGUI.indentLevel--;
             }
@@ -583,9 +591,16 @@ namespace BOforUnity.Editor
 
             if (value.isExpanded)
             {
-                SerializedProperty cabopPrefabricatedValues = value.FindPropertyRelative("cabopPrefabricatedValues");
-                totalHeight += singleLineHeight * 5 + 1.5f * 5;
-                totalHeight += EditorGUI.GetPropertyHeight(cabopPrefabricatedValues, true) + 1.5f;
+                totalHeight += singleLineHeight * 3 + 1.5f * 3;
+                bool showCabopFields = optimizerBackendProp != null &&
+                                       (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
+                                       BoForUnityManager.OptimizerBackend.CABOP;
+                if (showCabopFields)
+                {
+                    SerializedProperty cabopPrefabricatedValues = value.FindPropertyRelative("cabopPrefabricatedValues");
+                    totalHeight += singleLineHeight * 2 + 1.5f * 2;
+                    totalHeight += EditorGUI.GetPropertyHeight(cabopPrefabricatedValues, true) + 1.5f;
+                }
             }
 
             return totalHeight;
@@ -601,10 +616,11 @@ namespace BOforUnity.Editor
 
             float padding = 5f;
             rect.y += padding / 2;
+            float valueHeight = EditorGUI.GetPropertyHeight(value, true);
 
             EditorGUI.PropertyField(new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight), key, GUIContent.none);
             EditorGUI.indentLevel++;
-            EditorGUI.PropertyField(new Rect(rect.x, rect.y + EditorGUIUtility.singleLineHeight + 2, rect.width, EditorGUI.GetPropertyHeight(value)), value, GUIContent.none, true);
+            EditorGUI.PropertyField(new Rect(rect.x, rect.y + EditorGUIUtility.singleLineHeight + 2, rect.width, valueHeight), value, GUIContent.none, true);
             EditorGUI.indentLevel--;
             rect.y += padding;
         }
@@ -620,7 +636,7 @@ namespace BOforUnity.Editor
         {
             SerializedProperty element = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
             float padding = 5;
-            return EditorGUIUtility.singleLineHeight + EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value")) + EditorGUIUtility.standardVerticalSpacing + 2 + padding;
+            return EditorGUIUtility.singleLineHeight + EditorGUI.GetPropertyHeight(element.FindPropertyRelative("value"), true) + EditorGUIUtility.standardVerticalSpacing + 2 + padding;
         }
     }
 }

@@ -10,7 +10,6 @@ using TMPro;
 using UnityEditor;
 #endif
 using UnityEngine;
-using UnityEngine.Assertions.Must;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
@@ -89,10 +88,8 @@ namespace BOforUnity
         public string initialObjectivesDataPath;
         public string warmStartObjectiveFormat = "auto";
 
-        [Header("Optimizer Backend")]
         public OptimizerBackend optimizerBackend = OptimizerBackend.BoTorch;
 
-        [Header("CABOP Settings")]
         public CabopObjectiveMode cabopObjectiveMode = CabopObjectiveMode.SingleObjective;
         public bool cabopUseCostAwareAcquisition = true;
         public CabopUpdateRule cabopUpdateRule = CabopUpdateRule.Actual;
@@ -100,18 +97,15 @@ namespace BOforUnity
         [Min(-1f)] public float cabopMaxCumulativeCost = -1f;
         public List<CabopGroupCostEntry> cabopGroupCosts = new List<CabopGroupCostEntry>();
 
-        [Header("Loop Progression")]
         public IterationAdvanceMode iterationAdvanceMode = IterationAdvanceMode.NextButton;
         [Min(0f)] public float automaticAdvanceDelaySec = 0f;
         public bool reloadSceneOnIterationAdvance = true;
 
-        [Header("Final Design Round")]
         public bool enableFinalDesignRound = false;
         [Min(0f)] public float finalDesignDistanceEpsilon = 1e-6f;
         [Min(0f)] public float finalDesignMaximinEpsilon = 1e-6f;
         [Min(0f)] public float finalDesignAggressionEpsilon = 1e-6f;
 
-        [Header("Questionnaire")]
         public bool enablePriorSliderRatingHint = false;
         [Range(0.05f, 0.45f)] public float priorSliderRatingHintAlpha = 0.16f;
 
