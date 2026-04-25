@@ -14,9 +14,10 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 #### Key Features
 - Configure design parameters, objectives, and optimizer hyperparameters directly in Unity.
 - Automatic, robust communication with a BoTorch-based MOBO process.
+- Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
-- Two example scenes demonstrating end-to-end optimization.
+- Ready-to-run example scenes, including questionnaire-driven design optimization and a 2D Fitts law pointing task based on Fitts's [1954 paper](https://doi.org/10.1037/h0055392).
 
 #### Example Use Case
 
@@ -49,12 +50,15 @@ Several scientific publications have used ‘Bayesian Optimization for Unity’ 
 * [Integration Checklist (Required)](#integration-checklist-required)
 * [Quick Start (10 Minutes)](#quick-start-10-minutes)
 * [Example Usage](#example-usage)
+    * [Questionnaire Demo Scene](#questionnaire-demo-scene)
+    * [Fitts Law Task Scene](#fitts-law-task-scene)
 * [Demo Video](#demo-video)
 * [Configuration](#configuration)
     * [Parameters](#parameters)
     * [Objectives](#objectives)
     * [Python Settings](#python-settings)
     * [Study Settings](#study-settings)
+    * [Optimizer Backend and CABOP Settings](#optimizer-backend-and-cabop-settings)
     * [Questionnaire Prior Rating Hint (Optional)](#questionnaire-prior-rating-hint-optional)
     * [Problem Setup](#problem-setup)
     * [Optimization Budget](#optimization-budget)
@@ -213,7 +217,7 @@ If any item above is missing, the loop may start but stall before sending/receiv
 ## Quick Start (10 Minutes)
 Use this path for a first successful run with the provided demo scene.
 
-1. Open `Assets/BOforUnity/BO-example-scene.unity`.
+1. Open `Assets/BOforUnity/Scenes/BO-example-scene.unity`.
 2. Select `BOforUnityManager` in the hierarchy and verify the [Integration Checklist](#integration-checklist-required).
 3. In `BoForUnityManager` inspector:
    - keep `Iteration Advance Mode = NextButton`
@@ -238,10 +242,14 @@ If these outputs appear, your full Unity-Python loop is working.
 
 
 ## Example Usage
-This section walks through the demo workflow. Install the asset first as described in [Installation](#installation).
+This section walks through the provided example workflows. Install the asset first as described in [Installation](#installation).
 > **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*. By default this equals `User ID`, but invalid path characters are normalized for folder safety. You can delete the folder to recreate a clean one.
 
-1. In Unity, open *Assets/BOforUnity* and double-click *BO-example-scene.unity*.
+### Questionnaire Demo Scene
+
+Use this scene when you want to see the standard QuestionnaireToolkit-based HITL workflow.
+
+1. In Unity, open *Assets/BOforUnity/Scenes* and double-click *BO-example-scene.unity*.
 2. Press the Play button (⏵).
 3. Click `Next`, wait for loading, then click `Next` again.
 4. The simulation appears. You will see up to two colored shapes to evaluate.
@@ -250,6 +258,37 @@ This section walks through the demo workflow. Install the asset first as describ
 7. Press `Next` to start a new iteration. Repeat from step `3` until all iterations finish. The system then indicates you can close the application.
 
 > **Note:** Results are in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* (typically your `User ID`, normalized for folder-safe naming if needed).
+
+### Fitts Law Task Scene
+
+Use `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity` for a ready-to-run 2D Fitts law task. The task presents circular click targets arranged on a ring; one target is highlighted at a time, and the participant clicks the highlighted target to advance to the next trial. It is implemented in `Assets/BOforUnity/Examples/FittsLawTask.cs`.
+
+The scene is configured as a BO example with three design parameters:
+
+| Parameter key | Meaning |
+|---|---|
+| `circle_size` | Target diameter in pixels. |
+| `circle_distance` | Movement distance / ring diameter in pixels. |
+| `movement_direction` | Rotation of the target layout in degrees. |
+
+The scene writes three objectives:
+
+| Objective key | Direction | Meaning |
+|---|---|---|
+| `task_completion_time` | Minimize | Total time to finish all target clicks. |
+| `accuracy` | Maximize | Correct clicks divided by total clicks. |
+| `mental_demand` | Minimize | 1-20 NASA-TLX-style mental demand rating. |
+
+Workflow:
+
+1. Open `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity`.
+2. Press Play.
+3. Wait for the optimizer to initialize.
+4. Click each highlighted target until the trial block is complete.
+5. Select the 1-20 mental demand rating.
+6. The script writes the objective values to `BoForUnityManager`, starts optimization, and requests the next external-signal iteration automatically.
+
+This example is useful for HCI experiments where the canonical Fitts law variables target width and movement amplitude should be optimized together with a subjective workload measure. For the original model, see Fitts's 1954 paper, [The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement](https://doi.org/10.1037/h0055392).
 
 
 
@@ -266,7 +305,7 @@ Click the thumbnail for a short demo showing how to export the main-branch packa
 
 
 ## Configuration
-All configuration is done in Unity. Open *Assets/BOforUnity/BO-example-scene.unity*. Select the *BOforUnityManager* object in the hierarchy, then click *Select* at the top of the inspector. Adjust settings as needed.
+All configuration is done in Unity. Open *Assets/BOforUnity/Scenes/BO-example-scene.unity*. Select the *BOforUnityManager* object in the hierarchy, then click *Select* at the top of the inspector. Adjust settings as needed.
 
 Save the scene after changes. Re-select *BOforUnityManager* to confirm your edits. The *BOforUnityManager* prefab must be correct; it overrides previous settings (see the inspector top left).
 
@@ -438,6 +477,8 @@ These three values are always logged as context columns in `ObservationsPerEvalu
 * **CABOP**: cost-aware optimization backend with selectable objective mode:
   * `SingleObjective` -> `cabop_bo.py` (requires exactly 1 objective).
   * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
+
+CABOP addresses the practical case where design changes do not all have the same evaluation cost. For the broader cost-aware BO motivation and terminology, see Langerak, Zhang, Wang, Kristensson, and Oulasvirta's [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024).
 
 CABOP inspector settings:
 
