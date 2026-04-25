@@ -3,7 +3,10 @@
 
 [![DOI](https://zenodo.org/badge/833015227.svg)](https://doi.org/10.5281/zenodo.16849778)
 
-by [Pascal Jansen](https://scholar.google.de/citations?user=cR1_0-EAAAAJ&hl=en) and [Mark Colley](https://scholar.google.com/citations?user=Kt5I7wYAAAAJ&hl=de)
+**[Pascal Jansen](https://pascal-jansen.github.io)**, Ulm University
+
+**[Mark Colley](https://m-colley.github.io)**, University College London
+
 
 ## 1. About
 
