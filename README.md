@@ -32,16 +32,16 @@ To improve interface usability, treat selected UI attributes as **design paramet
 
 ## 2. Publications
 
-Several scientific publications have used ‘Bayesian Optimization for Unity’ in their methodology:
+Several scientific publications have used **Bayesian Optimization for Unity**:
 
-- Jansen, P., Colley, M., Krauß, S., Hirschle, D., & Rukzio, E. (2025). [OptiCarVis: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems (CHI '25)* (24 pages). Association for Computing Machinery. https://doi.org/10.1145/3706598.3713514
-  *Best Paper Honorable Mention (top 5%).*
+Jansen, P., Colley, M., Krauß, S., Hirschle, D., & Rukzio, E. [OptiCarVis: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems* **CHI '25**. ACM.
+  **Best Paper Honorable Mention (top 5%)**
 
-- Colley, M., Jansen, P., Keskar, M., & Rukzio, E. (2025). [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems (CHI '25)* (16 pages). Association for Computing Machinery. https://doi.org/10.1145/3706598.3714187
+Colley, M., Jansen, P., Keskar, M., & Rukzio, E. [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems* **CHI '25**. ACM.
 
-- Meinhardt, L.-M., Schramm, C., Jansen, P., Colley, M., & Rukzio, E. (2025). [Fly Away: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems (CHI '25)* (16 pages). Association for Computing Machinery. https://doi.org/10.1145/3706598.3713288
+Meinhardt, L.-M., Schramm, C., Jansen, P., Colley, M., & Rukzio, E. [Fly Away: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems* **CHI '25**. ACM.
 
-- Susak, J., Liu, Y., Jansen, P., & Colley, M. (2026). [ProVoice: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877). In *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems (CHI '26)* (16 pages). Association for Computing Machinery. https://doi.org/10.1145/3772318.3791877
+Susak, J., Liu, Y., Jansen, P., & Colley, M. [ProVoice: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877). In *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems* **CHI '26**. ACM.
 
 
 ---
