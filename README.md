@@ -1,23 +1,24 @@
 
 # Bayesian Optimization for Unity
 
-[![DOI](https://zenodo.org/badge/833015227.svg)](https://doi.org/10.5281/zenodo.16849778)
+[![DOI](https://zenodo.org/badge/833015227.svg)](https://doi.org/10.5281/zenodo.19786494)
 
 **[Pascal Jansen](https://pascal-jansen.github.io)**, Ulm University
 
 **[Mark Colley](https://m-colley.github.io)**, University College London
 
+![Demo](images/BOforUnity.gif)
 
 ## 1. About
 
 This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Optimization** workflow (single- and multi-objective) built on [botorch.org](https://botorch.org/). It lets you declare **design parameters** and **objectives** in Unity, runs a Python backend, and loops with users inside your Unity scene. The result is an efficient search over large design spaces, yielding trade-off designs on the **Pareto front**.
 
-**Why this matters.** Users typically have diverse preferences, needs, and abilities. Thus, manual design parameter tuning is often slow and potentially biased; A/B and grid search scale poorly. Instead, MOBO uses probabilistic surrogate models and principled acquisition to balance design exploration and exploitation, **reducing the number of user trials** required to reach a high-quality design for every user.
+**Why this matters.** Users typically have diverse preferences, needs, and abilities. Thus, manual design parameter tuning is often slow and potentially biased; A/B and grid search scale poorly. Instead, MOBO uses probabilistic surrogate models and principled acquisition to balance design exploration and exploitation, **reducing the number of user trials** required to achieve a high-quality design for individuals.
 
 ### 1.1 Key Features
 
 - Configure design parameters, objectives, and optimizer hyperparameters directly in Unity.
-- Automatic, robust communication with a BoTorch-based MOBO process.
+- Automatic, robust communication with a [BoTorch](https://botorch.org/)-based MOBO process.
 - Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
@@ -26,9 +27,6 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 ### 1.2 Example Use Case
 
 To improve interface usability, treat selected UI attributes as **design parameters** $x$ (e.g., button size, color contrast, spacing, animation duration) and optimize two **objectives** $y$: **System Usability Scale** (0–100, maximize) and **task completion time** (seconds, minimize). In each iteration $t$, the optimizer proposes a configuration $x_t$; a participant completes a fixed task; Unity records time; the participant completes SUS; the posterior and acquisition function update; and the next $x_{t+1}$ is selected. After several iterations, the system returns an estimated Pareto front containing *Pareto-optimal* interface designs that represent the best compromise between the design objectives.
-
-
-![Demo](images/BOforUnity.gif)
 
 
 ---
@@ -849,15 +847,12 @@ To import: `Assets` → **Import Package** → **Custom Package...**, select you
 If you use this software, please cite:
 
 ```bibtex
-@software{jansen_bayesian_optimization_unity_2025,
+@software{jansen_bayesian_optimization_for_unity,
   author    = {Pascal Jansen and Mark Colley},
-  title     = {Bayesian-Optimization-for-Unity},
-  year      = {2025},
-  month     = aug,
+  title     = {Bayesian Optimization for Unity},
   publisher = {Zenodo},
-  version   = {v1.1.0},
-  doi       = {10.5281/zenodo.16849778},
-  url       = {https://doi.org/10.5281/zenodo.16849778}
+  doi       = {10.5281/zenodo.19786494},
+  url       = {https://doi.org/10.5281/zenodo.19786494}
 }
 ```
 
@@ -867,7 +862,3 @@ If you use this software, please cite:
 ## 15. License
 
 This project is under the **MIT License**, available in the repository folder containing this README.
-
-\
-\
-<span style="color:gray">*README originally written by Sebastian Lommen as part of his student's software engineering project*</span>
