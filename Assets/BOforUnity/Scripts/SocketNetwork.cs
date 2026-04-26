@@ -637,7 +637,7 @@ namespace BOforUnity.Scripts
                     rawSamples = _bomanager.rawSamples,
                     numOptimizationIterations = _bomanager.numOptimizationIterations,
                     mcSamples = _bomanager.mcSamples,
-                    numSamplingIterations = _bomanager.numSamplingIterations,
+                    numSamplingIterations = _bomanager.GetEffectiveSamplingIterations(),
                     seed = _bomanager.seed,
                     nParameters = parameterPayload.Count,
                     nObjectives = objectivePayload.Count,

@@ -43,7 +43,8 @@ namespace BOforUnity.Scripts
         // Python compatibility policy for automatic selection and setup.
         private const int SupportedPythonMajor = 3;
         private const int MinSupportedPythonMinor = 9;
-        private const int PreferredPythonMinor = 13;
+        private const int BundledPythonMinor = 13;
+        private const string BundledPythonVersionLabel = "3.13.7";
 
         private void Start()
         {
@@ -96,34 +97,37 @@ namespace BOforUnity.Scripts
             else
             {
                 pythonExecutable = GetPythonExecutablePath();
-                pythonExecutable = PreferInstalledTargetPython(pythonExecutable);
 
-                // If auto mode finds only a non-preferred Python, try installing the target runtime once.
-                if (TryGetPythonVersion(pythonExecutable, out Version autoDetectedVersion, out _) &&
-                    !IsPreferredPythonVersion(autoDetectedVersion) &&
-                    !TryGetPreferredPythonPath(out _))
+                // If auto mode cannot find a supported Python, install the bundled fallback runtime once.
+                if (!TryGetPythonVersion(pythonExecutable, out Version autoDetectedVersion, out _) ||
+                    !IsSupportedPythonVersion(autoDetectedVersion))
                 {
+                    string detectedDescription = string.IsNullOrWhiteSpace(pythonExecutable)
+                        ? "No Python executable was found"
+                        : autoDetectedVersion != null
+                            ? $"Detected Python {autoDetectedVersion}"
+                            : $"Could not detect Python version at {pythonExecutable}";
                     pythonInstallStatus =
-                        $"Detected Python {autoDetectedVersion}. Installing preferred Python " +
-                        $"{SupportedPythonMajor}.{PreferredPythonMinor}.x (may require admin confirmation)…";
+                        $"{detectedDescription}. Installing bundled Python {BundledPythonVersionLabel} " +
+                        "(may require admin confirmation)...";
 
-                    var preferredInstallTask = TryInstallPreferredPythonAsync();
-                    while (!preferredInstallTask.IsCompleted)
+                    var bundledInstallTask = TryInstallBundledPythonAsync();
+                    while (!bundledInstallTask.IsCompleted)
                     {
                         if (_bomanager.outputText != null)
                             _bomanager.outputText.text = pythonInstallStatus;
                         yield return null;
                     }
 
-                    if (preferredInstallTask.Result)
+                    if (bundledInstallTask.Result)
                     {
-                        pythonExecutable = PreferInstalledTargetPython(GetPythonExecutablePath());
-                        Debug.Log("Preferred Python installation succeeded. New executable path: " + pythonExecutable);
+                        pythonExecutable = GetPythonExecutablePath();
+                        Debug.Log("Bundled Python installation succeeded. New executable path: " + pythonExecutable);
                     }
                     else
                     {
                         Debug.LogError(
-                            "Preferred Python installation did not complete successfully. " +
+                            "Bundled Python installation did not complete successfully. " +
                             "Aborting startup to avoid running with an unintended interpreter."
                         );
                         if (_bomanager != null)
@@ -133,7 +137,7 @@ namespace BOforUnity.Scripts
                             {
                                 _bomanager.outputText.text =
                                     "Python installation was cancelled or failed.\n" +
-                                    "Please install Python 3.13 and restart.";
+                                    $"Please install Python {SupportedPythonMajor}.{MinSupportedPythonMinor} or newer and restart.";
                             }
                             if (_bomanager.loadingObj != null)
                                 _bomanager.loadingObj.SetActive(false);
@@ -705,71 +709,7 @@ namespace BOforUnity.Scripts
 
             Debug.Log("Total candidates found: " + candidates.Count);
 
-            // 4. Evaluate each candidate to determine the newest version.
-            string newestPython = "";
-            Version newestVersion = new Version(0, 0, 0);
-            foreach (var candidate in candidates)
-            {
-                try
-                {
-                    ProcessStartInfo psiVer = new ProcessStartInfo
-                    {
-                        FileName = candidate,
-                        Arguments = "--version",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true
-                    };
-
-                    using (Process p = Process.Start(psiVer))
-                    {
-                        string verOutput = p.StandardOutput.ReadToEnd();
-                        if (string.IsNullOrEmpty(verOutput))
-                        {
-                            verOutput = p.StandardError.ReadToEnd();
-                        }
-                        p.WaitForExit();
-
-                        if (!string.IsNullOrEmpty(verOutput))
-                        {
-                            string trimmed = verOutput.Trim();
-                            if (trimmed.StartsWith("Python"))
-                            {
-                                string versionString = trimmed.Substring("Python".Length).Trim();
-                                if (Version.TryParse(versionString, out Version ver))
-                                {
-                                    Debug.Log("Candidate: " + candidate + " has version: " + ver);
-                                    if (ver > newestVersion)
-                                    {
-                                        newestVersion = ver;
-                                        newestPython = candidate;
-                                    }
-                                }
-                                else
-                                {
-                                    Debug.LogWarning("Unable to parse version from candidate: " + candidate + " output: " + trimmed);
-                                }
-                            }
-                            else
-                            {
-                                Debug.LogWarning("Candidate output did not start with 'Python': " + candidate + " output: " + trimmed);
-                            }
-                        }
-                        else
-                        {
-                            Debug.LogWarning("No version output from candidate: " + candidate);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning("Error checking python version for candidate: " + candidate + " - " + ex.Message);
-                }
-            }
-
-            Debug.Log("Newest Python candidate selected: " + newestPython);
-            return newestPython;
+            return SelectNewestSupportedPythonCandidate(candidates, "");
 
 #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
             // macOS
@@ -803,53 +743,7 @@ namespace BOforUnity.Scripts
                 Debug.LogWarning("Error finding python using 'which': " + ex.Message);
             }
 
-            string newestPython = "";
-            Version newestVersion = new Version(0, 0, 0);
-            foreach (var candidate in candidates)
-            {
-                try
-                {
-                    ProcessStartInfo psiVer = new ProcessStartInfo
-                    {
-                        FileName = candidate,
-                        Arguments = "--version",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true
-                    };
-                    using (Process p = Process.Start(psiVer))
-                    {
-                        string verOutput = p.StandardOutput.ReadToEnd();
-                        if (string.IsNullOrEmpty(verOutput))
-                        {
-                            verOutput = p.StandardError.ReadToEnd();
-                        }
-                        p.WaitForExit();
-                        if (!string.IsNullOrEmpty(verOutput))
-                        {
-                            string trimmed = verOutput.Trim();
-                            if (trimmed.StartsWith("Python"))
-                            {
-                                string versionString = trimmed.Substring("Python".Length).Trim();
-                                if (Version.TryParse(versionString, out Version ver))
-                                {
-                                    if (ver > newestVersion)
-                                    {
-                                        newestVersion = ver;
-                                        newestPython = candidate;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning("Error checking python version for candidate: " + candidate + " - " + ex.Message);
-                }
-            }
-            return newestPython;
+            return SelectNewestSupportedPythonCandidate(candidates, "");
 
 #elif UNITY_STANDALONE_LINUX
             // Linux
@@ -883,56 +777,58 @@ namespace BOforUnity.Scripts
                 Debug.LogWarning("Error finding python using 'which': " + ex.Message);
             }
 
-            string newestPython = "";
-            Version newestVersion = new Version(0, 0, 0);
-            foreach (var candidate in candidates)
-            {
-                try
-                {
-                    ProcessStartInfo psiVer = new ProcessStartInfo
-                    {
-                        FileName = candidate,
-                        Arguments = "--version",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true
-                    };
-                    using (Process p = Process.Start(psiVer))
-                    {
-                        string verOutput = p.StandardOutput.ReadToEnd();
-                        if (string.IsNullOrEmpty(verOutput))
-                        {
-                            verOutput = p.StandardError.ReadToEnd();
-                        }
-                        p.WaitForExit();
-                        if (!string.IsNullOrEmpty(verOutput))
-                        {
-                            string trimmed = verOutput.Trim();
-                            if (trimmed.StartsWith("Python"))
-                            {
-                                string versionString = trimmed.Substring("Python".Length).Trim();
-                                if (Version.TryParse(versionString, out Version ver))
-                                {
-                                    if (ver > newestVersion)
-                                    {
-                                        newestVersion = ver;
-                                        newestPython = candidate;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning("Error checking python version for candidate: " + candidate + " - " + ex.Message);
-                }
-            }
-            return !string.IsNullOrEmpty(newestPython) ? newestPython : "python3";
+            return SelectNewestSupportedPythonCandidate(candidates, "python3");
 #else
             return "python";
 #endif
+        }
+
+        private string SelectNewestSupportedPythonCandidate(IEnumerable<string> candidates, string fallback)
+        {
+            string newestSupportedPython = "";
+            Version newestSupportedVersion = new Version(0, 0, 0);
+            string newestAnyPython = "";
+            Version newestAnyVersion = new Version(0, 0, 0);
+
+            foreach (string candidate in candidates.Where(c => !string.IsNullOrWhiteSpace(c)).Distinct())
+            {
+                if (!TryGetPythonVersion(candidate, out Version version, out string rawOutput))
+                {
+                    Debug.LogWarning("Unable to parse Python version from candidate: " + candidate +
+                                     " output: " + rawOutput?.Trim());
+                    continue;
+                }
+
+                Debug.Log("Candidate: " + candidate + " has version: " + version);
+
+                if (version > newestAnyVersion)
+                {
+                    newestAnyVersion = version;
+                    newestAnyPython = candidate;
+                }
+
+                if (IsSupportedPythonVersion(version) && version > newestSupportedVersion)
+                {
+                    newestSupportedVersion = version;
+                    newestSupportedPython = candidate;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(newestSupportedPython))
+            {
+                Debug.Log("Newest supported Python candidate selected: " + newestSupportedPython);
+                return newestSupportedPython;
+            }
+
+            if (!string.IsNullOrEmpty(newestAnyPython))
+            {
+                Debug.LogWarning("No supported Python candidate was found. Newest installed candidate is unsupported: " +
+                                 newestAnyPython + " (" + newestAnyVersion + ")");
+                return newestAnyPython;
+            }
+
+            Debug.LogWarning("No Python candidate was found. Falling back to: " + fallback);
+            return fallback;
         }
 
         private static bool IsSupportedPythonVersion(Version version)
@@ -940,13 +836,6 @@ namespace BOforUnity.Scripts
             return version != null &&
                    version.Major == SupportedPythonMajor &&
                    version.Minor >= MinSupportedPythonMinor;
-        }
-
-        private static bool IsPreferredPythonVersion(Version version)
-        {
-            return version != null &&
-                   version.Major == SupportedPythonMajor &&
-                   version.Minor == PreferredPythonMinor;
         }
 
         private static string NormalizePythonVersionToken(string token)
@@ -1011,33 +900,24 @@ namespace BOforUnity.Scripts
             }
         }
 
-        private static bool TryGetPreferredPythonPath(out string preferredPath)
+        private static bool TryGetBundledPythonPath(out string bundledPath)
         {
-            preferredPath = null;
+            bundledPath = null;
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-            preferredPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python313", "python.exe");
+            bundledPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                $"Python{SupportedPythonMajor}{BundledPythonMinor}",
+                "python.exe"
+            );
 #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
-            preferredPath = "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3";
+            bundledPath = $"/Library/Frameworks/Python.framework/Versions/{SupportedPythonMajor}.{BundledPythonMinor}/bin/python3";
 #elif UNITY_STANDALONE_LINUX
-            preferredPath = "/usr/bin/python3.13";
+            bundledPath = $"/usr/bin/python{SupportedPythonMajor}.{BundledPythonMinor}";
 #endif
-            return !string.IsNullOrWhiteSpace(preferredPath) && File.Exists(preferredPath);
+            return !string.IsNullOrWhiteSpace(bundledPath) && File.Exists(bundledPath);
         }
 
-        private string PreferInstalledTargetPython(string detectedPath)
-        {
-            if (!TryGetPreferredPythonPath(out string preferredPath))
-                return detectedPath;
-
-            if (!string.Equals(detectedPath, preferredPath, StringComparison.Ordinal))
-            {
-                Debug.Log($"Preferred Python detected; overriding auto-selected interpreter. " +
-                          $"Selected={detectedPath}, Preferred={preferredPath}");
-            }
-            return preferredPath;
-        }
-
-        private Task<bool> TryInstallPreferredPythonAsync()
+        private Task<bool> TryInstallBundledPythonAsync()
         {
             return Task.Run(() =>
             {
@@ -1055,35 +935,35 @@ namespace BOforUnity.Scripts
                     );
                     if (!File.Exists(pkgPath))
                     {
-                        pythonInstallStatus = $"Preferred Python installer package not found: {pkgPath}";
+                        pythonInstallStatus = $"Bundled Python installer package not found: {pkgPath}";
                         return false;
                     }
 
                     pythonInstallStatus =
-                        "Installing preferred Python 3.13 from packaged installer " +
-                        "(macOS admin prompt may appear)…";
+                        $"Installing bundled Python {BundledPythonVersionLabel} from packaged installer " +
+                        "(macOS admin prompt may appear)...";
                     int rc = RunMacPkgInstallerWithAdminPrompt(pkgPath);
                     if (rc != 0)
                     {
-                        pythonInstallStatus = $"Preferred Python installation failed ({rc}).";
+                        pythonInstallStatus = $"Bundled Python installation failed ({rc}).";
                         return false;
                     }
 
                     // Verify target path now exists.
-                    if (!TryGetPreferredPythonPath(out string preferredPath))
+                    if (!TryGetBundledPythonPath(out string bundledPath))
                     {
-                        pythonInstallStatus = "Preferred Python install completed, but executable path was not found.";
+                        pythonInstallStatus = "Bundled Python install completed, but executable path was not found.";
                         return false;
                     }
 
-                    if (!TryGetPythonVersion(preferredPath, out Version preferredVersion, out _)
-                        || !IsPreferredPythonVersion(preferredVersion))
+                    if (!TryGetPythonVersion(bundledPath, out Version bundledVersion, out _)
+                        || !IsSupportedPythonVersion(bundledVersion))
                     {
-                        pythonInstallStatus = "Preferred Python path exists, but version check failed.";
+                        pythonInstallStatus = "Bundled Python path exists, but version check failed.";
                         return false;
                     }
 
-                    pythonInstallStatus = $"Preferred Python {preferredVersion} installed.";
+                    pythonInstallStatus = $"Bundled Python {bundledVersion} installed.";
                     return true;
 #elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
                     string installBat = Path.Combine(
@@ -1095,33 +975,33 @@ namespace BOforUnity.Scripts
                     );
                     if (!File.Exists(installBat))
                     {
-                        pythonInstallStatus = $"Preferred Python installer not found: {installBat}";
+                        pythonInstallStatus = $"Bundled Python installer not found: {installBat}";
                         return false;
                     }
 
                     // May trigger UAC depending on system policy and current permissions.
-                    pythonInstallStatus = "Installing preferred Python 3.13 (Windows UAC prompt may appear)…";
+                    pythonInstallStatus = $"Installing bundled Python {BundledPythonVersionLabel} (Windows UAC prompt may appear)...";
                     int rc = RunProcessBlocking("cmd.exe", $"/c \"\"{installBat}\"\"");
                     if (rc != 0)
                     {
-                        pythonInstallStatus = $"Preferred Python installation failed ({rc}).";
+                        pythonInstallStatus = $"Bundled Python installation failed ({rc}).";
                         return false;
                     }
-                    pythonInstallStatus = "Preferred Python installer finished.";
+                    pythonInstallStatus = "Bundled Python installer finished.";
                     return true;
 #elif UNITY_STANDALONE_LINUX
                     pythonInstallStatus =
-                        "Automatic preferred Python installation is not supported from Unity on Linux. " +
+                        "Automatic bundled Python installation is not supported from Unity on Linux. " +
                         "Run Assets/StreamingAssets/BOData/Installation/Linux/install_python.sh manually.";
                     return false;
 #else
-                    pythonInstallStatus = "Automatic preferred Python installation is not supported on this platform.";
+                    pythonInstallStatus = "Automatic bundled Python installation is not supported on this platform.";
                     return false;
 #endif
                 }
                 catch (Exception ex)
                 {
-                    pythonInstallStatus = $"Preferred Python install error: {ex.Message}";
+                    pythonInstallStatus = $"Bundled Python install error: {ex.Message}";
                     return false;
                 }
             });
@@ -1188,20 +1068,11 @@ namespace BOforUnity.Scripts
                     {
                         pythonInstallStatus =
                             $"Unsupported Python version {pyVersion}. " +
-                            $"Supported: {SupportedPythonMajor}.{MinSupportedPythonMinor}+ (preferred {SupportedPythonMajor}.{PreferredPythonMinor}).";
+                            $"Supported: {SupportedPythonMajor}.{MinSupportedPythonMinor}+.";
                         return false;
                     }
-                    if (!IsPreferredPythonVersion(pyVersion))
-                    {
-                        Debug.LogWarning(
-                            $"Using supported but non-preferred Python {pyVersion}. " +
-                            $"Preferred is {SupportedPythonMajor}.{PreferredPythonMinor}.x. Raw version output: {rawVersion?.Trim()}"
-                        );
-                    }
-                    else
-                    {
-                        Debug.Log($"Using preferred Python {pyVersion} at {pythonPath}");
-                    }
+
+                    Debug.Log($"Using Python {pyVersion} at {pythonPath}. Raw version output: {rawVersion?.Trim()}");
 
                     // Build path to requirements.txt inside StreamingAssets
                     string reqPath = Path.Combine(Application.streamingAssetsPath, "BOData", "Installation", "requirements.txt");

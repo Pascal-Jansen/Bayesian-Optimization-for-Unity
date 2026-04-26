@@ -1,0 +1,39 @@
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# IDE and generated solution files
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+
+# Unity crash/debug output
+sysinfo.txt
+*.stackdump
+
+# Unity build/package output
+*.apk
+*.aab
+*.unitypackage
+!release/*.unitypackage
+
+# BO runtime output
+Assets/StreamingAssets/BOData/LogData/
+Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
+
+# Unity editor recovery scenes
+Assets/_Recovery/

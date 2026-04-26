@@ -1016,7 +1016,7 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTLinearScale":
                             jsonString += "\"qType\":\"linear_scale\","
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTLinearScale>().answerRequired + "\","
                                           + "\"options\":[";
                             foreach (var option in question.GetComponent<QTLinearScale>().options)
@@ -1028,7 +1028,7 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTCheckboxes":
                             jsonString += "\"qType\":\"checkboxes\"," 
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTCheckboxes>().answerRequired + "\","
                                           + "\"include_other_option\":\"" + question.GetComponent<QTCheckboxes>().includeOtherOption + "\","
                                           + "\"options\":[";
@@ -1042,7 +1042,7 @@ namespace QuestionnaireToolkit.Scripts
                             var sliderScript = question.GetComponent<QTSlider>();
                             jsonString += "\"qType\":\"slider\"," 
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + sliderScript.answerRequired + "\","
                                           + "\"min_value\":\"" + sliderScript.minValue + "\","
                                           + "\"max_value\":\"" + sliderScript.maxValue + "\","
@@ -1059,7 +1059,7 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTMultipleChoice":
                             jsonString += "\"qType\":\"multiple_choice\","
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTMultipleChoice>().answerRequired + "\","
                                           + "\"include_other_option\":\"" + question.GetComponent<QTMultipleChoice>().includeOtherOption + "\","
                                           + "\"options\":[";
@@ -1072,14 +1072,14 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTTextInput":
                             jsonString += question.name.Contains("Short") ? "\"qType\":\"text_input_short\"," : "\"qType\":\"text_input_long\",";
                             jsonString += "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTTextInput>().answerRequired + "\","
                                           + "\"placeholder_text\":\"" + question.GetComponent<QTTextInput>().placeholderText + "\"},";
                             break;
                         case "QTDropdown":
                             jsonString += "\"qType\":\"dropdown\","
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTDropdown>().answerRequired + "\","
                                           + "\"options\":[";
                             foreach (var option in question.GetComponent<QTDropdown>().options)
@@ -1091,7 +1091,7 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTCheckboxesGrid":
                             jsonString += "\"qType\":\"checkboxes_grid\","
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTCheckboxesGrid>().answerRequired + "\","
                                           + "\"row_texts\":[";
                             foreach (var rowText in question.GetComponent<QTCheckboxesGrid>().rowTexts)
@@ -1108,7 +1108,7 @@ namespace QuestionnaireToolkit.Scripts
                         case "QTMultipleChoiceGrid":
                             jsonString += "\"qType\":\"multiple_choice_grid\","
                                           + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + question.name.Split('_')[1] + "\","
+                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
                                           + "\"mandatory\":\"" + question.GetComponent<QTMultipleChoiceGrid>().answerRequired + "\","
                                           + "\"row_texts\":[";
                             foreach (var rowText in question.GetComponent<QTMultipleChoiceGrid>().rowTexts)
@@ -1467,7 +1467,7 @@ namespace QuestionnaireToolkit.Scripts
                         if (question.CompareTag("QTCheckboxesGrid"))
                         {
                             var grid = question.transform.GetChild(1);
-                            var questionHeader = GetQuestionHeaderFromObjectName(question.name);
+                            var questionHeader = GetQuestionHeaderName(question);
                             var rowHeaders = new List<string>();
                             for (var i = 0; i < grid.childCount; i++)
                             {
@@ -1508,7 +1508,7 @@ namespace QuestionnaireToolkit.Scripts
                         }
                         else
                         {
-                            resultsHeaderItems.Add(TryHeaderName(GetQuestionHeaderFromObjectName(question.name)));
+                            resultsHeaderItems.Add(TryHeaderName(GetQuestionHeaderName(question)));
                         }
                     }
                 }
@@ -1647,6 +1647,39 @@ namespace QuestionnaireToolkit.Scripts
         {
             if (question == null)
                 return "NULL";
+
+            string headerName = null;
+            switch (question.tag)
+            {
+                case "QTLinearScale":
+                    headerName = question.GetComponent<QTLinearScale>()?.headerName;
+                    break;
+                case "QTCheckboxes":
+                    headerName = question.GetComponent<QTCheckboxes>()?.headerName;
+                    break;
+                case "QTSlider":
+                    headerName = question.GetComponent<QTSlider>()?.headerName;
+                    break;
+                case "QTMultipleChoice":
+                    headerName = question.GetComponent<QTMultipleChoice>()?.headerName;
+                    break;
+                case "QTTextInput":
+                    headerName = question.GetComponent<QTTextInput>()?.headerName;
+                    break;
+                case "QTDropdown":
+                    headerName = question.GetComponent<QTDropdown>()?.headerName;
+                    break;
+                case "QTCheckboxesGrid":
+                    headerName = question.GetComponent<QTCheckboxesGrid>()?.headerName;
+                    break;
+                case "QTMultipleChoiceGrid":
+                    headerName = question.GetComponent<QTMultipleChoiceGrid>()?.headerName;
+                    break;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerName))
+                return headerName.Trim();
+
             return GetQuestionHeaderFromObjectName(question.name);
         }
 

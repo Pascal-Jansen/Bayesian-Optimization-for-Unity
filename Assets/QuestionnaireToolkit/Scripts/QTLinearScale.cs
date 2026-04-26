@@ -43,11 +43,8 @@ namespace QuestionnaireToolkit.Scripts
             _questionnaireManager = transform.parent.parent.parent.parent.parent.GetComponent<QTQuestionnaireManager>();
             try
             {
-                headerName = name.Split('_')[1];
                 _oldHeaderName = headerName;
-                question = name.Split('_')[2];
                 transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = question;
-                name = name.Split('_')[0] + "_" + name.Split('_')[1];
                 
                 if (!Application.isPlaying)
                 {

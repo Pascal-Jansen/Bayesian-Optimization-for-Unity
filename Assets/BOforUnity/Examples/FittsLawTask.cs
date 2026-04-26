@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using BOforUnity.Scripts;
+using QuestionnaireToolkit.Scripts;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -34,7 +35,7 @@ namespace BOforUnity.Examples
 
         [Header("Task")]
         [Min(2)] public int targetCount = 12;
-        [Min(1)] public int trialCount = 36;
+        [Min(1)] public int trialCount = 10;
         public bool startOnAwake = true;
         [Min(0f)] public float startDelaySeconds = 0.25f;
         public bool restartWithKey = true;
@@ -94,7 +95,7 @@ namespace BOforUnity.Examples
         public Color wrongTargetFlashColor = new Color(1f, 0.24f, 0.16f, 1f);
         public Color targetOutlineColor = new Color(1f, 1f, 1f, 0.45f);
         [Min(0f)] public float targetOutlineWidth = 2f;
-        public bool showTargetLabels = true;
+        public bool showTargetLabels = false;
         public Color targetLabelColor = Color.white;
         [Min(1)] public int targetLabelFontSize = 22;
 
@@ -112,20 +113,12 @@ namespace BOforUnity.Examples
         public Color statusTextColor = Color.white;
         [Min(1)] public int statusFontSize = 32;
 
-        [Header("Mental Demand Objective")]
-        public bool collectMentalDemandRating = true;
-        [Range(1, 20)] public int defaultMentalDemandRating = 10;
-        public string mentalDemandPrompt = "Mental demand";
-        public string mentalDemandLowLabel = "Very low";
-        public string mentalDemandHighLabel = "Very high";
-        public Color mentalDemandPanelColor = new Color(0.11f, 0.13f, 0.16f, 0.96f);
-        public Color mentalDemandButtonColor = new Color(0.2f, 0.24f, 0.29f, 1f);
-        public Color mentalDemandButtonTextColor = Color.white;
+        [Header("Questionnaire Toolkit")]
+        public QTQuestionnaireManager questionnaireToolkitManager;
 
         [Header("Design Objectives")]
         public float taskCompletionTimeMs;
         public float accuracyPercent;
-        [Range(1, 20)] public int mentalDemandRating = 10;
 
         [Header("BO Design Objectives")]
         public bool writeObjectivesToBo = true;
@@ -134,7 +127,6 @@ namespace BOforUnity.Examples
         public string accuracyObjectiveKey = "accuracy";
         [Min(0)] public int accuracyObjectiveIndex = 1;
         public string mentalDemandObjectiveKey = "mental_demand";
-        [Min(0)] public int mentalDemandObjectiveIndex = 2;
 
         [Header("Result Logging")]
         public bool logResultsToConsole = true;
@@ -150,7 +142,6 @@ namespace BOforUnity.Examples
         private Canvas _canvas;
         private RectTransform _playArea;
         private TextMeshProUGUI _statusText;
-        private GameObject _mentalDemandPanel;
         private Sprite _circleSprite;
         private Texture2D _circleTexture;
         private int _currentTrial;
@@ -220,10 +211,7 @@ namespace BOforUnity.Examples
             movementDirectionParameterIndex = Mathf.Max(0, movementDirectionParameterIndex);
             taskCompletionObjectiveIndex = Mathf.Max(0, taskCompletionObjectiveIndex);
             accuracyObjectiveIndex = Mathf.Max(0, accuracyObjectiveIndex);
-            mentalDemandObjectiveIndex = Mathf.Max(0, mentalDemandObjectiveIndex);
             boOptimizationIterations = Mathf.Max(0, boOptimizationIterations);
-            defaultMentalDemandRating = Mathf.Clamp(defaultMentalDemandRating, 1, 20);
-            mentalDemandRating = Mathf.Clamp(mentalDemandRating, 1, 20);
         }
 
         private IEnumerator WaitForBoEvaluationStart()
@@ -259,7 +247,6 @@ namespace BOforUnity.Examples
             _taskComplete = false;
             taskCompletionTimeMs = 0f;
             accuracyPercent = 0f;
-            mentalDemandRating = defaultMentalDemandRating;
             _resultsFinalized = false;
             trialResults.Clear();
 
@@ -427,7 +414,7 @@ namespace BOforUnity.Examples
 
             for (int i = 0; i < manager.parameters.Count; i++)
             {
-                BoForUnityManager.ParameterEntry parameter = manager.parameters[i];
+                ParameterEntry parameter = manager.parameters[i];
                 if (parameter != null && string.Equals(parameter.key, key, StringComparison.Ordinal))
                     return true;
             }
@@ -442,7 +429,7 @@ namespace BOforUnity.Examples
 
             for (int i = 0; i < manager.objectives.Count; i++)
             {
-                BoForUnityManager.ObjectiveEntry objective = manager.objectives[i];
+                ObjectiveEntry objective = manager.objectives[i];
                 if (objective != null && string.Equals(objective.key, key, StringComparison.Ordinal))
                     return true;
             }
@@ -459,39 +446,39 @@ namespace BOforUnity.Examples
             float movementDirectionMin = Mathf.Min(movementDirectionRangeDegrees.x, movementDirectionRangeDegrees.y);
             float movementDirectionMax = Mathf.Max(movementDirectionRangeDegrees.x, movementDirectionRangeDegrees.y);
 
-            manager.parameters = new List<BoForUnityManager.ParameterEntry>
+            manager.parameters = new List<ParameterEntry>
             {
-                new BoForUnityManager.ParameterEntry(
+                new ParameterEntry(
                     circleSizeParameterKey,
-                    new BoForUnityManager.ParameterArgs(circleSizeMin, circleSizeMax)
+                    new ParameterArgs(circleSizeMin, circleSizeMax)
                     {
                         Value = Mathf.Clamp(circleSizePixels, circleSizeMin, circleSizeMax)
                     }),
-                new BoForUnityManager.ParameterEntry(
+                new ParameterEntry(
                     circleDistanceParameterKey,
-                    new BoForUnityManager.ParameterArgs(circleDistanceMin, circleDistanceMax)
+                    new ParameterArgs(circleDistanceMin, circleDistanceMax)
                     {
                         Value = Mathf.Clamp(circleDistancePixels, circleDistanceMin, circleDistanceMax)
                     }),
-                new BoForUnityManager.ParameterEntry(
+                new ParameterEntry(
                     movementDirectionParameterKey,
-                    new BoForUnityManager.ParameterArgs(movementDirectionMin, movementDirectionMax)
+                    new ParameterArgs(movementDirectionMin, movementDirectionMax)
                     {
                         Value = Mathf.Clamp(movementDirectionDegrees, movementDirectionMin, movementDirectionMax)
                     })
             };
 
-            manager.objectives = new List<BoForUnityManager.ObjectiveEntry>
+            manager.objectives = new List<ObjectiveEntry>
             {
-                new BoForUnityManager.ObjectiveEntry(
+                new ObjectiveEntry(
                     taskCompletionObjectiveKey,
-                    new BoForUnityManager.ObjectiveArgs(0f, 120000f, true, 1)),
-                new BoForUnityManager.ObjectiveEntry(
+                    new ObjectiveArgs(0f, 120000f, true, 1)),
+                new ObjectiveEntry(
                     accuracyObjectiveKey,
-                    new BoForUnityManager.ObjectiveArgs(0f, 100f, false, 1)),
-                new BoForUnityManager.ObjectiveEntry(
+                    new ObjectiveArgs(0f, 100f, false, 1)),
+                new ObjectiveEntry(
                     mentalDemandObjectiveKey,
-                    new BoForUnityManager.ObjectiveArgs(1f, 20f, true, 1))
+                    new ObjectiveArgs(0f, 100f, true, 1))
             };
 
             manager.optimizerBackend = BoForUnityManager.OptimizerBackend.BoTorch;
@@ -545,7 +532,7 @@ namespace BOforUnity.Examples
             {
                 for (int i = 0; i < manager.parameters.Count; i++)
                 {
-                    BoForUnityManager.ParameterEntry parameter = manager.parameters[i];
+                    ParameterEntry parameter = manager.parameters[i];
                     if (parameter == null || parameter.value == null)
                         continue;
 
@@ -559,7 +546,7 @@ namespace BOforUnity.Examples
 
             if (fallbackIndex >= 0 && fallbackIndex < manager.parameters.Count)
             {
-                BoForUnityManager.ParameterEntry parameter = manager.parameters[fallbackIndex];
+                ParameterEntry parameter = manager.parameters[fallbackIndex];
                 if (parameter != null && parameter.value != null)
                 {
                     value = parameter.value.Value;
@@ -857,14 +844,7 @@ namespace BOforUnity.Examples
             }
 
             UpdateStatusText();
-
-            if (collectMentalDemandRating)
-            {
-                ShowMentalDemandQuestion();
-                return;
-            }
-
-            FinalizeTaskResults();
+            ShowMentalDemandQuestion();
         }
 
         private void ComputeDesignObjectives()
@@ -876,92 +856,47 @@ namespace BOforUnity.Examples
 
         private void ShowMentalDemandQuestion()
         {
-            if (_mentalDemandPanel != null)
-                Destroy(_mentalDemandPanel);
-
-            RectTransform canvasRect = _canvas ? _canvas.GetComponent<RectTransform>() : null;
-            if (canvasRect == null)
-            {
-                FinalizeTaskResults();
+            if (TryShowToolkitMentalDemandQuestion())
                 return;
-            }
 
-            _mentalDemandPanel = CreateUiObject("Mental Demand Rating", canvasRect);
-            RectTransform panelRect = _mentalDemandPanel.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.anchoredPosition = Vector2.zero;
-            panelRect.sizeDelta = new Vector2(920f, 280f);
-
-            Image panelImage = _mentalDemandPanel.AddComponent<Image>();
-            panelImage.color = mentalDemandPanelColor;
-
-            VerticalLayoutGroup verticalLayout = _mentalDemandPanel.AddComponent<VerticalLayoutGroup>();
-            verticalLayout.padding = new RectOffset(32, 32, 28, 28);
-            verticalLayout.spacing = 18f;
-            verticalLayout.childAlignment = TextAnchor.MiddleCenter;
-            verticalLayout.childControlWidth = true;
-            verticalLayout.childControlHeight = true;
-            verticalLayout.childForceExpandWidth = true;
-            verticalLayout.childForceExpandHeight = false;
-
-            GameObject promptObject = CreateUiObject("Prompt", panelRect);
-            TextMeshProUGUI prompt = promptObject.AddComponent<TextMeshProUGUI>();
-            prompt.text = mentalDemandPrompt + " (1-20)";
-            prompt.alignment = TextAlignmentOptions.Center;
-            prompt.color = statusTextColor;
-            prompt.fontSize = statusFontSize;
-            prompt.raycastTarget = false;
-            LayoutElement promptLayout = promptObject.AddComponent<LayoutElement>();
-            promptLayout.preferredHeight = 56f;
-
-            GameObject scaleObject = CreateUiObject("Scale", panelRect);
-            HorizontalLayoutGroup scaleLayout = scaleObject.AddComponent<HorizontalLayoutGroup>();
-            scaleLayout.spacing = 6f;
-            scaleLayout.childAlignment = TextAnchor.MiddleCenter;
-            scaleLayout.childControlWidth = true;
-            scaleLayout.childControlHeight = true;
-            scaleLayout.childForceExpandWidth = true;
-            scaleLayout.childForceExpandHeight = true;
-            LayoutElement scaleLayoutElement = scaleObject.AddComponent<LayoutElement>();
-            scaleLayoutElement.preferredHeight = 72f;
-
-            for (int rating = 1; rating <= 20; rating++)
-                CreateMentalDemandButton(scaleObject.transform as RectTransform, rating);
-
-            GameObject labelsObject = CreateUiObject("Labels", panelRect);
-            HorizontalLayoutGroup labelsLayout = labelsObject.AddComponent<HorizontalLayoutGroup>();
-            labelsLayout.childAlignment = TextAnchor.MiddleCenter;
-            labelsLayout.childControlWidth = true;
-            labelsLayout.childForceExpandWidth = true;
-            LayoutElement labelsLayoutElement = labelsObject.AddComponent<LayoutElement>();
-            labelsLayoutElement.preferredHeight = 40f;
-
-            CreateScaleLabel(labelsObject.transform as RectTransform, mentalDemandLowLabel, TextAlignmentOptions.Left);
-            CreateScaleLabel(labelsObject.transform as RectTransform, mentalDemandHighLabel, TextAlignmentOptions.Right);
+            FinalizeTaskResults();
         }
 
-        private void CreateMentalDemandButton(RectTransform parent, int rating)
+        private bool TryShowToolkitMentalDemandQuestion()
         {
-            GameObject buttonObject = CreateUiObject("Rating " + rating.ToString(CultureInfo.InvariantCulture), parent);
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = mentalDemandButtonColor;
+            QTQuestionnaireManager manager = ResolveQuestionnaireToolkitManager();
+            if (manager == null)
+            {
+                Debug.LogWarning("FittsLawTask: QuestionnaireToolkit manager was not found in the scene. Finalizing without a questionnaire rating.");
+                return false;
+            }
 
-            Button button = buttonObject.AddComponent<Button>();
-            button.transition = Selectable.Transition.ColorTint;
-            ColorBlock colors = button.colors;
-            colors.normalColor = mentalDemandButtonColor;
-            colors.highlightedColor = highlightedTargetColor;
-            colors.pressedColor = completedTargetColor;
-            colors.selectedColor = highlightedTargetColor;
-            button.colors = colors;
-            button.onClick.AddListener(() => SelectMentalDemandRating(rating));
+            bool started = manager.StartQuestionnaire();
+            if (!started)
+            {
+                Debug.LogWarning("FittsLawTask: QuestionnaireToolkit questionnaire could not be started. Finalizing without a questionnaire rating.");
+                return false;
+            }
 
-            TextMeshProUGUI label = CreateButtonLabel(buttonObject.transform as RectTransform);
-            label.text = rating.ToString(CultureInfo.InvariantCulture);
-            label.color = mentalDemandButtonTextColor;
-            label.fontSize = 20;
+            return true;
+        }
+
+        public void SendFittsResultsToOptimizerFromQuestionnaire()
+        {
+            FinalizeTaskResults(false);
+            ClearGeneratedUi();
+        }
+
+        private QTQuestionnaireManager ResolveQuestionnaireToolkitManager()
+        {
+            if (questionnaireToolkitManager != null)
+                return questionnaireToolkitManager;
+
+            QTQuestionnaireManager[] managers = FindObjectsOfType<QTQuestionnaireManager>();
+            if (managers == null || managers.Length == 0)
+                return null;
+
+            return managers[0];
         }
 
         private TextMeshProUGUI CreateButtonLabel(RectTransform parent)
@@ -976,27 +911,7 @@ namespace BOforUnity.Examples
             return label;
         }
 
-        private void CreateScaleLabel(RectTransform parent, string text, TextAlignmentOptions alignment)
-        {
-            GameObject labelObject = CreateUiObject(text, parent);
-            TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
-            label.text = text;
-            label.alignment = alignment;
-            label.color = statusTextColor;
-            label.fontSize = 22;
-            label.raycastTarget = false;
-        }
-
-        private void SelectMentalDemandRating(int rating)
-        {
-            mentalDemandRating = Mathf.Clamp(rating, 1, 20);
-            if (_mentalDemandPanel != null)
-                _mentalDemandPanel.SetActive(false);
-
-            FinalizeTaskResults();
-        }
-
-        private void FinalizeTaskResults()
+        private void FinalizeTaskResults(bool startOptimization = true)
         {
             if (_resultsFinalized)
                 return;
@@ -1012,7 +927,7 @@ namespace BOforUnity.Examples
             if (writeObjectivesToBo)
                 WriteBoObjectiveValues();
 
-            if (startBoOptimizationAfterResults)
+            if (startOptimization && startBoOptimizationAfterResults)
                 StartBoOptimization();
         }
 
@@ -1026,6 +941,9 @@ namespace BOforUnity.Examples
             }
 
             manager.OptimizationStart();
+            if (manager.optimizationRunning)
+                ClearGeneratedUi();
+
             if (queueNextExternalSignalIteration &&
                 manager.optimizationRunning &&
                 manager.iterationAdvanceMode == BoForUnityManager.IterationAdvanceMode.ExternalSignal)
@@ -1093,8 +1011,7 @@ namespace BOforUnity.Examples
                    mean.ToString("0.0", CultureInfo.InvariantCulture) +
                    " ms. Accuracy: " +
                    accuracyPercent.ToString("0.0", CultureInfo.InvariantCulture) +
-                   "%. Wrong clicks: " + wrongClicks.ToString(CultureInfo.InvariantCulture) +
-                   ". Mental demand: " + mentalDemandRating.ToString(CultureInfo.InvariantCulture) + "/20.";
+                   "%. Wrong clicks: " + wrongClicks.ToString(CultureInfo.InvariantCulture) + ".";
         }
 
         private void WriteResultsCsv()
@@ -1103,7 +1020,7 @@ namespace BOforUnity.Examples
             string path = Path.Combine(Application.persistentDataPath, fileName);
 
             StringBuilder builder = new StringBuilder();
-            builder.AppendLine("trialIndex,targetIndex,targetX,targetY,clickTimeMs,wrongClicksBeforeHit,targetCount,circleSizePixels,circleDistancePixels,movementDirectionDegrees,taskCompletionTimeMs,accuracyPercent,mentalDemandRating");
+            builder.AppendLine("trialIndex,targetIndex,targetX,targetY,clickTimeMs,wrongClicksBeforeHit,targetCount,circleSizePixels,circleDistancePixels,movementDirectionDegrees,taskCompletionTimeMs,accuracyPercent");
             for (int i = 0; i < trialResults.Count; i++)
             {
                 TrialResult result = trialResults[i];
@@ -1118,8 +1035,7 @@ namespace BOforUnity.Examples
                 builder.Append(circleDistancePixels.ToString(CultureInfo.InvariantCulture)).Append(',');
                 builder.Append(movementDirectionDegrees.ToString(CultureInfo.InvariantCulture)).Append(',');
                 builder.Append(taskCompletionTimeMs.ToString(CultureInfo.InvariantCulture)).Append(',');
-                builder.Append(accuracyPercent.ToString(CultureInfo.InvariantCulture)).Append(',');
-                builder.AppendLine(mentalDemandRating.ToString(CultureInfo.InvariantCulture));
+                builder.AppendLine(accuracyPercent.ToString(CultureInfo.InvariantCulture));
             }
 
             File.WriteAllText(path, builder.ToString());
@@ -1137,12 +1053,11 @@ namespace BOforUnity.Examples
 
             WriteSingleBoObjective(manager, taskCompletionObjectiveKey, taskCompletionObjectiveIndex, taskCompletionTimeMs);
             WriteSingleBoObjective(manager, accuracyObjectiveKey, accuracyObjectiveIndex, accuracyPercent);
-            WriteSingleBoObjective(manager, mentalDemandObjectiveKey, mentalDemandObjectiveIndex, mentalDemandRating);
         }
 
         private void WriteSingleBoObjective(BoForUnityManager manager, string key, int fallbackIndex, float value)
         {
-            if (!TryFindBoObjective(manager, key, fallbackIndex, out BoForUnityManager.ObjectiveEntry objective))
+            if (!TryFindBoObjective(manager, key, fallbackIndex, out ObjectiveEntry objective))
             {
                 Debug.LogWarning("FittsLawTask: Could not find BO objective '" + key + "'.");
                 return;
@@ -1151,7 +1066,7 @@ namespace BOforUnity.Examples
             objective.value.values = new List<float> { value };
         }
 
-        private bool TryFindBoObjective(BoForUnityManager manager, string key, int fallbackIndex, out BoForUnityManager.ObjectiveEntry objective)
+        private bool TryFindBoObjective(BoForUnityManager manager, string key, int fallbackIndex, out ObjectiveEntry objective)
         {
             objective = null;
             if (manager == null || manager.objectives == null)
@@ -1161,7 +1076,7 @@ namespace BOforUnity.Examples
             {
                 for (int i = 0; i < manager.objectives.Count; i++)
                 {
-                    BoForUnityManager.ObjectiveEntry candidate = manager.objectives[i];
+                    ObjectiveEntry candidate = manager.objectives[i];
                     if (candidate == null || candidate.value == null)
                         continue;
 
@@ -1175,7 +1090,7 @@ namespace BOforUnity.Examples
 
             if (fallbackIndex >= 0 && fallbackIndex < manager.objectives.Count)
             {
-                BoForUnityManager.ObjectiveEntry candidate = manager.objectives[fallbackIndex];
+                ObjectiveEntry candidate = manager.objectives[fallbackIndex];
                 if (candidate != null && candidate.value != null)
                 {
                     objective = candidate;
@@ -1306,7 +1221,6 @@ namespace BOforUnity.Examples
             _canvas = null;
             _playArea = null;
             _statusText = null;
-            _mentalDemandPanel = null;
             _targetImages.Clear();
             _targetButtons.Clear();
             _targetRects.Clear();

@@ -1,1 +1,0 @@
-# Debugging TextMesh Pro text
