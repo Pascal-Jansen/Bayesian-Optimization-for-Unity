@@ -10,6 +10,7 @@ using TMPro;
 using UnityEditor;
 #endif
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
@@ -166,6 +167,7 @@ namespace BOforUnity
         
         void Start()
         {
+            EnsureNextButtonListener();
             SetLoadingVisible(true);
             SetNextButtonVisible(false);
 
@@ -225,10 +227,14 @@ namespace BOforUnity
             if (_loopTerminated)
                 return;
 
-            // In NextButton mode, never queue "early" requests while no fresh design is ready.
-            // This prevents double-click/external duplicate events from auto-advancing the next cycle.
-            if (iterationAdvanceMode == IterationAdvanceMode.NextButton && !hasNewDesignParameterValues)
+            // Prevent duplicate UI events from queuing a stale request after a ready state was consumed.
+            // External-signal mode may still queue while the optimizer is running.
+            if (!hasNewDesignParameterValues &&
+                (iterationAdvanceMode == IterationAdvanceMode.NextButton ||
+                 (iterationAdvanceMode == IterationAdvanceMode.ExternalSignal && !optimizationRunning)))
+            {
                 return;
+            }
 
             _pendingAdvanceRequest = true;
             TryConsumeAdvanceRequest();
@@ -273,6 +279,10 @@ namespace BOforUnity
             if (socketNetwork == null)
             {
                 Debug.LogError("OptimizationStart failed because SocketNetwork is not assigned.");
+                SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
+                SetLoadingVisible(false);
+                SetNextButtonVisible(false);
+                SetOutputText("Optimizer connection is not configured.\nCheck the manager setup and logs.");
                 return;
             }
 
@@ -291,6 +301,7 @@ namespace BOforUnity
             catch (Exception e)
             {
                 Debug.LogError($"OptimizationStart failed while sending objectives: {e.Message}");
+                SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
                 SetLoadingVisible(false);
                 SetNextButtonVisible(false);
                 SetOutputText("Could not send objective values to the optimizer. Check configuration and logs.");
@@ -347,12 +358,18 @@ namespace BOforUnity
                     "Final design round is enabled, but no final design could be selected. " +
                     $"Falling back to normal completion. Reason: {selectionError}"
                 );
-                CompleteLoop();
+                CompleteLoop(
+                    "Optimization has finished, but no final design could be selected.\n" +
+                    "Check the console and observation CSV configuration before running a final evaluation."
+                );
                 return;
             }
 
+            _pendingAdvanceRequest = false;
             HandleParametersReady(
-                "Optimization has finished.\nThe selected final design is ready for one last evaluation round."
+                "Optimization has finished.\nThe selected final design is ready for one last evaluation round.",
+                forceManualAdvance: true,
+                nextButtonText: "Start Final Evaluation"
             );
         }
         
@@ -370,7 +387,7 @@ namespace BOforUnity
             socketNetwork.InitSocket();
         }
 
-        private void HandleParametersReady(string statusText)
+        private void HandleParametersReady(string statusText, bool forceManualAdvance = false, string nextButtonText = null)
         {
             if (_loopTerminated)
                 return;
@@ -380,9 +397,26 @@ namespace BOforUnity
             simulationRunning = false;
 
             // Keep the status panel visible only when the ready-state UI lives inside it.
-            SetOptimizerStatePanelVisible(RequiresOptimizerPanelForReadyStateUi());
+            SetOptimizerStatePanelVisible(RequiresOptimizerPanelForReadyStateUi(forceManualAdvance));
             SetLoadingVisible(false);
             SetOutputText(statusText);
+
+            if (!string.IsNullOrWhiteSpace(nextButtonText))
+                SetNextButtonText(nextButtonText);
+
+            if (forceManualAdvance)
+            {
+                SetNextButtonVisible(true);
+                if (nextButton == null && !_warnedMissingNextButton)
+                {
+                    _warnedMissingNextButton = true;
+                    Debug.LogWarning(
+                        "A manual advance is required, but no Next Button is assigned. " +
+                        "Assign a button or call RequestNextIteration() from your own logic."
+                    );
+                }
+                return;
+            }
 
             switch (iterationAdvanceMode)
             {
@@ -572,7 +606,7 @@ namespace BOforUnity
             RequestNextIteration();
         }
 
-        private void CompleteLoop()
+        private void CompleteLoop(string statusText = null)
         {
             if (_loopTerminated)
                 return;
@@ -591,10 +625,14 @@ namespace BOforUnity
             simulationRunning = false;
             optimizationRunning = false;
 
-            SetOptimizerStatePanelVisible(false);
+            SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
             SetLoadingVisible(false);
             SetNextButtonVisible(false);
-            SetOutputText("The simulation has finished!\nYou can now close the application.");
+            SetOutputText(
+                string.IsNullOrWhiteSpace(statusText)
+                    ? "The simulation has finished!\nYou can now close the application."
+                    : statusText
+            );
 
             try
             {
@@ -606,16 +644,16 @@ namespace BOforUnity
             }
         }
 
-        private bool RequiresOptimizerPanelForReadyStateUi()
+        private bool RequiresOptimizerPanelForReadyStateUi(bool forceManualAdvance = false)
         {
+            if (RequiresOptimizerPanelForOutputText())
+                return true;
+
             if (optimizerStatePanel == null)
                 return false;
 
             var panelTransform = optimizerStatePanel.transform;
-            if (outputText != null && outputText.transform.IsChildOf(panelTransform))
-                return true;
-
-            if (iterationAdvanceMode == IterationAdvanceMode.NextButton &&
+            if ((forceManualAdvance || iterationAdvanceMode == IterationAdvanceMode.NextButton) &&
                 nextButton != null &&
                 nextButton.transform.IsChildOf(panelTransform))
             {
@@ -623,6 +661,61 @@ namespace BOforUnity
             }
 
             return false;
+        }
+
+        private bool RequiresOptimizerPanelForOutputText()
+        {
+            return optimizerStatePanel != null &&
+                   outputText != null &&
+                   outputText.transform.IsChildOf(optimizerStatePanel.transform);
+        }
+
+        private void EnsureNextButtonListener()
+        {
+            if (nextButton == null)
+                return;
+
+            Button button = nextButton.GetComponent<Button>();
+            if (button == null)
+                return;
+
+            if (HasPersistentNextButtonListener(button))
+                return;
+
+            button.onClick.RemoveListener(RequestNextIteration);
+            button.onClick.AddListener(RequestNextIteration);
+        }
+
+        private bool HasPersistentNextButtonListener(Button button)
+        {
+            if (button == null)
+                return false;
+
+            int count = button.onClick.GetPersistentEventCount();
+            for (int i = 0; i < count; i++)
+            {
+                if (button.onClick.GetPersistentListenerState(i) == UnityEventCallState.Off)
+                    continue;
+
+                if (button.onClick.GetPersistentTarget(i) != this)
+                    continue;
+
+                string method = button.onClick.GetPersistentMethodName(i);
+                if (method == nameof(ButtonNextIteration) || method == nameof(RequestNextIteration))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void SetNextButtonText(string value)
+        {
+            if (nextButton == null)
+                return;
+
+            TMP_Text buttonText = nextButton.GetComponentInChildren<TMP_Text>(true);
+            if (buttonText != null)
+                buttonText.text = value;
         }
 
         private void SetLoadingVisible(bool visible)

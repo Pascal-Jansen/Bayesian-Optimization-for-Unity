@@ -484,7 +484,6 @@ namespace BOforUnity.Examples
             manager.optimizerBackend = BoForUnityManager.OptimizerBackend.BoTorch;
             manager.iterationAdvanceMode = BoForUnityManager.IterationAdvanceMode.ExternalSignal;
             manager.reloadSceneOnIterationAdvance = true;
-            manager.enableFinalDesignRound = false;
             manager.warmStart = false;
             manager.numSamplingIterations = BoForUnityManager.ComputeRecommendedSamplingIterations(manager.parameters.Count);
             manager.numOptimizationIterations = boOptimizationIterations;
