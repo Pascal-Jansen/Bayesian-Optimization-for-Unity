@@ -6,6 +6,7 @@ import os
 import numpy as np
 import pandas as pd
 import torch
+import moocore
 
 from botorch.acquisition.multi_objective.logei import qLogNoisyExpectedHypervolumeImprovement
 from botorch.models import SingleTaskGP
@@ -13,8 +14,6 @@ from botorch.fit import fit_gpytorch_mll
 from botorch.optim.optimize import optimize_acqf
 from botorch.sampling.normal import SobolQMCNormalSampler
 from botorch.utils.sampling import draw_sobol_samples
-from botorch.utils.multi_objective.pareto import is_non_dominated
-from botorch.utils.multi_objective.hypervolume import Hypervolume
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
 # -------------------- defaults (overwritten by Unity init) --------------------
@@ -170,6 +169,66 @@ def write_data_to_csv(csv_file_path, fieldnames, rows):
     with open(csv_file_path, 'a+', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         w.writerows(rows)
+
+def as_numpy_array(values):
+    if hasattr(values, "detach"):
+        values = values.detach()
+    if hasattr(values, "cpu"):
+        values = values.cpu()
+    if hasattr(values, "numpy"):
+        values = values.numpy()
+    return np.asarray(values, dtype=np.float64)
+
+def as_objective_matrix(values):
+    arr = as_numpy_array(values)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.ndim != 2:
+        raise ValueError(f"Objective values must be a 2D array, got shape {arr.shape}")
+    return arr
+
+def bool_mask_like_input(mask, source):
+    mask = np.asarray(mask, dtype=bool)
+    if hasattr(source, "device") and hasattr(torch, "as_tensor") and hasattr(torch, "bool"):
+        return torch.as_tensor(mask, dtype=torch.bool, device=source.device)
+    return mask
+
+def first_duplicate_mask(values):
+    keep = np.zeros(values.shape[0], dtype=bool)
+    seen = set()
+    for i, row in enumerate(values):
+        key = tuple(row.tolist())
+        if key in seen:
+            continue
+        seen.add(key)
+        keep[i] = True
+    return keep
+
+def is_non_dominated(values):
+    arr = as_objective_matrix(values)
+    finite_rows = np.all(np.isfinite(arr), axis=1)
+    mask = np.zeros(arr.shape[0], dtype=bool)
+    if np.any(finite_rows):
+        finite_arr = arr[finite_rows]
+        finite_mask = moocore.is_nondominated(
+            finite_arr,
+            maximise=True,
+            keep_weakly=True,
+        )
+        finite_mask &= first_duplicate_mask(finite_arr)
+        mask[finite_rows] = finite_mask
+    return bool_mask_like_input(mask, values)
+
+class Hypervolume:
+    def __init__(self, ref_point):
+        self.ref_point = as_numpy_array(ref_point)
+
+    def compute(self, values):
+        arr = as_objective_matrix(values)
+        finite_rows = np.all(np.isfinite(arr), axis=1)
+        if not np.any(finite_rows):
+            return 0.0
+        return float(moocore.hypervolume(arr[finite_rows], ref=self.ref_point, maximise=True))
 
 def denormalize_to_original_param(val01, lo, hi, decimals=3):
     v = lo + val01 * (hi - lo)

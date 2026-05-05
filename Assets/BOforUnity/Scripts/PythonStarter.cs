@@ -1098,15 +1098,29 @@ namespace BOforUnity.Scripts
                         return false;
                     }
 
-                    pythonInstallStatus = "Installing Python dependencies…";
-                    rc = RunProcessBlocking(pythonPath, $"-m pip install --user -r \"{reqPath}\"");
+                    pythonInstallStatus = "Upgrading Python dependencies…";
+                    string baseRequirementsArgs = $"-m pip install --user -r \"{reqPath}\"";
+                    rc = RunProcessBlocking(pythonPath, $"-m pip install --user --upgrade -r \"{reqPath}\"");
                     if (rc != 0)
                     {
-                        pythonInstallStatus = $"requirements install failed ({rc}).";
-                        return false;
+                        Debug.LogWarning(
+                            $"Python dependency upgrade failed ({rc}). " +
+                            "Retrying without --upgrade so existing compatible versions can be reused."
+                        );
+
+                        pythonInstallStatus = "Dependency upgrade failed; retrying compatible install…";
+                        rc = RunProcessBlocking(pythonPath, baseRequirementsArgs);
+                        if (rc != 0)
+                        {
+                            pythonInstallStatus = $"requirements install failed ({rc}).";
+                            return false;
+                        }
+
+                        pythonInstallStatus = "Dependencies installed with existing compatible versions.";
+                        return true;
                     }
 
-                    pythonInstallStatus = "Dependencies installed.";
+                    pythonInstallStatus = "Dependencies installed/upgraded.";
                     return true;
                 }
                 catch (Exception ex)

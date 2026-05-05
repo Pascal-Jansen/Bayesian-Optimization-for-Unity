@@ -37,7 +37,7 @@ install_packages() {
     "$PYTHON_EXE" -m pip install -r "$REQUIREMENTS"
 
     # Check if the package installation was successful
-    "$PYTHON_EXE" -m pip list | grep -E "numpy|scipy|matplotlib|pandas|torch|gpytorch|botorch" > /dev/null 2>&1
+    "$PYTHON_EXE" -m pip list | grep -E "numpy|scipy|matplotlib|pandas|torch|gpytorch|botorch|moocore" > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo "Packages were successfully installed."
     else

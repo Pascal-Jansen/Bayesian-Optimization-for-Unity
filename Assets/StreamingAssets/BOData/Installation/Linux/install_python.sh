@@ -128,7 +128,7 @@ install_packages() {
     
     # Verify installation of key packages
     log_info "Verifying package installation..."
-    EXPECTED_PACKAGES="numpy scipy matplotlib pandas torch gpytorch botorch"
+    EXPECTED_PACKAGES="numpy scipy matplotlib pandas torch gpytorch botorch moocore"
     MISSING_PACKAGES=""
     
     for package in $EXPECTED_PACKAGES; do
@@ -140,7 +140,7 @@ install_packages() {
     if [ -z "$MISSING_PACKAGES" ]; then
         log_info "All expected packages were successfully installed."
         log_info "Installed packages:"
-        "${PYTHON_EXE}" -m pip list | grep -E "numpy|scipy|matplotlib|pandas|torch|gpytorch|botorch"
+        "${PYTHON_EXE}" -m pip list | grep -E "numpy|scipy|matplotlib|pandas|torch|gpytorch|botorch|moocore"
     else
         log_error "The following packages were not installed:${MISSING_PACKAGES}"
         exit 1

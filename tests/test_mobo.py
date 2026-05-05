@@ -175,24 +175,6 @@ def install_stub_modules():
     )
     sys.modules["botorch.utils.sampling"] = utils_sampling_mod
 
-    utils_mo_mod = types.ModuleType("botorch.utils.multi_objective")
-    sys.modules["botorch.utils.multi_objective"] = utils_mo_mod
-    pareto_mod = types.ModuleType("botorch.utils.multi_objective.pareto")
-    pareto_mod.is_non_dominated = lambda y: np.ones(len(_to_array(y)), dtype=bool)
-    sys.modules["botorch.utils.multi_objective.pareto"] = pareto_mod
-    hv_mod = types.ModuleType("botorch.utils.multi_objective.hypervolume")
-
-    class _Hypervolume:
-        def __init__(self, ref_point):
-            self.ref_point = ref_point
-
-        def compute(self, y):
-            arr = _to_array(y)
-            return float(np.sum(arr))
-
-    hv_mod.Hypervolume = _Hypervolume
-    sys.modules["botorch.utils.multi_objective.hypervolume"] = hv_mod
-
     # gpytorch stubs
     gpytorch_mod = types.ModuleType("gpytorch")
     sys.modules["gpytorch"] = gpytorch_mod
@@ -205,6 +187,24 @@ def install_stub_modules():
 
     gpytorch_mlls_mod.ExactMarginalLogLikelihood = _ExactMarginalLogLikelihood
     sys.modules["gpytorch.mlls"] = gpytorch_mlls_mod
+
+    # moocore stubs
+    moocore_mod = types.ModuleType("moocore")
+    moocore_mod.calls = []
+
+    def _is_nondominated(data, maximise=False, keep_weakly=False):
+        arr = _to_array(data)
+        moocore_mod.calls.append(("is_nondominated", arr.copy(), maximise, keep_weakly))
+        return np.all(np.isfinite(arr), axis=1)
+
+    def _hypervolume(data, ref, maximise=False):
+        arr = _to_array(data)
+        moocore_mod.calls.append(("hypervolume", arr.copy(), _to_array(ref).copy(), maximise))
+        return float(np.sum(arr))
+
+    moocore_mod.is_nondominated = _is_nondominated
+    moocore_mod.hypervolume = _hypervolume
+    sys.modules["moocore"] = moocore_mod
 
 
 def load_mobo_module():
@@ -760,6 +760,33 @@ class MoboTests(unittest.TestCase):
                 mobo.create_csv_file("/tmp/a.csv", ["A"])
             with self.assertRaises(OSError):
                 mobo.write_data_to_csv("/tmp/a.csv", ["A"], [{"A": 1}])
+
+    def test_moocore_metric_wrappers_use_maximized_objective_space(self):
+        mobo = load_mobo_module()
+        mobo.moocore.calls.clear()
+
+        y_sample = FakeTensor([[0.2, 0.1], [0.1, 0.2]])
+        ref = FakeTensor([-1.0, -1.0])
+
+        mask = mobo.is_non_dominated(y_sample)
+        volume = mobo.Hypervolume(ref).compute(y_sample)
+
+        np.testing.assert_array_equal(mask, np.array([True, True]))
+        self.assertAlmostEqual(volume, 0.6)
+        self.assertEqual(mobo.moocore.calls[0][0], "is_nondominated")
+        self.assertTrue(mobo.moocore.calls[0][2])
+        self.assertTrue(mobo.moocore.calls[0][3])
+        self.assertEqual(mobo.moocore.calls[1][0], "hypervolume")
+        np.testing.assert_allclose(mobo.moocore.calls[1][2], np.array([-1.0, -1.0]))
+        self.assertTrue(mobo.moocore.calls[1][3])
+
+    def test_moocore_metric_wrapper_keeps_first_duplicate_front_point(self):
+        mobo = load_mobo_module()
+
+        y_sample = FakeTensor([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+        mask = mobo.is_non_dominated(y_sample)
+
+        np.testing.assert_array_equal(mask, np.array([True, False, True]))
 
     def test_save_xy_updates_tail_ispareto_on_mismatch(self):
         mobo = load_mobo_module()
