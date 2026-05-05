@@ -19,6 +19,7 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 
 - Configure design parameters, objectives, and optimizer hyperparameters directly in Unity.
 - Automatic, robust communication with a [BoTorch](https://botorch.org/)-based MOBO process.
+- MOBO metric calculations use [moocore](https://github.com/multi-objective/moocore) for Pareto-front and hypervolume utilities.
 - Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
@@ -509,7 +510,7 @@ These three values are always logged as context columns in `ObservationsPerEvalu
 
 `BoForUnityManager` now supports two backends:
 
-* **BoTorch**: existing behavior (`bo.py` for single-objective, `mobo.py` for multi-objective).
+* **BoTorch**: existing behavior (`bo.py` for single-objective, `mobo.py` for multi-objective). In `mobo.py`, BoTorch handles the GP model and acquisition function, while [moocore](https://github.com/multi-objective/moocore) computes Pareto flags and hypervolume metrics.
 * **CABOP**: cost-aware optimization backend with selectable objective mode:
   * `SingleObjective` -> `cabop_bo.py` (requires exactly 1 objective).
   * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
@@ -667,6 +668,8 @@ How this is handled:
 2. Objectives with `Smaller is Better = true` are multiplied by `-1`.
 3. Pareto checks (`is_non_dominated`) and hypervolume are computed on this consistent maximize-space representation.
 4. `ObservationsPerEvaluation.csv` stores denormalized values in your original objective units.
+
+`mobo.py` uses [moocore](https://github.com/multi-objective/moocore) for these Pareto and hypervolume calculations. BoTorch is still used for the surrogate model, acquisition function, and next-design proposal.
 
 #### 8.10.6 Perfect Rating Settings
 
