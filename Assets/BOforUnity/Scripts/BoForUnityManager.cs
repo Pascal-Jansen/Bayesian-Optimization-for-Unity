@@ -18,7 +18,7 @@ using PythonStarter = BOforUnity.Scripts.PythonStarter;
 
 namespace BOforUnity
 {
-    public class BoForUnityManager : MonoBehaviour
+    public class BoForUnityManager : MonoBehaviour, IQuestionnaireOptimizationBridge
     {
         public enum IterationAdvanceMode
         {
@@ -1183,6 +1183,32 @@ namespace BOforUnity
         public void ClearPriorSliderRatingHints()
         {
             _priorSliderRatingHints.Clear();
+        }
+
+        public bool UsesExternalIterationSignal => iterationAdvanceMode == IterationAdvanceMode.ExternalSignal;
+
+        public bool EnablePriorRatingHints => enablePriorSliderRatingHint;
+
+        public float PriorRatingHintAlpha => priorSliderRatingHintAlpha;
+
+        public void SubmitQuestionnaireObjectiveValue(string headerName, string rawValue, string sourceName)
+        {
+            if (optimizer == null || !optimizer.HasObjectiveMatch(headerName))
+            {
+                return;
+            }
+
+            if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            {
+                Debug.LogWarning(
+                    $"Objective value for '{headerName}' from '{sourceName}' is not numeric ('{rawValue}'). " +
+                    "Submitting NaN so this iteration uses BO fallback handling instead of reusing a stale value."
+                );
+                optimizer.AddObjectiveValue(headerName, float.NaN);
+                return;
+            }
+
+            optimizer.AddObjectiveValue(headerName, value);
         }
 
         public void SetPriorSliderRatingHint(string questionKey, float sliderValue)

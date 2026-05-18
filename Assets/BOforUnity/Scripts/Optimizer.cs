@@ -233,6 +233,30 @@ namespace BOforUnity.Scripts
             }
         }
 
+        public bool HasObjectiveMatch(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name) || _bomanager == null || _bomanager.objectives == null)
+            {
+                return false;
+            }
+
+            string targetName = name.Trim();
+            foreach (var ob in _bomanager.objectives)
+            {
+                if (ob == null || ob.value == null || string.IsNullOrWhiteSpace(ob.key))
+                {
+                    continue;
+                }
+
+                if (ContainsObjectiveKeyMatch(targetName, ob.key.Trim()))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool ContainsObjectiveKeyMatch(string source, string objectiveKey)
         {
             if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(objectiveKey))
