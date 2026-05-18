@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
  using System.Text;
- using BOforUnity;
  using QuestionnaireToolkit.Scripts.MemberReflection.Reflection;
 using QuestionnaireToolkit.Scripts.SimpleJSON;
 using QuestionnaireToolkit.Scripts.StandaloneFileBrowser;
@@ -159,7 +158,7 @@ namespace QuestionnaireToolkit.Scripts
         private int currentRun;
         [HideInInspector]
         public QTManager _qtManager;
-        private BoForUnityManager _cachedBoForUnityManager;
+        private IQuestionnaireOptimizationBridge _cachedOptimizationBridge;
 
         private bool EnsureVisiblePage(string caller)
         {
@@ -1355,8 +1354,8 @@ namespace QuestionnaireToolkit.Scripts
                 {
                     // Check for BO Manager and collect questionnaire answers even when results file writing is disabled.
                     // Use type lookup instead of tag lookup to avoid hard dependency on a specific scene tag.
-                    var bomanager = FindObjectOfType<BoForUnityManager>();
-                    var shouldCollectForBo = bomanager != null;
+                    var optimizationBridge = GetOptimizationBridge();
+                    var shouldCollectForBo = optimizationBridge != null;
 
                     if (generateResultsFile)
                     {
@@ -1390,14 +1389,14 @@ namespace QuestionnaireToolkit.Scripts
                     onQuestionnaireFinished?.Invoke();
 
                     // check for BO Manager and start optimization as the questionnaire has finished
-                    if (bomanager != null)
+                    if (optimizationBridge != null)
                     {
-                        bomanager.OptimizationStart();
+                        optimizationBridge.OptimizationStart();
                         // In external-signal mode, queue progression so the manager advances
                         // once new parameters arrive from Python.
-                        if (bomanager.iterationAdvanceMode == BoForUnityManager.IterationAdvanceMode.ExternalSignal)
+                        if (optimizationBridge.UsesExternalIterationSignal)
                         {
-                            bomanager.RequestNextIteration();
+                            optimizationBridge.RequestNextIteration();
                         }
                     }
                 }
@@ -1520,16 +1519,12 @@ namespace QuestionnaireToolkit.Scripts
         }
 
         private static void TryAddBoObjectiveValue(
-            BoForUnityManager boForUnity,
+            IQuestionnaireOptimizationBridge optimizationBridge,
             string headerName,
             string rawValue,
             string sourceName)
         {
-            if (boForUnity == null || boForUnity.optimizer == null)
-            {
-                return;
-            }
-            if (boForUnity.objectives == null || boForUnity.objectives.Count == 0)
+            if (optimizationBridge == null)
             {
                 return;
             }
@@ -1540,78 +1535,7 @@ namespace QuestionnaireToolkit.Scripts
                 return;
             }
 
-            var headerMatchesObjective = false;
-            foreach (var objective in boForUnity.objectives)
-            {
-                var objectiveKey = objective?.key?.Trim();
-                if (objective != null &&
-                    !string.IsNullOrWhiteSpace(objectiveKey) &&
-                    ContainsObjectiveKeyMatch(headerName, objectiveKey))
-                {
-                    headerMatchesObjective = true;
-                    break;
-                }
-            }
-
-            if (!headerMatchesObjective)
-            {
-                return;
-            }
-
-            if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
-            {
-                Debug.LogWarning(
-                    $"Objective value for '{headerName}' from '{sourceName}' is not numeric ('{rawValue}'). " +
-                    "Submitting NaN so this iteration uses BO fallback handling instead of reusing a stale value."
-                );
-                boForUnity.optimizer.AddObjectiveValue(headerName, float.NaN);
-                return;
-            }
-
-            boForUnity.optimizer.AddObjectiveValue(headerName, value);
-        }
-
-        private static bool ContainsObjectiveKeyMatch(string source, string objectiveKey)
-        {
-            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(objectiveKey))
-                return false;
-
-            int start = 0;
-            while (start < source.Length)
-            {
-                int idx = source.IndexOf(objectiveKey, start, StringComparison.OrdinalIgnoreCase);
-                if (idx < 0)
-                    return false;
-
-                int end = idx + objectiveKey.Length;
-                if (IsObjectiveBoundary(source, idx) && IsObjectiveBoundary(source, end))
-                    return true;
-
-                start = idx + 1;
-            }
-
-            return false;
-        }
-
-        private static bool IsObjectiveBoundary(string text, int boundaryIndex)
-        {
-            if (boundaryIndex <= 0 || boundaryIndex >= text.Length)
-                return true;
-
-            char left = text[boundaryIndex - 1];
-            char right = text[boundaryIndex];
-            if (!char.IsLetterOrDigit(left) || !char.IsLetterOrDigit(right))
-                return true;
-
-            if (char.IsLetter(left) && char.IsLetter(right) && char.IsLower(left) && char.IsUpper(right))
-                return true;
-
-            if (char.IsLetter(left) && char.IsDigit(right))
-                return true;
-            if (char.IsDigit(left) && char.IsLetter(right))
-                return true;
-
-            return false;
+            optimizationBridge.SubmitQuestionnaireObjectiveValue(headerName, rawValue, sourceName);
         }
 
         private static string GetNameTokenOrDefault(string source, int tokenIndex, string fallback = "NULL")
@@ -1683,14 +1607,24 @@ namespace QuestionnaireToolkit.Scripts
             return GetQuestionHeaderFromObjectName(question.name);
         }
 
-        private BoForUnityManager GetBoForUnityManager()
+        private IQuestionnaireOptimizationBridge GetOptimizationBridge()
         {
-            if (_cachedBoForUnityManager == null)
+            if (_cachedOptimizationBridge is UnityEngine.Object cachedObject && cachedObject != null)
             {
-                _cachedBoForUnityManager = FindObjectOfType<BoForUnityManager>();
+                return _cachedOptimizationBridge;
             }
 
-            return _cachedBoForUnityManager;
+            _cachedOptimizationBridge = null;
+            foreach (var behaviour in FindObjectsOfType<MonoBehaviour>())
+            {
+                if (behaviour is IQuestionnaireOptimizationBridge bridge)
+                {
+                    _cachedOptimizationBridge = bridge;
+                    return _cachedOptimizationBridge;
+                }
+            }
+
+            return null;
         }
 
         private string BuildPriorRatingHintKey(GameObject question)
@@ -1716,9 +1650,9 @@ namespace QuestionnaireToolkit.Scripts
                    questionIndex.ToString(CultureInfo.InvariantCulture) + "::" + headerToken;
         }
 
-        private void TryStorePriorSliderRatingHint(BoForUnityManager boForUnity, GameObject question, string rawValue)
+        private void TryStorePriorSliderRatingHint(IQuestionnaireOptimizationBridge optimizationBridge, GameObject question, string rawValue)
         {
-            if (boForUnity == null || question == null)
+            if (optimizationBridge == null || question == null)
                 return;
 
             if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float sliderValue))
@@ -1731,24 +1665,24 @@ namespace QuestionnaireToolkit.Scripts
             if (string.IsNullOrWhiteSpace(key))
                 return;
 
-            boForUnity.SetPriorSliderRatingHint(key, sliderValue);
+            optimizationBridge.SetPriorSliderRatingHint(key, sliderValue);
         }
 
-        private void TryClearPriorSliderRatingHint(BoForUnityManager boForUnity, GameObject question)
+        private void TryClearPriorSliderRatingHint(IQuestionnaireOptimizationBridge optimizationBridge, GameObject question)
         {
-            if (boForUnity == null || question == null)
+            if (optimizationBridge == null || question == null)
                 return;
 
             string key = BuildPriorRatingHintKey(question);
             if (string.IsNullOrWhiteSpace(key))
                 return;
 
-            boForUnity.RemovePriorSliderRatingHint(key);
+            optimizationBridge.RemovePriorSliderRatingHint(key);
         }
 
-        private void TryStorePriorLinearScaleRatingHint(BoForUnityManager boForUnity, GameObject question, string rawValue)
+        private void TryStorePriorLinearScaleRatingHint(IQuestionnaireOptimizationBridge optimizationBridge, GameObject question, string rawValue)
         {
-            if (boForUnity == null || question == null)
+            if (optimizationBridge == null || question == null)
                 return;
 
             if (string.IsNullOrWhiteSpace(rawValue) || string.Equals(rawValue, "NULL", StringComparison.OrdinalIgnoreCase))
@@ -1758,19 +1692,19 @@ namespace QuestionnaireToolkit.Scripts
             if (string.IsNullOrWhiteSpace(key))
                 return;
 
-            boForUnity.SetPriorLinearScaleRatingHint(key, rawValue.Trim());
+            optimizationBridge.SetPriorLinearScaleRatingHint(key, rawValue.Trim());
         }
 
-        private void TryClearPriorLinearScaleRatingHint(BoForUnityManager boForUnity, GameObject question)
+        private void TryClearPriorLinearScaleRatingHint(IQuestionnaireOptimizationBridge optimizationBridge, GameObject question)
         {
-            if (boForUnity == null || question == null)
+            if (optimizationBridge == null || question == null)
                 return;
 
             string key = BuildPriorRatingHintKey(question);
             if (string.IsNullOrWhiteSpace(key))
                 return;
 
-            boForUnity.RemovePriorLinearScaleRatingHint(key);
+            optimizationBridge.RemovePriorLinearScaleRatingHint(key);
         }
 
         private void ApplyPriorSliderRatingHint(GameObject question, QTSlider sliderQuestion)
@@ -1778,15 +1712,15 @@ namespace QuestionnaireToolkit.Scripts
             if (sliderQuestion == null)
                 return;
 
-            BoForUnityManager boForUnity = GetBoForUnityManager();
-            if (boForUnity == null || !boForUnity.enablePriorSliderRatingHint)
+            var optimizationBridge = GetOptimizationBridge();
+            if (optimizationBridge == null || !optimizationBridge.EnablePriorRatingHints)
             {
                 sliderQuestion.HidePriorRatingHint();
                 return;
             }
 
             string key = BuildPriorRatingHintKey(question);
-            if (!boForUnity.TryGetPriorSliderRatingHint(key, out float priorValue))
+            if (!optimizationBridge.TryGetPriorSliderRatingHint(key, out float priorValue))
             {
                 sliderQuestion.HidePriorRatingHint();
                 return;
@@ -1795,7 +1729,7 @@ namespace QuestionnaireToolkit.Scripts
             sliderQuestion.ApplyPriorRatingHint(
                 enabled: true,
                 priorValue: priorValue,
-                alpha: boForUnity.priorSliderRatingHintAlpha
+                alpha: optimizationBridge.PriorRatingHintAlpha
             );
         }
 
@@ -1804,15 +1738,15 @@ namespace QuestionnaireToolkit.Scripts
             if (linearScaleQuestion == null)
                 return;
 
-            BoForUnityManager boForUnity = GetBoForUnityManager();
-            if (boForUnity == null || !boForUnity.enablePriorSliderRatingHint)
+            var optimizationBridge = GetOptimizationBridge();
+            if (optimizationBridge == null || !optimizationBridge.EnablePriorRatingHints)
             {
                 linearScaleQuestion.HidePriorRatingHint();
                 return;
             }
 
             string key = BuildPriorRatingHintKey(question);
-            if (!boForUnity.TryGetPriorLinearScaleRatingHint(key, out string priorValue))
+            if (!optimizationBridge.TryGetPriorLinearScaleRatingHint(key, out string priorValue))
             {
                 linearScaleQuestion.HidePriorRatingHint();
                 return;
@@ -1821,7 +1755,7 @@ namespace QuestionnaireToolkit.Scripts
             linearScaleQuestion.ApplyPriorRatingHint(
                 enabled: true,
                 priorAnswerValue: priorValue,
-                alpha: boForUnity.priorSliderRatingHintAlpha
+                alpha: optimizationBridge.PriorRatingHintAlpha
             );
         }
 
@@ -1942,12 +1876,8 @@ namespace QuestionnaireToolkit.Scripts
 
             //-----------
             // Check if BO for Unity Manager is present in the scene
-            var boManager = false;
-            var boForUnity = FindObjectOfType<BoForUnityManager>();
-            if (boForUnity != null)
-            {
-                boManager = true;
-            }
+            var optimizationBridge = GetOptimizationBridge();
+            var boManager = optimizationBridge != null;
             HashSet<string> boHeadersUsed = boManager
                 ? new HashSet<string>(StringComparer.Ordinal)
                 : null;
@@ -1989,11 +1919,11 @@ namespace QuestionnaireToolkit.Scripts
                             AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             if (!string.Equals(currVal, "NULL", StringComparison.OrdinalIgnoreCase))
                             {
-                                TryStorePriorLinearScaleRatingHint(boForUnity, question, currVal);
+                                TryStorePriorLinearScaleRatingHint(optimizationBridge, question, currVal);
                             }
                             else
                             {
-                                TryClearPriorLinearScaleRatingHint(boForUnity, question);
+                                TryClearPriorLinearScaleRatingHint(optimizationBridge, question);
                             }
                             break;
                         case "QTCheckboxes":
@@ -2032,11 +1962,11 @@ namespace QuestionnaireToolkit.Scripts
                             AppendEmittedValue(emittedValues, emittedHeaders, currVal, questionHeader, boHeadersUsed);
                             if (!string.Equals(currVal, "NULL", StringComparison.OrdinalIgnoreCase))
                             {
-                                TryStorePriorSliderRatingHint(boForUnity, question, currVal);
+                                TryStorePriorSliderRatingHint(optimizationBridge, question, currVal);
                             }
                             else
                             {
-                                TryClearPriorSliderRatingHint(boForUnity, question);
+                                TryClearPriorSliderRatingHint(optimizationBridge, question);
                             }
                             break;
                         case "QTMultipleChoice":
@@ -2205,7 +2135,7 @@ namespace QuestionnaireToolkit.Scripts
                             string objectiveHeader = i < emittedHeaders.Count ? emittedHeaders[i] : questionHeader;
                             objectiveHeader = ResolveObjectiveHeaderName(objectiveHeader, emittedQuestionValueCount);
                             TryAddBoObjectiveValue(
-                                boForUnity,
+                                optimizationBridge,
                                 objectiveHeader,
                                 emittedValues[i],
                                 question.name

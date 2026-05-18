@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 
-REPO_ROOT = pathlib.Path("/Users/pjansen/Desktop/Bayesian-Optimization-for-Unity")
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 MOBO_PATH = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/mobo.py"
 
 

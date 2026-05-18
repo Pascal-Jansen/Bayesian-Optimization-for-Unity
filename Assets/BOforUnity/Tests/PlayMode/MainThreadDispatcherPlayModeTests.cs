@@ -9,6 +9,7 @@ namespace BOforUnity.Tests.PlayMode
 {
     public class MainThreadDispatcherPlayModeTests
     {
+        [UnityTest]
         public IEnumerator Execute_ProcessesQueuedActionsOnMainThreadInOrder()
         {
             var dispatcherGo = new GameObject("MainThreadDispatcherTest");

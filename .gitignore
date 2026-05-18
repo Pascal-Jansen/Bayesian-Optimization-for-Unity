@@ -35,5 +35,10 @@ sysinfo.txt
 Assets/StreamingAssets/BOData/LogData/
 Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
 
+# Python generated caches
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Unity editor recovery scenes
 Assets/_Recovery/
