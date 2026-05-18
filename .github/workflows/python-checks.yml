@@ -1,0 +1,75 @@
+name: Python checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - maintenance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.13"
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas
+
+      - name: Check patch whitespace
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
+          else
+            git diff-tree --check --no-commit-id --root -r HEAD
+          fi
+
+      - name: Check generated Python caches are not tracked
+        shell: bash
+        run: |
+          if git ls-files | grep -E '(^|/)__pycache__(/|$)|\.py[co]$|\.pyo$'; then
+            echo "Generated Python cache artifacts must not be tracked."
+            exit 1
+          fi
+
+      - name: Run Python unit tests
+        run: python -m unittest discover tests
+
+      - name: Check tests did not create Python caches
+        shell: bash
+        run: |
+          cache_file="$(find . \( -type d -name __pycache__ -o -type f \( -name '*.pyc' -o -name '*.pyo' \) \) -print -quit)"
+          if [[ -n "$cache_file" ]]; then
+            echo "Generated Python cache artifact found: $cache_file"
+            exit 1
+          fi
