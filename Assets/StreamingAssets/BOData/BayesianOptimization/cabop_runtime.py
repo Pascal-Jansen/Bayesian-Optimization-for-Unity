@@ -478,12 +478,12 @@ def normalize_param_column_to_raw(col, lo, hi):
 
 
 def load_warm_start_raw():
-    cur = os.getcwd()
     if not CSV_PATH_PARAMETERS or not CSV_PATH_OBJECTIVES:
         raise ValueError("Warm start is enabled, but initial CSV paths are missing.")
 
-    x_path = os.path.join(cur, "InitData", CSV_PATH_PARAMETERS)
-    y_path = os.path.join(cur, "InitData", CSV_PATH_OBJECTIVES)
+    init_root = os.environ.get("BO_INIT_ROOT") or os.path.join(os.getcwd(), "InitData")
+    x_path = os.path.join(init_root, CSV_PATH_PARAMETERS)
+    y_path = os.path.join(init_root, CSV_PATH_OBJECTIVES)
     if not os.path.exists(x_path):
         raise FileNotFoundError(f"Warm-start parameter CSV not found: {x_path}")
     if not os.path.exists(y_path):
@@ -739,7 +739,8 @@ def boot_optimizer_with_warm_start(optimizer):
 def run_cabop(conn):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH, EXECUTION_LOG_PATH, METRICS_LOG_PATH, COMPAT_METRIC_LOG_PATH
 
-    base = os.path.join(os.getcwd(), "LogData", "CABOP", CABOP_MODE)
+    log_root = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
+    base = os.path.join(log_root, "CABOP", CABOP_MODE)
     os.makedirs(base, exist_ok=True)
     PROJECT_PATH = get_unique_folder(base, USER_LOG_ID)
 

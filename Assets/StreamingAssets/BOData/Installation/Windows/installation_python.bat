@@ -92,22 +92,42 @@ if not exist %REQUIREMENTS% (
 )
 
 
-REM Update Pip
-echo Updating Pip...
-%PYTHON_EXE% -m pip install --upgrade pip
+REM Ensure pip is available without upgrading package tooling at install time
+echo Checking Pip...
+%PYTHON_EXE% -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Warning: Pip upgrade failed, continuing with existing version...
+    echo Installing bundled Pip...
+    %PYTHON_EXE% -m ensurepip --upgrade
+    if %errorlevel% neq 0 (
+        echo Error: Pip installation failed.
+        pause
+        exit /b 1
+    )
 )
 
 REM Install packages
+set PIP_INSTALL_SCOPE=--user
+net session >nul 2>&1
+if %errorlevel%==0 (
+    echo Running elevated; installing packages into the all-users Python environment.
+    set PIP_INSTALL_SCOPE=
+) else (
+    echo Running as standard user; installing packages into the current user site-packages.
+)
 echo Installing packages from %REQUIREMENTS%...
-%PYTHON_EXE% -m pip install -r %REQUIREMENTS%
+%PYTHON_EXE% -m pip install %PIP_INSTALL_SCOPE% -r %REQUIREMENTS%
 if %errorlevel% neq 0 (
     echo Error: Package installation failed.
     pause
     exit /b 1
 )
 
+%PYTHON_EXE% -m pip check
+if %errorlevel% neq 0 (
+    echo Error: Installed packages have dependency conflicts.
+    pause
+    exit /b 1
+)
 
 echo.
 echo ========================================

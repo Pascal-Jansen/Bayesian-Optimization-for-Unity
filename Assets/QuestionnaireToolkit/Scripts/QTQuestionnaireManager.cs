@@ -996,11 +996,11 @@ namespace QuestionnaireToolkit.Scripts
                 page.SetActive(true); // re-enable all pages otherwise the items cannot be found
                 var pageScript = page.GetComponent<QTQuestionPageManager>();
                 
-                jsonString += "{\"pId\":\"page" + pageCount + "\"," 
+                jsonString += "{\"pId\":\"page" + pageCount + "\","
                               + "\"show_fullscreen_text\":\"" + pageScript.showFullscreenText + "\","
-                              + "\"fullscreen_text\":\"" + pageScript.fullscreenText.Replace("\"", "\\\"").Replace("\n", "\\n") + "\","
+                              + "\"fullscreen_text\":" + JsonString(pageScript.fullscreenText) + ","
                               + "\"show_instruction_panel\":\"" + pageScript.showTopPanel + "\","
-                              + "\"instruction_text\":\"" + pageScript.instructionText.Replace("\"", "\\\"").Replace("\n", "\\n") + "\","
+                              + "\"instruction_text\":" + JsonString(pageScript.instructionText) + ","
                               + "\"qItems\":[";
                 pageCount++;
 
@@ -1014,34 +1014,34 @@ namespace QuestionnaireToolkit.Scripts
                     {
                         case "QTLinearScale":
                             jsonString += "\"qType\":\"linear_scale\","
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTLinearScale>().answerRequired + "\","
                                           + "\"options\":[";
                             foreach (var option in question.GetComponent<QTLinearScale>().options)
                             {
-                                jsonString += "{\"answer_value\":\"" + option.name.Split('_')[0] + "\",\"answer_option\":\"" + option.name.Split('_')[1] + "\"},";
+                                jsonString += "{\"answer_value\":" + JsonString(GetExportOptionValue(option.name)) + ",\"answer_option\":" + JsonString(GetExportOptionText(option.name)) + "},";
                             }
                             jsonString = jsonString.Trim(',') + "]},";
                             break;
                         case "QTCheckboxes":
                             jsonString += "\"qType\":\"checkboxes\"," 
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTCheckboxes>().answerRequired + "\","
                                           + "\"include_other_option\":\"" + question.GetComponent<QTCheckboxes>().includeOtherOption + "\","
                                           + "\"options\":[";
                             foreach (var option in question.GetComponent<QTCheckboxes>().options)
                             {
-                                jsonString += "{\"answer_value\":\"" + option.name.Split('_')[0] + "\",\"answer_option\":\"" + option.name.Split('_')[1] + "\"},";
+                                jsonString += "{\"answer_value\":" + JsonString(GetExportOptionValue(option.name)) + ",\"answer_option\":" + JsonString(GetExportOptionText(option.name)) + "},";
                             }
                             jsonString = jsonString.Trim(',') + "]},";
                             break;
                         case "QTSlider":
                             var sliderScript = question.GetComponent<QTSlider>();
                             jsonString += "\"qType\":\"slider\"," 
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + sliderScript.answerRequired + "\","
                                           + "\"min_value\":\"" + sliderScript.minValue + "\","
                                           + "\"max_value\":\"" + sliderScript.maxValue + "\","
@@ -1049,82 +1049,82 @@ namespace QuestionnaireToolkit.Scripts
                                           + "\"show_panels\":\"" + sliderScript.showPanels + "\","
                                           + "\"show_intermediate_panels\":\"" + sliderScript.showIntermediatePanels + "\","
                                           + "\"auto_labels\":\"" + sliderScript.automaticLabelNames + "\","
-                                          + "\"label_zero\":\"" + sliderScript.labelZero + "\","
-                                          + "\"label_quarter\":\"" + sliderScript.labelQuarter + "\","
-                                          + "\"label_half\":\"" + sliderScript.labelHalf + "\","
-                                          + "\"label_three_quarters\":\"" + sliderScript.labelThreeQuarters + "\","
-                                          + "\"label_full\":\"" + sliderScript.labelFull + "\"},";
+                                          + "\"label_zero\":" + JsonString(sliderScript.labelZero) + ","
+                                          + "\"label_quarter\":" + JsonString(sliderScript.labelQuarter) + ","
+                                          + "\"label_half\":" + JsonString(sliderScript.labelHalf) + ","
+                                          + "\"label_three_quarters\":" + JsonString(sliderScript.labelThreeQuarters) + ","
+                                          + "\"label_full\":" + JsonString(sliderScript.labelFull) + "},";
                             break;
                         case "QTMultipleChoice":
                             jsonString += "\"qType\":\"multiple_choice\","
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTMultipleChoice>().answerRequired + "\","
                                           + "\"include_other_option\":\"" + question.GetComponent<QTMultipleChoice>().includeOtherOption + "\","
                                           + "\"options\":[";
                             foreach (var option in question.GetComponent<QTMultipleChoice>().options)
                             {
-                                jsonString += "{\"answer_value\":\"" + option.name.Split('_')[0] + "\",\"answer_option\":\"" + option.name.Split('_')[1] + "\"},";
+                                jsonString += "{\"answer_value\":" + JsonString(GetExportOptionValue(option.name)) + ",\"answer_option\":" + JsonString(GetExportOptionText(option.name)) + "},";
                             }
                             jsonString = jsonString.Trim(',') + "]},";
                             break;
                         case "QTTextInput":
                             jsonString += question.name.Contains("Short") ? "\"qType\":\"text_input_short\"," : "\"qType\":\"text_input_long\",";
-                            jsonString += "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                            jsonString += "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTTextInput>().answerRequired + "\","
-                                          + "\"placeholder_text\":\"" + question.GetComponent<QTTextInput>().placeholderText + "\"},";
+                                          + "\"placeholder_text\":" + JsonString(question.GetComponent<QTTextInput>().placeholderText) + "},";
                             break;
                         case "QTDropdown":
                             jsonString += "\"qType\":\"dropdown\","
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTDropdown>().answerRequired + "\","
                                           + "\"options\":[";
                             foreach (var option in question.GetComponent<QTDropdown>().options)
                             {
-                                jsonString += "{\"option_text\":\"" + option.text + "\"},";
+                                jsonString += "{\"option_text\":" + JsonString(option.text) + "},";
                             }
                             jsonString = jsonString.Trim(',') + "]},";
                             break;
                         case "QTCheckboxesGrid":
                             jsonString += "\"qType\":\"checkboxes_grid\","
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTCheckboxesGrid>().answerRequired + "\","
                                           + "\"row_texts\":[";
                             foreach (var rowText in question.GetComponent<QTCheckboxesGrid>().rowTexts)
                             {
-                                jsonString += "\"" + rowText + "\",";
+                                jsonString += JsonString(rowText) + ",";
                             }
                             jsonString = jsonString.Trim(',') + "]," + "\"column_texts\":[";
                             foreach (var columnText in question.GetComponent<QTCheckboxesGrid>().columnTexts)
                             {
-                                jsonString += "\"" + columnText + "\",";
+                                jsonString += JsonString(columnText) + ",";
                             }
                             jsonString = jsonString.Trim(',') + "]},";
                             break;
                         case "QTMultipleChoiceGrid":
                             jsonString += "\"qType\":\"multiple_choice_grid\","
-                                          + "\"question\":\"" + question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text + "\","
-                                          + "\"header_name\":\"" + GetQuestionHeaderName(question) + "\","
+                                          + "\"question\":" + JsonString(question.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text) + ","
+                                          + "\"header_name\":" + JsonString(GetQuestionHeaderName(question)) + ","
                                           + "\"mandatory\":\"" + question.GetComponent<QTMultipleChoiceGrid>().answerRequired + "\","
                                           + "\"row_texts\":[";
                             foreach (var rowText in question.GetComponent<QTMultipleChoiceGrid>().rowTexts)
                             {
-                                jsonString += "\"" + rowText + "\",";
+                                jsonString += JsonString(rowText) + ",";
                             }
                             jsonString = jsonString.Trim(',') + "]," + "\"column_texts\":[";
                             foreach (var columnText in question.GetComponent<QTMultipleChoiceGrid>().columnTexts)
                             {
-                                jsonString += "\"" + columnText + "\",";
+                                jsonString += JsonString(columnText) + ",";
                             }
                             jsonString = jsonString.Trim(',') + "]},";
                             break;
                         case "QTText":
                             var child = question.transform.GetChild(0).GetComponent<TextMeshProUGUI>();
                             jsonString += "\"qType\":\"text\","
-                                          + "\"text_content\":\"" + child.text.Replace('"','\"') + "\","
+                                          + "\"text_content\":" + JsonString(child.text) + ","
                                           + "\"font_style\":\"" + child.fontStyle + "\","
                                           + "\"font_size\":\"" + child.fontSize + "\","
                                           + "\"auto_sizing\":\"" + child.enableAutoSizing + "\","
@@ -1143,7 +1143,7 @@ namespace QuestionnaireToolkit.Scripts
                             var imageName = "missing";
                             try { imageName = question.transform.GetChild(0).GetComponent<Image>().sprite.name; } catch (Exception) { }
                             jsonString += "\"qType\":\"image\","
-                                          + "\"image_name\":\"" + imageName + "\"},";
+                                          + "\"image_name\":" + JsonString(imageName) + "},";
                             break;
                         case "QTButton":
                             jsonString += "\"qType\":\"button\","
@@ -1153,7 +1153,7 @@ namespace QuestionnaireToolkit.Scripts
                             var videoName = "missing";
                             try { videoName = question.transform.GetChild(0).GetComponent<VideoPlayer>().clip.name; } catch (Exception) { }
                             jsonString += "\"qType\":\"video\","
-                                          + "\"video_name\":\"" + videoName + "\"},";
+                                          + "\"video_name\":" + JsonString(videoName) + "},";
                             break;
                     }
                 }
@@ -1356,6 +1356,9 @@ namespace QuestionnaireToolkit.Scripts
                     // Use type lookup instead of tag lookup to avoid hard dependency on a specific scene tag.
                     var optimizationBridge = GetOptimizationBridge();
                     var shouldCollectForBo = optimizationBridge != null;
+                    var previousResponseId = currentResponseId;
+                    var previousRun = currentRun;
+                    var previousUserId = userId;
 
                     if (generateResultsFile)
                     {
@@ -1380,7 +1383,20 @@ namespace QuestionnaireToolkit.Scripts
                     if (generateResultsFile || shouldCollectForBo)
                     {
                         finishedTimestamp = DateTime.UtcNow + "";
-                        WriteResults();
+                        if (!WriteResults())
+                        {
+                            currentResponseId = previousResponseId;
+                            currentRun = previousRun;
+                            userId = previousUserId;
+                            if (HasMetaDataAsset())
+                            {
+                                qtMetaData.currentResponseId = previousResponseId;
+                                qtMetaData.currentUserRun = previousRun;
+                            }
+                            ShowPage(_currentPage);
+                            SetPendingMessageVisibility(false, nameof(NextPage));
+                            return;
+                        }
                     }
 
                     ResetQuestionnaire();
@@ -1545,6 +1561,18 @@ namespace QuestionnaireToolkit.Scripts
                 return fallback;
             }
 
+            if (tokenIndex == 0)
+            {
+                var value = QTOptionNameUtility.GetValue(source);
+                return string.IsNullOrEmpty(value) ? fallback : value;
+            }
+
+            if (tokenIndex == 1)
+            {
+                var text = QTOptionNameUtility.GetText(source);
+                return string.IsNullOrEmpty(text) ? fallback : text;
+            }
+
             var tokens = source.Split('_');
             if (tokenIndex >= 0 && tokenIndex < tokens.Length && !string.IsNullOrEmpty(tokens[tokenIndex]))
             {
@@ -1552,6 +1580,16 @@ namespace QuestionnaireToolkit.Scripts
             }
 
             return fallback;
+        }
+
+        private static string GetExportOptionValue(string optionName)
+        {
+            return QTOptionNameUtility.GetValue(optionName);
+        }
+
+        private static string GetExportOptionText(string optionName)
+        {
+            return QTOptionNameUtility.GetText(optionName);
         }
 
         private static string GetQuestionHeaderFromObjectName(string objectName)
@@ -1849,17 +1887,66 @@ namespace QuestionnaireToolkit.Scripts
             return "\"" + value.Replace("\"", "\"\"") + "\"";
         }
 
+        private static string JsonString(string value)
+        {
+            if (value == null)
+                value = string.Empty;
+
+            var sb = new StringBuilder(value.Length + 2);
+            sb.Append('"');
+            foreach (char c in value)
+            {
+                switch (c)
+                {
+                    case '"':
+                        sb.Append("\\\"");
+                        break;
+                    case '\\':
+                        sb.Append("\\\\");
+                        break;
+                    case '\b':
+                        sb.Append("\\b");
+                        break;
+                    case '\f':
+                        sb.Append("\\f");
+                        break;
+                    case '\n':
+                        sb.Append("\\n");
+                        break;
+                    case '\r':
+                        sb.Append("\\r");
+                        break;
+                    case '\t':
+                        sb.Append("\\t");
+                        break;
+                    default:
+                        if (char.IsControl(c))
+                            sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                        else
+                            sb.Append(c);
+                        break;
+                }
+            }
+            sb.Append('"');
+            return sb.ToString();
+        }
+
+        private class BoObjectiveSubmission
+        {
+            public string HeaderName;
+            public string RawValue;
+            public string SourceName;
+        }
+
         /// <summary>
         /// Writes the results of the current questionnaire run in the specified results file.
         /// </summary>
-        private void WriteResults()
+        private bool WriteResults()
         {
             var rowCells = new List<string> { currentResponseId.ToString(CultureInfo.InvariantCulture) };
             if (customUserId)
             {
                 rowCells.Add(userId);
-                if (generateResultsFile && runsPerUser == 1)
-                    userId = "";
             }
             if (runsPerUser > 1)
             {
@@ -1880,6 +1967,9 @@ namespace QuestionnaireToolkit.Scripts
             var boManager = optimizationBridge != null;
             HashSet<string> boHeadersUsed = boManager
                 ? new HashSet<string>(StringComparer.Ordinal)
+                : null;
+            var boObjectiveSubmissions = boManager
+                ? new List<BoObjectiveSubmission>()
                 : null;
             //-----------
             
@@ -2134,12 +2224,12 @@ namespace QuestionnaireToolkit.Scripts
                         {
                             string objectiveHeader = i < emittedHeaders.Count ? emittedHeaders[i] : questionHeader;
                             objectiveHeader = ResolveObjectiveHeaderName(objectiveHeader, emittedQuestionValueCount);
-                            TryAddBoObjectiveValue(
-                                optimizationBridge,
-                                objectiveHeader,
-                                emittedValues[i],
-                                question.name
-                            );
+                            boObjectiveSubmissions.Add(new BoObjectiveSubmission
+                            {
+                                HeaderName = objectiveHeader,
+                                RawValue = emittedValues[i],
+                                SourceName = question.name
+                            });
                             emittedQuestionValueCount++;
                         }
                     }
@@ -2168,32 +2258,64 @@ namespace QuestionnaireToolkit.Scripts
                 }
             }
 
-            try
+            if (generateResultsFile)
             {
-                if (generateResultsFile)
+                try
                 {
+                    string directory = Path.GetDirectoryName(userPath);
+                    if (!string.IsNullOrEmpty(directory))
+                        Directory.CreateDirectory(directory);
+
                     using (var writer = new StreamWriter(userPath, true))
                     {
                         writer.WriteLine(string.Join(",", rowCells.Select(EscapeCsvCell)));
                     }
                     Debug.Log("Write results for: " + resultsFileName + (newFileEachStart ? "_" + currentResponseId : "") +
                               (runsPerUser > 1 ? " run: " + currentRun : "") + ".\n@ " + userPath);
-                    if (currentRun == runsPerUser)
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Write results failed for '{userPath}': {ex.Message}");
+                    return false;
+                }
+
+                if (currentRun == runsPerUser)
+                {
+                    if (HasMetaDataAsset())
                     {
-                        if (HasMetaDataAsset())
-                        {
-                            qtMetaData.currentUserRun = 0;
-                        }
-                        currentRun = 0;
-                        userId = "";
+                        qtMetaData.currentUserRun = 0;
                     }
+                    currentRun = 0;
+                    userId = "";
+                }
+
+                try
+                {
                     SaveMetaData(currentResponseId, currentRun);
                 }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Results were written, but questionnaire metadata could not be saved: {ex.Message}");
+                }
+
+                if (customUserId && runsPerUser == 1)
+                    userId = "";
             }
-            catch (Exception)
+
+            if (boObjectiveSubmissions != null)
             {
-                Debug.Log("Write results failed!");
+                foreach (var submission in boObjectiveSubmissions)
+                {
+                    TryAddBoObjectiveValue(
+                        optimizationBridge,
+                        submission.HeaderName,
+                        submission.RawValue,
+                        submission.SourceName
+                    );
+                }
             }
+
+            return true;
         }
 
         /// <summary>

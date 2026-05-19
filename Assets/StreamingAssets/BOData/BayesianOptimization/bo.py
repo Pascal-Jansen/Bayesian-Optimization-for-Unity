@@ -416,12 +416,12 @@ def generate_initial_data(conn, n_samples):
     return train_x, Y
 
 def load_data():
-    cur = os.getcwd()
     if not CSV_PATH_PARAMETERS or not CSV_PATH_OBJECTIVES:
         raise ValueError("Warm start is enabled, but initial CSV paths are missing.")
 
-    x_path = os.path.join(cur, "InitData", CSV_PATH_PARAMETERS)
-    y_path = os.path.join(cur, "InitData", CSV_PATH_OBJECTIVES)
+    init_root = os.environ.get("BO_INIT_ROOT") or os.path.join(os.getcwd(), "InitData")
+    x_path = os.path.join(init_root, CSV_PATH_PARAMETERS)
+    y_path = os.path.join(init_root, CSV_PATH_OBJECTIVES)
     if not os.path.exists(x_path):
         raise FileNotFoundError(f"Warm-start parameter CSV not found: {x_path}")
     if not os.path.exists(y_path):
@@ -566,7 +566,7 @@ def save_metric_to_file(metric_values, iteration):
 # -------------------- main loop --------------------
 def bo_execute(conn, seed, iterations, initial_samples):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH
-    base = os.path.join(os.getcwd(), "LogData")
+    base = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
     os.makedirs(base, exist_ok=True)
     PROJECT_PATH = get_unique_folder(base, USER_LOG_ID)
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")

@@ -90,7 +90,7 @@ namespace QuestionnaireToolkit.Scripts
                     if (!_oldHeaderName.Equals(headerName))
                     {
                         _oldHeaderName = headerName;
-                        name = name.Split('_')[0] + "_" + headerName;
+                        name = QTOptionNameUtility.Compose(QTOptionNameUtility.GetValue(name), headerName);
                     }
 
                     // update question field
@@ -171,7 +171,7 @@ namespace QuestionnaireToolkit.Scripts
             if (!_oldHeaderName.Equals(headerName))
             {
                 _oldHeaderName = headerName;
-                name = name.Split('_')[0] + "_" + headerName;
+                name = QTOptionNameUtility.Compose(QTOptionNameUtility.GetValue(name), headerName);
             }
 
             // update question field
