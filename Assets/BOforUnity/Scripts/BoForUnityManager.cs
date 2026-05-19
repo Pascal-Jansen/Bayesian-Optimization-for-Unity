@@ -1275,10 +1275,15 @@ namespace BOforUnity
 
         private string[] GetFinalDesignLogRootCandidates()
         {
-            // Current runtime location used by Python process working directory.
+            // Current runtime location used by Python process log environment.
             string current = Path.Combine(
-                Application.dataPath,
-                "StreamingAssets",
+                Application.persistentDataPath,
+                "BOData",
+                "LogData"
+            );
+
+            string streamingAssetsCurrent = Path.Combine(
+                Application.streamingAssetsPath,
                 "BOData",
                 "LogData"
             );
@@ -1294,8 +1299,7 @@ namespace BOforUnity
 
             // CABOP stores runs under dedicated subfolders to keep metrics/logs separate.
             string cabopSingle = Path.Combine(
-                Application.dataPath,
-                "StreamingAssets",
+                Application.persistentDataPath,
                 "BOData",
                 "LogData",
                 "CABOP",
@@ -1303,8 +1307,23 @@ namespace BOforUnity
             );
 
             string cabopMulti = Path.Combine(
-                Application.dataPath,
-                "StreamingAssets",
+                Application.persistentDataPath,
+                "BOData",
+                "LogData",
+                "CABOP",
+                "multi"
+            );
+
+            string streamingAssetsCabopSingle = Path.Combine(
+                Application.streamingAssetsPath,
+                "BOData",
+                "LogData",
+                "CABOP",
+                "single"
+            );
+
+            string streamingAssetsCabopMulti = Path.Combine(
+                Application.streamingAssetsPath,
                 "BOData",
                 "LogData",
                 "CABOP",
@@ -1337,19 +1356,24 @@ namespace BOforUnity
                 if (cabopObjectiveMode == CabopObjectiveMode.SingleObjective)
                 {
                     ordered.Add(cabopSingle);
+                    ordered.Add(streamingAssetsCabopSingle);
                     ordered.Add(cabopLegacySingle);
                 }
                 else
                 {
                     ordered.Add(cabopMulti);
+                    ordered.Add(streamingAssetsCabopMulti);
                     ordered.Add(cabopLegacyMulti);
                 }
             }
 
             ordered.Add(current);
+            ordered.Add(streamingAssetsCurrent);
             ordered.Add(legacy);
             ordered.Add(cabopSingle);
             ordered.Add(cabopMulti);
+            ordered.Add(streamingAssetsCabopSingle);
+            ordered.Add(streamingAssetsCabopMulti);
             ordered.Add(cabopLegacySingle);
             ordered.Add(cabopLegacyMulti);
 

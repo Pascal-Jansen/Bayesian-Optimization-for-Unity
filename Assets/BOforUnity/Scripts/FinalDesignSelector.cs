@@ -603,10 +603,10 @@ namespace BOforUnity.Scripts
                     colIdx[key] = i;
             }
 
-            colIdx.TryGetValue("UserID", out int userIdx);
-            colIdx.TryGetValue("ConditionID", out int conditionIdx);
-            colIdx.TryGetValue("GroupID", out int groupIdx);
-            if (userIdx < 0 || conditionIdx < 0 || groupIdx < 0)
+            bool hasUserId = colIdx.TryGetValue("UserID", out int userIdx);
+            bool hasConditionId = colIdx.TryGetValue("ConditionID", out int conditionIdx);
+            bool hasGroupId = colIdx.TryGetValue("GroupID", out int groupIdx);
+            if (!hasUserId || !hasConditionId || !hasGroupId)
                 return false;
 
             for (int lineIdx = 1; lineIdx < lines.Length; lineIdx++)

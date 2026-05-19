@@ -293,8 +293,9 @@ namespace BOforUnity.Scripts
             Debug.Log("Optimizer script path: " + fullPath);
             Debug.Log("Optimizer script exists: " + File.Exists(fullPath));
 
-            outputFilePath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", "output.txt");
-            outputFileWriter = new StreamWriter(outputFilePath);
+            outputFilePath = GetPythonOutputFilePath();
+            Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
+            outputFileWriter = new StreamWriter(outputFilePath, false);
 
             // Start Python process only after pip finished
             CreateProcess(fullPath);
@@ -463,14 +464,18 @@ namespace BOforUnity.Scripts
             pythonProcess.StartInfo.CreateNoWindow = true;
             pythonProcess.StartInfo.RedirectStandardOutput = true;
             pythonProcess.StartInfo.RedirectStandardError = true;
+            ConfigurePythonRuntimeEnvironment(pythonProcess.StartInfo);
             pythonProcess.EnableRaisingEvents = true;
 
             pythonProcess.OutputDataReceived += (sender, e) =>
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    outputFileWriter.WriteLine(e.Data);
-                    outputFileWriter.Flush();
+                    if (outputFileWriter != null)
+                    {
+                        outputFileWriter.WriteLine(e.Data);
+                        outputFileWriter.Flush();
+                    }
                     Debug.LogWarning("Python Output: " + e.Data);
 
                     if (e.Data.IndexOf("Server starts, waiting for connection...", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -567,20 +572,39 @@ namespace BOforUnity.Scripts
         }
 #endif
 
-        // Get the application path based on the current platform.
         private string GetApplicationPath()
         {
-            string applicationPath = "";
-#if UNITY_EDITOR
-            applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
-#elif UNITY_STANDALONE_WIN
-            applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
-#elif UNITY_STANDALONE_OSX
-            applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
-#else
-            applicationPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData");
-#endif
-            return applicationPath;
+            return Path.Combine(Application.streamingAssetsPath, "BOData");
+        }
+
+        private static string GetPythonOutputFilePath()
+        {
+            return Path.Combine(
+                Application.persistentDataPath,
+                "BOData",
+                "BayesianOptimization",
+                "output.txt"
+            );
+        }
+
+        private static string GetPythonLogRootPath()
+        {
+            return Path.Combine(Application.persistentDataPath, "BOData", "LogData");
+        }
+
+        private static string GetPythonInitRootPath()
+        {
+            return Path.Combine(Application.streamingAssetsPath, "BOData", "InitData");
+        }
+
+        private static void ConfigurePythonRuntimeEnvironment(ProcessStartInfo startInfo)
+        {
+            string logRootPath = GetPythonLogRootPath();
+            Directory.CreateDirectory(logRootPath);
+
+            startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
+            startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
+            startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
         }
 
         /// <summary>
@@ -1074,6 +1098,16 @@ namespace BOforUnity.Scripts
 
                     Debug.Log($"Using Python {pyVersion} at {pythonPath}. Raw version output: {rawVersion?.Trim()}");
 
+#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
+                    if (!IsSupportedMacPythonArchitecture(pythonPath, out string pythonMachine))
+                    {
+                        pythonInstallStatus =
+                            $"Unsupported macOS Python architecture '{pythonMachine}'. " +
+                            "The pinned PyTorch dependency currently ships Python 3.13 macOS wheels for arm64 only.";
+                        return false;
+                    }
+#endif
+
                     // Build path to requirements.txt inside StreamingAssets
                     string reqPath = Path.Combine(Application.streamingAssetsPath, "BOData", "Installation", "requirements.txt");
                     if (!File.Exists(reqPath))
@@ -1082,45 +1116,38 @@ namespace BOforUnity.Scripts
                         return false;
                     }
 
-                    pythonInstallStatus = "Ensuring pip…";
-                    int rc = RunProcessBlocking(pythonPath, "-m ensurepip --upgrade");
-                    if (rc != 0)
+                    string requirementsText = File.ReadAllText(reqPath);
+                    string requirementsStamp = BuildRequirementsStamp(pythonPath, pyVersion, requirementsText);
+                    string stampPath = GetRequirementsStampPath();
+                    if (IsRequirementsStampCurrent(stampPath, requirementsStamp))
                     {
-                        pythonInstallStatus = $"ensurepip failed ({rc}).";
-                        return false;
-                    }
-
-                    pythonInstallStatus = "Upgrading pip…";
-                    rc = RunProcessBlocking(pythonPath, "-m pip install --upgrade pip");
-                    if (rc != 0)
-                    {
-                        pythonInstallStatus = $"pip upgrade failed ({rc}).";
-                        return false;
-                    }
-
-                    pythonInstallStatus = "Upgrading Python dependencies…";
-                    string baseRequirementsArgs = $"-m pip install --user -r \"{reqPath}\"";
-                    rc = RunProcessBlocking(pythonPath, $"-m pip install --user --upgrade -r \"{reqPath}\"");
-                    if (rc != 0)
-                    {
-                        Debug.LogWarning(
-                            $"Python dependency upgrade failed ({rc}). " +
-                            "Retrying without --upgrade so existing compatible versions can be reused."
-                        );
-
-                        pythonInstallStatus = "Dependency upgrade failed; retrying compatible install…";
-                        rc = RunProcessBlocking(pythonPath, baseRequirementsArgs);
-                        if (rc != 0)
-                        {
-                            pythonInstallStatus = $"requirements install failed ({rc}).";
-                            return false;
-                        }
-
-                        pythonInstallStatus = "Dependencies installed with existing compatible versions.";
+                        pythonInstallStatus = "Python dependencies already verified.";
                         return true;
                     }
 
-                    pythonInstallStatus = "Dependencies installed/upgraded.";
+                    pythonInstallStatus = "Checking pip…";
+                    int rc = RunProcessBlocking(pythonPath, "-m pip --version");
+                    if (rc != 0)
+                    {
+                        pythonInstallStatus = "Ensuring pip…";
+                        rc = RunProcessBlocking(pythonPath, "-m ensurepip --upgrade");
+                        if (rc != 0)
+                        {
+                            pythonInstallStatus = $"ensurepip failed ({rc}).";
+                            return false;
+                        }
+                    }
+
+                    pythonInstallStatus = "Installing Python dependencies…";
+                    rc = RunProcessBlocking(pythonPath, $"-m pip install --user -r \"{reqPath}\"");
+                    if (rc != 0)
+                    {
+                        pythonInstallStatus = $"requirements install failed ({rc}).";
+                        return false;
+                    }
+
+                    WriteRequirementsStamp(stampPath, requirementsStamp);
+                    pythonInstallStatus = "Dependencies installed.";
                     return true;
                 }
                 catch (Exception ex)
@@ -1129,6 +1156,85 @@ namespace BOforUnity.Scripts
                     return false;
                 }
             });
+        }
+
+#if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
+        private bool IsSupportedMacPythonArchitecture(string pythonPath, out string machine)
+        {
+            machine = "unknown";
+            if (string.IsNullOrWhiteSpace(pythonPath))
+                return false;
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = pythonPath,
+                    Arguments = "-c \"import platform; print(platform.machine())\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var p = Process.Start(psi))
+                {
+                    string stdout = p.StandardOutput.ReadToEnd();
+                    string stderr = p.StandardError.ReadToEnd();
+                    p.WaitForExit();
+
+                    string output = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+                    machine = string.IsNullOrWhiteSpace(output) ? "unknown" : output.Trim();
+                    return p.ExitCode == 0 && string.Equals(machine, "arm64", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("Error checking Python architecture: " + ex.Message);
+                return false;
+            }
+        }
+#endif
+
+        private static string GetRequirementsStampPath()
+        {
+            return Path.Combine(
+                Application.persistentDataPath,
+                "BOData",
+                "Installation",
+                "requirements.stamp"
+            );
+        }
+
+        private static string BuildRequirementsStamp(string pythonPath, Version pythonVersion, string requirementsText)
+        {
+            return
+                "pythonPath=" + (pythonPath ?? string.Empty) + "\n" +
+                "pythonVersion=" + (pythonVersion != null ? pythonVersion.ToString() : string.Empty) + "\n" +
+                "requirements=\n" +
+                (requirementsText ?? string.Empty);
+        }
+
+        private static bool IsRequirementsStampCurrent(string stampPath, string expectedStamp)
+        {
+            try
+            {
+                return File.Exists(stampPath) &&
+                       string.Equals(File.ReadAllText(stampPath), expectedStamp, StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void WriteRequirementsStamp(string stampPath, string stamp)
+        {
+            string directory = Path.GetDirectoryName(stampPath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            File.WriteAllText(stampPath, stamp ?? string.Empty);
         }
 
         // Run a process and return exit code (blocking on the worker thread)

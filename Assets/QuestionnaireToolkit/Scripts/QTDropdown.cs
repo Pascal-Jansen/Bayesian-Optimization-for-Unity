@@ -65,6 +65,7 @@ namespace QuestionnaireToolkit.Scripts
                         answerRequired = false;
                         transform.GetChild(0).GetChild(0).gameObject.SetActive(answerRequired);
                     }
+                    ConfigureRuntimeDropdown();
                 }
             }
             catch (Exception)
@@ -83,7 +84,7 @@ namespace QuestionnaireToolkit.Scripts
                     if (!_oldHeaderName.Equals(headerName))
                     {
                         _oldHeaderName = headerName;
-                        name = name.Split('_')[0] + "_" + headerName;
+                        name = QTOptionNameUtility.Compose(QTOptionNameUtility.GetValue(name), headerName);
                         _questionnaireManager.BuildHeaderItems();
                     }
             
@@ -133,6 +134,21 @@ namespace QuestionnaireToolkit.Scripts
             optionImage = null;
             
             if(import) OnValidate();
+        }
+
+        private void ConfigureRuntimeDropdown()
+        {
+            var dropdown = transform.GetChild(1).GetComponent<TMP_Dropdown>();
+            dropdown.options = new List<TMP_Dropdown.OptionData>(options);
+
+            if (answerRequired &&
+                dropdown.options.Count > 0 &&
+                !string.IsNullOrWhiteSpace(dropdown.options[0].text))
+            {
+                dropdown.options.Insert(0, new TMP_Dropdown.OptionData(string.Empty));
+                dropdown.value = 0;
+                dropdown.RefreshShownValue();
+            }
         }
 
         /// <summary>

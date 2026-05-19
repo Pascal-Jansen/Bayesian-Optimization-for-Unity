@@ -995,7 +995,19 @@ namespace BOforUnity.Scripts
             string line = json + "\n"; // NDJSON framing
             byte[] sendData = Encoding.UTF8.GetBytes(line);
             Debug.Log("Unity sending: " + json);
-            _serverSocket.Send(sendData, sendData.Length, SocketFlags.None);
+            int totalSent = 0;
+            while (totalSent < sendData.Length)
+            {
+                int sent = _serverSocket.Send(
+                    sendData,
+                    totalSent,
+                    sendData.Length - totalSent,
+                    SocketFlags.None
+                );
+                if (sent <= 0)
+                    throw new SocketException((int)SocketError.ConnectionReset);
+                totalSent += sent;
+            }
         }
 
         public void SocketQuit()
@@ -1010,11 +1022,10 @@ namespace BOforUnity.Scripts
             if (_connectThread != null)
             {
                 try { _connectThread.Interrupt(); } catch { }
-                try { _connectThread.Join(200); } catch { }
-                if (_connectThread.IsAlive)
-                {
-                    try { _connectThread.Abort(); } catch { }
-                }
+                bool joined = false;
+                try { joined = _connectThread.Join(1000); } catch { }
+                if (!joined && _connectThread.IsAlive)
+                    Debug.LogWarning("Socket receive thread did not stop within the shutdown timeout.");
                 _connectThread = null;
             }
 
