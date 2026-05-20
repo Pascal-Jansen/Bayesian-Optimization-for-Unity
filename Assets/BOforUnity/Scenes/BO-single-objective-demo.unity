@@ -4576,7 +4576,7 @@ MonoBehaviour:
   showPageNumber: 1
   showPrevButton: 0
   generateResultsFile: 1
-  resultsSavePath: Assets/QuestionnaireToolkit/Results/
+  resultsSavePath: Assets/StreamingAssets/BOData/LogData/
   resultsFileName: ColorGuesserAnswers
   resultsFileFormat: 0
   newFileEachStart: 0
@@ -4587,6 +4587,12 @@ MonoBehaviour:
   importPath: ..select..
   currentImportedItem: {fileID: 0}
   exportPath: ..select..
+  logBoContextColumns: 1
+  readBoContextFromManager: 1
+  saveResultsInBoContextFolders: 1
+  contextUserId: -1
+  contextConditionId: -1
+  contextGroupId: -1
   customUserId: 0
   userId: 
   runsPerUser: 1
@@ -4598,7 +4604,25 @@ MonoBehaviour:
   questionPages:
   - {fileID: 3399197313541846276}
   additionalCsvItems:
-    array: []
+    array:
+    - headerName: UserID
+      itemValue:
+        _parameterTypes: []
+        _target: {fileID: 8451224268537600623}
+        _component: QTQuestionnaireManager
+        _name: BoContextUserIdForCsv
+    - headerName: ConditionID
+      itemValue:
+        _parameterTypes: []
+        _target: {fileID: 8451224268537600623}
+        _component: QTQuestionnaireManager
+        _name: BoContextConditionIdForCsv
+    - headerName: GroupID
+      itemValue:
+        _parameterTypes: []
+        _target: {fileID: 8451224268537600623}
+        _component: QTQuestionnaireManager
+        _name: BoContextGroupIdForCsv
   pageBackgroundColor: {r: 0.9245, g: 0.9245, b: 0.9245, a: 0.000000022351742}
   pageBottomColor: {r: 0.76, g: 0.88, b: 1, a: 1}
   highlightColor: {r: 0, g: 0.67, b: 1, a: 1}

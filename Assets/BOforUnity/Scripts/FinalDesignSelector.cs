@@ -172,25 +172,49 @@ namespace BOforUnity.Scripts
             string expectedConditionId = NormalizeContextToken(conditionId);
             string expectedGroupId = NormalizeContextToken(groupId);
 
-            string[] candidateDirs = Directory.GetDirectories(logRootPath)
-                .Where(d =>
+            string normalizedConditionFolder = NormalizeLogFolderToken(conditionId);
+            var candidateDirs = new List<string>();
+            AddCandidateDirectory(candidateDirs, logRootPath);
+
+            foreach (string dir in Directory.GetDirectories(logRootPath).OrderByDescending(Directory.GetLastWriteTimeUtc))
+            {
+                string name = Path.GetFileName(dir);
+                bool matchesLegacyUserRun = false;
+                foreach (string prefix in prefixCandidates)
                 {
-                    string name = Path.GetFileName(d);
-                    foreach (string prefix in prefixCandidates)
+                    if (string.Equals(name, prefix, StringComparison.Ordinal) ||
+                        name.StartsWith(prefix + "_", StringComparison.Ordinal))
                     {
-                        if (string.Equals(name, prefix, StringComparison.Ordinal) ||
-                            name.StartsWith(prefix + "_", StringComparison.Ordinal))
-                        {
-                            return true;
-                        }
+                        matchesLegacyUserRun = true;
+                        break;
                     }
+                }
 
-                    return false;
-                })
-                .OrderByDescending(Directory.GetLastWriteTimeUtc)
-                .ToArray();
+                if (matchesLegacyUserRun || string.Equals(name, normalizedConditionFolder, StringComparison.Ordinal))
+                    AddCandidateDirectory(candidateDirs, dir);
 
-            if (candidateDirs.Length == 0)
+                string nestedConditionDir = Path.Combine(dir, normalizedConditionFolder);
+                if (Directory.Exists(nestedConditionDir))
+                    AddCandidateDirectory(candidateDirs, nestedConditionDir);
+            }
+
+            for (int i = candidateDirs.Count - 1; i >= 0; i--)
+            {
+                string dir = candidateDirs[i];
+                foreach (string child in Directory.GetDirectories(dir).OrderByDescending(Directory.GetLastWriteTimeUtc))
+                {
+                    string childName = Path.GetFileName(child);
+                    if (string.Equals(childName, "run", StringComparison.Ordinal) ||
+                        childName.StartsWith("run_", StringComparison.Ordinal) ||
+                        string.Equals(childName, "single", StringComparison.Ordinal) ||
+                        string.Equals(childName, "multi", StringComparison.Ordinal))
+                    {
+                        AddCandidateDirectory(candidateDirs, child);
+                    }
+                }
+            }
+
+            if (candidateDirs.Count == 0)
             {
                 error =
                     $"No log directory found for user prefix(es) '{string.Join("', '", prefixCandidates)}' in {logRootPath}.";
@@ -214,6 +238,15 @@ namespace BOforUnity.Scripts
                 "No observation CSV found for the current user/condition/group context. " +
                 $"Context: UserID='{expectedUserId}', ConditionID='{expectedConditionId}', GroupID='{expectedGroupId}'.";
             return false;
+        }
+
+        private static void AddCandidateDirectory(List<string> candidateDirs, string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+                return;
+
+            if (!candidateDirs.Contains(directory))
+                candidateDirs.Add(directory);
         }
 
         private static bool TrySelectFinalDesign(

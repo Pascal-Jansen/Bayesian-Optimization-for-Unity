@@ -51,6 +51,7 @@ USER_ID = ""
 CONDITION_ID = ""
 GROUP_ID = ""
 USER_LOG_ID = ""
+CONDITION_LOG_ID = ""
 
 # names and meta parsed from init
 parameter_names = []
@@ -151,6 +152,13 @@ def get_unique_folder(parent, folder_name):
     if not os.path.exists(base_path):
         os.makedirs(base_path)
         return base_path
+    if os.path.isdir(base_path):
+        visible_entries = [
+            name for name in os.listdir(base_path)
+            if name != ".DS_Store" and not name.endswith(".meta")
+        ]
+        if not visible_entries:
+            return base_path
     k = 1
     while True:
         p = os.path.join(parent, f"{folder_name}_{k}")
@@ -567,8 +575,9 @@ def save_metric_to_file(metric_values, iteration):
 def bo_execute(conn, seed, iterations, initial_samples):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH
     base = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
-    os.makedirs(base, exist_ok=True)
-    PROJECT_PATH = get_unique_folder(base, USER_LOG_ID)
+    condition_base = os.path.join(base, USER_LOG_ID, CONDITION_LOG_ID)
+    os.makedirs(condition_base, exist_ok=True)
+    PROJECT_PATH = get_unique_folder(condition_base, "run")
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
 
     exec_csv = os.path.join(PROJECT_PATH, 'ExecutionTimes.csv')
@@ -619,7 +628,7 @@ def main():
     global N_INITIAL, N_ITERATIONS, BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, MC_SAMPLES, SEED
     global PROBLEM_DIM, NUM_OBJS, problem_bounds
     global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, WARM_START_OBJECTIVE_FORMAT
-    global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID
+    global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID
     global parameter_names, objective_names, parameters_info, objectives_info
     global SOCKET_ACCEPT_TIMEOUT_SEC
     global SOCKET_RECV_BUF
@@ -705,9 +714,15 @@ def main():
         CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
         GROUP_ID     = normalize_user_token(user.get("groupId"), default="-1")
         USER_LOG_ID  = normalize_log_folder_token(USER_ID, default="-1")
+        CONDITION_LOG_ID = normalize_log_folder_token(CONDITION_ID, default="-1")
         if USER_LOG_ID != USER_ID:
             print(
                 f"Warning: userId '{USER_ID}' was normalized to safe log-folder token '{USER_LOG_ID}'.",
+                flush=True,
+            )
+        if CONDITION_LOG_ID != CONDITION_ID:
+            print(
+                f"Warning: conditionId '{CONDITION_ID}' was normalized to safe log-folder token '{CONDITION_LOG_ID}'.",
                 flush=True,
             )
 

@@ -74,7 +74,7 @@ namespace QuestionnaireToolkit.Scripts
 
         [Header("Results File Settings")] 
         public bool generateResultsFile = true;
-        public string resultsSavePath = "Assets/QuestionnaireToolkit/Results/";
+        public string resultsSavePath = "Assets/StreamingAssets/BOData/LogData/";
         public string resultsFileName = "MyQuestionnaire";
         public FileFormat resultsFileFormat = FileFormat.csv;
         [Tooltip("If true, then a new results file will be created whenever a questionnaire is started. The name above will be used with an additional counter for the file name.")]
@@ -88,7 +88,45 @@ namespace QuestionnaireToolkit.Scripts
         private GameObject currentImportedPage;
         public GameObject currentImportedItem;
         public string exportPath = "..select..";
-        
+
+        [Header("BO Context Logging")]
+        [Tooltip("Automatically add UserID, ConditionID, and GroupID through Additional CSV Items.")]
+        public bool logBoContextColumns = true;
+        [Tooltip("When available, read the context values from BoForUnityManager. If no manager is available, the fallback values below are used.")]
+        public bool readBoContextFromManager = true;
+        [Tooltip("Save questionnaire results below resultsSavePath/UserID/ConditionID.")]
+        public bool saveResultsInBoContextFolders = true;
+        public string contextUserId = "-1";
+        public string contextConditionId = "-1";
+        public string contextGroupId = "-1";
+
+        public string BoContextUserIdForCsv
+        {
+            get
+            {
+                ResolveBoContextForLogging(out string resolvedUserId, out string resolvedConditionId, out string resolvedGroupId);
+                return resolvedUserId;
+            }
+        }
+
+        public string BoContextConditionIdForCsv
+        {
+            get
+            {
+                ResolveBoContextForLogging(out string resolvedUserId, out string resolvedConditionId, out string resolvedGroupId);
+                return resolvedConditionId;
+            }
+        }
+
+        public string BoContextGroupIdForCsv
+        {
+            get
+            {
+                ResolveBoContextForLogging(out string resolvedUserId, out string resolvedConditionId, out string resolvedGroupId);
+                return resolvedGroupId;
+            }
+        }
+
         [Header("Results Visualization")]
         public bool customUserId = false;
         public string userId = "";
@@ -159,6 +197,11 @@ namespace QuestionnaireToolkit.Scripts
         [HideInInspector]
         public QTManager _qtManager;
         private IQuestionnaireOptimizationBridge _cachedOptimizationBridge;
+        private bool _contextUserFolderReserved;
+        private string _contextUserFolderRoot;
+        private string _contextRequestedUserId;
+        private string _contextRequestedConditionId;
+        private string _contextResolvedUserId;
 
         private bool EnsureVisiblePage(string caller)
         {
@@ -330,6 +373,8 @@ namespace QuestionnaireToolkit.Scripts
                 
                 if(!overwriteResultsHeaderItems) 
                     BuildHeaderItems(); // build the final header item list
+
+                EnsureBoContextAdditionalCsvItems();
                 
                 if (displayMode == DisplayMode.VR)
                 {
@@ -363,8 +408,13 @@ namespace QuestionnaireToolkit.Scripts
 
                 if (generateResultsFile)
                 {
-                    var systemPath = Application.persistentDataPath + resultsSavePath;
-                    userPath = systemPath.TrimEnd('/') + "/" + resultsFileName;
+                    var systemPath = ResolveResultsDirectory(resultsSavePath);
+                    if (saveResultsInBoContextFolders)
+                    {
+                        systemPath = ResolveBoContextResultsDirectory(systemPath);
+                    }
+
+                    userPath = Path.Combine(systemPath, resultsFileName);
 
                     if (newFileEachStart)
                     {
@@ -408,6 +458,9 @@ namespace QuestionnaireToolkit.Scripts
                             {
                                 foreach (var aci in additionalCsvItems)
                                 {
+                                    if (IsEmptyAdditionalCsvItem(aci))
+                                        continue;
+
                                     if (aci == null)
                                     {
                                         Debug.LogWarning("Skipping null entry in additionalCsvItems while creating questionnaire header.");
@@ -565,6 +618,8 @@ namespace QuestionnaireToolkit.Scripts
                     resultsFileName = TryResultFileName(resultsFileName);
                     _oldResultFileName = resultsFileName;
                 }
+
+                EnsureBoContextAdditionalCsvItems();
                 
                 // update device type config
                 if (_oldDeviceType != (int) deviceType)
@@ -1647,7 +1702,8 @@ namespace QuestionnaireToolkit.Scripts
 
         private IQuestionnaireOptimizationBridge GetOptimizationBridge()
         {
-            if (_cachedOptimizationBridge is UnityEngine.Object cachedObject && cachedObject != null)
+            if (_cachedOptimizationBridge is MonoBehaviour cachedBehaviour &&
+                IsActiveSceneBridge(cachedBehaviour))
             {
                 return _cachedOptimizationBridge;
             }
@@ -1655,7 +1711,7 @@ namespace QuestionnaireToolkit.Scripts
             _cachedOptimizationBridge = null;
             foreach (var behaviour in FindObjectsOfType<MonoBehaviour>())
             {
-                if (behaviour is IQuestionnaireOptimizationBridge bridge)
+                if (IsActiveSceneBridge(behaviour) && behaviour is IQuestionnaireOptimizationBridge bridge)
                 {
                     _cachedOptimizationBridge = bridge;
                     return _cachedOptimizationBridge;
@@ -1663,6 +1719,178 @@ namespace QuestionnaireToolkit.Scripts
             }
 
             return null;
+        }
+
+        public void ResolveBoContextForLogging(out string resolvedUserId, out string resolvedConditionId, out string resolvedGroupId)
+        {
+            if (readBoContextFromManager && TryGetBoContextFromManager(out resolvedUserId, out resolvedConditionId, out resolvedGroupId))
+            {
+                resolvedUserId = ResolveReservedContextUserId(resolvedUserId);
+                return;
+            }
+
+            resolvedUserId = NormalizeContextValue(contextUserId);
+            resolvedConditionId = NormalizeContextValue(contextConditionId);
+            resolvedGroupId = NormalizeContextValue(contextGroupId);
+            resolvedUserId = ResolveReservedContextUserId(resolvedUserId);
+        }
+
+        private void EnsureBoContextAdditionalCsvItems()
+        {
+            if (!logBoContextColumns)
+                return;
+
+            if (additionalCsvItems == null)
+                additionalCsvItems = new ReorderableChildList();
+
+            EnsureAdditionalCsvItem("UserID", gameObject, nameof(QTQuestionnaireManager), nameof(BoContextUserIdForCsv), 0);
+            EnsureAdditionalCsvItem("ConditionID", gameObject, nameof(QTQuestionnaireManager), nameof(BoContextConditionIdForCsv), 1);
+            EnsureAdditionalCsvItem("GroupID", gameObject, nameof(QTQuestionnaireManager), nameof(BoContextGroupIdForCsv), 2);
+        }
+
+        public bool EnsureAdditionalCsvItem(
+            string headerName,
+            UnityEngine.Object target,
+            string componentName,
+            string memberName,
+            int preferredIndex)
+        {
+            if (string.IsNullOrWhiteSpace(headerName) ||
+                target == null ||
+                string.IsNullOrWhiteSpace(memberName))
+            {
+                return false;
+            }
+
+            if (additionalCsvItems == null)
+                additionalCsvItems = new ReorderableChildList();
+
+            AdditionalCsvItem item = null;
+            int currentIndex = -1;
+            for (int i = 0; i < additionalCsvItems.Count; i++)
+            {
+                AdditionalCsvItem candidate = additionalCsvItems[i];
+                if (candidate == null ||
+                    !string.Equals(candidate.headerName, headerName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                item = candidate;
+                currentIndex = i;
+                break;
+            }
+
+            if (item == null)
+            {
+                item = new AdditionalCsvItem();
+                int insertIndex = Mathf.Clamp(preferredIndex, 0, additionalCsvItems.Count);
+                additionalCsvItems.Insert(insertIndex, item);
+                currentIndex = insertIndex;
+                MarkAdditionalCsvItemsDirty();
+            }
+            else if (currentIndex > preferredIndex && preferredIndex >= 0)
+            {
+                additionalCsvItems.RemoveAt(currentIndex);
+                int insertIndex = Mathf.Clamp(preferredIndex, 0, additionalCsvItems.Count);
+                additionalCsvItems.Insert(insertIndex, item);
+                MarkAdditionalCsvItemsDirty();
+            }
+
+            bool changed = false;
+            if (!string.Equals(item.headerName, headerName, StringComparison.Ordinal))
+            {
+                item.headerName = headerName;
+                changed = true;
+            }
+
+            string normalizedComponentName = string.IsNullOrWhiteSpace(componentName) ? string.Empty : componentName.Trim();
+            if (item.itemValue == null ||
+                item.itemValue.target != target ||
+                !string.Equals(item.itemValue.component ?? string.Empty, normalizedComponentName, StringComparison.Ordinal) ||
+                !string.Equals(item.itemValue.name ?? string.Empty, memberName, StringComparison.Ordinal))
+            {
+                item.itemValue = new UnityMember
+                {
+                    target = target,
+                    component = normalizedComponentName,
+                    name = memberName
+                };
+                changed = true;
+            }
+
+            if (changed)
+                MarkAdditionalCsvItemsDirty();
+
+            return changed;
+        }
+
+        private void MarkAdditionalCsvItemsDirty()
+        {
+#if UNITY_EDITOR
+            if (Application.isPlaying)
+                return;
+
+            EditorUtility.SetDirty(this);
+            if (gameObject != null && gameObject.scene.IsValid())
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
+#endif
+        }
+
+        private bool TryGetBoContextFromManager(out string resolvedUserId, out string resolvedConditionId, out string resolvedGroupId)
+        {
+            resolvedUserId = null;
+            resolvedConditionId = null;
+            resolvedGroupId = null;
+
+            IQuestionnaireOptimizationBridge bridge = GetOptimizationBridge();
+            if (TryReadContextFromBridge(bridge, out resolvedUserId, out resolvedConditionId, out resolvedGroupId))
+                return true;
+
+            foreach (var behaviour in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
+            {
+                if (!IsActiveSceneBridge(behaviour))
+                    continue;
+
+                if (behaviour is IQuestionnaireOptimizationBridge candidate &&
+                    TryReadContextFromBridge(candidate, out resolvedUserId, out resolvedConditionId, out resolvedGroupId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsActiveSceneBridge(MonoBehaviour behaviour)
+        {
+            return behaviour != null &&
+                   behaviour.gameObject != null &&
+                   behaviour.gameObject.scene.IsValid() &&
+                   behaviour.isActiveAndEnabled;
+        }
+
+        private static bool TryReadContextFromBridge(
+            IQuestionnaireOptimizationBridge bridge,
+            out string resolvedUserId,
+            out string resolvedConditionId,
+            out string resolvedGroupId)
+        {
+            resolvedUserId = null;
+            resolvedConditionId = null;
+            resolvedGroupId = null;
+            if (bridge == null)
+                return false;
+
+            resolvedUserId = NormalizeContextValue(bridge.UserId);
+            resolvedConditionId = NormalizeContextValue(bridge.ConditionId);
+            resolvedGroupId = NormalizeContextValue(bridge.GroupId);
+            return true;
+        }
+
+        private static string NormalizeContextValue(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "-1" : value.Trim();
         }
 
         private string BuildPriorRatingHintKey(GameObject question)
@@ -1943,6 +2171,8 @@ namespace QuestionnaireToolkit.Scripts
         /// </summary>
         private bool WriteResults()
         {
+            EnsureBoContextAdditionalCsvItems();
+
             var rowCells = new List<string> { currentResponseId.ToString(CultureInfo.InvariantCulture) };
             if (customUserId)
             {
@@ -2240,6 +2470,9 @@ namespace QuestionnaireToolkit.Scripts
             {
                 foreach (var aci in additionalCsvItems)
                 {
+                    if (IsEmptyAdditionalCsvItem(aci))
+                        continue;
+
                     if (aci == null)
                     {
                         Debug.LogWarning("Skipping null entry in additionalCsvItems while writing questionnaire results.");
@@ -2316,6 +2549,144 @@ namespace QuestionnaireToolkit.Scripts
             }
 
             return true;
+        }
+
+        private string ResolveBoContextResultsDirectory(string baseDirectory)
+        {
+            string resolvedUserId = null;
+            string resolvedConditionId = null;
+            string resolvedGroupId = null;
+            bool resolvedFromBridge = readBoContextFromManager &&
+                                      TryGetBoContextFromManager(
+                                          out resolvedUserId,
+                                          out resolvedConditionId,
+                                          out resolvedGroupId);
+            if (!resolvedFromBridge)
+            {
+                resolvedUserId = NormalizeContextValue(contextUserId);
+                resolvedConditionId = NormalizeContextValue(contextConditionId);
+                resolvedGroupId = NormalizeContextValue(contextGroupId);
+            }
+
+            resolvedUserId = ResolveUniqueContextUserFolder(
+                baseDirectory,
+                resolvedUserId,
+                resolvedConditionId,
+                resolvedFromBridge
+            );
+            if (!resolvedFromBridge)
+                contextUserId = resolvedUserId;
+
+            return Path.Combine(
+                baseDirectory,
+                NormalizeLogFolderToken(resolvedUserId),
+                NormalizeLogFolderToken(resolvedConditionId)
+            );
+        }
+
+        private string ResolveUniqueContextUserFolder(
+            string baseDirectory,
+            string requestedUserId,
+            string conditionId,
+            bool allowExistingRequestedUserFolder)
+        {
+            string normalizedRoot = Path.GetFullPath(baseDirectory);
+            string normalizedRequestedUserId = NormalizeLogFolderToken(requestedUserId);
+            string normalizedConditionId = NormalizeLogFolderToken(conditionId);
+
+            if (_contextUserFolderReserved &&
+                string.Equals(_contextUserFolderRoot, normalizedRoot, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(_contextRequestedUserId, normalizedRequestedUserId, StringComparison.Ordinal) &&
+                string.Equals(_contextRequestedConditionId, normalizedConditionId, StringComparison.Ordinal))
+            {
+                return _contextResolvedUserId;
+            }
+
+            _contextResolvedUserId = LogDataFolderUtility.GetOrCreateUserFolderTokenForCondition(
+                normalizedRoot,
+                normalizedRequestedUserId,
+                normalizedConditionId,
+                allowExistingRequestedUserFolder,
+                allowExistingRequestedUserFolder
+            );
+            _contextUserFolderRoot = normalizedRoot;
+            _contextRequestedUserId = normalizedRequestedUserId;
+            _contextRequestedConditionId = normalizedConditionId;
+            _contextUserFolderReserved = true;
+
+            if (!string.Equals(normalizedRequestedUserId, _contextResolvedUserId, StringComparison.Ordinal))
+            {
+                Debug.Log(
+                    $"{nameof(QTQuestionnaireManager)}: user log folder '{normalizedRequestedUserId}' already exists. " +
+                    $"Using '{_contextResolvedUserId}' for this questionnaire run."
+                );
+            }
+
+            return _contextResolvedUserId;
+        }
+
+        private string ResolveReservedContextUserId(string requestedUserId)
+        {
+            if (!_contextUserFolderReserved)
+                return requestedUserId;
+
+            string normalizedRequestedUserId = NormalizeLogFolderToken(requestedUserId);
+            if (string.Equals(normalizedRequestedUserId, _contextRequestedUserId, StringComparison.Ordinal) ||
+                string.Equals(normalizedRequestedUserId, _contextResolvedUserId, StringComparison.Ordinal))
+            {
+                return _contextResolvedUserId;
+            }
+
+            return requestedUserId;
+        }
+
+        private static string ResolveResultsDirectory(string configuredPath)
+        {
+            string path = string.IsNullOrWhiteSpace(configuredPath)
+                ? "Assets/StreamingAssets/BOData/LogData/"
+                : configuredPath.Trim();
+
+            path = path.Replace('\\', Path.DirectorySeparatorChar)
+                       .Replace('/', Path.DirectorySeparatorChar);
+
+            if (Path.IsPathRooted(path))
+                return path;
+
+            string streamingAssetsPrefix = "Assets" + Path.DirectorySeparatorChar + "StreamingAssets";
+            if (path.Equals(streamingAssetsPrefix, StringComparison.OrdinalIgnoreCase))
+                return Application.streamingAssetsPath;
+
+            string streamingAssetsNestedPrefix = streamingAssetsPrefix + Path.DirectorySeparatorChar;
+            if (path.StartsWith(streamingAssetsNestedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                string relativeToStreamingAssets = path.Substring(streamingAssetsNestedPrefix.Length);
+                return Path.Combine(Application.streamingAssetsPath, relativeToStreamingAssets);
+            }
+
+            string assetsPrefix = "Assets" + Path.DirectorySeparatorChar;
+            if (path.Equals("Assets", StringComparison.OrdinalIgnoreCase))
+                return Application.dataPath;
+
+            if (path.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                string projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+                if (!string.IsNullOrWhiteSpace(projectRoot))
+                    return Path.Combine(projectRoot, path);
+            }
+
+            return Path.Combine(Application.persistentDataPath, path);
+        }
+
+        private static string NormalizeLogFolderToken(string value)
+        {
+            return LogDataFolderUtility.NormalizeLogFolderToken(value);
+        }
+
+        private static bool IsEmptyAdditionalCsvItem(AdditionalCsvItem item)
+        {
+            return item != null &&
+                   string.IsNullOrWhiteSpace(item.headerName) &&
+                   (item.itemValue == null || !item.itemValue.isAssigned);
         }
 
         /// <summary>

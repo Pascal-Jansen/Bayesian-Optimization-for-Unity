@@ -5,6 +5,9 @@ namespace QuestionnaireToolkit.Scripts
         bool UsesExternalIterationSignal { get; }
         bool EnablePriorRatingHints { get; }
         float PriorRatingHintAlpha { get; }
+        string UserId { get; }
+        string ConditionId { get; }
+        string GroupId { get; }
 
         void OptimizationStart();
         void RequestNextIteration();

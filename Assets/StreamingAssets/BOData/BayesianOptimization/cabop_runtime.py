@@ -28,6 +28,7 @@ USER_ID = ""
 CONDITION_ID = ""
 GROUP_ID = ""
 USER_LOG_ID = ""
+CONDITION_LOG_ID = ""
 
 OPTIMIZER_BACKEND = "cabop"
 CABOP_MODE = "single"  # single|multi
@@ -147,6 +148,13 @@ def get_unique_folder(parent, folder_name):
     if not os.path.exists(base_path):
         os.makedirs(base_path)
         return base_path
+    if os.path.isdir(base_path):
+        visible_entries = [
+            name for name in os.listdir(base_path)
+            if name != ".DS_Store" and not name.endswith(".meta")
+        ]
+        if not visible_entries:
+            return base_path
     k = 1
     while True:
         p = os.path.join(parent, f"{folder_name}_{k}")
@@ -740,9 +748,9 @@ def run_cabop(conn):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH, EXECUTION_LOG_PATH, METRICS_LOG_PATH, COMPAT_METRIC_LOG_PATH
 
     log_root = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
-    base = os.path.join(log_root, "CABOP", CABOP_MODE)
+    base = os.path.join(log_root, USER_LOG_ID, CONDITION_LOG_ID, "CABOP", CABOP_MODE)
     os.makedirs(base, exist_ok=True)
-    PROJECT_PATH = get_unique_folder(base, USER_LOG_ID)
+    PROJECT_PATH = get_unique_folder(base, "run")
 
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     EXECUTION_LOG_PATH = os.path.join(PROJECT_PATH, "ExecutionTimes.csv")
@@ -822,7 +830,7 @@ def run_cabop(conn):
 def parse_init_and_validate(init_msg, forced_mode):
     global N_INITIAL, N_ITERATIONS, SEED, PROBLEM_DIM, NUM_OBJS
     global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, WARM_START_OBJECTIVE_FORMAT
-    global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID
+    global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID
     global OPTIMIZER_BACKEND, CABOP_MODE, CABOP_USE_COST_AWARE
     global CABOP_UPDATE_RULE, CABOP_ENABLE_COST_BUDGET, CABOP_MAX_CUMULATIVE_COST
 
@@ -872,6 +880,7 @@ def parse_init_and_validate(init_msg, forced_mode):
     CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
     GROUP_ID = normalize_user_token(user.get("groupId"), default="-1")
     USER_LOG_ID = normalize_log_folder_token(USER_ID, default="-1")
+    CONDITION_LOG_ID = normalize_log_folder_token(CONDITION_ID, default="-1")
 
     init_parameter_and_objective_metadata(init_msg)
     init_group_costs(init_msg)

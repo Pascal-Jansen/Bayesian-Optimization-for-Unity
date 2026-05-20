@@ -42,7 +42,7 @@ namespace BOforUnity.Scripts
 
         // Python compatibility policy for automatic selection and setup.
         private const int SupportedPythonMajor = 3;
-        private const int MinSupportedPythonMinor = 9;
+        private const int MinSupportedPythonMinor = 13;
         private const int BundledPythonMinor = 13;
         private const string BundledPythonVersionLabel = "3.13.7";
 
@@ -75,6 +75,10 @@ namespace BOforUnity.Scripts
                 Debug.LogError("PythonStarter setup aborted: BoForUnityManager is missing.");
                 yield break;
             }
+
+            string streamingAssetsPath = Application.streamingAssetsPath;
+            string persistentDataPath = Application.persistentDataPath;
+            string safeWorkingDirectory = GetSafeWorkingDirectory();
 
             // use either the user specified python path or find the path automatically
             if (_bomanager.getLocalPython())
@@ -111,7 +115,7 @@ namespace BOforUnity.Scripts
                         $"{detectedDescription}. Installing bundled Python {BundledPythonVersionLabel} " +
                         "(may require admin confirmation)...";
 
-                    var bundledInstallTask = TryInstallBundledPythonAsync();
+                    var bundledInstallTask = TryInstallBundledPythonAsync(streamingAssetsPath, safeWorkingDirectory);
                     while (!bundledInstallTask.IsCompleted)
                     {
                         if (_bomanager.outputText != null)
@@ -155,7 +159,14 @@ namespace BOforUnity.Scripts
             pythonInstallRunning = true;
 
             // Install requirements on a background thread and wait
-            var installTask = InstallRequirementsForPythonAsync(pythonExecutable);
+            string requirementsPath = Path.Combine(streamingAssetsPath, "BOData", "Installation", "requirements.txt");
+            string requirementsStampPath = GetRequirementsStampPath(persistentDataPath);
+            var installTask = InstallRequirementsForPythonAsync(
+                pythonExecutable,
+                requirementsPath,
+                requirementsStampPath,
+                safeWorkingDirectory
+            );
             while (!installTask.IsCompleted)
             {
                 // Mirror status to UI if available
@@ -589,7 +600,7 @@ namespace BOforUnity.Scripts
 
         private static string GetPythonLogRootPath()
         {
-            return Path.Combine(Application.persistentDataPath, "BOData", "LogData");
+            return Path.Combine(Application.streamingAssetsPath, "BOData", "LogData");
         }
 
         private static string GetPythonInitRootPath()
@@ -605,6 +616,7 @@ namespace BOforUnity.Scripts
             startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
             startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
             startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+            Debug.Log("BO log root: " + logRootPath);
         }
 
         /// <summary>
@@ -615,6 +627,10 @@ namespace BOforUnity.Scripts
         {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             var candidates = new List<string>();
+            if (TryGetBundledPythonPath(out string bundledPythonPath))
+            {
+                AddPythonCandidateIfExists(candidates, bundledPythonPath, "bundled install location");
+            }
 
             // 1. Get Python executables from the PATH using the 'where' command.
             try
@@ -738,6 +754,10 @@ namespace BOforUnity.Scripts
 #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
             // macOS
             List<string> candidates = new List<string>();
+            if (TryGetBundledPythonPath(out string bundledPythonPath))
+            {
+                AddPythonCandidateIfExists(candidates, bundledPythonPath, "bundled install location");
+            }
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo
@@ -772,6 +792,10 @@ namespace BOforUnity.Scripts
 #elif UNITY_STANDALONE_LINUX
             // Linux
             List<string> candidates = new List<string>();
+            if (TryGetBundledPythonPath(out string bundledPythonPath))
+            {
+                AddPythonCandidateIfExists(candidates, bundledPythonPath, "target install location");
+            }
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo
@@ -805,6 +829,18 @@ namespace BOforUnity.Scripts
 #else
             return "python";
 #endif
+        }
+
+        private static void AddPythonCandidateIfExists(List<string> candidates, string candidate, string sourceLabel)
+        {
+            if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate))
+                return;
+
+            if (candidates.Contains(candidate))
+                return;
+
+            candidates.Add(candidate);
+            Debug.Log("Added candidate from " + sourceLabel + ": " + candidate);
         }
 
         private string SelectNewestSupportedPythonCandidate(IEnumerable<string> candidates, string fallback)
@@ -941,7 +977,7 @@ namespace BOforUnity.Scripts
             return !string.IsNullOrWhiteSpace(bundledPath) && File.Exists(bundledPath);
         }
 
-        private Task<bool> TryInstallBundledPythonAsync()
+        private Task<bool> TryInstallBundledPythonAsync(string streamingAssetsPath, string safeWorkingDirectory)
         {
             return Task.Run(() =>
             {
@@ -949,7 +985,7 @@ namespace BOforUnity.Scripts
                 {
 #if UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
                     string pkgPath = Path.Combine(
-                        Application.streamingAssetsPath,
+                        streamingAssetsPath,
                         "BOData",
                         "Installation",
                         "MacOs",
@@ -991,7 +1027,7 @@ namespace BOforUnity.Scripts
                     return true;
 #elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
                     string installBat = Path.Combine(
-                        Application.streamingAssetsPath,
+                        streamingAssetsPath,
                         "BOData",
                         "Installation",
                         "Windows",
@@ -1005,7 +1041,7 @@ namespace BOforUnity.Scripts
 
                     // May trigger UAC depending on system policy and current permissions.
                     pythonInstallStatus = $"Installing bundled Python {BundledPythonVersionLabel} (Windows UAC prompt may appear)...";
-                    int rc = RunProcessBlocking("cmd.exe", $"/c \"\"{installBat}\"\"");
+                    int rc = RunProcessBlocking("cmd.exe", $"/c \"\"{installBat}\"\"", safeWorkingDirectory);
                     if (rc != 0)
                     {
                         pythonInstallStatus = $"Bundled Python installation failed ({rc}).";
@@ -1071,7 +1107,11 @@ namespace BOforUnity.Scripts
 #endif
 
         // ── Async: install requirements with the given Python on a worker thread ──
-        private Task<bool> InstallRequirementsForPythonAsync(string pythonPath)
+        private Task<bool> InstallRequirementsForPythonAsync(
+            string pythonPath,
+            string requirementsPath,
+            string requirementsStampPath,
+            string safeWorkingDirectory)
         {
             return Task.Run(() =>
             {
@@ -1108,29 +1148,26 @@ namespace BOforUnity.Scripts
                     }
 #endif
 
-                    // Build path to requirements.txt inside StreamingAssets
-                    string reqPath = Path.Combine(Application.streamingAssetsPath, "BOData", "Installation", "requirements.txt");
-                    if (!File.Exists(reqPath))
+                    if (!File.Exists(requirementsPath))
                     {
                         pythonInstallStatus = "requirements.txt not found. Skipping install.";
                         return false;
                     }
 
-                    string requirementsText = File.ReadAllText(reqPath);
+                    string requirementsText = File.ReadAllText(requirementsPath);
                     string requirementsStamp = BuildRequirementsStamp(pythonPath, pyVersion, requirementsText);
-                    string stampPath = GetRequirementsStampPath();
-                    if (IsRequirementsStampCurrent(stampPath, requirementsStamp))
+                    if (IsRequirementsStampCurrent(requirementsStampPath, requirementsStamp))
                     {
                         pythonInstallStatus = "Python dependencies already verified.";
                         return true;
                     }
 
                     pythonInstallStatus = "Checking pip…";
-                    int rc = RunProcessBlocking(pythonPath, "-m pip --version");
+                    int rc = RunProcessBlocking(pythonPath, "-m pip --version", safeWorkingDirectory);
                     if (rc != 0)
                     {
                         pythonInstallStatus = "Ensuring pip…";
-                        rc = RunProcessBlocking(pythonPath, "-m ensurepip --upgrade");
+                        rc = RunProcessBlocking(pythonPath, "-m ensurepip --upgrade", safeWorkingDirectory);
                         if (rc != 0)
                         {
                             pythonInstallStatus = $"ensurepip failed ({rc}).";
@@ -1139,14 +1176,14 @@ namespace BOforUnity.Scripts
                     }
 
                     pythonInstallStatus = "Installing Python dependencies…";
-                    rc = RunProcessBlocking(pythonPath, $"-m pip install --user -r \"{reqPath}\"");
+                    rc = RunProcessBlocking(pythonPath, $"-m pip install --user -r \"{requirementsPath}\"", safeWorkingDirectory);
                     if (rc != 0)
                     {
                         pythonInstallStatus = $"requirements install failed ({rc}).";
                         return false;
                     }
 
-                    WriteRequirementsStamp(stampPath, requirementsStamp);
+                    WriteRequirementsStamp(requirementsStampPath, requirementsStamp);
                     pythonInstallStatus = "Dependencies installed.";
                     return true;
                 }
@@ -1196,10 +1233,10 @@ namespace BOforUnity.Scripts
         }
 #endif
 
-        private static string GetRequirementsStampPath()
+        private static string GetRequirementsStampPath(string persistentDataPath)
         {
             return Path.Combine(
-                Application.persistentDataPath,
+                persistentDataPath,
                 "BOData",
                 "Installation",
                 "requirements.stamp"

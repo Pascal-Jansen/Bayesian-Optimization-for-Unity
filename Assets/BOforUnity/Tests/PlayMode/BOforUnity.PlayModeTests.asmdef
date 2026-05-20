@@ -2,8 +2,7 @@
     "name": "BOforUnity.PlayModeTests",
     "rootNamespace": "BOforUnity.Tests.PlayMode",
     "references": [
-        "BOforUnity.Runtime",
-        "UnityEngine.TestRunner"
+        "BOforUnity.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

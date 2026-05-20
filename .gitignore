@@ -24,6 +24,7 @@
 # Unity crash/debug output
 sysinfo.txt
 *.stackdump
+.DS_Store
 
 # Unity build/package output
 *.apk
@@ -37,6 +38,7 @@ Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
 
 # Python generated caches
 __pycache__/
+__pycache__.meta
 *.py[cod]
 *$py.class
 

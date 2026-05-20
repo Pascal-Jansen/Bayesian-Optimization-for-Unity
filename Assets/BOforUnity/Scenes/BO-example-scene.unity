@@ -15981,7 +15981,7 @@ MonoBehaviour:
   showPageNumber: 1
   showPrevButton: 0
   generateResultsFile: 1
-  resultsSavePath: Assets/QuestionnaireToolkit/Results/
+  resultsSavePath: Assets/StreamingAssets/BOData/LogData/
   resultsFileName: ObjectiveResults
   resultsFileFormat: 0
   newFileEachStart: 1
@@ -15992,6 +15992,12 @@ MonoBehaviour:
   importPath: ..select..
   currentImportedItem: {fileID: 0}
   exportPath: ..select..
+  logBoContextColumns: 1
+  readBoContextFromManager: 1
+  saveResultsInBoContextFolders: 1
+  contextUserId: -1
+  contextConditionId: -1
+  contextGroupId: -1
   customUserId: 0
   userId: 
   runsPerUser: 1
@@ -16008,12 +16014,24 @@ MonoBehaviour:
   - {fileID: 6191657398910083094}
   additionalCsvItems:
     array:
-    - headerName: 
+    - headerName: UserID
       itemValue:
         _parameterTypes: []
-        _target: {fileID: 0}
-        _component: 
-        _name: 
+        _target: {fileID: 1119628125160066941}
+        _component: QTQuestionnaireManager
+        _name: BoContextUserIdForCsv
+    - headerName: ConditionID
+      itemValue:
+        _parameterTypes: []
+        _target: {fileID: 1119628125160066941}
+        _component: QTQuestionnaireManager
+        _name: BoContextConditionIdForCsv
+    - headerName: GroupID
+      itemValue:
+        _parameterTypes: []
+        _target: {fileID: 1119628125160066941}
+        _component: QTQuestionnaireManager
+        _name: BoContextGroupIdForCsv
   pageBackgroundColor: {r: 0.9245, g: 0.9245, b: 0.9245, a: 0.8}
   pageBottomColor: {r: 0.76, g: 0.88, b: 1, a: 1}
   highlightColor: {r: 0, g: 0.67, b: 1, a: 1}

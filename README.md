@@ -23,7 +23,9 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 - Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
+- Unified log routing below `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, including QuestionnaireToolkit CSVs and app-specific telemetry.
 - Ready-to-run example scenes, including questionnaire-driven design optimization and a 2D Fitts law pointing task based on Fitts's [1954 paper](https://doi.org/10.1037/h0055392).
+- Fitts law study support for `HITL MOBO`, `Static`, and `Random` conditions in one scene, with explicit design parameters, objective telemetry, and per-condition logs.
 
 ### Example Use Case
 
@@ -66,6 +68,11 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
 * [6. Example Usage](#6-example-usage)
   * [6.1 Questionnaire Demo Scene](#61-questionnaire-demo-scene)
   * [6.2 Fitts Law Task Scene](#62-fitts-law-task-scene)
+    * [6.2.1 Condition Modes](#621-condition-modes)
+    * [6.2.2 Design Parameters](#622-design-parameters)
+    * [6.2.3 Objectives and Questionnaire Items](#623-objectives-and-questionnaire-items)
+    * [6.2.4 Runtime Behavior](#624-runtime-behavior)
+    * [6.2.5 Logging](#625-logging)
 * [7. Demo Video](#7-demo-video)
 * [8. Configuration](#8-configuration)
   * [8.1 Parameters](#81-parameters)
@@ -163,9 +170,13 @@ This asset uses the [QuestionnaireToolkit](https://assetstore.unity.com/packages
 #### 2.3.1 Questionnaire Data Routing (Important)
 
 - Only questionnaire question-item outputs are considered for BO objective updates (via objective-key/header matching).
-- `additionalCsvItems` are written only to the questionnaire results CSV and are **not** forwarded to the BO manager/backend.
+- `additionalCsvItems` are written only to the questionnaire results CSV and are **not** forwarded to the BO manager/backend. `QTQuestionnaireManager` automatically adds `UserID`, `ConditionID`, and `GroupID` as additional CSV items so they are visible in the inspector and appear in every questionnaire CSV.
 - `User ID`, `Condition ID`, and `Group ID` are not BO objectives. They are logged as context columns in `ObservationsPerEvaluation.csv`.
+- Questionnaire result CSVs always include `UserID`, `ConditionID`, and `GroupID`. `QTQuestionnaireManager` reads them from `BoForUnityManager` when available; scenes without an active BO manager can set the fallback values in *QTQuestionnaireManager* -> *BO Context Logging*.
 - Final-design selection uses the full context triad (`User ID`, `Condition ID`, `Group ID`) when filtering candidate observation rows.
+- The bundled `QTQuestionnaireManager` now defaults its `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/`, and writes results below `LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, so raw QuestionnaireToolkit CSV output stays with the BO logs instead of `persistentDataPath`.
+- In app scenes that use the Fitts law task, `speed` and `accuracy` are added as extra questionnaire CSV columns. They are telemetry columns for analysis consistency; the BO objective values still come from the task script and the subjective questionnaire items.
+- Do not create `UserID`, `ConditionID`, `GroupID`, `speed`, or `accuracy` as normal questionnaire questions. They should be Additional CSV Items only.
 
 
 ### 2.4 Results of Multi-Objective Bayesian Optimization (Pareto Front)
@@ -255,7 +266,7 @@ Use this path for a first successful run with the provided demo scene.
 
 Expected successful outcome:
 - Parameter values in the scene change between iterations.
-- `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/` is created.
+- `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/` is created.
 - `ObservationsPerEvaluation.csv` and `ExecutionTimes.csv` are populated.
 - For MOBO (`m >= 2`), `HypervolumePerEvaluation.csv` is written and Unity receives `coverage` updates.
 
@@ -267,7 +278,7 @@ If these outputs appear, your full Unity-Python loop is working.
 ## 6. Example Usage
 
 This section walks through the provided example workflows. Install the asset first as described in [Installation](#3-installation).
-> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it at *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*. By default this equals `User ID`, but invalid path characters are normalized for folder safety. You can delete the folder to recreate a clean one.
+> **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it below *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/*. By default these equal `User ID` and `Condition ID`, but invalid path characters are normalized for folder safety. You can delete the condition folder to recreate clean logs.
 
 ### 6.1 Questionnaire Demo Scene
 
@@ -281,44 +292,124 @@ Use this scene when you want to see the standard QuestionnaireToolkit-based HITL
 6. Answer, then press `Finish`. The optimizer saves your input and updates parameters.
 7. Press `Next` to start a new iteration. Repeat from step `3` until all iterations finish. The system then indicates you can close the application.
 
-> **Note:** Results are in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* (typically your `User ID`, normalized for folder-safe naming if needed).
+> **Note:** Results are in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/* (typically your `User ID` and `Condition ID`, normalized for folder-safe naming if needed).
 
 ### 6.2 Fitts Law Task Scene
 
-Use `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity` for a ready-to-run 2D Fitts law task. The task presents circular click targets arranged on a ring; one target is highlighted at a time, and the participant clicks the highlighted target to advance to the next trial. It is implemented in `Assets/BOforUnity/Examples/FittsLawTask.cs`.
+Use `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity` for all Fitts law study conditions. The task presents circular click targets arranged on a ring. One target is highlighted at a time, contains an `X` marker, and the participant clicks the highlighted target to advance to the next trial. The implementation lives in `Assets/BOforUnity/Examples/FittsLawTask.cs`; condition orchestration lives in `Assets/BOforUnity/Examples/FittsLawConditionManager.cs`.
 
-The scene is configured as a BO example with three design parameters:
+The scene now covers all three study conditions in one scene. Separate static/random scenes are not needed.
 
-| Parameter key | Meaning |
+#### 6.2.1 Condition Modes
+
+The scene contains a `FittsLawConditionManager`. Set its `Condition Mode` in the inspector:
+
+| Condition Mode | Behavior |
 |---|---|
-| `circle_size` | Target diameter in pixels. |
-| `circle_distance` | Movement distance / ring diameter in pixels. |
-| `movement_direction` | Rotation of the target layout in degrees. |
+| `HITL MOBO` | Adaptive BO design. The BO manager stays active, Python proposes new parameter values, and the questionnaire advances the BO loop through `ExternalSignal`. |
+| `Static` | Fixed design. The BO runtime is disabled and the serialized values on `FittsLawTask` are used for every round. |
+| `Random` | Random baseline. The BO runtime is disabled and a fresh random design is sampled for every task round. |
 
-The scene writes three objectives:
+When `Set Condition ID From Mode` is enabled, the manager writes these condition IDs automatically:
+
+| Condition Mode | ConditionID |
+|---|---|
+| `HITL MOBO` | `HITL MOBO` |
+| `Static` | `static` |
+| `Random` | `random` |
+
+For static and random runs, configure `UserID` and `GroupID` on `FittsLawConditionManager`. The manager mirrors all three IDs into `QTQuestionnaireManager` at runtime, so questionnaire CSVs, app telemetry, and BO logs share the same context columns.
+
+For static and random conditions, `FittsLawConditionManager` reads the same sampling/optimization iteration counts as the BO setup and runs one additional local `finaldesign` round when `includeFinalDesignRound` is enabled. This keeps the baseline conditions aligned with the adaptive BO condition while keeping the optimizer inactive. For example, with `3` sampling iterations and `2` optimization iterations, static/random run `5 + 1 finaldesign` task rounds.
+
+#### 6.2.2 Design Parameters
+
+The scene is configured as a BO example with five scalar design parameters:
+
+| Parameter key | Default bounds | Meaning |
+|---|---:|---|
+| `x_font_size` | `18..64` | Font size of the fixed `X` marker inside the target, in pixels. |
+| `button_size` | `40..120` | Target button diameter in pixels. This replaces the old `circle_size` parameter. |
+| `button_distance` | `464..760` | Movement distance / ring diameter in pixels. This replaces the old `circle_distance` parameter. |
+| `button_hue` | `0..1` | Button color hue in HSB/HSV space. |
+| `button_saturation` | `0..1` | Button color saturation in HSB/HSV space. |
+
+Brightness is intentionally not optimized. `FittsLawTask.buttonColorBrightness` is fixed at `0.5` and applied together with `button_hue` and `button_saturation`.
+
+The Fitts law task only applies BO values whose keys are present in the `BoForUnityManager.parameters` list. Removing a key from that inspector list leaves the corresponding Fitts law value fixed at the value serialized on `FittsLawTask`. This is intentional: visual/task settings should not change unless they are explicitly defined as design parameters in the BO inspector.
+
+Other Fitts visual properties, such as target count, target order, movement direction, target outline, background, and wrong-click flash, are not BO design parameters in the provided setup. The target outline is disabled by default (`targetOutlineWidth = 0`), and wrong-target red flashing is disabled by default (`wrongTargetFlashSeconds = 0`).
+
+`button_distance` is constrained so adjacent targets cannot overlap. For the default `targetCount = 12` and maximum `button_size = 120`, the lower bound is `464 px` because the ring diameter must be at least `button_size / sin(pi / targetCount)`. Runtime layout safety checks also clamp applied values if a manually edited design would otherwise overlap or exceed the play area.
+
+The random condition samples from the same five parameter ranges listed above. It also keeps brightness fixed at `0.5`.
+
+#### 6.2.3 Objectives and Questionnaire Items
+
+The scene writes four objectives:
 
 | Objective key | Direction | Meaning |
 |---|---|---|
-| `task_completion_time` | Minimize | Total time to finish all target clicks. |
-| `accuracy` | Maximize | Correct clicks divided by total clicks. |
-| `mental_demand` | Minimize | 1-20 NASA-TLX-style mental demand rating. |
+| `aesthetics` | Maximize | Single-item aesthetics rating. |
+| `speed` | Minimize | Raw total task time in ms, configured with bounds `0..30000`. |
+| `accuracy` | Minimize | Raw mean click distance to the current target center in pixels, configured with bounds `0..1300`. |
+| `usability` | Maximize | Average of the two usability slider items, for example `usability1` and `usability2`. |
+
+Unity writes raw objective values to `BoForUnityManager`; the BO backend normalizes them using the objective lower/upper bounds from the inspector. The speed upper bound uses 30,000 ms because the default task has 10 trials, making 3 seconds per click the upper range before backend clamping. The accuracy upper bound uses 1300 px, derived from the default 1920 x 1080 reference resolution, 120 x 96 play-area padding, and max ring diameter of 760 px; this covers the farthest relevant click-to-target-center distance in the default task layout.
+
+Speed and accuracy should therefore be configured in raw units in the Unity inspector. Do not pre-normalize them in Unity; the Python backend performs normalization from the configured objective bounds.
+
+The subjective questionnaire items must be created manually in the scene. `FittsLawTask` does not create or duplicate QuestionnaireToolkit items at runtime. Use QuestionnaireToolkit slider items whose `Header Name` values match the objective keys. For multi-item objectives, use submeasure headers such as `usability1` and `usability2`; these map to the single `usability` objective and are averaged according to its `numberOfSubMeasures`. No additional UMUX-LITE or SUS regression formula is applied by the task; if you want a specific transformed scale, configure the questionnaire item scale/objective bounds accordingly.
+
+The Fitts questionnaire result CSV also includes `speed` and `accuracy` as Additional CSV Items. This makes static, random, and HITL MOBO questionnaire files comparable, even though speed and accuracy are measured by the task script rather than answered by the participant.
+
+#### 6.2.4 Runtime Behavior
+
+Correct target clicks advance to the next target. Wrong target clicks and play-area misses are logged and counted, but they do not advance the trial. Wrong target flashing is disabled in the provided scene.
 
 Workflow:
 
 1. Open `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity`.
-2. Press Play.
-3. Wait for the optimizer to initialize.
-4. Click each highlighted target until the trial block is complete.
-5. Select the 1-20 mental demand rating.
-6. The script writes the objective values to `BoForUnityManager`, starts optimization, and requests the next external-signal iteration automatically.
+2. Select `Fitts Law Condition Manager` and set `Condition Mode`.
+3. Press Play.
+4. For `HITL MOBO`, wait for the optimizer to initialize. For `Static` and `Random`, the local condition starts without Python optimization.
+5. Click each highlighted target until the trial block is complete.
+6. Rate aesthetics and usability.
+7. In `HITL MOBO`, the script writes objective values to `BoForUnityManager`, starts optimization, and requests the next external-signal iteration automatically. In `Static` and `Random`, `FittsLawConditionManager` starts the next local round after the questionnaire.
 
-This example is useful for HCI experiments where the canonical Fitts law variables target width and movement amplitude should be optimized together with a subjective workload measure. For the original model, see Fitts's 1954 paper, [The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement](https://doi.org/10.1037/h0055392).
+#### 6.2.5 Logging
+
+The Fitts law scene also writes detailed app telemetry to `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`. `FittsLawAppLog.csv` stores one aggregate row per task round, including the ID triad, timestamp, iteration, phase, click counts, timing, accuracy, active design parameters, and objective values. `FittsLawTrialLog.csv` stores one row per completed target trial with the same context columns plus target/click positions and per-trial wrong-click counts. If the optional legacy `writeResultsCsv` flag is enabled, that CSV is written to the same condition folder.
+
+All files for one participant run are grouped under one user folder and then separated by condition:
+
+```text
+Assets/StreamingAssets/BOData/LogData/
+  <USER_LOG_ID>/
+    HITL MOBO/
+      Questionnaire-*.csv
+      FittsLawAppLog.csv
+      FittsLawTrialLog.csv
+      run/ObservationsPerEvaluation.csv
+    static/
+      Questionnaire-*.csv
+      FittsLawAppLog.csv
+      FittsLawTrialLog.csv
+    random/
+      Questionnaire-*.csv
+      FittsLawAppLog.csv
+      FittsLawTrialLog.csv
+```
+
+If the requested user folder already exists, BOforUnity creates a suffix such as `<USER_LOG_ID>_1`, `<USER_LOG_ID>_2`, and so on. This prevents accidental overwrites while still keeping the three condition folders together for the same run.
+
+This example is useful for HCI experiments where movement amplitude, button size, marker size, button color, objective pointing performance, and subjective single-item ratings should be optimized together. For the original model, see Fitts's 1954 paper, [The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement](https://doi.org/10.1037/h0055392).
 
 ---
 
 ## 7. Demo Video
 
-Click the thumbnail for a short demo showing how to export the main-branch package and import it into a new Unity project. It also shows what to do after import if you have an up-to-date Python (currently, we recommend 3.13.5) on Windows. You can also open the video in the *images* folder.
+Click the thumbnail for a short demo showing how to export the main-branch package and import it into a new Unity project. It also shows what to do after import if you have an up-to-date Python (currently, we recommend 3.13.7) on Windows. You can also open the video in the *images* folder.
 > **Note:** This video shows a previous version of this asset's user interface in Unity. The procedure is similar for the current version.
 
 [![Watch the video](./images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
@@ -347,7 +438,7 @@ Click `+` at the bottom of the parameter list to add a prefilled entry, then edi
 
 > **Note:** Ensure the new parameter is used by your simulation.
 
-> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* and then delete the folder to refresh headers.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/* and then delete the condition folder to refresh headers.
 
 > **Note:** If you use the [warm start option](#8101-warm-start-settings), ensure CSV headers match after adding parameters.
 
@@ -372,7 +463,7 @@ Select the parameter by clicking the `=` icon in its top-left corner (it turns b
 
 > **Note:** Ensure the removed parameter is **not** used in your simulation.
 
-> **Note:** If headers are out of sync, back up and remove the log folder *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*.
+> **Note:** If headers are out of sync, back up and remove the condition log folder *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/*.
 
 
 ### 8.2 Objectives
@@ -385,7 +476,7 @@ Click `+` at the bottom of the objective list to add a prefilled entry, then edi
 
 > **Note:** Each objective must receive a value before optimization. In the demo, create a new questionnaire item or map an existing one to the objective (see below).
 
-> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/* and then delete the folder.
+> **Note:** If headers are out of sync, back up logs in *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/* and then delete the condition folder.
 
 > **Note:** For [warm start](#8101-warm-start-settings), CSV headers must match after adding objectives.
 
@@ -484,14 +575,14 @@ Make sure you assign objective values before the optimizer proceeds so that the 
 If you leave `Manually Installed Python` unchecked, the system will automatically search for a valid Python path in the OS and install the requirements via pip.
 If only an older Python is found, the runtime now attempts to install the preferred target runtime (`3.13.x`) first (platform installer prompt may appear), then continues setup.
 On macOS the runtime auto-install path uses the bundled Python `.pkg` installer payload. The `install_python.sh` script remains available for manual terminal setup.
-The runtime now validates Python versions (`3.9+` supported) and prefers `3.13.x` automatically when it is installed.
+The runtime now validates Python versions (`3.13+` supported) and prefers the bundled `3.13.7` runtime automatically when it is installed.
 If the target-runtime installation is cancelled or fails, startup is aborted with a clear error instead of silently continuing on the old interpreter.
 
 You can **override** this behavior by checking `Manually Installed Python` and following the steps below:
  1. Open a terminal and search for Python installations:
     * Windows: `where python`
     * Linux/macOS: `which python3`
-    Copy the path to a compatible Python (`3.9+`, ideally `3.13.x`).
+    Copy the path to a compatible Python (`3.13+`, ideally the bundled `3.13.7` runtime).
  2. In *BOforUnityManager* → *Python Settings*, check the box
  3. Paste the path in the `Path of Python Executable` field.
 
@@ -503,6 +594,10 @@ You can **override** this behavior by checking `Manually Installed Python` and f
 Set `User ID`, `Condition ID`, and `Group ID` in the inspector section shown in the [image](#py_st_ws_pr_settings).
 If your study does not use any of these IDs, leave the field at -1. The value will still be logged, but you can ignore it in analysis.
 These three values are always logged as context columns in `ObservationsPerEvaluation.csv` and are used together for final-design row filtering.
+
+The same ID triad is also routed into QuestionnaireToolkit through Additional CSV Items. In the standard BO scenes, `QTQuestionnaireManager` reads these values from the active `BoForUnityManager`. In Fitts law baseline conditions where the BO manager is disabled, `FittsLawConditionManager` supplies the context instead.
+
+Log folders are created below `Assets/StreamingAssets/BOData/LogData/`. The user folder is a folder-safe version of `User ID`; invalid path characters are replaced. If that user folder already exists for a new run, BOforUnity uses a suffix such as `_1` or `_2` to prevent overwriting prior data. Condition folders are then created inside that selected user folder.
 
 ![Study Settings](./images/study_settings.png)
 
@@ -760,15 +855,38 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 
 ### 8.12 Output Files and Metrics
 
-All result files are written to:
-* *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/*
-* *Assets/StreamingAssets/BOData/LogData/CABOP/single/&lt;USER_LOG_ID&gt;/* (CABOP single-objective runs)
-* *Assets/StreamingAssets/BOData/LogData/CABOP/multi/&lt;USER_LOG_ID&gt;/* (CABOP multi-objective-scalarized runs)
-* Legacy runs may exist under *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_LOG_ID&gt;/*; final-design selection checks both locations.
+All runtime logs are grouped by participant/run and condition under `Assets/StreamingAssets/BOData/LogData/`.
+
+The general layout is:
+
+```text
+LogData/
+  <USER_LOG_ID>/
+    <CONDITION_LOG_ID>/
+      Questionnaire-*.csv
+      <optional app-specific logs>
+      run/
+        ObservationsPerEvaluation.csv
+        ExecutionTimes.csv
+        HypervolumePerEvaluation.csv or BestObjectivePerEvaluation.csv
+      CABOP/
+        single/run/
+        multi/run/
+```
+
+`<USER_LOG_ID>` and `<CONDITION_LOG_ID>` are folder-safe versions of `User ID` and `Condition ID`. If a new run would reuse an existing user folder, BOforUnity creates a suffixed folder such as `<USER_LOG_ID>_1` to avoid overwriting. Within that user folder, all condition-specific files are written below their condition folder.
+
+BO/backend run files are written to:
+* *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/run/*
+* *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/CABOP/single/run/* (CABOP single-objective runs)
+* *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/CABOP/multi/run/* (CABOP multi-objective-scalarized runs)
+* Legacy runs may exist under *&lt;Unity persistentDataPath&gt;/BOData/LogData/&lt;USER_LOG_ID&gt;/* or *Assets/StreamingAssets/BOData/BayesianOptimization/LogData/&lt;USER_LOG_ID&gt;/*; final-design selection checks those locations too.
 
 Common files:
 * `ObservationsPerEvaluation.csv`: denormalized parameter/objective observations per evaluation.
 * `ExecutionTimes.csv`: optimization-step runtimes.
+* QuestionnaireToolkit raw result CSVs default to *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/* and include `UserID`, `ConditionID`, and `GroupID`.
+* The Fitts law scene additionally writes `FittsLawAppLog.csv` and `FittsLawTrialLog.csv` to the same condition folder. Its questionnaire CSV also includes measured `speed` and `accuracy` columns.
 
 MOBO (`mobo.py`, `m >= 2`):
 * `ObservationsPerEvaluation.csv` uses `IsPareto`.
@@ -782,7 +900,7 @@ Single-objective BO (`bo.py`, `m = 1`):
 * Unity `coverage` corresponds to current best normalized objective.
 
 CABOP (`cabop_bo.py` / `cabop_mobo.py`):
-* Logs are separated under `LogData/CABOP/single` and `LogData/CABOP/multi`.
+* Logs are separated under each user's condition folder in `CABOP/single` and `CABOP/multi`.
 * `ObservationsPerEvaluation.csv` is reused (`IsBest` for single mode, `IsPareto` marker column for multi mode).
 * `ExecutionTimes.csv` is reused.
 * `CABOPMetricsPerEvaluation.csv` stores scalarized objective trace and realized/cumulative cost.
@@ -805,9 +923,13 @@ During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 | Loop does not progress in `ExternalSignal` mode | `RequestNextIteration()` is not called from your custom flow | Add the explicit call after your evaluation step ends. |
 | Loop does not progress in `NextButton` mode | `Next Button` not assigned or not wired to `ButtonNextIteration()` | Assign the button reference and Unity `OnClick` event to `BoForUnityManager.ButtonNextIteration()`. |
 | Warm start fails on startup | Missing CSV files, wrong headers, non-numeric values, or wrong format setting | Validate files against [Warm-Start CSV Checklist (Required)](#8102-warm-start-csv-checklist-required) and [Warm-Start CSV Examples](#8103-warm-start-csv-examples). |
-| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/`, then rerun to regenerate headers. |
+| `ObservationsPerEvaluation.csv columns mismatch` error | Existing log file schema no longer matches current parameters/objectives | Back up and remove `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, then rerun to regenerate headers. |
 | No parameter changes between iterations | Simulation does not apply incoming parameter values from `bo.parameters` | Confirm your scene reads and applies updated parameter values each iteration. |
 | `coverage`/Pareto behavior seems inconsistent with minimize objectives | Misunderstanding of internal maximize-space conversion | See [Objective Direction Semantics](#8104-objective-direction-semantics) and [Objective Direction Example (2 Minimize, 1 Maximize)](#8105-objective-direction-example-2-minimize-1-maximize). |
+| Fitts law questionnaire says required items are missing | Aesthetics/usability slider items are not present or their `Header Name` values do not match the objective keys/submeasure names | Create the items manually in the scene. Use `aesthetics` and either `usability` or submeasure headers such as `usability1` and `usability2`. |
+| Fitts law target buttons overlap | `button_distance` is too small for the current `button_size`/`targetCount`, or values were edited outside the recommended ranges | Use the default constrained bounds or increase `button_distance`. The runtime clamps unsafe layouts, but the inspector bounds should still be kept feasible. |
+| Logs appear under a suffixed user folder such as `_1` | A folder with the requested `User ID` already existed | This is expected overwrite protection. Use the suffixed folder as the current run's user folder. |
+| Questionnaire CSV is not in the same condition folder as app/BO logs | `QTQuestionnaireManager.resultsSavePath` or `Save Results In BO Context Folders` was changed | Set `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/` and keep `Save Results In BO Context Folders` enabled. |
 
 ---
 
