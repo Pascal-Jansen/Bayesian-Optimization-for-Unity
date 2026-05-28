@@ -48,10 +48,17 @@ jobs:
       - name: Check patch whitespace
         shell: bash
         run: |
+          pathspecs=(
+            "."
+            ":(exclude)**/*.unity"
+            ":(exclude)**/*.prefab"
+            ":(exclude)**/*.asset"
+            ":(exclude)**/*.meta"
+          )
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
+            git diff --check "${{ github.event.pull_request.base.sha }}" HEAD -- "${pathspecs[@]}"
           else
-            git diff-tree --check --no-commit-id --root -r HEAD
+            git diff-tree --check --no-commit-id --root -r HEAD -- "${pathspecs[@]}"
           fi
 
       - name: Check generated Python caches are not tracked

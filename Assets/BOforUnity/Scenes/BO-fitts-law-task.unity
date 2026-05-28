@@ -287,7 +287,7 @@ MonoBehaviour:
   buttonHueRange: {x: 0, y: 1}
   buttonSaturationRange: {x: 0, y: 1}
   randomizeDesignParametersOnBegin: 0
-  useDeterministicRandomDesignSeed: 0
+  useDeterministicRandomDesignSeed: 1
   randomDesignSeed: 98765
   targetSelectionMode: 0
   firstTargetIndex: 0
