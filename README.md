@@ -318,7 +318,7 @@ When `Set Condition ID From Mode` is enabled, the manager writes these condition
 | `Static` | `static` |
 | `Random` | `random` |
 
-For static and random runs, configure `UserID` and `GroupID` on `FittsLawConditionManager`. The manager mirrors all three IDs into `QTQuestionnaireManager` at runtime, so questionnaire CSVs, app telemetry, and BO logs share the same context columns.
+For static and random runs, configure `UserID` and `GroupID` on `FittsLawConditionManager`. The manager mirrors all three IDs into `QTQuestionnaireManager` at runtime, so questionnaire CSVs, app telemetry, and BO logs share the same context columns. The same `UserID` can be reused across condition modes; a suffix is added only when that specific condition folder already exists.
 
 For static and random conditions, `FittsLawConditionManager` reads the same sampling/optimization iteration counts as the BO setup and runs one additional local `finaldesign` round when `includeFinalDesignRound` is enabled. This keeps the baseline conditions aligned with the adaptive BO condition while keeping the optimizer inactive. For example, with `3` sampling iterations and `2` optimization iterations, static/random run `5 + 1 finaldesign` task rounds.
 
@@ -336,13 +336,13 @@ The scene is configured as a BO example with five scalar design parameters:
 
 Brightness is intentionally not optimized. `FittsLawTask.buttonColorBrightness` is fixed at `0.5` and applied together with `button_hue` and `button_saturation`.
 
-The Fitts law task only applies BO values whose keys are present in the `BoForUnityManager.parameters` list. Removing a key from that inspector list leaves the corresponding Fitts law value fixed at the value serialized on `FittsLawTask`. This is intentional: visual/task settings should not change unless they are explicitly defined as design parameters in the BO inspector.
+The Fitts law task only applies BO values whose keys are present in the `BoForUnityManager.parameters` list. Removing a key from that inspector list leaves the corresponding Fitts law value fixed at the value serialized on `FittsLawTask`. This is intentional: visual/task settings should not change unless they are explicitly defined as design parameters in the BO inspector. When a manager parameter source is available, the task also writes the active Fitts design values back to the matching parameter entries so Unity-side telemetry and helper code read the rendered design.
 
 Other Fitts visual properties, such as target count, target order, movement direction, target outline, background, and wrong-click flash, are not BO design parameters in the provided setup. The target outline is disabled by default (`targetOutlineWidth = 0`), and wrong-target red flashing is disabled by default (`wrongTargetFlashSeconds = 0`).
 
 `button_distance` is constrained so adjacent targets cannot overlap. For the default `targetCount = 12` and maximum `button_size = 120`, the lower bound is `464 px` because the ring diameter must be at least `button_size / sin(pi / targetCount)`. Runtime layout safety checks also clamp applied values if a manually edited design would otherwise overlap or exceed the play area.
 
-The random condition samples from the same five parameter ranges listed above. It also keeps brightness fixed at `0.5`.
+The random condition samples from the configured `BoForUnityManager.parameters` entries when they are present, writes the sampled values back to those entries, and applies the matching Fitts law fields to the task. With the provided scene this means the same five ranges listed above are sampled. If the BO parameter list is unavailable, the task falls back to its own serialized random ranges. Static runs likewise mirror the serialized Fitts task values into matching manager entries. Brightness remains fixed at `0.5`.
 
 #### 6.2.3 Objectives and Questionnaire Items
 

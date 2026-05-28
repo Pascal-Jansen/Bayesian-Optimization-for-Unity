@@ -48,35 +48,71 @@ namespace BOforUnity.Examples
         private bool _advanceQueued;
         private bool _runtimeUserFolderReserved;
 
-        public bool UsesExternalIterationSignal =>
-            conditionMode == ConditionMode.AdaptiveBo &&
-            iterationSettingsSource != null &&
-            iterationSettingsSource.UsesExternalIterationSignal;
+        public bool UsesExternalIterationSignal
+        {
+            get
+            {
+                BoForUnityManager source = ResolveIterationSettingsSource();
+                return conditionMode == ConditionMode.AdaptiveBo &&
+                       source != null &&
+                       source.UsesExternalIterationSignal;
+            }
+        }
 
-        public bool EnablePriorRatingHints =>
-            conditionMode == ConditionMode.AdaptiveBo &&
-            iterationSettingsSource != null &&
-            iterationSettingsSource.EnablePriorRatingHints;
+        public bool EnablePriorRatingHints
+        {
+            get
+            {
+                BoForUnityManager source = ResolveIterationSettingsSource();
+                return conditionMode == ConditionMode.AdaptiveBo &&
+                       source != null &&
+                       source.EnablePriorRatingHints;
+            }
+        }
 
-        public float PriorRatingHintAlpha =>
-            conditionMode == ConditionMode.AdaptiveBo && iterationSettingsSource != null
-                ? iterationSettingsSource.PriorRatingHintAlpha
-                : 0f;
+        public float PriorRatingHintAlpha
+        {
+            get
+            {
+                BoForUnityManager source = ResolveIterationSettingsSource();
+                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                    ? source.PriorRatingHintAlpha
+                    : 0f;
+            }
+        }
 
-        public string UserId =>
-            conditionMode == ConditionMode.AdaptiveBo && iterationSettingsSource != null
-                ? iterationSettingsSource.UserId
-                : ResolveContextValue(userId);
+        public string UserId
+        {
+            get
+            {
+                BoForUnityManager source = ResolveIterationSettingsSource();
+                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                    ? source.UserId
+                    : ResolveContextValue(userId);
+            }
+        }
 
-        public string ConditionId =>
-            conditionMode == ConditionMode.AdaptiveBo && iterationSettingsSource != null
-                ? iterationSettingsSource.ConditionId
-                : ResolveContextValue(GetConfiguredConditionId());
+        public string ConditionId
+        {
+            get
+            {
+                BoForUnityManager source = ResolveIterationSettingsSource();
+                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                    ? source.ConditionId
+                    : ResolveContextValue(GetConfiguredConditionId());
+            }
+        }
 
-        public string GroupId =>
-            conditionMode == ConditionMode.AdaptiveBo && iterationSettingsSource != null
-                ? iterationSettingsSource.GroupId
-                : ResolveContextValue(groupId);
+        public string GroupId
+        {
+            get
+            {
+                BoForUnityManager source = ResolveIterationSettingsSource();
+                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                    ? source.GroupId
+                    : ResolveContextValue(groupId);
+            }
+        }
 
         private void Awake()
         {
@@ -112,7 +148,7 @@ namespace BOforUnity.Examples
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
             {
-                iterationSettingsSource?.OptimizationStart();
+                ResolveIterationSettingsSource()?.OptimizationStart();
                 return;
             }
 
@@ -123,7 +159,7 @@ namespace BOforUnity.Examples
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
             {
-                iterationSettingsSource?.RequestNextIteration();
+                ResolveIterationSettingsSource()?.RequestNextIteration();
                 return;
             }
 
@@ -134,7 +170,7 @@ namespace BOforUnity.Examples
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
             {
-                iterationSettingsSource?.SubmitQuestionnaireObjectiveValue(headerName, rawValue, sourceName);
+                ResolveIterationSettingsSource()?.SubmitQuestionnaireObjectiveValue(headerName, rawValue, sourceName);
                 return;
             }
 
@@ -186,41 +222,43 @@ namespace BOforUnity.Examples
         public void SetPriorSliderRatingHint(string questionKey, float sliderValue)
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
-                iterationSettingsSource?.SetPriorSliderRatingHint(questionKey, sliderValue);
+                ResolveIterationSettingsSource()?.SetPriorSliderRatingHint(questionKey, sliderValue);
         }
 
         public bool TryGetPriorSliderRatingHint(string questionKey, out float sliderValue)
         {
             sliderValue = 0f;
+            BoForUnityManager source = ResolveIterationSettingsSource();
             return conditionMode == ConditionMode.AdaptiveBo &&
-                   iterationSettingsSource != null &&
-                   iterationSettingsSource.TryGetPriorSliderRatingHint(questionKey, out sliderValue);
+                   source != null &&
+                   source.TryGetPriorSliderRatingHint(questionKey, out sliderValue);
         }
 
         public void RemovePriorSliderRatingHint(string questionKey)
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
-                iterationSettingsSource?.RemovePriorSliderRatingHint(questionKey);
+                ResolveIterationSettingsSource()?.RemovePriorSliderRatingHint(questionKey);
         }
 
         public void SetPriorLinearScaleRatingHint(string questionKey, string answerValue)
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
-                iterationSettingsSource?.SetPriorLinearScaleRatingHint(questionKey, answerValue);
+                ResolveIterationSettingsSource()?.SetPriorLinearScaleRatingHint(questionKey, answerValue);
         }
 
         public bool TryGetPriorLinearScaleRatingHint(string questionKey, out string answerValue)
         {
             answerValue = null;
+            BoForUnityManager source = ResolveIterationSettingsSource();
             return conditionMode == ConditionMode.AdaptiveBo &&
-                   iterationSettingsSource != null &&
-                   iterationSettingsSource.TryGetPriorLinearScaleRatingHint(questionKey, out answerValue);
+                   source != null &&
+                   source.TryGetPriorLinearScaleRatingHint(questionKey, out answerValue);
         }
 
         public void RemovePriorLinearScaleRatingHint(string questionKey)
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
-                iterationSettingsSource?.RemovePriorLinearScaleRatingHint(questionKey);
+                ResolveIterationSettingsSource()?.RemovePriorLinearScaleRatingHint(questionKey);
         }
 
         private void ResolveReferences()
@@ -232,19 +270,104 @@ namespace BOforUnity.Examples
                 questionnaireManager = FindSceneObject<QTQuestionnaireManager>();
 
             if (iterationSettingsSource == null)
-                iterationSettingsSource = FindSceneObject<BoForUnityManager>();
+                ResolveIterationSettingsSource();
+        }
+
+        private BoForUnityManager ResolveIterationSettingsSource()
+        {
+            if (conditionMode != ConditionMode.AdaptiveBo && iterationSettingsSource != null)
+            {
+                if (iterationSettingsSource.gameObject == null ||
+                    !iterationSettingsSource.gameObject.activeInHierarchy)
+                {
+                    return iterationSettingsSource;
+                }
+
+                BoForUnityManager preferredSource = FindPreferredIterationSettingsSource();
+                if (preferredSource != null &&
+                    preferredSource != iterationSettingsSource &&
+                    GetIterationSettingsSourceScore(preferredSource) >
+                    GetIterationSettingsSourceScore(iterationSettingsSource))
+                {
+                    iterationSettingsSource = preferredSource;
+                }
+
+                return iterationSettingsSource;
+            }
+
+            BoForUnityManager preferred = FindPreferredIterationSettingsSource();
+            if (preferred != null)
+                iterationSettingsSource = preferred;
+
+            return iterationSettingsSource;
+        }
+
+        private static BoForUnityManager FindPreferredIterationSettingsSource()
+        {
+            BoForUnityManager best = null;
+            int bestScore = int.MinValue;
+            foreach (BoForUnityManager candidate in Resources.FindObjectsOfTypeAll<BoForUnityManager>())
+            {
+                if (candidate == null ||
+                    candidate.gameObject == null ||
+                    !candidate.gameObject.scene.IsValid())
+                {
+                    continue;
+                }
+
+                int score = GetIterationSettingsSourceScore(candidate);
+                if (best == null || score > bestScore)
+                {
+                    best = candidate;
+                    bestScore = score;
+                }
+            }
+
+            return best;
+        }
+
+        private static int GetIterationSettingsSourceScore(BoForUnityManager source)
+        {
+            int score = Mathf.Max(0, source.currentIteration);
+            if (source.optimizationRunning)
+                score += 1000;
+            if (source.simulationRunning)
+                score += 500;
+            if (source.initialized)
+                score += 250;
+            if (source.hasNewDesignParameterValues)
+                score += 100;
+            if (source.gameObject.activeInHierarchy)
+                score += 50;
+
+            return score;
         }
 
         private void ApplyConditionConfiguration()
         {
+            BoForUnityManager source = ResolveIterationSettingsSource();
             if (conditionMode == ConditionMode.AdaptiveBo)
             {
+                if (fittsLawTask != null)
+                {
+                    fittsLawTask.SetRuntimeDesignParameterSource(source);
+                    fittsLawTask.restartWithKey = false;
+                }
+
                 SyncAdaptiveConditionIdToSource();
                 return;
             }
 
             RefreshIterationCounts();
             SyncContextToReferencedComponents();
+
+            source = ResolveIterationSettingsSource();
+            if (fittsLawTask != null)
+            {
+                fittsLawTask.SetRuntimeDesignParameterSource(source);
+                fittsLawTask.restartWithKey = false;
+            }
+
             DisableBoRuntimeForBaseline();
 
             if (fittsLawTask == null)
@@ -269,8 +392,9 @@ namespace BOforUnity.Examples
 
             conditionId = ResolveContextValue(GetDefaultConditionIdForMode());
 
-            if (iterationSettingsSource != null)
-                iterationSettingsSource.conditionId = conditionId;
+            BoForUnityManager source = ResolveIterationSettingsSource();
+            if (source != null)
+                source.conditionId = conditionId;
 
             if (questionnaireManager != null)
                 questionnaireManager.contextConditionId = conditionId;
@@ -278,10 +402,51 @@ namespace BOforUnity.Examples
 
         private void DisableBoRuntimeForBaseline()
         {
-            if (iterationSettingsSource == null || iterationSettingsSource.gameObject == gameObject)
+            BoForUnityManager source = ResolveIterationSettingsSource();
+            if (source != null)
+                iterationSettingsSource = source;
+
+            foreach (BoForUnityManager candidate in Resources.FindObjectsOfTypeAll<BoForUnityManager>())
+            {
+                if (candidate == null ||
+                    candidate.gameObject == null ||
+                    !candidate.gameObject.scene.IsValid())
+                {
+                    continue;
+                }
+
+                if (transform.IsChildOf(candidate.transform))
+                {
+                    DisableBoComponents(candidate);
+                    continue;
+                }
+
+                candidate.gameObject.SetActive(false);
+            }
+        }
+
+        private static void DisableBoComponents(BoForUnityManager manager)
+        {
+            if (manager == null)
                 return;
 
-            iterationSettingsSource.gameObject.SetActive(false);
+            manager.enabled = false;
+
+            Optimizer optimizer = manager.GetComponent<Optimizer>();
+            if (optimizer != null)
+                optimizer.enabled = false;
+
+            PythonStarter pythonStarter = manager.GetComponent<PythonStarter>();
+            if (pythonStarter != null)
+                pythonStarter.enabled = false;
+
+            SocketNetwork socketNetwork = manager.GetComponent<SocketNetwork>();
+            if (socketNetwork != null)
+                socketNetwork.enabled = false;
+
+            MainThreadDispatcher dispatcher = manager.GetComponent<MainThreadDispatcher>();
+            if (dispatcher != null)
+                dispatcher.enabled = false;
         }
 
         private void RefreshIterationCounts()
@@ -289,10 +454,11 @@ namespace BOforUnity.Examples
             int sourceSampling = samplingIterations;
             int sourceOptimization = optimizationIterations;
 
-            if (readIterationsFromSource && iterationSettingsSource != null)
+            BoForUnityManager source = ResolveIterationSettingsSource();
+            if (readIterationsFromSource && source != null)
             {
-                sourceSampling = Mathf.Max(0, iterationSettingsSource.numSamplingIterations);
-                sourceOptimization = Mathf.Max(0, iterationSettingsSource.numOptimizationIterations);
+                sourceSampling = Mathf.Max(0, source.numSamplingIterations);
+                sourceOptimization = Mathf.Max(0, source.numOptimizationIterations);
             }
 
             samplingIterations = sourceSampling;
@@ -300,11 +466,11 @@ namespace BOforUnity.Examples
             _baseRoundCount = Mathf.Max(1, samplingIterations + optimizationIterations);
             _totalRoundCount = _baseRoundCount + (includeFinalDesignRound ? 1 : 0);
 
-            if (iterationSettingsSource != null)
+            if (source != null)
             {
-                iterationSettingsSource.numSamplingIterations = samplingIterations;
-                iterationSettingsSource.numOptimizationIterations = optimizationIterations;
-                iterationSettingsSource.totalIterations = _baseRoundCount;
+                source.numSamplingIterations = samplingIterations;
+                source.numOptimizationIterations = optimizationIterations;
+                source.totalIterations = _baseRoundCount;
             }
         }
 
@@ -314,11 +480,12 @@ namespace BOforUnity.Examples
             groupId = ResolveContextValue(groupId);
             EnsureUniqueRuntimeUserFolder();
 
-            if (iterationSettingsSource != null)
+            BoForUnityManager source = ResolveIterationSettingsSource();
+            if (source != null)
             {
-                iterationSettingsSource.userId = userId;
-                iterationSettingsSource.conditionId = conditionId;
-                iterationSettingsSource.groupId = groupId;
+                source.userId = userId;
+                source.conditionId = conditionId;
+                source.groupId = groupId;
             }
 
             if (questionnaireManager != null)
@@ -339,7 +506,9 @@ namespace BOforUnity.Examples
             userId = LogDataFolderUtility.GetOrCreateUserFolderTokenForCondition(
                 LogDataFolderUtility.StreamingAssetsLogRoot,
                 requestedUserId,
-                conditionId
+                conditionId,
+                allowExistingRequestedUserFolder: true,
+                allowExistingConditionFolder: false
             );
             _runtimeUserFolderReserved = true;
 
@@ -390,8 +559,9 @@ namespace BOforUnity.Examples
             _currentObjectiveValues.Clear();
 
             string phase = GetPhaseForRound(_currentRound);
-            if (iterationSettingsSource != null)
-                iterationSettingsSource.currentIteration = _currentRound;
+            BoForUnityManager source = ResolveIterationSettingsSource();
+            if (source != null)
+                source.currentIteration = _currentRound;
 
             if (fittsLawTask == null)
             {
@@ -399,6 +569,7 @@ namespace BOforUnity.Examples
                 return;
             }
 
+            fittsLawTask.SetRuntimeDesignParameterSource(source);
             fittsLawTask.SetManualLogContext(_currentRound, phase, userId, conditionId, groupId);
             fittsLawTask.BeginTask();
         }

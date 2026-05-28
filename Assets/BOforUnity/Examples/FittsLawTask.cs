@@ -213,6 +213,7 @@ namespace BOforUnity.Examples
         private string _manualLogConditionId = "-1";
         private string _manualLogGroupId = "-1";
         private string _manualLogDirectory;
+        private BoForUnityManager _runtimeDesignParameterSource;
 
         private void Awake()
         {
@@ -274,7 +275,7 @@ namespace BOforUnity.Examples
 
         private IEnumerator WaitForBoEvaluationStart()
         {
-            BoForUnityManager manager = FindPreferredBoManager();
+            BoForUnityManager manager = GetRuntimeDesignParameterSource();
             if (manager == null)
                 yield break;
 
@@ -294,7 +295,12 @@ namespace BOforUnity.Examples
             if (randomizeDesignParametersOnBegin)
                 ApplyRandomDesignParameters();
             else
+            {
                 ApplyBoDesignParameters();
+                if (!readDesignParametersFromBo)
+                    SyncRuntimeDesignParameterSourceWithCurrentDesign();
+            }
+            highlightedTargetColor = GetOptimizedButtonColor();
 
             EnsureEventSystem();
             CreateCanvas();
@@ -360,6 +366,11 @@ namespace BOforUnity.Examples
             _manualLogConditionId = "-1";
             _manualLogGroupId = "-1";
             _manualLogDirectory = null;
+        }
+
+        public void SetRuntimeDesignParameterSource(BoForUnityManager manager)
+        {
+            _runtimeDesignParameterSource = manager;
         }
 
         private void EnsureBoManagerForExample()
@@ -561,6 +572,7 @@ namespace BOforUnity.Examples
                         cabopTolerance = 0.02f
                     })
             };
+            SyncDesignParameterSourceWithCurrentDesign(manager, true);
 
             manager.objectives = new List<ObjectiveEntry>
             {
@@ -600,15 +612,55 @@ namespace BOforUnity.Examples
 
             _randomDesignSampleIndex++;
 
-            xFontSizePixels = SampleRange(xFontSizeRangePixels, seededRandom);
-            circleSizePixels = SampleRange(buttonSizeRangePixels, seededRandom);
-            circleDistancePixels = SampleRange(
-                GetNoOverlapDistanceRangeForButtonSize(circleSizePixels),
-                seededRandom
-            );
-            buttonHue = Mathf.Repeat(SampleRange(buttonHueRange, seededRandom), 1f);
-            buttonSaturation = Mathf.Clamp01(SampleRange(buttonSaturationRange, seededRandom));
-            highlightedTargetColor = GetOptimizedButtonColor();
+            BoForUnityManager parameterSource = GetRuntimeDesignParameterSource();
+            bool useConfiguredParameterList = HasConfiguredParameterList(parameterSource);
+            bool buttonColorChanged = false;
+
+            if (TrySampleRandomParameter(parameterSource, xFontSizeParameterKey, seededRandom, out float sampledXFontSize))
+                xFontSizePixels = sampledXFontSize;
+            else if (!useConfiguredParameterList)
+                xFontSizePixels = SampleRange(xFontSizeRangePixels, seededRandom);
+
+            if (TrySampleRandomParameter(parameterSource, buttonSizeParameterKey, seededRandom, out float sampledButtonSize))
+                circleSizePixels = sampledButtonSize;
+            else if (!useConfiguredParameterList)
+                circleSizePixels = SampleRange(buttonSizeRangePixels, seededRandom);
+
+            if (TrySampleRandomDistanceParameter(parameterSource, seededRandom, out float sampledButtonDistance))
+                circleDistancePixels = sampledButtonDistance;
+            else if (!useConfiguredParameterList)
+                circleDistancePixels = SampleRange(
+                    GetNoOverlapDistanceRangeForButtonSize(circleSizePixels),
+                    seededRandom
+                );
+
+            if (TrySampleRandomParameter(parameterSource, buttonHueParameterKey, seededRandom, out float sampledButtonHue))
+            {
+                buttonHue = Mathf.Repeat(sampledButtonHue, 1f);
+                buttonColorChanged = true;
+            }
+            else if (!useConfiguredParameterList)
+            {
+                buttonHue = Mathf.Repeat(SampleRange(buttonHueRange, seededRandom), 1f);
+                buttonColorChanged = true;
+            }
+
+            if (TrySampleRandomParameter(parameterSource, buttonSaturationParameterKey, seededRandom, out float sampledButtonSaturation))
+            {
+                buttonSaturation = Mathf.Clamp01(sampledButtonSaturation);
+                buttonColorChanged = true;
+            }
+            else if (!useConfiguredParameterList)
+            {
+                buttonSaturation = Mathf.Clamp01(SampleRange(buttonSaturationRange, seededRandom));
+                buttonColorChanged = true;
+            }
+
+            if (buttonColorChanged)
+                highlightedTargetColor = GetOptimizedButtonColor();
+
+            EnforceNoOverlapDistanceForCurrentDesign();
+            SyncRuntimeDesignParameterSourceWithCurrentDesign();
         }
 
         private static float SampleRange(Vector2 range, System.Random seededRandom)
@@ -628,6 +680,109 @@ namespace BOforUnity.Examples
             min = Mathf.Max(min, GetMinimumCircleDistanceForNoOverlap(buttonSizePixels, targetCount));
             max = Mathf.Max(max, min);
             return new Vector2(min, max);
+        }
+
+        private BoForUnityManager GetRuntimeDesignParameterSource()
+        {
+            return _runtimeDesignParameterSource != null
+                ? _runtimeDesignParameterSource
+                : FindPreferredBoManager();
+        }
+
+        private static bool HasConfiguredParameterList(BoForUnityManager manager)
+        {
+            return manager != null && manager.parameters != null && manager.parameters.Count > 0;
+        }
+
+        private bool TrySampleRandomParameter(
+            BoForUnityManager manager,
+            string key,
+            System.Random seededRandom,
+            out float sampledValue)
+        {
+            sampledValue = 0f;
+            if (!TryFindBoParameter(manager, key, out ParameterArgs parameter))
+                return false;
+
+            sampledValue = SampleParameterBounds(parameter, seededRandom);
+            SetBoParameterValue(parameter, sampledValue);
+            return true;
+        }
+
+        private bool TrySampleRandomDistanceParameter(
+            BoForUnityManager manager,
+            System.Random seededRandom,
+            out float sampledValue)
+        {
+            sampledValue = 0f;
+            if (!TryFindBoParameter(manager, buttonDistanceParameterKey, out ParameterArgs parameter))
+                return false;
+
+            float min = Mathf.Min(parameter.lowerBound, parameter.upperBound);
+            float max = Mathf.Max(parameter.lowerBound, parameter.upperBound);
+            min = Mathf.Max(min, GetMinimumCircleDistanceForNoOverlap(circleSizePixels, targetCount));
+            max = Mathf.Max(max, min);
+            sampledValue = SampleRange(new Vector2(min, max), seededRandom);
+            SetBoParameterValue(parameter, sampledValue);
+            return true;
+        }
+
+        private static float SampleParameterBounds(ParameterArgs parameter, System.Random seededRandom)
+        {
+            return SampleRange(new Vector2(parameter.lowerBound, parameter.upperBound), seededRandom);
+        }
+
+        private void SyncRuntimeDesignParameterSourceWithCurrentDesign()
+        {
+            SyncDesignParameterSourceWithCurrentDesign(GetRuntimeDesignParameterSource());
+        }
+
+        private void SyncDesignParameterSourceWithCurrentDesign(BoForUnityManager parameterSource, bool clampToParameterBounds = false)
+        {
+            if (!HasConfiguredParameterList(parameterSource))
+                return;
+
+            TrySetBoParameterValue(parameterSource, xFontSizeParameterKey, xFontSizePixels, clampToParameterBounds);
+            TrySetBoParameterValue(parameterSource, buttonSizeParameterKey, circleSizePixels, clampToParameterBounds);
+            TrySetBoParameterValue(parameterSource, buttonDistanceParameterKey, circleDistancePixels, clampToParameterBounds);
+            TrySetBoParameterValue(parameterSource, buttonHueParameterKey, buttonHue, clampToParameterBounds);
+            TrySetBoParameterValue(parameterSource, buttonSaturationParameterKey, buttonSaturation, clampToParameterBounds);
+        }
+
+        private void TrySetBoParameterValue(
+            BoForUnityManager manager,
+            string key,
+            float value,
+            bool clampToParameterBounds = false)
+        {
+            if (!IsFinite(value) || !TryFindBoParameter(manager, key, out ParameterArgs parameter))
+                return;
+
+            SetBoParameterValue(parameter, value, clampToParameterBounds);
+        }
+
+        private void SetBoParameterValue(
+            ParameterArgs parameter,
+            float rawValue,
+            bool clampToParameterBounds = false)
+        {
+            if (parameter == null)
+                return;
+
+            float min = Mathf.Min(parameter.lowerBound, parameter.upperBound);
+            float max = Mathf.Max(parameter.lowerBound, parameter.upperBound);
+            if (clampToParameterBounds)
+                rawValue = Mathf.Clamp(rawValue, min, max);
+
+            if (!boParameterValuesAreNormalized)
+            {
+                parameter.Value = rawValue;
+                return;
+            }
+
+            parameter.Value = Mathf.Approximately(min, max)
+                ? 0f
+                : Mathf.InverseLerp(min, max, rawValue);
         }
 
         private void ApplyBoDesignParameters()
@@ -661,6 +816,7 @@ namespace BOforUnity.Examples
                 highlightedTargetColor = GetOptimizedButtonColor();
 
             EnforceNoOverlapDistanceForCurrentDesign();
+            SyncRuntimeDesignParameterSourceWithCurrentDesign();
         }
 
         private float MapBoParameterValue(ParameterArgs parameter)
@@ -676,7 +832,7 @@ namespace BOforUnity.Examples
         private bool TryFindBoParameter(string key, out ParameterArgs value)
         {
             value = null;
-            BoForUnityManager manager = FindPreferredBoManager();
+            BoForUnityManager manager = GetRuntimeDesignParameterSource();
             return TryFindBoParameter(manager, key, out value);
         }
 
@@ -746,6 +902,7 @@ namespace BOforUnity.Examples
 
             float lower = Mathf.Min(distanceParameter.lowerBound, distanceParameter.upperBound);
             float upper = Mathf.Max(distanceParameter.lowerBound, distanceParameter.upperBound);
+            float currentDistance = MapBoParameterValue(distanceParameter);
             lower = Mathf.Max(lower, minRequiredDistance);
             upper = Mathf.Max(upper, lower);
 
@@ -762,7 +919,7 @@ namespace BOforUnity.Examples
 
             distanceParameter.lowerBound = lower;
             distanceParameter.upperBound = upper;
-            distanceParameter.Value = Mathf.Clamp(distanceParameter.Value, lower, upper);
+            SetBoParameterValue(distanceParameter, Mathf.Clamp(currentDistance, lower, upper));
         }
 
         private void EnforceNoOverlapDistanceForCurrentDesign()
@@ -834,6 +991,8 @@ namespace BOforUnity.Examples
                     ", button_distance=" + circleDistancePixels.ToString("0.###", CultureInfo.InvariantCulture) + "."
                 );
             }
+
+            SyncRuntimeDesignParameterSourceWithCurrentDesign();
         }
 
         private Color GetOptimizedButtonColor()
@@ -1335,7 +1494,7 @@ namespace BOforUnity.Examples
 
         private int GetRequiredObjectiveSubMeasureCount(string objectiveKey)
         {
-            BoForUnityManager manager = FindPreferredBoManager();
+            BoForUnityManager manager = GetRuntimeDesignParameterSource();
             if (TryFindBoObjective(manager, objectiveKey, out ObjectiveEntry objective) &&
                 objective?.value != null)
             {
@@ -1454,7 +1613,7 @@ namespace BOforUnity.Examples
 
         private void StartBoOptimization()
         {
-            BoForUnityManager manager = FindPreferredBoManager();
+            BoForUnityManager manager = GetRuntimeDesignParameterSource();
             if (manager == null)
             {
                 Debug.LogWarning("FittsLawTask: Could not start BO optimization because BoForUnityManager was not found.");
@@ -1927,7 +2086,7 @@ namespace BOforUnity.Examples
 
         private void WriteBoObjectiveValues()
         {
-            BoForUnityManager manager = FindPreferredBoManager();
+            BoForUnityManager manager = GetRuntimeDesignParameterSource();
             if (manager == null || manager.objectives == null)
             {
                 Debug.LogWarning("FittsLawTask: BO objective output requested, but BoForUnityManager objectives were not found.");
@@ -1980,25 +2139,40 @@ namespace BOforUnity.Examples
             if (managers == null || managers.Length == 0)
                 return null;
 
-            BoForUnityManager fallback = managers[0];
+            BoForUnityManager best = null;
+            int bestScore = int.MinValue;
             for (int i = 0; i < managers.Length; i++)
             {
                 BoForUnityManager manager = managers[i];
                 if (manager == null)
                     continue;
 
-                if (manager.initialized ||
-                    manager.simulationRunning ||
-                    manager.optimizationRunning ||
-                    manager.currentIteration > 0)
+                int score = GetBoManagerRuntimeScore(manager);
+                if (best == null || score > bestScore)
                 {
-                    return manager;
+                    best = manager;
+                    bestScore = score;
                 }
-
-                fallback = manager;
             }
 
-            return fallback;
+            return best;
+        }
+
+        private static int GetBoManagerRuntimeScore(BoForUnityManager manager)
+        {
+            int score = Mathf.Max(0, manager.currentIteration);
+            if (manager.optimizationRunning)
+                score += 1000;
+            if (manager.simulationRunning)
+                score += 500;
+            if (manager.initialized)
+                score += 250;
+            if (manager.hasNewDesignParameterValues)
+                score += 100;
+            if (manager.gameObject != null && manager.gameObject.activeInHierarchy)
+                score += 50;
+
+            return score;
         }
 
         private float GetEffectiveRingRadius()
