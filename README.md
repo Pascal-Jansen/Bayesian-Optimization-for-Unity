@@ -1,7 +1,7 @@
 
 # Bayesian Optimization for Unity
 
-[![DOI](https://zenodo.org/badge/833015227.svg)](https://doi.org/10.5281/zenodo.19786494)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg)](https://doi.org/10.5281/zenodo.19786494)
 
 **[Pascal Jansen](https://pascal-jansen.github.io)**, Ulm University
 
