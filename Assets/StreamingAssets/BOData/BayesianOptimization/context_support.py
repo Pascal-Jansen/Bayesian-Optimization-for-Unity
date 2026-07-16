@@ -208,6 +208,9 @@ def resolve_embeddings(setup, init_root=None):
     elif setup.embedding_source == "image":
         paths = []
         for raw in setup.image_paths:
+            # Normalize Windows-style separators so paths configured in the Unity
+            # inspector also resolve on macOS/Linux.
+            raw = raw.replace("\\", "/")
             path = raw if os.path.isabs(raw) else os.path.join(init_root or os.getcwd(), raw)
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Context image not found: {path}")

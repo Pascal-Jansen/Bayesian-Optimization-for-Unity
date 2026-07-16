@@ -347,6 +347,9 @@ class ContextualLoopIntegrationTests(unittest.TestCase):
                 df = pd.read_csv(obs_csv, delimiter=";")
                 self.assertIn("Context", df.columns)
                 self.assertEqual(df["Context"].tolist(), ["user_B"])
+                # Iteration counts current-context evaluations only:
+                # 3 warm-start rows for user_B + 1 new optimization evaluation.
+                self.assertEqual(df["Iteration"].tolist(), [4])
             finally:
                 os.chdir(prev_cwd)
 

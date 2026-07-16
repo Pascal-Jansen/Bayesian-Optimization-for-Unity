@@ -631,7 +631,10 @@ def save_xy(x_sample, y_sample, iteration):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
-    iteration_index = int(y_np.shape[0])
+    # Evaluation index within this run: warm-start rows imported from *other*
+    # contexts inform the model but do not count as iterations of this run.
+    ctx_mask = current_context_mask(x_sample)
+    iteration_index = int(np.sum(ctx_mask))
     if CONTEXT_SETUP is not None:
         # Drop the trailing context/task column for parameter logging.
         x_np = np.asarray(x_np)[:, :PROBLEM_DIM]
@@ -666,7 +669,6 @@ def save_xy(x_sample, y_sample, iteration):
     # Update IsPareto for the current run tail while preserving any older, unrelated rows.
     # Only current-context observations compete for the Pareto front; warm-start
     # rows from other contexts inform the model but are not part of this run.
-    ctx_mask = current_context_mask(x_sample)
     y_current = as_objective_matrix(y_sample)[ctx_mask]
     flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(y_current).tolist()]
     df['IsPareto'] = df['IsPareto'].astype(str)

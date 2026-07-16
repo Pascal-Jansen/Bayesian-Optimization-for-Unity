@@ -1,0 +1,194 @@
+# Manually triggered release workflow.
+#
+# Usage:
+#   1. Collect notes under "## [Unreleased]" in CHANGELOG.md while developing.
+#   2. GitHub -> Actions -> "Release" -> "Run workflow" (from main), enter the
+#      version (e.g. "1.5.0" or "v1.5.0") and run.
+#
+# The workflow then:
+#   - validates the version and runs the Python unit tests,
+#   - moves the [Unreleased] changelog section under the new version heading,
+#   - bumps bundleVersion in ProjectSettings/ProjectSettings.asset,
+#   - commits ("Release vX.Y.Z") and pushes these version files to main,
+#   - creates a GitHub release using the changelog section as notes
+#     (falls back to auto-generated notes if the section is empty).
+#
+# By default the release is a DRAFT: review it, then click "Publish release".
+# Publishing creates the git tag and triggers the Zenodo archive/DOI.
+# Note: the version-bump commit is pushed immediately, even for drafts.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.5.0 or v1.5.0)"
+        required: true
+        type: string
+      draft:
+        description: "Create as draft for review before publishing"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Test, version, and create release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release input
+        id: version
+        shell: bash
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF_NAME" != "main" && "$GITHUB_REF_NAME" != "master" ]]; then
+            echo "::error::Releases must be created from the default branch (got '$GITHUB_REF_NAME')."
+            exit 1
+          fi
+
+          version="${RAW_VERSION#v}"
+          version="${version// /}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '$RAW_VERSION' is not a semantic version (expected X.Y.Z)."
+            exit 1
+          fi
+
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::Tag '$tag' already exists."
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag from $GITHUB_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas
+
+      - name: Run Python unit tests
+        run: python -m unittest discover tests
+
+      - name: Roll changelog and bump bundleVersion
+        id: versionfiles
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          today="$(date -u +%Y-%m-%d)"
+
+          if [[ -f CHANGELOG.md ]] && grep -q '^## \[Unreleased\]' CHANGELOG.md; then
+            if grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+              echo "CHANGELOG.md already contains a [$VERSION] section; leaving it unchanged."
+            else
+              # Move the [Unreleased] content under the new version heading.
+              sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n## [$VERSION] - $today/" CHANGELOG.md
+              echo "Rolled [Unreleased] into [$VERSION] - $today."
+            fi
+          else
+            echo "::warning::CHANGELOG.md has no [Unreleased] section; skipping changelog roll."
+          fi
+
+          if [[ -f ProjectSettings/ProjectSettings.asset ]]; then
+            sed -i "s/^\(  bundleVersion: \).*/\1$VERSION/" ProjectSettings/ProjectSettings.asset
+            grep '^  bundleVersion: ' ProjectSettings/ProjectSettings.asset
+          else
+            echo "::warning::ProjectSettings/ProjectSettings.asset not found; skipping bundleVersion bump."
+          fi
+
+          # Extract this version's changelog section for the release notes.
+          if [[ -f CHANGELOG.md ]]; then
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+              /^## \[/ { flag = 0 }
+              flag { print }
+            ' CHANGELOG.md | sed -e '/./,$!d' > release_notes.md
+          else
+            : > release_notes.md
+          fi
+
+          if [[ -n "$(tr -d '[:space:]' < release_notes.md)" ]]; then
+            echo "notes_source=changelog" >> "$GITHUB_OUTPUT"
+          else
+            echo "notes_source=generated" >> "$GITHUB_OUTPUT"
+            echo "::warning::No changelog content for $VERSION; the release will use auto-generated notes."
+          fi
+
+      - name: Commit version files
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md ProjectSettings/ProjectSettings.asset 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No version file changes to commit."
+          else
+            git commit -m "Release $TAG"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          DRAFT: ${{ inputs.draft }}
+          NOTES_SOURCE: ${{ steps.versionfiles.outputs.notes_source }}
+        run: |
+          target="$(git rev-parse HEAD)"
+          args=(--target "$target" --title "$TAG")
+          if [[ "$NOTES_SOURCE" == "changelog" ]]; then
+            args+=(--notes-file release_notes.md)
+          else
+            args+=(--generate-notes)
+          fi
+          if [[ "$DRAFT" == "true" ]]; then
+            args+=(--draft)
+          fi
+          url="$(gh release create "$TAG" "${args[@]}")"
+          echo "release_url=$url" >> "$GITHUB_ENV"
+
+      - name: Write summary
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          DRAFT: ${{ inputs.draft }}
+          NOTES_SOURCE: ${{ steps.versionfiles.outputs.notes_source }}
+        run: |
+          {
+            echo "## Release $TAG"
+            echo ""
+            echo "- Release: $release_url"
+            echo "- Notes source: $NOTES_SOURCE"
+            if [[ "$DRAFT" == "true" ]]; then
+              echo "- Created as **draft**: review/edit the notes, then click **Publish release**."
+              echo "- Publishing creates the git tag and triggers the Zenodo archive/DOI."
+            else
+              echo "- Published immediately; the git tag was created and Zenodo will archive this release."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
