@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-16
+
 ### Contextual Optimization (LCE-M GP)
 - Added contextual multi-task optimization built on BoTorch's `LCEMGP` (Feng et al., NeurIPS 2020) for both the single-objective (`bo.py`) and multi-objective (`mobo.py`) BoTorch backends.
 - Context embeddings are definable: learned from data, supplied manually per context (any encoder, e.g. ViT-G/14 vectors), or computed from context images via open_clip (default `ViT-bigG-14`, the open_clip release of ViT-G/14) with content-hashed caching and optional L2 normalization.
