@@ -202,7 +202,7 @@ namespace BOforUnity.Scripts
 
                     int newlineIndex;
                     bool protocolError = false;
-                    while ((newlineIndex = _lineBuf.ToString().IndexOf('\n')) >= 0)
+                    while ((newlineIndex = IndexOfChar(_lineBuf, '\n')) >= 0)
                     {
                         string line = _lineBuf.ToString(0, newlineIndex).TrimEnd('\r');
                         _lineBuf.Remove(0, newlineIndex + 1);
@@ -266,6 +266,17 @@ namespace BOforUnity.Scripts
                 try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
                 try { _serverSocket?.Close(); } catch { }
             }
+        }
+
+        private static int IndexOfChar(StringBuilder buffer, char value)
+        {
+            // Scan without materializing the whole buffer as a string each pass.
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                if (buffer[i] == value)
+                    return i;
+            }
+            return -1;
         }
 
         private void SocketConnect()

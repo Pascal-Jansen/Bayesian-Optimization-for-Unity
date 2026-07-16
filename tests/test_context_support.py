@@ -3,47 +3,24 @@ import os
 import pathlib
 import sys
 import tempfile
-import types
 import unittest
 import uuid
 
 import numpy as np
 import pandas as pd
 
+# Support both `discover tests` (tests/ on sys.path) and direct module runs.
+_TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _TESTS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_DIR)
+
+from _stubs import FakeTensor, install_torch_stub  # noqa: E402
+
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTEXT_SUPPORT_PATH = (
     REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/context_support.py"
 )
-
-
-class FakeTensor:
-    def __init__(self, data):
-        self.arr = np.asarray(data, dtype=np.float64)
-
-    def cpu(self):
-        return self
-
-    def numpy(self):
-        return np.asarray(self.arr, dtype=np.float64)
-
-    @property
-    def shape(self):
-        return self.arr.shape
-
-    def __getitem__(self, idx):
-        out = self.arr[idx]
-        if isinstance(out, np.ndarray):
-            return FakeTensor(out)
-        return float(out)
-
-
-def install_torch_stub():
-    torch_mod = types.ModuleType("torch")
-    torch_mod.double = np.float64
-    torch_mod.tensor = lambda data, dtype=None: FakeTensor(data)
-    sys.modules["torch"] = torch_mod
-    return torch_mod
 
 
 def load_context_support():
@@ -290,6 +267,17 @@ class WarmStartContextColumnTests(unittest.TestCase):
 
 class TaskColumnTests(unittest.TestCase):
     def setUp(self):
+        # Install the torch stub for the duration of the test only, so a real
+        # torch module in sys.modules (used by the integration tests) survives.
+        previous_torch = sys.modules.get("torch")
+
+        def _restore_torch():
+            if previous_torch is None:
+                sys.modules.pop("torch", None)
+            else:
+                sys.modules["torch"] = previous_torch
+
+        self.addCleanup(_restore_torch)
         install_torch_stub()
         self.cs = load_context_support()
 

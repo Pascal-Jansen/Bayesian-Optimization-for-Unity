@@ -74,15 +74,15 @@ class BOSpace:
         """
         Return parameter bounds as a (n_parameters, 2) array.
 
-        Parameters are ordered by group, then by parameter name within each group.
+        Parameters are ordered exactly as declared in the ``parameters`` dict
+        (insertion order). This single canonical ordering is shared by every
+        numpy<->design conversion; do NOT reorder by group here, otherwise
+        vector positions and parameter names silently misalign for
+        configurations whose groups interleave in declaration order.
         """
         bounds = np.zeros((self.n_parameters, 2))
-        idx = 0
-        for group in self.parameters["groups"]:
-            for param_name, param_config in self.parameters["parameters"].items():
-                if param_config["group"] == group:
-                    bounds[idx, :] = param_config["bound"]
-                    idx += 1
+        for idx, (_, param_config) in enumerate(self.parameters["parameters"].items()):
+            bounds[idx, :] = param_config["bound"]
         return bounds
 
 
@@ -410,27 +410,22 @@ class BayesOpt:
         return lo + u * (hi - lo)
 
     def _numpy_to_design(self, x: np.ndarray) -> dict[str, dict[str, float]]:
-        """Convert numpy array to nested design dict {group: {param: value}}."""
+        """Convert numpy array to nested design dict {group: {param: value}}.
+
+        Vector positions follow parameter declaration order (see BOSpace.bounds).
+        """
         d: dict[str, dict[str, float]] = {
             group: {} for group in self.space.parameters["groups"]
         }
-        i = 0
-        for group in self.space.parameters["groups"]:
-            for name, param in self.space.parameters["parameters"].items():
-                if param["group"] == group:
-                    d[group][name] = float(x[i])
-                    i += 1
+        for i, (name, param) in enumerate(self.space.parameters["parameters"].items()):
+            d[param["group"]][name] = float(x[i])
         return d
 
     def _design_to_numpy(self, d: dict[str, dict[str, float]]) -> np.ndarray:
-        """Convert nested design dict to numpy array."""
+        """Convert nested design dict to numpy array (declaration order)."""
         x = np.empty(self.space.n_parameters, dtype=float)
-        i = 0
-        for group in self.space.parameters["groups"]:
-            for name, param in self.space.parameters["parameters"].items():
-                if param["group"] == group:
-                    x[i] = d[group][name]
-                    i += 1
+        for i, (name, param) in enumerate(self.space.parameters["parameters"].items()):
+            x[i] = d[param["group"]][name]
         return x
 
     # -------------------------------------------------------------------------
@@ -464,10 +459,15 @@ class BayesOpt:
         mu, sigma = gp.predict(X, return_std=True)
         mu_opt = np.min(Y_sample)
 
-        imp = mu_opt - mu - xi
-        Z = imp / sigma
+        # Broadcast first: unfitted/degenerate GP predictions may be 0-d.
+        imp, sigma = np.broadcast_arrays(
+            np.asarray(mu_opt - mu - xi, dtype=float),
+            np.asarray(sigma, dtype=float),
+        )
+        # Avoid divide-by-zero warnings for degenerate posterior std.
+        Z = np.divide(imp, sigma, out=np.zeros(imp.shape, dtype=float), where=sigma > 0.0)
         ei = imp * norm.cdf(Z) + sigma * norm.pdf(Z)
-        ei[sigma == 0.0] = 0.0
+        ei = np.where(sigma == 0.0, 0.0, ei)
 
         return ei
 
@@ -489,7 +489,8 @@ class BayesOpt:
             return np.zeros(X.shape[0])
 
         ei = self._expected_improvement(X, X_sample, Y_sample, gp, xi)
-        costs = self._compute_costs(X)
+        # Users may configure zero costs; floor to keep the acquisition finite.
+        costs = np.maximum(self._compute_costs(X), 1e-9)
 
         return ei / costs
 
@@ -519,12 +520,15 @@ class BayesOpt:
         mu, sigma = gp.predict(X, return_std=True)
         mu_opt = np.min(Y_sample)
 
-        imp = mu_opt - mu - xi
-        Z = imp / sigma
+        imp, sigma = np.broadcast_arrays(
+            np.asarray(mu_opt - mu - xi, dtype=float),
+            np.asarray(sigma, dtype=float),
+        )
+        Z = np.divide(imp, sigma, out=np.zeros(imp.shape, dtype=float), where=sigma > 0.0)
         ei = imp * norm.cdf(Z) + sigma * norm.pdf(Z)
-        ei[sigma == 0.0] = 0.0
+        ei = np.where(sigma == 0.0, 0.0, ei)
 
-        return float(ei[0])
+        return float(np.asarray(ei).reshape(-1)[0])
 
     # -------------------------------------------------------------------------
     # Sampling and Optimization
@@ -575,7 +579,11 @@ class BayesOpt:
         if random_sample:
             logger.info("[BayesOpt] Using random sample (initialization phase)")
             u_best = self._sobol_sample(1)[0]
-            min_val = -acquisition(u_best.reshape(1, dim), X_sample, Y_sample, gp)
+            min_val = float(
+                np.asarray(
+                    -acquisition(u_best.reshape(1, dim), X_sample, Y_sample, gp)
+                ).reshape(-1)[0]
+            )
             min_x = self._from_unit(u_best)
         else:
             # Multi-start L-BFGS-B optimization
@@ -590,9 +598,9 @@ class BayesOpt:
                     min_x = self._from_unit(result.x)
                     u_best = result.x
 
-        # Validate bounds
-        assert np.all(min_x >= self.space.bounds[:, 0]), "Solution below lower bounds"
-        assert np.all(min_x <= self.space.bounds[:, 1]), "Solution above upper bounds"
+        # Clamp to bounds: lo + u * (hi - lo) can float-overshoot hi by one ulp
+        # when the optimizer lands exactly on a unit bound, which is common.
+        min_x = np.clip(min_x, self.space.bounds[:, 0], self.space.bounds[:, 1])
 
         # Compute metrics for result
         predicted_cost = float(

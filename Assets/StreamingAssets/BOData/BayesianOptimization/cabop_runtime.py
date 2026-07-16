@@ -51,6 +51,11 @@ EXECUTION_LOG_PATH = ""
 METRICS_LOG_PATH = ""
 COMPAT_METRIC_LOG_PATH = ""
 
+# Full-precision scalarized objective per logged observation row of this run.
+# Used for IsBest/IsPareto marker flags so they are not derived from the
+# 3-decimal-rounded values written to the CSV.
+SCALARIZED_HISTORY: List[float] = []
+
 # -------------------- TCP server helpers --------------------
 HOST = ""
 PORT = 56001
@@ -102,9 +107,12 @@ def recv_json_message(conn):
                 return json.loads(line)
             except json.JSONDecodeError as e:
                 preview = line[:200]
-                raise RuntimeError(
-                    f"Received malformed JSON line from Unity: {e}. Payload preview: {preview!r}"
-                ) from e
+                # Tolerate malformed lines (parity with bo.py/mobo.py).
+                print(
+                    f"Warning: skipping malformed JSON line from Unity: {e}. Payload preview: {preview!r}",
+                    flush=True,
+                )
+                continue
 
         try:
             chunk = conn.recv(4096)
@@ -132,15 +140,16 @@ def recv_objectives_blocking(conn):
         msg = recv_json_message(conn)
         if msg is None:
             return None
+        # Skip unrelated messages while waiting (parity with bo.py/mobo.py) so
+        # future Unity-side status messages cannot break the CABOP backend.
         if not isinstance(msg, dict):
-            raise RuntimeError(f"Received non-object message while waiting for objectives: {msg!r}")
-        msg_type = msg.get("type")
-        if msg_type == "objectives":
-            values = msg.get("values")
-            if not isinstance(values, dict):
-                raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
-            return values
-        raise RuntimeError(f"Received unexpected message type while waiting for objectives: {msg_type!r}")
+            continue
+        if msg.get("type") != "objectives":
+            continue
+        values = msg.get("values")
+        if not isinstance(values, dict):
+            raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
+        return values
 
 
 def get_unique_folder(parent, folder_name):
@@ -638,11 +647,20 @@ def append_observation_row(iteration, phase, scalarized_value, objective_raw, pa
         df = pd.concat([df, new_row_df], ignore_index=True)
 
     # Mark the currently best scalarized (lowest) row(s) as candidates.
-    values = []
-    for _, r in df.iterrows():
-        raw_vals = [float(r[name]) for name in objective_names]
-        values.append(scalarize_objectives(raw_vals))
-    values = np.asarray(values, dtype=float)
+    # Prefer the full-precision in-memory history over re-deriving from the
+    # rounded CSV values (which can mislabel near-ties).
+    SCALARIZED_HISTORY.append(float(scalarized_value))
+    if len(SCALARIZED_HISTORY) == len(df):
+        values = np.asarray(SCALARIZED_HISTORY, dtype=float)
+    else:
+        # Defensive fallback for unexpected row-count drift.
+        values = np.asarray(
+            [
+                scalarize_objectives([float(r[name]) for name in objective_names])
+                for _, r in df.iterrows()
+            ],
+            dtype=float,
+        )
 
     best = float(np.min(values)) if len(values) > 0 else float(scalarized_value)
     flags = ["TRUE" if abs(v - best) <= 1e-12 else "FALSE" for v in values]
@@ -746,7 +764,9 @@ def boot_optimizer_with_warm_start(optimizer):
 
 def run_cabop(conn):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH, EXECUTION_LOG_PATH, METRICS_LOG_PATH, COMPAT_METRIC_LOG_PATH
+    global SCALARIZED_HISTORY
 
+    SCALARIZED_HISTORY = []
     log_root = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
     base = os.path.join(log_root, USER_LOG_ID, CONDITION_LOG_ID, "CABOP", CABOP_MODE)
     os.makedirs(base, exist_ok=True)
@@ -920,14 +940,13 @@ def main(forced_mode=None):
             msg = recv_json_message(conn)
             if msg is None:
                 break
+            # Skip unrelated messages while waiting (parity with bo.py/mobo.py).
             if not isinstance(msg, dict):
-                raise RuntimeError(f"Received non-object message while waiting for init: {msg!r}")
+                continue
             if msg.get("type") == "init":
                 init_msg = msg
                 break
-            raise RuntimeError(
-                f"Received unexpected message type while waiting for init: {msg.get('type')!r}"
-            )
+            continue
 
         if init_msg is None:
             raise RuntimeError("Did not receive init message.")

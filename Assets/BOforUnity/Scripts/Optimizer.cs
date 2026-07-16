@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Reflection;
 using UnityEngine;
 
 // The Optimizer class manages optimization settings and parameters for the application.
@@ -13,48 +10,11 @@ namespace BOforUnity.Scripts
 {
     public class Optimizer : MonoBehaviour
     {
-        private List<Dictionary<string, object>> _csvData;
-
         private BoForUnityManager _bomanager;
-        
+
         public void Start()
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
-        }
-
-        /// <summary>
-        /// This method updates the values of the parameters in the optimization process using the data in the
-        /// CSV file at the specified currentIndex. It loops through each parameter in the parameters dictionary
-        /// and sets its Value property to the corresponding value in the CSV file at the given index using
-        /// invariant culture parsing so number formats remain consistent across locales.
-        /// </summary>
-        /// <param name="currentIndex"></param>
-        public void UpdateParameter(int currentIndex)
-        {
-            if (_bomanager == null || _bomanager.parameters == null)
-            {
-                return;
-            }
-            if (_csvData == null || currentIndex < 0 || currentIndex >= _csvData.Count)
-            {
-                Debug.LogWarning($"UpdateParameter skipped: CSV data missing or index {currentIndex} out of range.");
-                return;
-            }
-
-            var row = _csvData[currentIndex];
-            foreach (var pa in _bomanager.parameters)
-            {
-                if (pa == null || pa.value == null || string.IsNullOrWhiteSpace(pa.key))
-                    continue;
-
-                string lookupKey = pa.key.Trim();
-                if ((!row.TryGetValue(lookupKey, out var raw) && !row.TryGetValue(pa.key, out raw)) || raw == null)
-                    continue;
-                if (!float.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
-                    continue;
-
-                pa.value.Value = parsed;
-            }
         }
 
         /// <summary>

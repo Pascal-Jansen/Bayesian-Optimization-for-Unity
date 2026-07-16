@@ -3,9 +3,7 @@ import json
 import importlib.util
 import os
 import pathlib
-import sys
 import tempfile
-import types
 import unittest
 import uuid
 from unittest import mock
@@ -13,198 +11,24 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 
+import sys
+
+# Support both `discover tests` (tests/ on sys.path) and direct module runs.
+_TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _TESTS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_DIR)
+
+from _stubs import (  # noqa: E402
+    FakeConn as _FakeConn,
+    FakeServerSocket as _FakeServerSocket,
+    FakeTensor,
+    install_stub_modules,
+    json_line as _json_line,
+)
+
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 MOBO_PATH = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/mobo.py"
-
-
-class FakeTensor:
-    def __init__(self, data):
-        self.arr = np.asarray(data, dtype=np.float64)
-
-    def cpu(self):
-        return self
-
-    def numpy(self):
-        return np.asarray(self.arr, dtype=np.float64)
-
-    def clone(self):
-        return FakeTensor(self.arr.copy())
-
-    def to(self, dtype=None):
-        return self
-
-    def unsqueeze(self, dim):
-        return FakeTensor(np.expand_dims(self.arr, axis=dim))
-
-    def squeeze(self, dim=None):
-        if dim is None:
-            return FakeTensor(np.squeeze(self.arr))
-        return FakeTensor(np.squeeze(self.arr, axis=dim))
-
-    def detach(self):
-        return self
-
-    def dim(self):
-        return self.arr.ndim
-
-    @property
-    def shape(self):
-        return self.arr.shape
-
-    def tolist(self):
-        return self.arr.tolist()
-
-    def __getitem__(self, idx):
-        out = self.arr[idx]
-        if isinstance(out, np.ndarray):
-            return FakeTensor(out)
-        return float(out)
-
-    def __iter__(self):
-        for item in self.arr:
-            if isinstance(item, np.ndarray):
-                yield FakeTensor(item)
-            else:
-                yield float(item)
-
-    def __repr__(self):
-        return f"FakeTensor({self.arr!r})"
-
-
-def _to_array(x):
-    if isinstance(x, FakeTensor):
-        return x.arr
-    return np.asarray(x, dtype=np.float64)
-
-
-def install_stub_modules():
-    torch_mod = types.ModuleType("torch")
-    torch_mod.double = np.float64
-
-    class _Device:
-        def __init__(self, name):
-            self.name = name
-
-        def __repr__(self):
-            return f"device({self.name})"
-
-    def tensor(data, dtype=None):
-        return FakeTensor(data)
-
-    def stack(seq, dim=0):
-        arrays = [_to_array(x) for x in seq]
-        return FakeTensor(np.stack(arrays, axis=dim))
-
-    def cat(seq, dim=0):
-        arrays = [_to_array(x) for x in seq]
-        return FakeTensor(np.concatenate(arrays, axis=dim))
-
-    def manual_seed(seed):
-        return None
-
-    def zeros(n, dtype=None):
-        return FakeTensor(np.zeros(n, dtype=np.float64))
-
-    def ones(n, dtype=None):
-        return FakeTensor(np.ones(n, dtype=np.float64))
-
-    def full(shape, fill_value, dtype=None):
-        return FakeTensor(np.full(shape, fill_value, dtype=np.float64))
-
-    torch_mod.tensor = tensor
-    torch_mod.stack = stack
-    torch_mod.cat = cat
-    torch_mod.manual_seed = manual_seed
-    torch_mod.zeros = zeros
-    torch_mod.ones = ones
-    torch_mod.full = full
-    torch_mod.device = _Device
-    torch_mod.Size = tuple
-    torch_mod.Tensor = FakeTensor
-    sys.modules["torch"] = torch_mod
-
-    # botorch stubs
-    botorch_mod = types.ModuleType("botorch")
-    sys.modules["botorch"] = botorch_mod
-
-    acq_mod = types.ModuleType("botorch.acquisition")
-    sys.modules["botorch.acquisition"] = acq_mod
-    acq_mo_mod = types.ModuleType("botorch.acquisition.multi_objective")
-    sys.modules["botorch.acquisition.multi_objective"] = acq_mo_mod
-    acq_logei_mod = types.ModuleType("botorch.acquisition.multi_objective.logei")
-    acq_logei_mod.qLogNoisyExpectedHypervolumeImprovement = object
-    sys.modules["botorch.acquisition.multi_objective.logei"] = acq_logei_mod
-
-    models_mod = types.ModuleType("botorch.models")
-
-    class _SingleTaskGP:
-        def __init__(self, train_x, train_obj):
-            self.train_inputs = (train_x,)
-            self.likelihood = object()
-
-    models_mod.SingleTaskGP = _SingleTaskGP
-    sys.modules["botorch.models"] = models_mod
-
-    fit_mod = types.ModuleType("botorch.fit")
-    fit_mod.fit_gpytorch_mll = lambda mll: None
-    sys.modules["botorch.fit"] = fit_mod
-
-    optim_mod = types.ModuleType("botorch.optim")
-    sys.modules["botorch.optim"] = optim_mod
-    optim_opt_mod = types.ModuleType("botorch.optim.optimize")
-    optim_opt_mod.optimize_acqf = (
-        lambda acq_function, bounds, q, num_restarts, raw_samples, options, sequential: (
-            FakeTensor(np.zeros((q, _to_array(bounds).shape[-1]))),
-            None,
-        )
-    )
-    sys.modules["botorch.optim.optimize"] = optim_opt_mod
-
-    sampling_mod = types.ModuleType("botorch.sampling")
-    sys.modules["botorch.sampling"] = sampling_mod
-    sampling_normal_mod = types.ModuleType("botorch.sampling.normal")
-    sampling_normal_mod.SobolQMCNormalSampler = object
-    sys.modules["botorch.sampling.normal"] = sampling_normal_mod
-
-    utils_mod = types.ModuleType("botorch.utils")
-    sys.modules["botorch.utils"] = utils_mod
-    utils_sampling_mod = types.ModuleType("botorch.utils.sampling")
-    utils_sampling_mod.draw_sobol_samples = (
-        lambda bounds, n, q, seed: FakeTensor(np.zeros((n, q, _to_array(bounds).shape[-1])))
-    )
-    sys.modules["botorch.utils.sampling"] = utils_sampling_mod
-
-    # gpytorch stubs
-    gpytorch_mod = types.ModuleType("gpytorch")
-    sys.modules["gpytorch"] = gpytorch_mod
-    gpytorch_mlls_mod = types.ModuleType("gpytorch.mlls")
-
-    class _ExactMarginalLogLikelihood:
-        def __init__(self, likelihood, model):
-            self.likelihood = likelihood
-            self.model = model
-
-    gpytorch_mlls_mod.ExactMarginalLogLikelihood = _ExactMarginalLogLikelihood
-    sys.modules["gpytorch.mlls"] = gpytorch_mlls_mod
-
-    # moocore stubs
-    moocore_mod = types.ModuleType("moocore")
-    moocore_mod.calls = []
-
-    def _is_nondominated(data, maximise=False, keep_weakly=False):
-        arr = _to_array(data)
-        moocore_mod.calls.append(("is_nondominated", arr.copy(), maximise, keep_weakly))
-        return np.all(np.isfinite(arr), axis=1)
-
-    def _hypervolume(data, ref, maximise=False):
-        arr = _to_array(data)
-        moocore_mod.calls.append(("hypervolume", arr.copy(), _to_array(ref).copy(), maximise))
-        return float(np.sum(arr))
-
-    moocore_mod.is_nondominated = _is_nondominated
-    moocore_mod.hypervolume = _hypervolume
-    sys.modules["moocore"] = moocore_mod
 
 
 def load_mobo_module():
@@ -214,73 +38,6 @@ def load_mobo_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-class _FakeConn:
-    def __init__(self, chunks, send_error=None):
-        self._chunks = list(chunks)
-        self.timeout = None
-        self.sent = []
-        self.shutdown_called = False
-        self.closed = False
-        self.send_error = send_error
-
-    def recv(self, n):
-        if not self._chunks:
-            return b""
-        item = self._chunks.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-    def settimeout(self, timeout):
-        self.timeout = timeout
-
-    def sendall(self, data):
-        if self.send_error is not None:
-            raise self.send_error
-        self.sent.append(data)
-
-    def shutdown(self, how):
-        self.shutdown_called = True
-
-    def close(self):
-        self.closed = True
-
-
-def _json_line(obj):
-    return (json.dumps(obj) + "\n").encode("utf-8")
-
-
-class _FakeServerSocket:
-    def __init__(self, conn, accept_error=None):
-        self.conn = conn
-        self.bound = None
-        self.listen_backlog = None
-        self.timeout = None
-        self.closed = False
-        self.sockopt_calls = []
-        self.accept_error = accept_error
-
-    def setsockopt(self, level, optname, value):
-        self.sockopt_calls.append((level, optname, value))
-
-    def bind(self, addr):
-        self.bound = addr
-
-    def listen(self, backlog):
-        self.listen_backlog = backlog
-
-    def settimeout(self, timeout):
-        self.timeout = timeout
-
-    def accept(self):
-        if self.accept_error is not None:
-            raise self.accept_error
-        return self.conn, ("127.0.0.1", 12345)
-
-    def close(self):
-        self.closed = True
 
 
 class MoboTests(unittest.TestCase):

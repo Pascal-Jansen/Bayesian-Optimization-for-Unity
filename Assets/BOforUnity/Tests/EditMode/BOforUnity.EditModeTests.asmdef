@@ -1,0 +1,21 @@
+{
+    "name": "BOforUnity.EditModeTests",
+    "rootNamespace": "BOforUnity.Tests.EditMode",
+    "references": [
+        "BOforUnity.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}

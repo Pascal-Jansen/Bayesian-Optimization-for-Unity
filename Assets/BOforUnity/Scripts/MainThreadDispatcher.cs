@@ -10,11 +10,26 @@ namespace BOforUnity.Scripts
 
         private void Update()
         {
-            lock (ExecutionQueue)
+            // Dequeue outside the lock so background Execute() calls are not
+            // blocked while actions run, and isolate action failures so one
+            // throwing action cannot abort the rest of this frame's queue.
+            while (true)
             {
-                while (ExecutionQueue.Count > 0)
+                Action action;
+                lock (ExecutionQueue)
                 {
-                    ExecutionQueue.Dequeue().Invoke();
+                    if (ExecutionQueue.Count == 0)
+                        break;
+                    action = ExecutionQueue.Dequeue();
+                }
+
+                try
+                {
+                    action.Invoke();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
                 }
             }
         }

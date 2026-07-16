@@ -913,6 +913,11 @@ CABOP (`cabop_bo.py` / `cabop_mobo.py`):
 
 During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 
+Iteration numbering note:
+* Without warm start, `Iteration` in `ObservationsPerEvaluation.csv` counts this run's evaluations (sampling + optimization).
+* With warm start (non-contextual), `Iteration` continues from the number of loaded warm-start rows, i.e. the first new evaluation of a run warm-started with `n` rows is logged as `Iteration = n + 1`. This is intentional: the loaded rows are treated as earlier evaluations of the same optimization problem.
+* With contextual optimization, `Iteration` counts **current-context** evaluations only; warm-start rows from other contexts never advance it (see [8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp)).
+
 
 ### 8.13 Contextual Optimization and Context Embeddings (LCE-M GP)
 
