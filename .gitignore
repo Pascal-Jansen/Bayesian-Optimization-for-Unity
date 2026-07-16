@@ -35,6 +35,8 @@ sysinfo.txt
 # BO runtime output
 Assets/StreamingAssets/BOData/LogData/
 Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
+Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache/
+Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache.meta
 
 # Python generated caches
 __pycache__/

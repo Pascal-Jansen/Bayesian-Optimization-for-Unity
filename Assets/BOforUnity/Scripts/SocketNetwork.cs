@@ -24,6 +24,7 @@ namespace BOforUnity.Scripts
         public List<ParamInfo> parameters;
         public List<ObjInfo> objectives;
         public List<CabopGroupCostInfo> cabopGroupCosts;
+        public ContextConfigInfo context;
         public UserInfo user;
     }
 
@@ -71,6 +72,24 @@ namespace BOforUnity.Scripts
         public ObjInit init;
         public int optSeqOrder;
         public float weight;
+    }
+
+    [Serializable] class ContextInfo
+    {
+        public string key;
+        public List<float> embedding;
+        public string imagePath;
+    }
+
+    [Serializable] class ContextConfigInfo
+    {
+        public bool enabled;
+        public string currentContext;
+        public string embeddingSource;
+        public bool normalizeEmbeddings;
+        public string imageEmbeddingModel;
+        public string imageEmbeddingPretrained;
+        public List<ContextInfo> contexts;
     }
 
     [Serializable] class UserInfo
@@ -655,6 +674,7 @@ namespace BOforUnity.Scripts
                 parameters = parameterPayload,
                 objectives = objectivePayload,
                 cabopGroupCosts = BuildCabopGroupCosts(parameterGroups),
+                context = BuildContextConfig(),
                 user = new UserInfo
                 {
                     userId = _bomanager.userId,
@@ -665,6 +685,146 @@ namespace BOforUnity.Scripts
 
             string json = JsonConvert.SerializeObject(init, JsonSettings);
             SocketSendLine(json);
+        }
+
+        /// <summary>
+        /// Builds and validates the contextual-optimization payload of the init
+        /// message. Returns null when contextual optimization is disabled and
+        /// throws with an actionable message when the configuration is invalid.
+        /// </summary>
+        private ContextConfigInfo BuildContextConfig()
+        {
+            if (_bomanager == null || !_bomanager.contextualOptimization)
+                return null;
+
+            if (_bomanager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            {
+                throw new InvalidOperationException(
+                    "Contextual optimization (LCE-M GP) is only supported with the BoTorch backend. " +
+                    "Disable contextual optimization or switch the optimizer backend."
+                );
+            }
+
+            var source = _bomanager.contextEmbeddingSource;
+            var entries = _bomanager.contexts;
+            if (entries == null || entries.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "Contextual optimization is enabled, but no contexts are configured."
+                );
+            }
+
+            var payload = new List<ContextInfo>();
+            var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int embeddingDim = -1;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var entry = entries[i];
+                if (entry == null || string.IsNullOrWhiteSpace(entry.key))
+                {
+                    throw new InvalidOperationException(
+                        $"Context entry at index {i} is invalid: every context needs a non-empty key."
+                    );
+                }
+
+                string key = entry.key.Trim();
+                if (!seenKeys.Add(key))
+                {
+                    throw new InvalidOperationException(
+                        $"Duplicate context key '{key}'. Context keys must be unique."
+                    );
+                }
+
+                var info = new ContextInfo { key = key };
+
+                if (source == BOforUnity.BoForUnityManager.ContextEmbeddingSource.Manual)
+                {
+                    if (entry.embedding == null || entry.embedding.Count == 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Context '{key}' has no embedding vector, but the embedding source is Manual."
+                        );
+                    }
+                    if (embeddingDim < 0)
+                    {
+                        embeddingDim = entry.embedding.Count;
+                    }
+                    else if (entry.embedding.Count != embeddingDim)
+                    {
+                        throw new InvalidOperationException(
+                            $"Context '{key}' embedding has {entry.embedding.Count} values; " +
+                            $"expected {embeddingDim} (all context embeddings must have the same length)."
+                        );
+                    }
+                    foreach (float v in entry.embedding)
+                    {
+                        if (float.IsNaN(v) || float.IsInfinity(v))
+                        {
+                            throw new InvalidOperationException(
+                                $"Context '{key}' embedding contains a non-finite value."
+                            );
+                        }
+                    }
+                    info.embedding = new List<float>(entry.embedding);
+                }
+                else if (source == BOforUnity.BoForUnityManager.ContextEmbeddingSource.Image)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.imagePath))
+                    {
+                        throw new InvalidOperationException(
+                            $"Context '{key}' has no image path, but the embedding source is Image."
+                        );
+                    }
+                    info.imagePath = entry.imagePath.Trim();
+                }
+
+                payload.Add(info);
+            }
+
+            string currentKey = (_bomanager.currentContextKey ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(currentKey))
+            {
+                throw new InvalidOperationException(
+                    "Contextual optimization is enabled, but no Current Context Key is set."
+                );
+            }
+            if (!seenKeys.Contains(currentKey))
+            {
+                throw new InvalidOperationException(
+                    $"Current Context Key '{currentKey}' does not match any configured context. " +
+                    "Add a context entry with this key or fix the key."
+                );
+            }
+
+            return new ContextConfigInfo
+            {
+                enabled = true,
+                currentContext = currentKey,
+                embeddingSource = NormalizeContextEmbeddingSource(source),
+                normalizeEmbeddings = _bomanager.normalizeContextEmbeddings,
+                imageEmbeddingModel = string.IsNullOrWhiteSpace(_bomanager.contextEmbeddingModel)
+                    ? null
+                    : _bomanager.contextEmbeddingModel.Trim(),
+                imageEmbeddingPretrained = string.IsNullOrWhiteSpace(_bomanager.contextEmbeddingPretrained)
+                    ? null
+                    : _bomanager.contextEmbeddingPretrained.Trim(),
+                contexts = payload
+            };
+        }
+
+        private static string NormalizeContextEmbeddingSource(
+            BOforUnity.BoForUnityManager.ContextEmbeddingSource source)
+        {
+            switch (source)
+            {
+                case BOforUnity.BoForUnityManager.ContextEmbeddingSource.Manual:
+                    return "manual";
+                case BOforUnity.BoForUnityManager.ContextEmbeddingSource.Image:
+                    return "image";
+                case BOforUnity.BoForUnityManager.ContextEmbeddingSource.Learned:
+                default:
+                    return "learned";
+            }
         }
 
         private static string NormalizeWarmStartObjectiveFormat(string value)

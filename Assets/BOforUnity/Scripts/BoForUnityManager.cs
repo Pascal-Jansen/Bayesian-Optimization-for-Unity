@@ -46,6 +46,17 @@ namespace BOforUnity
             Both = 2
         }
 
+        public enum ContextEmbeddingSource
+        {
+            // A low-dimensional embedding per context is learned from data (LCE-M default).
+            Learned = 0,
+            // Each context provides its own embedding vector (definable in the inspector or via code).
+            Manual = 1,
+            // Each context provides an image; Python embeds it with an open_clip vision
+            // transformer (default ViT-bigG-14, the open_clip release of ViT-G/14).
+            Image = 2
+        }
+
         public PythonStarter pythonStarter;
         public Optimizer optimizer;
         public MainThreadDispatcher mainThreadDispatcher;
@@ -97,6 +108,18 @@ namespace BOforUnity
         public bool cabopEnableCostBudget = false;
         [Min(-1f)] public float cabopMaxCumulativeCost = -1f;
         public List<CabopGroupCostEntry> cabopGroupCosts = new List<CabopGroupCostEntry>();
+
+        // Contextual optimization (LCE-M multi-task GP; BoTorch backend only).
+        // Observations are tagged with the current context; warm-start data from
+        // other contexts (e.g. other users, devices, or environments) informs the
+        // model through a learned or user-definable context embedding.
+        public bool contextualOptimization = false;
+        public ContextEmbeddingSource contextEmbeddingSource = ContextEmbeddingSource.Learned;
+        public string currentContextKey = "";
+        public bool normalizeContextEmbeddings = true;
+        public string contextEmbeddingModel = "ViT-bigG-14";
+        public string contextEmbeddingPretrained = "laion2b_s39b_b160k";
+        public List<ContextEntry> contexts = new List<ContextEntry>();
 
         public IterationAdvanceMode iterationAdvanceMode = IterationAdvanceMode.NextButton;
         [Min(0f)] public float automaticAdvanceDelaySec = 0f;
@@ -1559,6 +1582,38 @@ namespace BOforUnity
                 this.unchanged = unchanged;
                 this.swapped = swapped;
                 this.acquired = acquired;
+            }
+        }
+
+        // ------------------
+        // the context entries (contextual optimization / LCE-M GP):
+        // ------------------
+        [System.Serializable]
+        public class ContextEntry
+        {
+            [Tooltip("Unique context identifier, e.g. a user, device, or environment name. " +
+                     "Used as the 'Context' value in warm-start CSVs and observation logs.")]
+            public string key = "";
+
+            [Tooltip("Pre-computed context embedding vector (Manual source only). " +
+                     "All contexts must use vectors of the same length.")]
+            public List<float> embedding = new List<float>();
+
+            [Tooltip("Image describing this context (Image source only). Relative paths are " +
+                     "resolved against StreamingAssets/BOData/InitData.")]
+            public string imagePath = "";
+
+            public ContextEntry() { }
+
+            public ContextEntry(string key)
+            {
+                this.key = key;
+            }
+
+            public ContextEntry(string key, List<float> embedding)
+            {
+                this.key = key;
+                this.embedding = embedding ?? new List<float>();
             }
         }
 

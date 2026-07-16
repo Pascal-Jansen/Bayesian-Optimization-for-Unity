@@ -50,6 +50,13 @@ namespace BOforUnity.Editor
         private SerializedProperty cabopEnableCostBudgetProp;
         private SerializedProperty cabopMaxCumulativeCostProp;
         private SerializedProperty cabopGroupCostsProp;
+        private SerializedProperty contextualOptimizationProp;
+        private SerializedProperty contextEmbeddingSourceProp;
+        private SerializedProperty currentContextKeyProp;
+        private SerializedProperty normalizeContextEmbeddingsProp;
+        private SerializedProperty contextEmbeddingModelProp;
+        private SerializedProperty contextEmbeddingPretrainedProp;
+        private SerializedProperty contextsProp;
         private SerializedProperty iterationAdvanceModeProp;
         private SerializedProperty automaticAdvanceDelaySecProp;
         private SerializedProperty reloadSceneOnIterationAdvanceProp;
@@ -122,6 +129,13 @@ namespace BOforUnity.Editor
             cabopEnableCostBudgetProp = serializedObject.FindProperty("cabopEnableCostBudget");
             cabopMaxCumulativeCostProp = serializedObject.FindProperty("cabopMaxCumulativeCost");
             cabopGroupCostsProp = serializedObject.FindProperty("cabopGroupCosts");
+            contextualOptimizationProp = serializedObject.FindProperty("contextualOptimization");
+            contextEmbeddingSourceProp = serializedObject.FindProperty("contextEmbeddingSource");
+            currentContextKeyProp = serializedObject.FindProperty("currentContextKey");
+            normalizeContextEmbeddingsProp = serializedObject.FindProperty("normalizeContextEmbeddings");
+            contextEmbeddingModelProp = serializedObject.FindProperty("contextEmbeddingModel");
+            contextEmbeddingPretrainedProp = serializedObject.FindProperty("contextEmbeddingPretrained");
+            contextsProp = serializedObject.FindProperty("contexts");
             iterationAdvanceModeProp = serializedObject.FindProperty("iterationAdvanceMode");
             automaticAdvanceDelaySecProp = serializedObject.FindProperty("automaticAdvanceDelaySec");
             reloadSceneOnIterationAdvanceProp = serializedObject.FindProperty("reloadSceneOnIterationAdvance");
@@ -293,6 +307,8 @@ namespace BOforUnity.Editor
                     );
                 }
             }
+
+            DrawContextualOptimizationSettings(useCabop);
 
             // ── Optimization Budget (iterations & termination) ──────────────────────
             EditorGUILayout.Space();
@@ -483,6 +499,178 @@ namespace BOforUnity.Editor
             }
             EditorGUILayout.PropertyField(welcomePanelProp);
             EditorGUILayout.PropertyField(optimizerStatePanelProp);
+        }
+
+        private void DrawContextualOptimizationSettings(bool useCabop)
+        {
+            EditorGUILayout.Space();
+            GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
+            EditorGUILayout.LabelField("Contextual Optimization (LCE-M GP)", EditorStyles.boldLabel);
+
+            EditorGUILayout.PropertyField(
+                contextualOptimizationProp,
+                new GUIContent(
+                    "Enable Contextual Optimization",
+                    "Model observations from multiple contexts (users, devices, environments, ...) with a " +
+                    "latent-context-embedding multi-task GP (LCE-M, Feng et al. 2020). Warm-start data from " +
+                    "other contexts then informs optimization for the current context."
+                )
+            );
+
+            if (!contextualOptimizationProp.boolValue)
+                return;
+
+            if (useCabop)
+            {
+                EditorGUILayout.HelpBox(
+                    "Contextual optimization is only supported with the BoTorch backend. " +
+                    "Switch the Optimizer Backend to BoTorch or disable contextual optimization.",
+                    MessageType.Error
+                );
+            }
+
+            EditorGUILayout.PropertyField(
+                contextEmbeddingSourceProp,
+                new GUIContent(
+                    "Context Embedding Source",
+                    "Learned: embeddings are inferred from data. Manual: each context provides its own " +
+                    "embedding vector. Image: each context provides an image that Python embeds with an " +
+                    "open_clip vision transformer (e.g. ViT-bigG-14 / ViT-G-14)."
+                )
+            );
+
+            EditorGUILayout.PropertyField(
+                currentContextKeyProp,
+                new GUIContent(
+                    "Current Context Key",
+                    "The context this session's observations belong to. Must match one of the context keys below."
+                )
+            );
+
+            var source = (BoForUnityManager.ContextEmbeddingSource)contextEmbeddingSourceProp.enumValueIndex;
+            if (source != BoForUnityManager.ContextEmbeddingSource.Learned)
+            {
+                EditorGUILayout.PropertyField(
+                    normalizeContextEmbeddingsProp,
+                    new GUIContent(
+                        "L2-Normalize Embeddings",
+                        "Recommended: normalizes provided embedding vectors so distances stay in a range the " +
+                        "task kernel handles well (important for raw CLIP/ViT features)."
+                    )
+                );
+            }
+
+            if (source == BoForUnityManager.ContextEmbeddingSource.Image)
+            {
+                EditorGUILayout.PropertyField(
+                    contextEmbeddingModelProp,
+                    new GUIContent(
+                        "Image Embedding Model",
+                        "open_clip model name. 'ViT-bigG-14' is the open_clip release of ViT-G/14 (~10 GB " +
+                        "weight download on first use). 'ViT-B-32' is a light-weight alternative."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    contextEmbeddingPretrainedProp,
+                    new GUIContent(
+                        "Pretrained Weights Tag",
+                        "open_clip pretrained tag matching the model, e.g. 'laion2b_s39b_b160k' for ViT-bigG-14 " +
+                        "or 'laion2b_s34b_b79k' for ViT-B-32."
+                    )
+                );
+                EditorGUILayout.HelpBox(
+                    "Image embeddings require the optional Python packages 'open_clip_torch' and 'pillow' in the " +
+                    "optimizer's Python environment. Embeddings are cached under " +
+                    "StreamingAssets/BOData/InitData/ContextEmbeddingCache, so large models only run once per image.",
+                    MessageType.Info
+                );
+            }
+
+            EditorGUILayout.PropertyField(
+                contextsProp,
+                new GUIContent(
+                    "Contexts",
+                    "One entry per context. Keys must be unique; the entry order defines the context indices " +
+                    "used by the multi-task GP."
+                ),
+                true
+            );
+
+            DrawContextValidationWarnings(source);
+
+            EditorGUILayout.LabelField(
+                "Warm-start CSVs may include a 'Context' column that assigns each row to one of the context keys. " +
+                "New observations are always assigned to the Current Context Key.",
+                EditorStyles.helpBox
+            );
+        }
+
+        private void DrawContextValidationWarnings(BoForUnityManager.ContextEmbeddingSource source)
+        {
+            var manager = target as BoForUnityManager;
+            if (manager == null || manager.contexts == null)
+                return;
+
+            if (manager.contexts.Count == 0)
+            {
+                EditorGUILayout.HelpBox("Add at least one context entry.", MessageType.Warning);
+                return;
+            }
+
+            var seen = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            var duplicates = new List<string>();
+            bool hasEmptyKey = false;
+            int embeddingDim = -1;
+            bool embeddingLengthMismatch = false;
+            bool missingEmbedding = false;
+            bool missingImagePath = false;
+
+            foreach (var entry in manager.contexts)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.key))
+                {
+                    hasEmptyKey = true;
+                    continue;
+                }
+
+                string key = entry.key.Trim();
+                if (!seen.Add(key) && !duplicates.Contains(key))
+                    duplicates.Add(key);
+
+                if (source == BoForUnityManager.ContextEmbeddingSource.Manual)
+                {
+                    int count = entry.embedding?.Count ?? 0;
+                    if (count == 0)
+                        missingEmbedding = true;
+                    else if (embeddingDim < 0)
+                        embeddingDim = count;
+                    else if (count != embeddingDim)
+                        embeddingLengthMismatch = true;
+                }
+                else if (source == BoForUnityManager.ContextEmbeddingSource.Image &&
+                         string.IsNullOrWhiteSpace(entry.imagePath))
+                {
+                    missingImagePath = true;
+                }
+            }
+
+            if (hasEmptyKey)
+                EditorGUILayout.HelpBox("Every context entry needs a non-empty key.", MessageType.Warning);
+            if (duplicates.Count > 0)
+                EditorGUILayout.HelpBox("Duplicate context key(s): " + string.Join(", ", duplicates), MessageType.Warning);
+
+            string currentKey = (currentContextKeyProp.stringValue ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(currentKey))
+                EditorGUILayout.HelpBox("Set the Current Context Key.", MessageType.Warning);
+            else if (!seen.Contains(currentKey))
+                EditorGUILayout.HelpBox($"Current Context Key '{currentKey}' does not match any context entry.", MessageType.Warning);
+
+            if (missingEmbedding)
+                EditorGUILayout.HelpBox("Manual source: every context needs a non-empty embedding vector.", MessageType.Warning);
+            if (embeddingLengthMismatch)
+                EditorGUILayout.HelpBox("Manual source: all context embeddings must have the same length.", MessageType.Warning);
+            if (missingImagePath)
+                EditorGUILayout.HelpBox("Image source: every context needs an image path.", MessageType.Warning);
         }
 
         /*

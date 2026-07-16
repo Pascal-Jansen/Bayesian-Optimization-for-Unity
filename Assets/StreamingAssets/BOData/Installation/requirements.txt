@@ -8,3 +8,6 @@ pandas==3.0.4
 gpytorch==1.15.2
 scikit-learn==1.9.0
 loguru==0.7.3
+# Optional: image-based context embeddings (contextual optimization, README 8.13).
+# Install manually to keep the default setup slim:
+#   python -m pip install open_clip_torch pillow

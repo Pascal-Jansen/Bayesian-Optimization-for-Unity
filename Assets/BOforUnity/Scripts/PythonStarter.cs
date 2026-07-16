@@ -271,6 +271,17 @@ namespace BOforUnity.Scripts
                 yield break;
             }
 
+            if (!TryValidateContextualConfiguration(_bomanager, out string contextError))
+            {
+                Debug.LogError("Python startup aborted: " + contextError);
+                _bomanager.simulationRunning = false;
+                if (_bomanager.outputText != null)
+                    _bomanager.outputText.text = "Invalid contextual optimization settings.\n" + contextError;
+                if (_bomanager.loadingObj != null)
+                    _bomanager.loadingObj.SetActive(false);
+                yield break;
+            }
+
             // Determine the Python script to execute based on backend + objective mode.
             string optimizerScriptName;
             if (!TryResolveOptimizerScriptName(_bomanager, effectiveObjectiveCount, out optimizerScriptName, out string scriptError))
@@ -380,6 +391,60 @@ namespace BOforUnity.Scripts
             }
 
             return seen;
+        }
+
+        /// <summary>
+        /// Fail-fast validation of the contextual-optimization configuration so
+        /// obvious mistakes surface before the Python process is launched. The
+        /// full validation (embedding lengths etc.) runs in SocketNetwork when
+        /// the init message is built.
+        /// </summary>
+        private static bool TryValidateContextualConfiguration(
+            BOforUnity.BoForUnityManager manager,
+            out string error)
+        {
+            error = null;
+            if (manager == null || !manager.contextualOptimization)
+                return true;
+
+            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            {
+                error = "Contextual optimization is only supported with the BoTorch backend.";
+                return false;
+            }
+
+            if (manager.contexts == null || manager.contexts.Count == 0)
+            {
+                error = "Contextual optimization is enabled, but no contexts are configured.";
+                return false;
+            }
+
+            string currentKey = (manager.currentContextKey ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(currentKey))
+            {
+                error = "Contextual optimization is enabled, but no Current Context Key is set.";
+                return false;
+            }
+
+            bool currentKeyFound = false;
+            foreach (var context in manager.contexts)
+            {
+                if (context == null || string.IsNullOrWhiteSpace(context.key))
+                {
+                    error = "Every context entry needs a non-empty key.";
+                    return false;
+                }
+                if (string.Equals(context.key.Trim(), currentKey, StringComparison.OrdinalIgnoreCase))
+                    currentKeyFound = true;
+            }
+
+            if (!currentKeyFound)
+            {
+                error = $"Current Context Key '{currentKey}' does not match any configured context.";
+                return false;
+            }
+
+            return true;
         }
 
         private static bool TryResolveOptimizerScriptName(
@@ -616,6 +681,9 @@ namespace BOforUnity.Scripts
             startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
             startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
             startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+            // Keep StreamingAssets clean: without this, importing backend helper
+            // modules would create __pycache__ folders inside the Unity project.
+            startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
             Debug.Log("BO log root: " + logRootPath);
         }
 

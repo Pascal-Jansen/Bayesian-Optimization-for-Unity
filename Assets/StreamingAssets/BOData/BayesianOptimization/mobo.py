@@ -16,6 +16,16 @@ from botorch.sampling.normal import SobolQMCNormalSampler
 from botorch.utils.sampling import draw_sobol_samples
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
+import sys
+
+# Sibling module imports must work both when running this file as a script and
+# when loading it from another working directory (e.g. the test suite).
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+import context_support
+
 # -------------------- defaults (overwritten by Unity init) --------------------
 N_INITIAL = 5
 N_ITERATIONS = 10
@@ -54,6 +64,9 @@ parameter_names = []
 objective_names = []
 parameters_info = []   # [(lo, hi)]
 objectives_info = []   # [(lo, hi, minimizeFlag)]
+
+# contextual optimization (LCE-M GP); None => plain SingleTaskGP behaviour
+CONTEXT_SETUP = None
 
 # device
 tkwargs = {"dtype": torch.double, "device": torch.device("cpu")}
@@ -249,7 +262,46 @@ def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
     return np.round(lo + (v + 1) * 0.5 * (hi - lo), 3)
 
 def expected_observation_columns():
-    return ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase','IsPareto'] + objective_names + parameter_names
+    cols = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase']
+    if CONTEXT_SETUP is not None:
+        cols.append(context_support.CONTEXT_CSV_COLUMN)
+    return cols + ['IsPareto'] + objective_names + parameter_names
+
+
+def observation_context_cells():
+    """Extra CSV cells for the context column (empty when contexts are disabled)."""
+    return [CONTEXT_SETUP.current_key] if CONTEXT_SETUP is not None else []
+
+
+def current_context_mask(x_sample):
+    """Boolean numpy row mask of observations that belong to the current context.
+
+    In contextual mode the last column of ``x_sample`` carries the context/task
+    index; only current-context rows should count towards run metrics.
+    """
+    n_rows = int(x_sample.shape[0])
+    if CONTEXT_SETUP is None:
+        return np.ones(n_rows, dtype=bool)
+    x_np = x_sample.cpu().numpy() if hasattr(x_sample, "cpu") else np.asarray(x_sample)
+    return np.asarray(x_np)[:, -1] == float(CONTEXT_SETUP.current_index)
+
+
+def current_context_hypervolume(hv_util, train_x, train_y):
+    """Hypervolume of the current context's non-dominated observations.
+
+    Warm-start rows from other contexts inform the model but do not contribute
+    to this run's Pareto front / hypervolume metric.
+    """
+    mask = current_context_mask(train_x)
+    y_np = as_objective_matrix(train_y)[mask]
+    if y_np.shape[0] == 0:
+        print(
+            "Warning: no current-context observations yet; reporting hypervolume 0.0.",
+            flush=True,
+        )
+        return 0.0
+    pareto_mask = is_non_dominated(y_np)
+    return hv_util.compute(y_np[pareto_mask])
 
 def normalize_param_column(col, lo, hi):
     col = np.asarray(col, dtype=np.float64)
@@ -456,7 +508,7 @@ def generate_initial_data(conn, n_samples):
         y_den = [denormalize_to_original_obj(y_np[j], objectives_info[j][0], objectives_info[j][1], objectives_info[j][2]) for j in range(NUM_OBJS)]
         row = [USER_ID, CONDITION_ID, GROUP_ID,
                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-               i+1, 'sampling', 'FALSE', *y_den, *x_den]
+               i+1, 'sampling', *observation_context_cells(), 'FALSE', *y_den, *x_den]
         with open(obs_csv, 'a', newline='') as f:
             csv.writer(f, delimiter=';').writerow(row)
         send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
@@ -471,6 +523,9 @@ def generate_initial_data(conn, n_samples):
             df.loc[df.index[:len(pareto_flags)], 'IsPareto'] = pareto_flags
             df.to_csv(obs_csv, sep=';', index=False)
 
+    if CONTEXT_SETUP is not None:
+        # All freshly sampled observations belong to the current context.
+        train_x = context_support.append_task_column(train_x, CONTEXT_SETUP.current_index)
     return train_x, Y
 
 def load_data():
@@ -521,17 +576,36 @@ def load_data():
     if not np.all(np.isfinite(y_norm)):
         raise ValueError("Warm-start normalized objectives contain non-finite values.")
 
-    return torch.tensor(x_norm, dtype=torch.double), torch.tensor(y_norm, dtype=torch.double)
+    train_x = torch.tensor(x_norm, dtype=torch.double)
+    if CONTEXT_SETUP is not None:
+        # Optional 'Context' column assigns each warm-start row to a context.
+        ctx_indices = context_support.context_indices_from_dataframe(
+            x_df, CONTEXT_SETUP, x_norm.shape[0]
+        )
+        train_x = context_support.append_task_column(train_x, ctx_indices)
+    return train_x, torch.tensor(y_norm, dtype=torch.double)
 
 # -------------------- model --------------------
 def initialize_model(train_x, train_obj):
+    if CONTEXT_SETUP is not None:
+        return context_support.build_contextual_model(train_x, train_obj, CONTEXT_SETUP)
     model = SingleTaskGP(train_x, train_obj)
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     return mll, model
 
+def acquisition_baseline(train_x):
+    """Baseline design points for the acquisition function.
+
+    In contextual mode the trailing task column is stripped: the LCE-M GP is
+    restricted to the current context, so its posterior over plain (n x d)
+    design points already predicts current-context outcomes.
+    """
+    if CONTEXT_SETUP is not None:
+        return context_support.strip_task_column(train_x)
+    return train_x
+
 # -------------------- acquisition --------------------
-def optimize_qnehvi(model, sampler):
-    X_baseline = model.train_inputs[0]
+def optimize_qnehvi(model, sampler, X_baseline):
     if X_baseline.dim() == 3:
         X_baseline = X_baseline[0]
     acq = qLogNoisyExpectedHypervolumeImprovement(
@@ -558,6 +632,9 @@ def save_xy(x_sample, y_sample, iteration):
     x_np = x_sample.clone().cpu().numpy()
     y_np = y_sample.clone().cpu().numpy()
     iteration_index = int(y_np.shape[0])
+    if CONTEXT_SETUP is not None:
+        # Drop the trailing context/task column for parameter logging.
+        x_np = np.asarray(x_np)[:, :PROBLEM_DIM]
 
     for j in range(PROBLEM_DIM):
         x_np[-1][j] = denormalize_to_original_param(x_np[-1][j], parameters_info[j][0], parameters_info[j][1])
@@ -578,8 +655,8 @@ def save_xy(x_sample, y_sample, iteration):
 
     new_row = pd.DataFrame([[USER_ID, CONDITION_ID, GROUP_ID,
                              time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                             iteration_index, 'optimization', 'FALSE',
-                             *y_np[-1], *x_np[-1]]], columns=df.columns)
+                             iteration_index, 'optimization', *observation_context_cells(),
+                             'FALSE', *y_np[-1], *x_np[-1]]], columns=df.columns)
 
     if df.empty:
         df = new_row.copy()
@@ -587,7 +664,11 @@ def save_xy(x_sample, y_sample, iteration):
         df = pd.concat([df, new_row], ignore_index=True)
 
     # Update IsPareto for the current run tail while preserving any older, unrelated rows.
-    flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(y_sample).tolist()]
+    # Only current-context observations compete for the Pareto front; warm-start
+    # rows from other contexts inform the model but are not part of this run.
+    ctx_mask = current_context_mask(x_sample)
+    y_current = as_objective_matrix(y_sample)[ctx_mask]
+    flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(y_current).tolist()]
     df['IsPareto'] = df['IsPareto'].astype(str)
     if len(flags) >= len(df):
         df['IsPareto'] = flags[-len(df):]
@@ -627,17 +708,17 @@ def mobo_execute(conn, seed, iterations, initial_samples):
     else:
         train_x, train_y = generate_initial_data(conn, n_samples=initial_samples)
 
+    expected_x_dim = PROBLEM_DIM + (1 if CONTEXT_SETUP is not None else 0)
     if train_x.shape[0] != train_y.shape[0]:
         raise ValueError(f"Training X/Y row mismatch: X={train_x.shape[0]}, Y={train_y.shape[0]}")
-    if train_x.shape[1] != PROBLEM_DIM:
-        raise ValueError(f"Training X has wrong dimension: got {train_x.shape[1]}, expected {PROBLEM_DIM}")
+    if train_x.shape[1] != expected_x_dim:
+        raise ValueError(f"Training X has wrong dimension: got {train_x.shape[1]}, expected {expected_x_dim}")
     if train_y.shape[1] != NUM_OBJS:
         raise ValueError(f"Training Y has wrong objective count: got {train_y.shape[1]}, expected {NUM_OBJS}")
 
     mll, model = initialize_model(train_x, train_y)
 
-    pareto_mask = is_non_dominated(train_y)
-    volume = hv_util.compute(train_y[pareto_mask])
+    volume = current_context_hypervolume(hv_util, train_x, train_y)
     hvs.append(volume)
     save_hypervolume_to_file(hvs, 0)
     send_json_line(conn, {"type": "coverage", "value": float(volume)})
@@ -646,17 +727,18 @@ def mobo_execute(conn, seed, iterations, initial_samples):
         t0 = time.time()
         fit_gpytorch_mll(mll)
         sampler = SobolQMCNormalSampler(sample_shape=torch.Size([MC_SAMPLES]), seed=SEED)
-        new_x = optimize_qnehvi(model, sampler)
+        new_x = optimize_qnehvi(model, sampler, X_baseline=acquisition_baseline(train_x))
         t_elapsed = time.time() - t0
         write_data_to_csv(exec_csv, ['Optimization', 'Execution_Time'],
                           [{'Optimization': it, 'Execution_Time': t_elapsed}])
 
         new_y = objective_function(conn, new_x[0])
+        if CONTEXT_SETUP is not None:
+            new_x = context_support.append_task_column(new_x, CONTEXT_SETUP.current_index)
         train_x = torch.cat([train_x, new_x])
         train_y = torch.cat([train_y, new_y.unsqueeze(0)])
 
-        pareto_mask = is_non_dominated(train_y)
-        volume = hv_util.compute(train_y[pareto_mask])
+        volume = current_context_hypervolume(hv_util, train_x, train_y)
         hvs.append(volume)
         save_xy(train_x, train_y, it)
         save_hypervolume_to_file(hvs, it)
@@ -673,6 +755,7 @@ def main():
     global WARM_START, CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, WARM_START_OBJECTIVE_FORMAT
     global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID
     global parameter_names, objective_names, parameters_info, objectives_info
+    global CONTEXT_SETUP
     global SOCKET_RECV_BUF
     global SOCKET_ACCEPT_TIMEOUT_SEC
 
@@ -802,6 +885,12 @@ def main():
                 raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
             if int(minflag) not in (0, 1):
                 raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
+
+        CONTEXT_SETUP = context_support.parse_context_config(init_msg)
+        if CONTEXT_SETUP is not None:
+            init_root = os.environ.get("BO_INIT_ROOT") or os.path.join(os.getcwd(), "InitData")
+            context_support.resolve_embeddings(CONTEXT_SETUP, init_root=init_root)
+            print("Contextual optimization:", context_support.describe(CONTEXT_SETUP), flush=True)
 
         ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)
         problem_bounds = torch.stack(

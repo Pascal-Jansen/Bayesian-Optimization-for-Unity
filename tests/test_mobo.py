@@ -919,7 +919,7 @@ class MoboTests(unittest.TestCase):
                 # Initial samples (n=1, q=2, d=1): x=0.2 then x=0.8
                 mobo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor([[[0.2], [0.8]]])
                 # Optimization candidate: x=0.4
-                mobo.optimize_qnehvi = lambda model, sampler: FakeTensor([[0.4]])
+                mobo.optimize_qnehvi = lambda model, sampler, X_baseline: FakeTensor([[0.4]])
 
                 # Unity-like objective stream for 3 evaluations:
                 # 1) o_min=2,o_max=8 -> [0.6,0.6]

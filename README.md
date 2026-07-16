@@ -21,6 +21,7 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 - Automatic, robust communication with a [BoTorch](https://botorch.org/)-based MOBO process.
 - MOBO metric calculations use [moocore](https://github.com/multi-objective/moocore) for Pareto-front and hypervolume utilities.
 - Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
+- Contextual optimization with a latent context embedding multi-task GP (LCE-M; see Feng et al.'s [High-Dimensional Contextual Policy Search with Unknown Context Rewards using Bayesian Optimization](https://proceedings.neurips.cc/paper/2020/hash/faff959d885ec1ecf843a3f45087e047-Abstract.html), NeurIPS 2020): reuse observations from other contexts (users, devices, environments) with **definable context embeddings** — learned from data, supplied manually from any encoder, or computed from context images with an open_clip vision transformer such as ViT-G/14.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
 - Unified log routing below `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, including QuestionnaireToolkit CSVs and app-specific telemetry.
@@ -87,6 +88,7 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
   * [8.10 Optimization Budget](#810-optimization-budget)
   * [8.11 Model and Algorithm Hyperparameters](#811-model-and-algorithm-hyperparameters)
   * [8.12 Output Files and Metrics](#812-output-files-and-metrics)
+  * [8.13 Contextual Optimization and Context Embeddings (LCE-M GP)](#813-contextual-optimization-and-context-embeddings-lce-m-gp)
 * [9. Troubleshooting](#9-troubleshooting)
 * [10. System Architecture](#10-system-architecture)
 * [11. Portability to Your Own Project](#11-portability-to-your-own-project)
@@ -912,6 +914,60 @@ CABOP (`cabop_bo.py` / `cabop_mobo.py`):
 During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 
 
+### 8.13 Contextual Optimization and Context Embeddings (LCE-M GP)
+
+Contextual optimization models observations from multiple **contexts** — for example different users, devices, rooms, or simulator configurations — in a single multi-task GP. It uses BoTorch's LCE-M model (`LCEMGP`, the latent context embedding multioutput kernel from Feng et al.'s [High-Dimensional Contextual Policy Search with Unknown Context Rewards using Bayesian Optimization](https://proceedings.neurips.cc/paper/2020/hash/faff959d885ec1ecf843a3f45087e047-Abstract.html), NeurIPS 2020). The typical HITL use case: you already collected data with participants A and B (other contexts) and now optimize for participant C — the model transfers what it learned from similar contexts, so fewer iterations are needed for the current one.
+
+Supported for the **BoTorch backend only** (`bo.py` and `mobo.py`); CABOP does not support contexts.
+
+#### 8.13.1 Enabling and Configuring Contexts
+
+In the `BoForUnityManager` inspector, section **Contextual Optimization (LCE-M GP)**:
+
+* **Enable Contextual Optimization**: turns the feature on.
+* **Context Embedding Source**: how the per-context embedding is defined:
+  * `Learned` (default): a low-dimensional embedding per context is learned from the observation data. No extra input required. Works best when several observations exist per context.
+  * `Manual`: each context provides its own embedding vector in the inspector (or via code). Use this to inject *any* context representation you can compute — questionnaire profiles, sensor statistics, or image/text features from an external encoder.
+  * `Image`: each context provides an image (e.g., a screenshot of the scene, the device, or the environment). The Python backend embeds it with an [open_clip](https://github.com/mlfoundations/open_clip) vision transformer.
+* **Current Context Key**: the context this session's new observations belong to. Must match one of the configured context keys.
+* **Contexts**: one entry per context (`key`, optional `embedding`, optional `imagePath`). Keys must be unique; the list order defines the internal context indices.
+* **L2-Normalize Embeddings** (Manual/Image): recommended; keeps embedding distances in a range the task kernel handles well (important for raw CLIP/ViT features, whose norms are otherwise large).
+
+Code API equivalents on `BoForUnityManager`: `contextualOptimization`, `contextEmbeddingSource`, `currentContextKey`, `contexts`, `normalizeContextEmbeddings`, `contextEmbeddingModel`, `contextEmbeddingPretrained`.
+
+#### 8.13.2 Image Embeddings with ViT-G/14 (or Smaller Models)
+
+With `Context Embedding Source = Image`:
+
+* **Image Embedding Model** defaults to `ViT-bigG-14` — open_clip's release of **ViT-G/14** (~1.8B-parameter vision transformer, 1280-dimensional image embeddings). **Pretrained Weights Tag** defaults to the matching `laion2b_s39b_b160k`.
+* ViT-G/14 downloads roughly 10 GB of weights on first use and needs a correspondingly capable machine. For quick experiments, `ViT-B-32` with tag `laion2b_s34b_b79k` is a light-weight alternative (embeddings from different models are not interchangeable — keep the model fixed within a study).
+* The optional Python dependencies must be installed into the interpreter used by the optimizer: `python -m pip install open_clip_torch pillow`. They are intentionally not part of `requirements.txt` so the default installation stays slim; a clear error with install instructions is raised if they are missing.
+* Relative image paths are resolved against `Assets/StreamingAssets/BOData/InitData/`.
+* Embeddings are cached under `InitData/ContextEmbeddingCache/` keyed by image content and model, so the vision model only runs when an image or the model configuration changes (override the cache location with the `BO_EMBED_CACHE` environment variable).
+
+Because ViT-G/14 (like all CLIP-style encoders) maps semantically similar images to nearby vectors, visually similar contexts share more information in the task kernel — exactly what the LCE-M model exploits.
+
+#### 8.13.3 Warm Start Across Contexts
+
+To transfer data from other contexts, enable **Warm Start** and add a `Context` column to the initial **parameters** CSV assigning each row to a context key (see `ExampleContextInitDataParameters.csv` / `ExampleContextInitDataObjectives.csv` in `InitData/`):
+
+```text
+Context;ButtonSize;AnimationSpeed
+user_A;0.2;0.8
+user_B;0.4;0.5
+```
+
+* Rows may reference any configured context key (matched case-insensitively); unknown keys fail fast with a clear error.
+* If the `Context` column is missing, all warm-start rows are assigned to the current context (with a console warning).
+* New observations are always assigned to the **Current Context Key**.
+
+#### 8.13.4 Behavior and Outputs
+
+* The GP is trained on all contexts jointly; the acquisition function only proposes designs for the current context.
+* Run metrics (`coverage`, `IsBest`/`IsPareto`, hypervolume/best-objective traces) are computed over **current-context observations only** — warm-start rows from other contexts inform the model but do not appear in this run's metrics.
+* `ObservationsPerEvaluation.csv` gains a `Context` column (after `Phase`) recording the context of every logged observation.
+* With very many contexts and long manual embeddings, the init message grows; if you ever exceed the backend's 1 MB message buffer, raise it via the `BO_MAX_RECV_BUF_BYTES` environment variable.
+
 ---
 
 ## 9. Troubleshooting
@@ -930,6 +986,10 @@ During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 | Fitts law target buttons overlap | `button_distance` is too small for the current `button_size`/`targetCount`, or values were edited outside the recommended ranges | Use the default constrained bounds or increase `button_distance`. The runtime clamps unsafe layouts, but the inspector bounds should still be kept feasible. |
 | Logs appear under a suffixed user folder such as `_1` | A folder with the requested `User ID` already existed | This is expected overwrite protection. Use the suffixed folder as the current run's user folder. |
 | Questionnaire CSV is not in the same condition folder as app/BO logs | `QTQuestionnaireManager.resultsSavePath` or `Save Results In BO Context Folders` was changed | Set `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/` and keep `Save Results In BO Context Folders` enabled. |
+| "Contextual optimization is only supported with the BoTorch backend" | Contextual optimization enabled together with the CABOP backend | Switch `Optimizer Backend` to BoTorch or disable contextual optimization. See [8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp). |
+| `embeddingSource=image requires the optional dependencies ...` in Python logs | `open_clip_torch`/`pillow` are not installed in the optimizer's Python environment | Run `python -m pip install open_clip_torch pillow` with the same interpreter configured in Python Settings. |
+| Image-embedding startup is very slow the first time | Large vision model weights (e.g., ~10 GB for ViT-bigG-14 / ViT-G/14) are downloaded once | Wait for the first run to finish (embeddings are cached afterwards) or switch to a smaller model such as `ViT-B-32`. |
+| `Warm-start row N references unknown context ...` | `Context` column value does not match any configured context key | Align the CSV `Context` values with the context keys configured in `BoForUnityManager`. |
 
 ---
 
