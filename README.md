@@ -605,12 +605,13 @@ Log folders are created below `Assets/StreamingAssets/BOData/LogData/`. The user
 
 ### 8.7 Optimizer Backend and CABOP Settings
 
-`BoForUnityManager` now supports two backends:
+`BoForUnityManager` now supports three backends:
 
 * **BoTorch**: existing behavior (`bo.py` for single-objective, `mobo.py` for multi-objective). In `mobo.py`, BoTorch handles the GP model and acquisition function, while [moocore](https://github.com/multi-objective/moocore) computes Pareto flags and hypervolume metrics.
 * **CABOP**: cost-aware optimization backend with selectable objective mode:
   * `SingleObjective` -> `cabop_bo.py` (requires exactly 1 objective).
   * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
+* **MetaTAF**: multi-objective Meta-BO backend (`meta_mobo.py`, requires at least 2 objectives). Transfers knowledge from *population models* built from prior participants' runs so new users converge in fewer iterations; with no population models it behaves like plain multi-objective BO. See section 8.14 and the [student guide](docs/meta-taf-student-guide.md).
 
 CABOP addresses the practical case where design changes do not all have the same evaluation cost. For the broader cost-aware BO motivation and terminology, see Langerak, Zhang, Wang, Kristensson, and Oulasvirta's [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024).
 
@@ -973,6 +974,43 @@ user_B;0.4;0.5
 * `ObservationsPerEvaluation.csv` gains a `Context` column (after `Phase`) recording the context of every logged observation.
 * With very many contexts and long manual embeddings, the init message grows; if you ever exceed the backend's 1 MB message buffer, raise it via the `BO_MAX_RECV_BUF_BYTES` environment variable.
 
+### 8.14 Meta-BO (MetaTAF): Transfer from Prior Participants
+
+The **MetaTAF** backend implements multi-objective Meta-Bayesian optimization: it blends the
+current user's own model (BoTorch `qLogNEHVI`) with hypervolume-improvement terms from
+**population models** — GP surrogates built from *prior participants' completed runs* — so a
+new user starts from what the population already revealed instead of from scratch. The
+mechanism follows the Transfer Acquisition Function line of work (Wistuba et al., 2018;
+Liao et al., CHI 2024) lifted to Pareto/hypervolume optimization, implemented in the
+[openbo](https://github.com/M-Colley/openbo) package (MIT, fork of
+[yichiliao/openbo](https://github.com/yichiliao/openbo) with correctness fixes and the
+multi-objective optimizers).
+
+Quick facts:
+
+* Requires **at least 2 objectives**; single-objective studies use the BoTorch backend.
+* Requires the **openbo** Python package (one extra `pip install`; see the guide).
+* Population models are generated **offline** with `meta_train.py` from prior runs'
+  `ObservationsPerEvaluation.csv` and placed under `StreamingAssets/BOData/MetaSources/`.
+* Sources whose parameter/objective definitions (names, bounds, minimize flags) do not
+  exactly match the live study are **skipped with an explanation** — this protects you from
+  silently transferring a mismatched or inverted response surface.
+* With **zero** valid sources the backend runs plain multi-objective BO, so it is always
+  safe to enable.
+* Not compatible with Warm Start (population models replace it) or Contextual Optimization
+  (LCE-M stays BoTorch-only).
+* Each run writes an extra `MetaWeightsPerEvaluation.csv` logging how strongly each
+  population model influenced every iteration (plus the decay factor), and a
+  `MetaSourcesUsed/` folder archiving the exact sources used — check both when analyzing
+  or debugging a study.
+
+**Full walkthrough for students: [docs/meta-taf-student-guide.md](docs/meta-taf-student-guide.md).**
+
+Study-design note: if Meta-BO is a *condition* in your experiment, freeze the population
+model set **before** the main study and give every participant the identical set —
+accumulating sources across your analyzed participants makes later participants depend on
+earlier ones (an ordering confound). Details and citations in the guide.
+
 ---
 
 ## 9. Troubleshooting
@@ -990,6 +1028,9 @@ user_B;0.4;0.5
 | Fitts law questionnaire says required items are missing | Aesthetics/usability slider items are not present or their `Header Name` values do not match the objective keys/submeasure names | Create the items manually in the scene. Use `aesthetics` and either `usability` or submeasure headers such as `usability1` and `usability2`. |
 | Fitts law target buttons overlap | `button_distance` is too small for the current `button_size`/`targetCount`, or values were edited outside the recommended ranges | Use the default constrained bounds or increase `button_distance`. The runtime clamps unsafe layouts, but the inspector bounds should still be kept feasible. |
 | Logs appear under a suffixed user folder such as `_1` | A folder with the requested `User ID` already existed | This is expected overwrite protection. Use the suffixed folder as the current run's user folder. |
+| MetaTAF: `The Meta-TAF backend needs the 'openbo' package` | openbo is not installed for the Python that BOforUnity launches | `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` with that same Python (see [student guide](docs/meta-taf-student-guide.md)). |
+| MetaTAF: `source '<name>' was built for a different study frame; skipping` | The population model was generated for different parameter/objective names, bounds, or minimize flags | Regenerate sources with `meta_train.py` using a `frame.json` that matches the current study exactly. This check is intentional. |
+| MetaTAF run never proposes parameters and the log stops after "using N population model(s)" | A previous backend process was killed mid-run and left a stale PyTorch JIT lock | Newer builds isolate this automatically. If it still happens, delete `%LOCALAPPDATA%\torch_extensions` and restart. |
 | Questionnaire CSV is not in the same condition folder as app/BO logs | `QTQuestionnaireManager.resultsSavePath` or `Save Results In BO Context Folders` was changed | Set `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/` and keep `Save Results In BO Context Folders` enabled. |
 | "Contextual optimization is only supported with the BoTorch backend" | Contextual optimization enabled together with the CABOP backend | Switch `Optimizer Backend` to BoTorch or disable contextual optimization. See [8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp). |
 | `embeddingSource=image requires the optional dependencies ...` in Python logs | `open_clip_torch`/`pillow` are not installed in the optimizer's Python environment | Run `python -m pip install open_clip_torch pillow` with the same interpreter configured in Python Settings. |

@@ -9,6 +9,30 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-25
+
+### Meta-BO backend (MetaTAF, TAF-EHVI)
+- New `MetaTAF` optimizer backend (`meta_mobo.py` / `meta_mobo_runtime.py`): multi-objective Meta-Bayesian optimization that blends the current user's BoTorch `qLogNEHVI` model with hypervolume-improvement terms from **population models** built from prior participants' runs (Transfer Acquisition Function lifted to Pareto/hypervolume optimization, following Wistuba et al. 2018 and Liao et al. CHI 2024, including their population-weight decay `γ(t)`). Population models that disagree with the current user's observed Pareto rankings are automatically down-weighted; with zero valid sources the acquisition degenerates exactly to plain multi-objective BO.
+- The multi-objective optimizers (`mobo_botorch`, `mobo_taf`, `acquisition/taf_mo_ehvi`) live in the [openbo](https://github.com/M-Colley/openbo) package (MIT, © Yi-Chi Liao; fork with correctness fixes and the new multi-objective code) — an optional dependency installed only for this backend; the runtime fails fast with the install command when missing. Not added to the auto-installed `requirements.txt` (needs git; documented in README 8.14 and `docs/meta-taf-student-guide.md`).
+- New offline tool `meta_train.py` converts completed runs' `ObservationsPerEvaluation.csv` into population-model artifacts (per-objective GP fits, normalized into the canonical frame, self-checked by reloading through the runtime's own loader).
+- Every artifact carries the study **frame** (parameter/objective names, bounds, minimize flags); the runtime skips sources whose frame differs from the live study, field by field — transferring across mismatched bounds or a flipped minimize flag would silently import a rescaled or inverted response surface.
+- New outputs per run: `MetaWeightsPerEvaluation.csv` (target weight, decay factor, and per-source weights per iteration) and `MetaSourcesUsed/` (audit copy of the exact population models the run used).
+- Unity integration: `OptimizerBackend.MetaTAF`, inspector section (source dir, weight mode TafR/TafM, rho, target weight, warmup, decay d1/d2), init-message fields, and fail-fast validation (multi-objective only; Warm Start and Contextual Optimization are rejected with actionable errors).
+- Hardening: the backend isolates PyTorch's JIT extension cache per process (`TORCH_EXTENSIONS_DIR`), preventing an infinite startup hang caused by stale lock files after a killed run.
+
+### Shared frame modules
+- Added `bo_normalize.py`: the canonical frame (parameters in `[0,1]^d`, objectives in `[-1,1]` maximization with the minimize-flag sign flip) extracted into one shared, dependency-light module. `bo.py` and `mobo.py` now delegate to it instead of each carrying their own copy; behaviour is unchanged and the objective format is an explicit argument rather than a module global.
+- Added `meta_fingerprint.py`: canonical frame fingerprint + field-by-field difference reporting (used by `meta_train.py` and the MetaTAF runtime).
+
+### Fixed
+- The contextual-optimization guards in `PythonStarter`, `SocketNetwork`, and the inspector now check for "backend is not BoTorch" instead of "backend is CABOP", so newly added backends cannot silently bypass the LCE-M restriction.
+
+### Tests
+- 48 new tests (193 total): shared-frame parity against `mobo.py`'s live transform, frame-compatibility detection, and a full protocol/CSV test of the MetaTAF runtime against a stubbed openbo (CI-safe: numpy+pandas only). The contextual/embedding suites are unchanged and pass.
+
+### Documentation
+- README 8.14 (Meta-BO overview + troubleshooting rows) and `docs/meta-taf-student-guide.md` (student walkthrough: population-model workflow, settings, logged outputs, study-design guidance, citations).
+
 ## [1.5.0] - 2026-07-16
 
 ### Contextual Optimization (LCE-M GP)

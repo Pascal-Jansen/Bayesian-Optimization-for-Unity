@@ -197,6 +197,91 @@ def install_stub_modules():
     sys.modules["moocore"] = moocore_mod
 
 
+def install_openbo_stub():
+    """Install a stub 'openbo' package (mobo_taf + mobo_botorch) into sys.modules.
+
+    Lets test_meta_mobo_runtime exercise the full NDJSON protocol and CSV contract of the
+    Meta-TAF backend in the numpy+pandas-only CI environment. The stub optimizer is
+    deterministic: suggest() walks a fixed sequence of unit-cube points, observe() only
+    records, and the source list is derived from the staged gp_states directory exactly
+    like the real loader would.
+    """
+    openbo_mod = types.ModuleType("openbo")
+    optimizers_mod = types.ModuleType("openbo.optimizers")
+    mobo_taf_mod = types.ModuleType("openbo.optimizers.mobo_taf")
+    mobo_botorch_mod = types.ModuleType("openbo.optimizers.mobo_botorch")
+
+    class _StubSource:
+        def __init__(self, name):
+            self.name = name
+
+    class MOTAFConfig:
+        def __init__(self, **kwargs):
+            self.kwargs = dict(kwargs)
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class MOTAFSequentialOptimizer:
+        instances = []
+
+        def __init__(self, config):
+            self.config = config
+            self.d = len(config.bounds)
+            self.n_suggestions = 0
+            self.observed_x = []
+            self.observed_y = []
+            import os as _os
+            gp_dir = _os.path.join(str(config.taf_run_dir), "gp_states")
+            names = []
+            if _os.path.isdir(gp_dir):
+                names = sorted(
+                    f[:-5] for f in _os.listdir(gp_dir) if f.endswith(".json")
+                )
+            self.source_surrogates = [_StubSource(n) for n in names]
+            n = len(self.source_surrogates)
+            self.last_source_weights = (
+                np.ones(n, dtype=np.float64) / n if n else np.zeros(0, dtype=np.float64)
+            )
+            self.last_target_weight = float(getattr(config, "target_weight", 1.0))
+            MOTAFSequentialOptimizer.instances.append(self)
+
+        def _decay_factor(self):
+            return 1.0
+
+        def suggest(self):
+            self.n_suggestions += 1
+            value = min(0.9, 0.25 + 0.1 * self.n_suggestions)
+            return np.full((1, self.d), value, dtype=np.float64)
+
+        def observe(self, x_new, y_new):
+            x_new = np.asarray(x_new, dtype=np.float64)
+            y_new = np.asarray(y_new, dtype=np.float64)
+            if x_new.ndim != 2 or y_new.ndim != 2 or x_new.shape[0] != y_new.shape[0]:
+                raise ValueError("stub observe(): bad shapes")
+            self.observed_x.append(x_new)
+            self.observed_y.append(y_new)
+
+    def compute_hypervolume(y, ref_point):
+        arr = np.asarray(y, dtype=np.float64)
+        ref = np.asarray(ref_point, dtype=np.float64)
+        if arr.shape[0] == 0:
+            return 0.0
+        return float(np.sum(np.clip(arr - ref[None, :], 0.0, None)))
+
+    mobo_taf_mod.MOTAFConfig = MOTAFConfig
+    mobo_taf_mod.MOTAFSequentialOptimizer = MOTAFSequentialOptimizer
+    mobo_botorch_mod.compute_hypervolume = compute_hypervolume
+
+    openbo_mod.optimizers = optimizers_mod
+    optimizers_mod.mobo_taf = mobo_taf_mod
+    optimizers_mod.mobo_botorch = mobo_botorch_mod
+    sys.modules["openbo"] = openbo_mod
+    sys.modules["openbo.optimizers"] = optimizers_mod
+    sys.modules["openbo.optimizers.mobo_taf"] = mobo_taf_mod
+    sys.modules["openbo.optimizers.mobo_botorch"] = mobo_botorch_mod
+    return mobo_taf_mod
+
+
 class FakeConn:
     """Scripted socket connection: yields queued chunks, records sent bytes."""
 

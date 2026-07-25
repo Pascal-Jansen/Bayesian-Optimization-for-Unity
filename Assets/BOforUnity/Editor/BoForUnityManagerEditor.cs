@@ -50,6 +50,13 @@ namespace BOforUnity.Editor
         private SerializedProperty cabopEnableCostBudgetProp;
         private SerializedProperty cabopMaxCumulativeCostProp;
         private SerializedProperty cabopGroupCostsProp;
+        private SerializedProperty metaSourceDirProp;
+        private SerializedProperty metaWeightModeProp;
+        private SerializedProperty metaRhoProp;
+        private SerializedProperty metaTargetWeightProp;
+        private SerializedProperty metaWarmupItersProp;
+        private SerializedProperty metaDecayStartIterProp;
+        private SerializedProperty metaDecayRateProp;
         private SerializedProperty contextualOptimizationProp;
         private SerializedProperty contextEmbeddingSourceProp;
         private SerializedProperty currentContextKeyProp;
@@ -129,6 +136,13 @@ namespace BOforUnity.Editor
             cabopEnableCostBudgetProp = serializedObject.FindProperty("cabopEnableCostBudget");
             cabopMaxCumulativeCostProp = serializedObject.FindProperty("cabopMaxCumulativeCost");
             cabopGroupCostsProp = serializedObject.FindProperty("cabopGroupCosts");
+            metaSourceDirProp = serializedObject.FindProperty("metaSourceDir");
+            metaWeightModeProp = serializedObject.FindProperty("metaWeightMode");
+            metaRhoProp = serializedObject.FindProperty("metaRho");
+            metaTargetWeightProp = serializedObject.FindProperty("metaTargetWeight");
+            metaWarmupItersProp = serializedObject.FindProperty("metaWarmupIters");
+            metaDecayStartIterProp = serializedObject.FindProperty("metaDecayStartIter");
+            metaDecayRateProp = serializedObject.FindProperty("metaDecayRate");
             contextualOptimizationProp = serializedObject.FindProperty("contextualOptimization");
             contextEmbeddingSourceProp = serializedObject.FindProperty("contextEmbeddingSource");
             currentContextKeyProp = serializedObject.FindProperty("currentContextKey");
@@ -247,12 +261,15 @@ namespace BOforUnity.Editor
                 optimizerBackendProp,
                 new GUIContent(
                     "Backend",
-                    "Choose BoTorch (bo.py/mobo.py) or CABOP (cost-aware backend)."
+                    "Choose BoTorch (bo.py/mobo.py), CABOP (cost-aware backend), or MetaTAF " +
+                    "(multi-objective Meta-BO that transfers from population models of prior runs)."
                 )
             );
 
             bool useCabop = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
                             BoForUnityManager.OptimizerBackend.CABOP;
+            bool useMetaTaf = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
+                              BoForUnityManager.OptimizerBackend.MetaTAF;
             if (useCabop)
             {
                 EditorGUILayout.PropertyField(
@@ -308,7 +325,79 @@ namespace BOforUnity.Editor
                 }
             }
 
-            DrawContextualOptimizationSettings(useCabop);
+            if (useMetaTaf)
+            {
+                EditorGUILayout.PropertyField(
+                    metaSourceDirProp,
+                    new GUIContent(
+                        "Meta Source Dir",
+                        "Folder with the population models (gp_states/ + trajectories/), relative to " +
+                        "StreamingAssets/BOData (or an absolute path). Generate it with meta_train.py."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    metaWeightModeProp,
+                    new GUIContent(
+                        "Meta Weight Mode",
+                        "TafR: weight sources by Pareto-ranking agreement with the current user's data " +
+                        "(recommended). TafM: weight by meta-feature similarity."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    metaRhoProp,
+                    new GUIContent("Meta Rho", "Epanechnikov kernel bandwidth for source weights.")
+                );
+                EditorGUILayout.PropertyField(
+                    metaTargetWeightProp,
+                    new GUIContent("Meta Target Weight", "Weight of the current user's own model in the blend.")
+                );
+                EditorGUILayout.PropertyField(
+                    metaWarmupItersProp,
+                    new GUIContent(
+                        "Meta Warmup Iters",
+                        "Number of initial optimization suggestions driven by the population models alone."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    metaDecayStartIterProp,
+                    new GUIContent(
+                        "Meta Decay Start Iter",
+                        "Iteration after which population influence starts to decay (d1 in Liao et al., CHI '24)."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    metaDecayRateProp,
+                    new GUIContent(
+                        "Meta Decay Rate",
+                        "Per-iteration decay of population influence (d2). 0 disables the decay."
+                    )
+                );
+
+                int metaObjectiveCount = objectiveList.count;
+                if (metaObjectiveCount < 2)
+                {
+                    EditorGUILayout.HelpBox(
+                        "MetaTAF is multi-objective: configure at least 2 objectives.",
+                        MessageType.Warning
+                    );
+                }
+                if (warmStartProp != null && warmStartProp.boolValue)
+                {
+                    EditorGUILayout.HelpBox(
+                        "MetaTAF does not support Warm Start (population models are its transfer " +
+                        "mechanism). Disable Warm Start or switch the backend.",
+                        MessageType.Error
+                    );
+                }
+                EditorGUILayout.HelpBox(
+                    "Sources whose parameter/objective definitions (names, bounds, minimize flags) do " +
+                    "not exactly match this study are skipped at runtime. Requires the openbo package; " +
+                    "see docs/meta-taf-student-guide.md.",
+                    MessageType.Info
+                );
+            }
+
+            DrawContextualOptimizationSettings(useCabop || useMetaTaf);
 
             // ── Optimization Budget (iterations & termination) ──────────────────────
             EditorGUILayout.Space();
@@ -501,7 +590,7 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(optimizerStatePanelProp);
         }
 
-        private void DrawContextualOptimizationSettings(bool useCabop)
+        private void DrawContextualOptimizationSettings(bool nonBoTorchBackend)
         {
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
@@ -520,7 +609,7 @@ namespace BOforUnity.Editor
             if (!contextualOptimizationProp.boolValue)
                 return;
 
-            if (useCabop)
+            if (nonBoTorchBackend)
             {
                 EditorGUILayout.HelpBox(
                     "Contextual optimization is only supported with the BoTorch backend. " +

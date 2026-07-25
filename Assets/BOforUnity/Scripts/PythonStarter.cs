@@ -407,8 +407,10 @@ namespace BOforUnity.Scripts
             if (manager == null || !manager.contextualOptimization)
                 return true;
 
-            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            if (manager.optimizerBackend != BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch)
             {
+                // Applies to every non-BoTorch backend (CABOP, MetaTAF, future additions):
+                // the LCE-M context pipeline lives in the BoTorch backends only.
                 error = "Contextual optimization is only supported with the BoTorch backend.";
                 return false;
             }
@@ -495,6 +497,28 @@ namespace BOforUnity.Scripts
                     scriptName = "cabop_mobo.py";
                     return true;
                 }
+            }
+
+            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF)
+            {
+                if (effectiveObjectiveCount < 2)
+                {
+                    error =
+                        "The MetaTAF backend is multi-objective: configure at least two objectives " +
+                        "(use the BoTorch backend for single-objective studies).";
+                    return false;
+                }
+
+                if (manager.warmStart)
+                {
+                    error =
+                        "The MetaTAF backend does not support Warm Start: population models are its " +
+                        "transfer mechanism. Disable Warm Start or use the BoTorch backend.";
+                    return false;
+                }
+
+                scriptName = "meta_mobo.py";
+                return true;
             }
 
             error = "Unsupported optimizer backend/objective mode combination.";

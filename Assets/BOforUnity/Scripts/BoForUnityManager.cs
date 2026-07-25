@@ -30,7 +30,18 @@ namespace BOforUnity
         public enum OptimizerBackend
         {
             BoTorch = 0,
-            CABOP = 1
+            CABOP = 1,
+            // Multi-objective Meta-BO (TAF-EHVI): qLogNEHVI blended with hypervolume
+            // improvement terms from population models built from prior runs.
+            MetaTAF = 2
+        }
+
+        public enum MetaWeightMode
+        {
+            // Weights from Pareto-ranking agreement with the current user's observations.
+            TafR = 0,
+            // Weights from meta-feature similarity (dimension + objective moments).
+            TafM = 1
         }
 
         public enum CabopObjectiveMode
@@ -108,6 +119,17 @@ namespace BOforUnity
         public bool cabopEnableCostBudget = false;
         [Min(-1f)] public float cabopMaxCumulativeCost = -1f;
         public List<CabopGroupCostEntry> cabopGroupCosts = new List<CabopGroupCostEntry>();
+
+        // Meta-TAF (multi-objective Meta-BO) settings; only read when
+        // optimizerBackend == MetaTAF. Population models are generated offline with
+        // meta_train.py and placed under StreamingAssets/BOData/<metaSourceDir>.
+        public string metaSourceDir = "MetaSources";
+        public MetaWeightMode metaWeightMode = MetaWeightMode.TafR;
+        [Min(0.0001f)] public float metaRho = 1.0f;
+        [Min(0.0001f)] public float metaTargetWeight = 1.0f;
+        [Min(0)] public int metaWarmupIters = 1;
+        [Min(0)] public int metaDecayStartIter = 2;
+        [Range(0f, 1f)] public float metaDecayRate = 0.3f;
 
         // Contextual optimization (LCE-M multi-task GP; BoTorch backend only).
         // Observations are tagged with the current context; warm-start data from

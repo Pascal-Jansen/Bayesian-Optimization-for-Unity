@@ -11,3 +11,11 @@ loguru==0.7.3
 # Optional: image-based context embeddings (contextual optimization, README 8.13).
 # Install manually to keep the default setup slim:
 #   python -m pip install open_clip_torch pillow
+#
+# Optional: MetaTAF backend (multi-objective Meta-BO, README 8.14). Needs the openbo
+# fork with the multi-objective optimizers; install manually (requires git):
+#   python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"
+# Not auto-installed here on purpose: machines without git (e.g. the bundled Python
+# setup) would otherwise fail this whole requirements install. The backend prints this
+# exact command if openbo is missing. openbo's dependency floors are satisfied by the
+# pinned versions above (gpytorch sits exactly on openbo's minimum - keep in sync).

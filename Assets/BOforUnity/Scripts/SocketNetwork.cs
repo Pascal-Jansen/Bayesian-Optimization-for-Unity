@@ -37,6 +37,10 @@ namespace BOforUnity.Scripts
         public string optimizerBackend, cabopObjectiveMode, cabopUpdateRule;
         public bool cabopUseCostAwareAcquisition, cabopEnableCostBudget;
         public float cabopMaxCumulativeCost;
+        // Meta-TAF backend settings (ignored by the other backends).
+        public string metaSourceDir, metaWeightMode;
+        public float metaRho, metaTargetWeight, metaDecayRate;
+        public int metaWarmupIters, metaDecayStartIter;
     }
 
     [Serializable] class ParamInit { public double low; public double high; }
@@ -644,6 +648,24 @@ namespace BOforUnity.Scripts
                 }
             }
 
+            if (_bomanager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF)
+            {
+                if (objectivePayload.Count < 2)
+                {
+                    throw new InvalidOperationException(
+                        "The MetaTAF backend is multi-objective: configure at least two objectives."
+                    );
+                }
+
+                if (_bomanager.warmStart)
+                {
+                    throw new InvalidOperationException(
+                        "The MetaTAF backend does not support Warm Start: population models are its " +
+                        "transfer mechanism. Disable Warm Start or use the BoTorch backend."
+                    );
+                }
+            }
+
             var overlappingKeys = parameterPayload
                 .Select(p => p.key)
                 .Intersect(objectivePayload.Select(o => o.key), StringComparer.OrdinalIgnoreCase)
@@ -680,7 +702,14 @@ namespace BOforUnity.Scripts
                     cabopUseCostAwareAcquisition = _bomanager.cabopUseCostAwareAcquisition,
                     cabopUpdateRule = NormalizeCabopUpdateRule(_bomanager.cabopUpdateRule),
                     cabopEnableCostBudget = _bomanager.cabopEnableCostBudget,
-                    cabopMaxCumulativeCost = _bomanager.cabopMaxCumulativeCost
+                    cabopMaxCumulativeCost = _bomanager.cabopMaxCumulativeCost,
+                    metaSourceDir = _bomanager.metaSourceDir,
+                    metaWeightMode = NormalizeMetaWeightMode(_bomanager.metaWeightMode),
+                    metaRho = _bomanager.metaRho,
+                    metaTargetWeight = _bomanager.metaTargetWeight,
+                    metaWarmupIters = _bomanager.metaWarmupIters,
+                    metaDecayStartIter = _bomanager.metaDecayStartIter,
+                    metaDecayRate = _bomanager.metaDecayRate
                 },
                 parameters = parameterPayload,
                 objectives = objectivePayload,
@@ -708,8 +737,9 @@ namespace BOforUnity.Scripts
             if (_bomanager == null || !_bomanager.contextualOptimization)
                 return null;
 
-            if (_bomanager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            if (_bomanager.optimizerBackend != BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch)
             {
+                // Applies to every non-BoTorch backend (CABOP, MetaTAF, future additions).
                 throw new InvalidOperationException(
                     "Contextual optimization (LCE-M GP) is only supported with the BoTorch backend. " +
                     "Disable contextual optimization or switch the optimizer backend."
@@ -859,7 +889,21 @@ namespace BOforUnity.Scripts
 
         private static string NormalizeOptimizerBackend(BOforUnity.BoForUnityManager.OptimizerBackend backend)
         {
-            return backend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP ? "cabop" : "botorch";
+            switch (backend)
+            {
+                case BOforUnity.BoForUnityManager.OptimizerBackend.CABOP:
+                    return "cabop";
+                case BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF:
+                    return "meta-taf";
+                case BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch:
+                default:
+                    return "botorch";
+            }
+        }
+
+        private static string NormalizeMetaWeightMode(BOforUnity.BoForUnityManager.MetaWeightMode mode)
+        {
+            return mode == BOforUnity.BoForUnityManager.MetaWeightMode.TafM ? "taf_m" : "taf_r";
         }
 
         private static string NormalizeCabopObjectiveMode(BOforUnity.BoForUnityManager.CabopObjectiveMode mode)
