@@ -159,8 +159,11 @@ class SourceStagingTests(unittest.TestCase):
             write_source(src, "flipped", frame=make_frame(self.fp, flip_minimize=True))
             write_source(src, "unframed", unframed=True)
             staging = tmp / "staged"
-            kept = self.runtime.validate_and_stage_sources(str(src), str(staging))
+            kept, rejected = self.runtime.validate_and_stage_sources(str(src), str(staging))
             self.assertEqual(kept, ["good_a", "good_b"])
+            self.assertEqual(len(rejected), 2)
+            self.assertTrue(any(r.startswith("'flipped'") for r in rejected), rejected)
+            self.assertTrue(any(r.startswith("'unframed'") for r in rejected), rejected)
             staged = sorted(p.stem for p in (staging / "gp_states").glob("*.json"))
             self.assertEqual(staged, ["good_a", "good_b"])
 
@@ -170,15 +173,18 @@ class SourceStagingTests(unittest.TestCase):
             src = tmp / "MetaSources"
             write_source(src, "unframed", unframed=True)
             with mock.patch.dict(os.environ, {"BO_META_ALLOW_UNFRAMED": "1"}):
-                kept = self.runtime.validate_and_stage_sources(str(src), str(tmp / "s"))
+                kept, rejected = self.runtime.validate_and_stage_sources(str(src), str(tmp / "s"))
             self.assertEqual(kept, ["unframed"])
+            self.assertEqual(rejected, [])
 
     def test_missing_source_dir_yields_no_sources(self):
         with tempfile.TemporaryDirectory() as tmp:
-            kept = self.runtime.validate_and_stage_sources(
+            kept, rejected = self.runtime.validate_and_stage_sources(
                 os.path.join(tmp, "nope"), os.path.join(tmp, "staged")
             )
             self.assertEqual(kept, [])
+            self.assertEqual(len(rejected), 1)
+            self.assertIn("gp_states", rejected[0])
 
 
 class MetaRuntimeProtocolTests(unittest.TestCase):
@@ -280,13 +286,15 @@ class MetaRuntimeProtocolTests(unittest.TestCase):
                 self.assertAlmostEqual(float(row[3]) + float(row[4]), 1.0, places=6)
 
     def test_zero_sources_falls_back_to_plain_mobo_run(self):
+        """Source-less runs stay possible, but only by explicit opt-out."""
         runtime = load_runtime()
         with tempfile.TemporaryDirectory() as tmp:
             tmp = pathlib.Path(tmp)
             responses = [{"o0": 2.0, "o1": 7.0}, {"o0": 4.0, "o1": 6.0}, {"o0": 1.0, "o1": 8.0}]
             conn = self._run_main(
                 runtime,
-                base_init_message(numSamplingIterations=2, numOptimizationIterations=1),
+                base_init_message(numSamplingIterations=2, numOptimizationIterations=1,
+                                  metaRequireSources=False),
                 responses,
                 {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)},
             )
@@ -296,6 +304,40 @@ class MetaRuntimeProtocolTests(unittest.TestCase):
             with open(weights_csv, newline="") as f:
                 w_rows = list(csv.reader(f, delimiter=";"))
             self.assertEqual(w_rows[0], ["Iteration", "TargetWeight", "DecayFactor"])
+
+    def test_zero_sources_fails_fast_by_default(self):
+        """metaRequireSources defaults to true: a source-less MetaTAF run must abort
+        instead of silently becoming the no-transfer control."""
+        runtime = load_runtime()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_main(
+                    runtime,
+                    base_init_message(),  # no metaRequireSources field -> default true
+                    [],
+                    {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)},
+                )
+            self.assertIn("metaRequireSources", str(ctx.exception))
+
+    def test_all_sources_rejected_fails_fast_with_reasons(self):
+        """A stale MetaSources dir (all frame-rejected) must abort and say why."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "stale", frame=make_frame(fp, flip_minimize=True))
+            with self.assertRaises(RuntimeError) as ctx:
+                self._run_main(
+                    runtime,
+                    base_init_message(),
+                    [],
+                    {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)},
+                )
+            msg = str(ctx.exception)
+            self.assertIn("'stale'", msg)
+            self.assertIn("different study frame", msg)
 
     def _assert_init_rejected(self, init_msg, expected_snippet):
         runtime = load_runtime()

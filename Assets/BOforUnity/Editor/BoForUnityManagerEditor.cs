@@ -51,6 +51,7 @@ namespace BOforUnity.Editor
         private SerializedProperty cabopMaxCumulativeCostProp;
         private SerializedProperty cabopGroupCostsProp;
         private SerializedProperty metaSourceDirProp;
+        private SerializedProperty metaRequireSourcesProp;
         private SerializedProperty metaWeightModeProp;
         private SerializedProperty metaRhoProp;
         private SerializedProperty metaTargetWeightProp;
@@ -137,6 +138,7 @@ namespace BOforUnity.Editor
             cabopMaxCumulativeCostProp = serializedObject.FindProperty("cabopMaxCumulativeCost");
             cabopGroupCostsProp = serializedObject.FindProperty("cabopGroupCosts");
             metaSourceDirProp = serializedObject.FindProperty("metaSourceDir");
+            metaRequireSourcesProp = serializedObject.FindProperty("metaRequireSources");
             metaWeightModeProp = serializedObject.FindProperty("metaWeightMode");
             metaRhoProp = serializedObject.FindProperty("metaRho");
             metaTargetWeightProp = serializedObject.FindProperty("metaTargetWeight");
@@ -333,6 +335,15 @@ namespace BOforUnity.Editor
                         "Meta Source Dir",
                         "Folder with the population models (gp_states/ + trajectories/), relative to " +
                         "StreamingAssets/BOData (or an absolute path). Generate it with meta_train.py."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    metaRequireSourcesProp,
+                    new GUIContent(
+                        "Meta Require Sources",
+                        "Abort the run when no population model survives frame validation, " +
+                        "instead of silently continuing as plain qLogNEHVI (the no-transfer " +
+                        "control). Keep this ON for studies."
                     )
                 );
                 EditorGUILayout.PropertyField(

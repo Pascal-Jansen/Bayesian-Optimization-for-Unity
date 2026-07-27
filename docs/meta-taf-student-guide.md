@@ -100,8 +100,15 @@ Then convert the pilot runs (any machine with the full Python stack + openbo):
 ```bash
 cd Assets/StreamingAssets/BOData/BayesianOptimization
 python meta_train.py --frame frame.json --out ../MetaSources ^
+    --source-type human --y-calibration measured ^
     ../LogData/p01/main/run ../LogData/p02/main/run ../LogData/p03/main/run
 ```
+
+`--source-type` and `--y-calibration` are **required provenance stamps** written into
+every artifact (and copied into each run's `MetaSourcesUsed/` audit trail): who produced
+the objective values (`human`, `llm-persona`, `synthetic`) and whether they were
+`measured` from real participants/systems or `generated` by a model. Label them honestly
+— a false "human/measured" stamp poisons the audit trail of every study using the source.
 
 For every run this fits one GP per objective, normalizes everything into the optimizer's
 internal space, stamps the frame into the artifact, and **self-checks** that the written
@@ -120,7 +127,9 @@ MetaSources/
 2. Leave **Meta Source Dir** at `MetaSources` (or point it at your folder; relative paths
    resolve against `StreamingAssets/BOData/`).
 3. Press play. The backend log lists which population models were accepted:
-   `Meta-TAF: using 3 population model(s): [...]`.
+   `Meta-TAF: using 3 population model(s): [...]`. If **none** is accepted, the run
+   aborts with the per-source rejection reasons (see **Meta Require Sources** below)
+   instead of silently continuing as plain multi-objective BO.
 
 That's it — the participant experience is identical to a normal run.
 
@@ -129,6 +138,7 @@ That's it — the participant experience is identical to a normal run.
 | Setting | Default | Meaning |
 |---|---|---|
 | Meta Source Dir | `MetaSources` | Folder holding `gp_states/` + `trajectories/`. |
+| Meta Require Sources | On | Abort at startup when no population model survives validation, instead of silently running plain qLogNEHVI — which would turn a MetaTAF condition into a no-transfer control. Disable only if a source-less run is genuinely intended. |
 | Meta Weight Mode | `TafR` | How population models are weighted. `TafR`: by Pareto-ranking agreement with the current user's observations (recommended — this is the negative-transfer guard). `TafM`: by meta-feature similarity. |
 | Meta Rho | `1.0` | Bandwidth of the weighting kernel. Smaller = stricter (disagreeing sources are dropped sooner). |
 | Meta Target Weight | `1.0` | Weight of the current user's own model in the blend. |
@@ -177,7 +187,7 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 | `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python BOforUnity uses** (README 8.5 shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` |
 | `source '<name>' was built for a different study frame; skipping: ...` | The artifact was generated for different names/bounds/minimize flags. The message lists the exact field. Regenerate with a matching `frame.json`. |
 | `source '<name>' carries no frame block; skipping` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
-| `Meta-TAF: no valid population models found` | Check Meta Source Dir path and that `gp_states/` + `trajectories/` contain paired `.json` files. The run still works (plain MOBO). |
+| `Meta-TAF: no valid population model found ... requires sources (metaRequireSources)` | The run aborts on purpose. Check the Meta Source Dir path, that `gp_states/` + `trajectories/` contain paired `.json` files, and the listed per-source rejection reasons; regenerate sources against the current frame. Only if a source-less (plain MOBO) run is genuinely intended, switch off **Meta Require Sources** in the inspector. |
 | Backend log stops right after `using N population model(s)` | Stale PyTorch JIT lock from a previously killed run. Current builds isolate this per-process; if you ever see it, delete `%LOCALAPPDATA%\torch_extensions` and restart. |
 | Suggestions feel slow | Per-iteration optimization cost grows with the number of population models (measured: ~5 s with 0 sources to ~17 s with 14 sources at study-quality settings, machine-dependent). Cap the population folder to the most relevant sources if needed. |
 | `MetaTAF does not support Warm Start` / contextual error | By design — see section 8. |

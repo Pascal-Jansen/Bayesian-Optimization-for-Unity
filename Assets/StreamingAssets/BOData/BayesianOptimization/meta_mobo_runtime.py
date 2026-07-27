@@ -6,8 +6,10 @@
 # optimizer is openbo's MOTAFSequentialOptimizer: BoTorch qLogNEHVI blended with
 # hypervolume-improvement terms from "source" models built offline from PRIOR runs
 # (population models in the sense of Liao et al., CHI '24). With zero valid sources the
-# acquisition degenerates exactly to plain qLogNEHVI, i.e. this backend behaves like a
-# (uniform-sampled) mobo.py run.
+# acquisition would degenerate exactly to plain qLogNEHVI, i.e. behave like a
+# (uniform-sampled) mobo.py run -- which would silently turn a MetaTAF study condition
+# into the no-transfer control. The backend therefore refuses to start when no source
+# survives validation, unless 'Meta Require Sources' is explicitly disabled in Unity.
 #
 # Deliberate scope limits (validated, not silently ignored):
 #   - multi-objective only (nObjectives >= 2),
@@ -51,6 +53,7 @@ NUM_OBJS = None  # must be >= 2
 
 # Meta-TAF configuration (overwritten from the init message's meta* fields).
 META_SOURCE_DIR = "MetaSources"
+META_REQUIRE_SOURCES = True  # abort (not silently degrade) when no valid source remains
 META_WEIGHT_MODE = "taf_r"
 META_RHO = 1.0
 META_TARGET_WEIGHT = 1.0
@@ -252,6 +255,25 @@ def get_cfg_float(cfg, key, default=None, required=False):
         raise ValueError(f"Missing required config field '{key}'")
     return float(default) if default is not None else None
 
+
+def get_cfg_bool(cfg, key, default=None, required=False):
+    if key in cfg and cfg.get(key) is not None:
+        val = cfg.get(key)
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)) and float(val) in (0.0, 1.0):
+            return bool(val)
+        if isinstance(val, str):
+            token = val.strip().lower()
+            if token in ("true", "1"):
+                return True
+            if token in ("false", "0"):
+                return False
+        raise ValueError(f"Config field '{key}' must be a boolean, got {cfg.get(key)!r}")
+    if required:
+        raise ValueError(f"Missing required config field '{key}'")
+    return default
+
 # -------------------- openbo import (lazy, fail-fast) --------------------
 def _import_openbo():
     """Import the openbo pieces this backend needs, with an actionable error."""
@@ -290,7 +312,11 @@ def resolve_meta_source_dir():
 
 
 def validate_and_stage_sources(source_dir, staging_dir):
-    """Copy frame-compatible artifact pairs into ``staging_dir``; return kept names.
+    """Copy frame-compatible artifact pairs into ``staging_dir``.
+
+    Returns ``(kept_names, rejected_reasons)``; ``rejected_reasons`` holds one
+    human-readable line per skipped candidate, which meta_execute folds into the
+    fail-fast error when metaRequireSources is set and nothing survives.
 
     Every source artifact must carry the canonical frame it was generated from
     (parameter names + bounds, objective names + bounds + minimize flags). Artifacts are
@@ -309,11 +335,13 @@ def validate_and_stage_sources(source_dir, staging_dir):
     os.makedirs(os.path.join(staging_dir, "trajectories"), exist_ok=True)
 
     if not os.path.isdir(gp_dir):
-        print(f"Meta-TAF: source directory has no gp_states folder: {gp_dir}", flush=True)
-        return []
+        reason = f"source directory has no gp_states folder: {gp_dir}"
+        print(f"Meta-TAF: {reason}", flush=True)
+        return [], [reason]
 
     allow_unframed = os.environ.get("BO_META_ALLOW_UNFRAMED", "0") == "1"
     kept = []
+    rejected = []
     for fname in sorted(os.listdir(gp_dir)):
         if not fname.endswith(".json"):
             continue
@@ -322,12 +350,14 @@ def validate_and_stage_sources(source_dir, staging_dir):
         traj_path = os.path.join(traj_dir, fname)
         if not os.path.exists(traj_path):
             print(f"Meta-TAF: source '{name}' has no trajectory file; skipping.", flush=True)
+            rejected.append(f"'{name}': no trajectory file")
             continue
         try:
             with open(gp_path, "r", encoding="utf-8") as f:
                 gp_payload = json.load(f)
         except (OSError, json.JSONDecodeError) as e:
             print(f"Meta-TAF: source '{name}' gp_states unreadable ({e}); skipping.", flush=True)
+            rejected.append(f"'{name}': gp_states unreadable ({e})")
             continue
 
         frame = gp_payload.get("frame")
@@ -339,6 +369,7 @@ def validate_and_stage_sources(source_dir, staging_dir):
                     "if you really know the frames match).",
                     flush=True,
                 )
+                rejected.append(f"'{name}': no frame block (predates frame stamping?)")
                 continue
         else:
             diffs = meta_fingerprint.frame_differences(FRAME, frame)
@@ -349,13 +380,16 @@ def validate_and_stage_sources(source_dir, staging_dir):
                 )
                 for d in diffs:
                     print(f"    - {d}", flush=True)
+                rejected.append(
+                    f"'{name}': built for a different study frame (" + "; ".join(diffs) + ")"
+                )
                 continue
 
         shutil.copyfile(gp_path, os.path.join(staging_dir, "gp_states", fname))
         shutil.copyfile(traj_path, os.path.join(staging_dir, "trajectories", fname))
         kept.append(name)
 
-    return kept
+    return kept, rejected
 
 # -------------------- objective evaluation over the socket --------------------
 def recv_objectives_blocking(conn):
@@ -505,13 +539,26 @@ def meta_execute(conn, seed, iterations, initial_samples):
     # Stage frame-validated sources into the run folder (also the audit trail).
     source_dir = resolve_meta_source_dir()
     staging_dir = os.path.join(PROJECT_PATH, "MetaSourcesUsed")
-    kept = validate_and_stage_sources(source_dir, staging_dir)
+    kept, rejected = validate_and_stage_sources(source_dir, staging_dir)
     if kept:
         print(f"Meta-TAF: using {len(kept)} population model(s): {kept}", flush=True)
+    elif META_REQUIRE_SOURCES:
+        detail = ""
+        if rejected:
+            detail = "\nRejected candidate(s):\n" + "\n".join(f"    - {r}" for r in rejected)
+        raise RuntimeError(
+            f"Meta-TAF: no valid population model found under '{source_dir}' and this run "
+            "requires sources (metaRequireSources). Without sources the run would silently "
+            "degrade to plain qLogNEHVI, turning a MetaTAF study condition into the "
+            "no-transfer control. Fix 'Meta Source Dir' or regenerate the sources with "
+            "meta_train.py against the CURRENT study frame; only if a source-less run is "
+            "genuinely intended, disable 'Meta Require Sources' in the BoForUnityManager "
+            "Inspector." + detail
+        )
     else:
         print(
-            "Meta-TAF: no valid population models found; "
-            "running plain multi-objective BO (qLogNEHVI).",
+            "Meta-TAF: no valid population models found; running plain multi-objective "
+            "BO (qLogNEHVI) because 'Meta Require Sources' is disabled.",
             flush=True,
         )
 
@@ -591,7 +638,7 @@ def meta_execute(conn, seed, iterations, initial_samples):
 def main():
     global N_INITIAL, N_ITERATIONS, BATCH_SIZE, NUM_RESTARTS, RAW_SAMPLES, MC_SAMPLES, SEED
     global PROBLEM_DIM, NUM_OBJS
-    global META_SOURCE_DIR, META_WEIGHT_MODE, META_RHO, META_TARGET_WEIGHT
+    global META_SOURCE_DIR, META_REQUIRE_SOURCES, META_WEIGHT_MODE, META_RHO, META_TARGET_WEIGHT
     global META_WARMUP_ITERS, META_DECAY_START_ITER, META_DECAY_RATE
     global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID
     global parameter_names, objective_names, parameters_info, objectives_info, FRAME
@@ -650,6 +697,7 @@ def main():
         NUM_OBJS       = get_cfg_int(cfg, "nObjectives", required=True)
 
         META_SOURCE_DIR       = str(cfg.get("metaSourceDir") or META_SOURCE_DIR)
+        META_REQUIRE_SOURCES  = get_cfg_bool(cfg, "metaRequireSources", default=META_REQUIRE_SOURCES)
         META_WEIGHT_MODE      = str(cfg.get("metaWeightMode") or META_WEIGHT_MODE).strip().lower()
         META_RHO              = get_cfg_float(cfg, "metaRho", default=META_RHO)
         META_TARGET_WEIGHT    = get_cfg_float(cfg, "metaTargetWeight", default=META_TARGET_WEIGHT)
@@ -745,6 +793,7 @@ def main():
             N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
             N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS,
             META_WEIGHT_MODE=META_WEIGHT_MODE, META_SOURCE_DIR=META_SOURCE_DIR,
+            META_REQUIRE_SOURCES=META_REQUIRE_SOURCES,
             META_WARMUP_ITERS=META_WARMUP_ITERS,
             META_DECAY=(META_DECAY_START_ITER, META_DECAY_RATE),
             FRAME_DIGEST=meta_fingerprint.frame_digest(FRAME),

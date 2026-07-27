@@ -611,7 +611,7 @@ Log folders are created below `Assets/StreamingAssets/BOData/LogData/`. The user
 * **CABOP**: cost-aware optimization backend with selectable objective mode:
   * `SingleObjective` -> `cabop_bo.py` (requires exactly 1 objective).
   * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
-* **MetaTAF**: multi-objective Meta-BO backend (`meta_mobo.py`, requires at least 2 objectives). Transfers knowledge from *population models* built from prior participants' runs so new users converge in fewer iterations; with no population models it behaves like plain multi-objective BO. See section 8.14 and the [student guide](docs/meta-taf-student-guide.md).
+* **MetaTAF**: multi-objective Meta-BO backend (`meta_mobo.py`, requires at least 2 objectives). Transfers knowledge from *population models* built from prior participants' runs so new users converge in fewer iterations; if no valid population model is found, the run aborts by default (**Meta Require Sources**) rather than silently running plain multi-objective BO. See section 8.14 and the [student guide](docs/meta-taf-student-guide.md).
 
 CABOP addresses the practical case where design changes do not all have the same evaluation cost. For the broader cost-aware BO motivation and terminology, see Langerak, Zhang, Wang, Kristensson, and Oulasvirta's [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024).
 
@@ -992,11 +992,15 @@ Quick facts:
 * Requires the **openbo** Python package (one extra `pip install`; see the guide).
 * Population models are generated **offline** with `meta_train.py` from prior runs'
   `ObservationsPerEvaluation.csv` and placed under `StreamingAssets/BOData/MetaSources/`.
+  The tool requires explicit provenance stamps (`--source-type`, `--y-calibration`), so
+  artifacts can never silently claim human-measured data they do not contain.
 * Sources whose parameter/objective definitions (names, bounds, minimize flags) do not
   exactly match the live study are **skipped with an explanation** — this protects you from
   silently transferring a mismatched or inverted response surface.
-* With **zero** valid sources the backend runs plain multi-objective BO, so it is always
-  safe to enable.
+* With **zero** valid sources the run **aborts by default** (`Meta Require Sources`
+  inspector toggle) and lists why each candidate was rejected — a MetaTAF study condition
+  must not silently degrade into the no-transfer control. Disable the toggle only for an
+  intentionally source-less (plain multi-objective BO) run.
 * Not compatible with Warm Start (population models replace it) or Contextual Optimization
   (LCE-M stays BoTorch-only).
 * Each run writes an extra `MetaWeightsPerEvaluation.csv` logging how strongly each
@@ -1030,6 +1034,7 @@ earlier ones (an ordering confound). Details and citations in the guide.
 | Logs appear under a suffixed user folder such as `_1` | A folder with the requested `User ID` already existed | This is expected overwrite protection. Use the suffixed folder as the current run's user folder. |
 | MetaTAF: `The Meta-TAF backend needs the 'openbo' package` | openbo is not installed for the Python that BOforUnity launches | `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` with that same Python (see [student guide](docs/meta-taf-student-guide.md)). |
 | MetaTAF: `source '<name>' was built for a different study frame; skipping` | The population model was generated for different parameter/objective names, bounds, or minimize flags | Regenerate sources with `meta_train.py` using a `frame.json` that matches the current study exactly. This check is intentional. |
+| MetaTAF: `no valid population model found ... requires sources (metaRequireSources)` | No source survived validation (stale or mismatched `MetaSources`, wrong dir) — the backend aborts by design so a MetaTAF condition cannot silently become the no-transfer control | Fix `Meta Source Dir` or regenerate sources against the current frame; the error lists each rejection reason. Only for intentionally source-less runs, disable `Meta Require Sources`. |
 | MetaTAF run never proposes parameters and the log stops after "using N population model(s)" | A previous backend process was killed mid-run and left a stale PyTorch JIT lock | Newer builds isolate this automatically. If it still happens, delete `%LOCALAPPDATA%\torch_extensions` and restart. |
 | Questionnaire CSV is not in the same condition folder as app/BO logs | `QTQuestionnaireManager.resultsSavePath` or `Save Results In BO Context Folders` was changed | Set `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/` and keep `Save Results In BO Context Folders` enabled. |
 | "Contextual optimization is only supported with the BoTorch backend" | Contextual optimization enabled together with the CABOP backend | Switch `Optimizer Backend` to BoTorch or disable contextual optimization. See [8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp). |

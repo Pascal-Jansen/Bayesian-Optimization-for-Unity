@@ -9,6 +9,18 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+### Changed
+- **MetaTAF fails fast when no population model survives validation** instead of silently running plain qLogNEHVI, which would turn a MetaTAF study condition into the no-transfer control. New `Meta Require Sources` inspector toggle (default ON, `metaRequireSources` init field); the startup error lists why each candidate source was rejected. Disable the toggle only for intentionally source-less runs.
+- `meta_train.py` now **requires** `--source-type {human,llm-persona,synthetic}` and `--y-calibration {measured,generated}`: provenance is caller-declared instead of hardcoded `human`/`measured`, which mislabeled model-generated (e.g. LLM-persona) sources in every artifact and downstream `MetaSourcesUsed/` audit trail.
+- `meta_train.py` fits each objective with 8 deterministic restarts and keeps the best fit, scored against the Standardize-transformed `gp.train_targets` (the quantity `fit_gpytorch_mll` maximizes) — guarding against degenerate "collapse to noise" fits on small noisy runs. Scoring restarts against raw targets would be systematically biased toward exactly those degenerate fits.
+
+### Fixed
+- Population-model artifacts now export the fitted GP's constant mean (`mean_constant`) and the openbo loader replays it, making the export->replay round trip bit-exact (previously the rebuilt model's mean defaulted to 0 in standardized space and deviated in data-sparse regions). Needs the matching openbo update; older artifacts still load unchanged (constant 0). Regenerate artifacts to benefit.
+- A source whose Pareto front never strictly dominates the reference point `[-1]^M` (an objective stuck at its worst bound) is refused by `meta_train.py` up front, and the openbo optimizer warn-skips such a source at construction instead of aborting the participant session.
+
+### Tests
+- 2 new MetaTAF runtime tests (fail-fast on zero and on all-rejected sources; 195 total), plus 2 new tests in openbo (mean-constant replay, warn-skip at optimizer construction; 40 total there).
+
 ## [1.6.0] - 2026-07-25
 
 ### Meta-BO backend (MetaTAF, TAF-EHVI)

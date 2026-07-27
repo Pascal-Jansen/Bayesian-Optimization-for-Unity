@@ -39,6 +39,7 @@ namespace BOforUnity.Scripts
         public float cabopMaxCumulativeCost;
         // Meta-TAF backend settings (ignored by the other backends).
         public string metaSourceDir, metaWeightMode;
+        public bool metaRequireSources;
         public float metaRho, metaTargetWeight, metaDecayRate;
         public int metaWarmupIters, metaDecayStartIter;
     }
@@ -704,6 +705,7 @@ namespace BOforUnity.Scripts
                     cabopEnableCostBudget = _bomanager.cabopEnableCostBudget,
                     cabopMaxCumulativeCost = _bomanager.cabopMaxCumulativeCost,
                     metaSourceDir = _bomanager.metaSourceDir,
+                    metaRequireSources = _bomanager.metaRequireSources,
                     metaWeightMode = NormalizeMetaWeightMode(_bomanager.metaWeightMode),
                     metaRho = _bomanager.metaRho,
                     metaTargetWeight = _bomanager.metaTargetWeight,

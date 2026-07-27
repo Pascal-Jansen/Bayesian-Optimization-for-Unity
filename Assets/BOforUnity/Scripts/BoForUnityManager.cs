@@ -124,6 +124,11 @@ namespace BOforUnity
         // optimizerBackend == MetaTAF. Population models are generated offline with
         // meta_train.py and placed under StreamingAssets/BOData/<metaSourceDir>.
         public string metaSourceDir = "MetaSources";
+        // Abort the run when no population model survives frame validation, instead of
+        // silently continuing as plain qLogNEHVI (which would turn a MetaTAF study
+        // condition into the no-transfer control). Keep this ON for studies; only
+        // disable it if a source-less run is genuinely intended.
+        public bool metaRequireSources = true;
         public MetaWeightMode metaWeightMode = MetaWeightMode.TafR;
         [Min(0.0001f)] public float metaRho = 1.0f;
         [Min(0.0001f)] public float metaTargetWeight = 1.0f;
