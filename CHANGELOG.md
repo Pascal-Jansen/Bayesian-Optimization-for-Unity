@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-07-27
+
 ### Changed
 - **MetaTAF fails fast when no population model survives validation** instead of silently running plain qLogNEHVI, which would turn a MetaTAF study condition into the no-transfer control. New `Meta Require Sources` inspector toggle (default ON, `metaRequireSources` init field); the startup error lists why each candidate source was rejected. Disable the toggle only for intentionally source-less runs.
 - `meta_train.py` now **requires** `--source-type {human,llm-persona,synthetic}` and `--y-calibration {measured,generated}`: provenance is caller-declared instead of hardcoded `human`/`measured`, which mislabeled model-generated (e.g. LLM-persona) sources in every artifact and downstream `MetaSourcesUsed/` audit trail.
