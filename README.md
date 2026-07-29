@@ -21,6 +21,7 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 - Automatic, robust communication with a [BoTorch](https://botorch.org/)-based MOBO process.
 - MOBO metric calculations use [moocore](https://github.com/multi-objective/moocore) for Pareto-front and hypervolume utilities.
 - Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
+- Dynamic BO backend (DBO) for single-objective studies whose cost **drifts during the session** (participant adaptation, learning, fatigue): the GP discounts past observations by a fitted temporal decay, with a one-toggle stationary baseline for matched control conditions; see Kim & Sergi's [Validation of Dynamic Bayesian Optimization for a Non-Stationary Human-in-the-Loop Optimization Problem](https://doi.org/10.1109/LRA.2026.3665072) for background.
 - Contextual optimization with a latent context embedding multi-task GP (LCE-M; see Feng et al.'s [High-Dimensional Contextual Policy Search with Unknown Context Rewards using Bayesian Optimization](https://proceedings.neurips.cc/paper/2020/hash/faff959d885ec1ecf843a3f45087e047-Abstract.html), NeurIPS 2020): reuse observations from other contexts (users, devices, environments) with **definable context embeddings** — learned from data, supplied manually from any encoder, or computed from context images with an open_clip vision transformer such as ViT-G/14.
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
@@ -89,6 +90,8 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
   * [8.11 Model and Algorithm Hyperparameters](#811-model-and-algorithm-hyperparameters)
   * [8.12 Output Files and Metrics](#812-output-files-and-metrics)
   * [8.13 Contextual Optimization and Context Embeddings (LCE-M GP)](#813-contextual-optimization-and-context-embeddings-lce-m-gp)
+  * [8.14 Meta-BO (MetaTAF): Transfer from Prior Participants](#814-meta-bo-metataf-transfer-from-prior-participants)
+  * [8.15 Dynamic BO (DBO): Optimizing a Drifting Objective](#815-dynamic-bo-dbo-optimizing-a-drifting-objective)
 * [9. Troubleshooting](#9-troubleshooting)
 * [10. System Architecture](#10-system-architecture)
 * [11. Portability to Your Own Project](#11-portability-to-your-own-project)
@@ -605,13 +608,14 @@ Log folders are created below `Assets/StreamingAssets/BOData/LogData/`. The user
 
 ### 8.7 Optimizer Backend and CABOP Settings
 
-`BoForUnityManager` now supports three backends:
+`BoForUnityManager` now supports four backends:
 
 * **BoTorch**: existing behavior (`bo.py` for single-objective, `mobo.py` for multi-objective). In `mobo.py`, BoTorch handles the GP model and acquisition function, while [moocore](https://github.com/multi-objective/moocore) computes Pareto flags and hypervolume metrics.
 * **CABOP**: cost-aware optimization backend with selectable objective mode:
   * `SingleObjective` -> `cabop_bo.py` (requires exactly 1 objective).
   * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
 * **MetaTAF**: multi-objective Meta-BO backend (`meta_mobo.py`, requires at least 2 objectives). Transfers knowledge from *population models* built from prior participants' runs so new users converge in fewer iterations; if no valid population model is found, the run aborts by default (**Meta Require Sources**) rather than silently running plain multi-objective BO. See section 8.14 and the [student guide](docs/meta-taf-student-guide.md).
+* **DBO**: dynamic BO backend (`dbo.py`, requires exactly 1 objective) for costs that **drift while the study runs** — participant adaptation, learning, fatigue. The GP covariance is multiplied by a temporal decay `alpha^|t-t'|` whose rate is fitted from the data, so the optimizer infers how fast the participant is changing instead of assuming they are not; a **DBO Stationary Baseline** toggle pins `alpha = 1` for the matched plain-BO control condition. See section 8.15 and [docs/dbo-backend.md](docs/dbo-backend.md).
 
 CABOP addresses the practical case where design changes do not all have the same evaluation cost. For the broader cost-aware BO motivation and terminology, see Langerak, Zhang, Wang, Kristensson, and Oulasvirta's [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024).
 
@@ -669,6 +673,8 @@ Backend selection:
   * `CABOP Objective Mode = SingleObjective` uses `cabop_bo.py`.
   * `CABOP Objective Mode = MultiObjectiveScalarized` uses `cabop_mobo.py`.
   * CABOP internally minimizes a scalar objective. For multi-objective mode, scalarization uses objective bounds, direction (`Smaller is Better`), and `CABOP Weight`.
+* `Optimizer Backend = MetaTAF` uses `meta_mobo.py` (requires `m >= 2`).
+* `Optimizer Backend = DBO` uses `dbo.py` (requires `m = 1`).
 
 ![Problem Setup](./images/problem_setup.png)
 
@@ -851,6 +857,8 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 
 
 > **Note:** Recommended default: `Sampling Iterations = 2(d + 1)`, where `d` is the number of design parameters. Warm start sets sampling iterations to `0`.
+
+> **Note:** The DBO backend uses analytic (log) Expected Improvement, so **MC Samples** has no effect there; `Num Restarts`, `Raw Samples`, and `Seed` apply as usual.
 <a id="BO_hyper_settings"></a>
 
 ![Hyperparameter Settings](./images/BO_hyperparameter_settings.png)
@@ -872,6 +880,7 @@ LogData/
         ObservationsPerEvaluation.csv
         ExecutionTimes.csv
         HypervolumePerEvaluation.csv or BestObjectivePerEvaluation.csv
+        DboDiagnosticsPerEvaluation.csv   (DBO backend only)
       CABOP/
         single/run/
         multi/run/
@@ -911,6 +920,10 @@ CABOP (`cabop_bo.py` / `cabop_mobo.py`):
   * single mode: `BestObjectivePerEvaluation.csv`
   * multi mode: `HypervolumePerEvaluation.csv` (stores CABOP coverage trace for compatibility)
 * Unity `coverage` is `1 - best_scalarized_objective` (higher is better).
+
+DBO (`dbo.py`, `m = 1`):
+* Writes the same files as single-objective BO (`IsBest`, `BestObjectivePerEvaluation.csv`, legacy `HypervolumePerEvaluation.csv` mirror), to the same `run/` folder, so existing analysis scripts keep working; `coverage` keeps its best-so-far meaning.
+* Additionally writes `DboDiagnosticsPerEvaluation.csv` (`Iteration;Phase;IsValidation;Alpha;PredictedCost;PredictedSd;ObservedCost;ObservedObjective;SuggestSeconds`). `Alpha` is the fitted temporal decay per iteration — near `1.0` throughout means the objective did not measurably drift; `PredictedCost` vs `ObservedCost` on validation rows measures model accuracy independently of exploration luck. See [8.15](#815-dynamic-bo-dbo-optimizing-a-drifting-objective).
 
 During sampling, Unity `tempCoverage` is a progress value in `[0,1]`.
 
@@ -1015,6 +1028,45 @@ model set **before** the main study and give every participant the identical set
 accumulating sources across your analyzed participants makes later participants depend on
 earlier ones (an ordering confound). Details and citations in the guide.
 
+### 8.15 Dynamic BO (DBO): Optimizing a Drifting Objective
+
+Standard BO assumes the same design yields the same response all session. Human-in-the-loop
+studies break that assumption routinely: participants adapt, learn, fatigue, and habituate,
+so the optimum **moves while the optimizer is searching for it**. A stationary GP explains
+the resulting mismatch as noise, widens its error bars, and keeps recommending a design
+that stopped being optimal.
+
+The DBO backend (`dbo.py`, single-objective) multiplies the GP covariance by a temporal
+decay `alpha^|t-t'|` and fits `alpha in (0, 1]` from the data by marginal likelihood, so
+the model *infers how fast the participant is changing* rather than being told. At
+`alpha = 1` it reduces exactly to stationary BO — which is why the baseline is a toggle,
+not a separate implementation.
+
+Inspector settings (visible when `Backend = DBO`):
+
+* **DBO Spatial Kernel** (`Rbf` default): covariance over design parameters; Rbf matches the reference DBO implementation.
+* **DBO Alpha Parameterization** (`Decay` default): `Decay` reproduces the reference implementation; `Direct` behaves better when drift is fast.
+* **DBO Initial Alpha** (`0.99`): starting decay rate before fitting.
+* **DBO Exploration Ratio** (`0.1`): re-search with inflated variance when the acquisition collapses onto a design the model is already sure about; `0` disables.
+* **DBO Acquisition Time Offset** (`0`): `0` scores candidates at the current time (reference behavior); `1` scores them at the time they will actually be evaluated.
+* **DBO Validation Every** (`0` = off): every N iterations apply the model's **best estimate** instead of an exploratory point. Validation iterations make optimizers comparable across conditions — without them, differences in exploration policy confound the comparison.
+* **DBO Validation Confidence** (`0.01`) and **DBO Validation Visited Only** (on): how the best estimate is selected (upper-confidence bound; restricted to already-tried designs, the reference behavior).
+* **DBO Stationary Baseline** (off): pin `alpha = 1` — plain BO with everything else identical, the ablation/control condition.
+
+Notes and constraints:
+
+* Requires exactly **1 objective**; not compatible with Contextual Optimization (LCE-M stays BoTorch-only).
+* Sampling uses the same Sobol draw as the BoTorch backend for matching config, so a DBO condition and a BoTorch/stationary-baseline condition visit **identical sampling points** and diverge only once the model takes over.
+* Warm start works, with a modelling caveat: imported rows carry no timestamps, so they are replayed as the immediately preceding iterations — the decay kernel treats last week's session as if it ended moments ago. If the participant plausibly changed between sessions, that is an implicit assumption; stationary BO has no equivalent exposure.
+* After every run, check `Alpha` in `DboDiagnosticsPerEvaluation.csv` (also printed live to the Unity console): **near `1.0` throughout means the objective did not measurably drift and the BoTorch backend would have done the same job.**
+
+The implementation is the BSD-3-Clause [dbo-torch](https://github.com/M-Colley/dbo-torch)
+package (validated against the reference MATLAB implementation to ~1e-14), vendored under
+`BOData/BayesianOptimization/dbo_torch/`. Method: Kim & Sergi,
+[Comput. Methods Biomech. Biomed. Eng. 2025](https://doi.org/10.1080/10255842.2025.2595150)
+and [IEEE RA-L 2026](https://doi.org/10.1109/LRA.2026.3665072). Backend details, protocol
+check, and vendor-update instructions: [docs/dbo-backend.md](docs/dbo-backend.md).
+
 ---
 
 ## 9. Troubleshooting
@@ -1036,6 +1088,9 @@ earlier ones (an ordering confound). Details and citations in the guide.
 | MetaTAF: `source '<name>' was built for a different study frame; skipping` | The population model was generated for different parameter/objective names, bounds, or minimize flags | Regenerate sources with `meta_train.py` using a `frame.json` that matches the current study exactly. This check is intentional. |
 | MetaTAF: `no valid population model found ... requires sources (metaRequireSources)` | No source survived validation (stale or mismatched `MetaSources`, wrong dir) — the backend aborts by design so a MetaTAF condition cannot silently become the no-transfer control | Fix `Meta Source Dir` or regenerate sources against the current frame; the error lists each rejection reason. Only for intentionally source-less runs, disable `Meta Require Sources`. |
 | MetaTAF run never proposes parameters and the log stops after "using N population model(s)" | A previous backend process was killed mid-run and left a stale PyTorch JIT lock | Newer builds isolate this automatically. If it still happens, delete `%LOCALAPPDATA%\torch_extensions` and restart. |
+| DBO: `The DBO backend is single-objective` at startup | More (or fewer) than one objective configured with `Backend = DBO` | Configure exactly one objective, or use the BoTorch/MetaTAF backends for multi-objective studies. |
+| DBO: fitted `Alpha` stays at ~1.0 for the whole run | The objective did not measurably drift during the session | Not an error — but DBO is buying you nothing over plain BO here. Use the BoTorch backend, or keep DBO with **Stationary Baseline** as the control in a comparison. |
+| DBO: `dboValidationConfidence is a tail mass` error | The confidence was given as a confidence level (e.g. `0.99`) instead of a tail probability | Pass the tail mass, e.g. `0.01` for a 99% upper-confidence bound. |
 | Questionnaire CSV is not in the same condition folder as app/BO logs | `QTQuestionnaireManager.resultsSavePath` or `Save Results In BO Context Folders` was changed | Set `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/` and keep `Save Results In BO Context Folders` enabled. |
 | "Contextual optimization is only supported with the BoTorch backend" | Contextual optimization enabled together with the CABOP backend | Switch `Optimizer Backend` to BoTorch or disable contextual optimization. See [8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp). |
 | `embeddingSource=image requires the optional dependencies ...` in Python logs | `open_clip_torch`/`pillow` are not installed in the optimizer's Python environment | Run `python -m pip install open_clip_torch pillow` with the same interpreter configured in Python Settings. |

@@ -33,7 +33,11 @@ namespace BOforUnity
             CABOP = 1,
             // Multi-objective Meta-BO (TAF-EHVI): qLogNEHVI blended with hypervolume
             // improvement terms from population models built from prior runs.
-            MetaTAF = 2
+            MetaTAF = 2,
+            // Dynamic BO: the GP covariance is multiplied by a fitted temporal decay
+            // alpha^|t-t'|, for objectives that drift during a session (adaptation,
+            // learning, fatigue). Single-objective. See Kim & Sergi, RA-L 2026.
+            DBO = 3
         }
 
         public enum MetaWeightMode
@@ -55,6 +59,22 @@ namespace BOforUnity
             Actual = 0,
             Intended = 1,
             Both = 2
+        }
+
+        public enum DboSpatialKernel
+        {
+            // Squared exponential with ARD — what the reference DBO kernel uses.
+            Rbf = 0,
+            Matern52 = 1
+        }
+
+        public enum DboAlphaParameterization
+        {
+            // Fit 1 - alpha in log space, reproducing the reference implementation.
+            Decay = 0,
+            // Fit alpha directly under an interval constraint; better behaved when
+            // drift is fast (alpha expected well below 1).
+            Direct = 1
         }
 
         public enum ContextEmbeddingSource
@@ -135,6 +155,32 @@ namespace BOforUnity
         [Min(0)] public int metaWarmupIters = 1;
         [Min(0)] public int metaDecayStartIter = 2;
         [Range(0f, 1f)] public float metaDecayRate = 0.3f;
+
+        // Dynamic BO settings; only read when optimizerBackend == DBO. The fitted
+        // decay rate alpha is logged per iteration to DboDiagnosticsPerEvaluation.csv —
+        // if it stays near 1.0 for a whole run, the objective did not measurably
+        // drift and plain BoTorch BO would have done the same job.
+        public DboSpatialKernel dboSpatialKernel = DboSpatialKernel.Rbf;
+        public DboAlphaParameterization dboAlphaParameterization = DboAlphaParameterization.Decay;
+        [Range(0.01f, 1f)] public float dboInitialAlpha = 0.99f;
+        // 0 scores acquisition candidates at the current time (reference behaviour);
+        // 1 scores them at the time they will actually be evaluated.
+        [Min(0f)] public float dboAcquisitionTimeOffset = 0f;
+        // Every N iterations apply the model's best estimate instead of an
+        // acquisition-driven point, so optimisers can be compared without their
+        // exploration policies confounding the result. 0 disables.
+        [Min(0)] public int dboValidationEvery = 0;
+        // Tail probability of the validation upper confidence bound (0.01 ~ mean + 2.33 sd).
+        [Range(0.0001f, 0.5f)] public float dboValidationConfidence = 0.01f;
+        // Restrict validation candidates to already-evaluated inputs (reference
+        // behaviour). Off searches the continuous domain, which tracks fast drift better.
+        public bool dboValidationVisitedOnly = true;
+        // Re-search with inflated signal variance when the acquisition collapses onto
+        // a point the model is already sure about. 0 disables (plain EI). The source
+        // study used 0.1, favouring exploitation.
+        [Range(0f, 1f)] public float dboExplorationRatio = 0.1f;
+        // Pin alpha = 1, reducing DBO to stationary BO — the ablation/baseline condition.
+        public bool dboStationaryBaseline = false;
 
         // Contextual optimization (LCE-M multi-task GP; BoTorch backend only).
         // Observations are tagged with the current context; warm-start data from

@@ -521,6 +521,20 @@ namespace BOforUnity.Scripts
                 return true;
             }
 
+            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.DBO)
+            {
+                if (effectiveObjectiveCount != 1)
+                {
+                    error =
+                        "The DBO backend is single-objective: configure exactly one objective " +
+                        "(the temporal-decay GP models one drifting cost).";
+                    return false;
+                }
+
+                scriptName = "dbo.py";
+                return true;
+            }
+
             error = "Unsupported optimizer backend/objective mode combination.";
             return false;
         }

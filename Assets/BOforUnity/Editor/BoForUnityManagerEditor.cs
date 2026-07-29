@@ -58,6 +58,15 @@ namespace BOforUnity.Editor
         private SerializedProperty metaWarmupItersProp;
         private SerializedProperty metaDecayStartIterProp;
         private SerializedProperty metaDecayRateProp;
+        private SerializedProperty dboSpatialKernelProp;
+        private SerializedProperty dboAlphaParameterizationProp;
+        private SerializedProperty dboInitialAlphaProp;
+        private SerializedProperty dboExplorationRatioProp;
+        private SerializedProperty dboAcquisitionTimeOffsetProp;
+        private SerializedProperty dboValidationEveryProp;
+        private SerializedProperty dboValidationConfidenceProp;
+        private SerializedProperty dboValidationVisitedOnlyProp;
+        private SerializedProperty dboStationaryBaselineProp;
         private SerializedProperty contextualOptimizationProp;
         private SerializedProperty contextEmbeddingSourceProp;
         private SerializedProperty currentContextKeyProp;
@@ -145,6 +154,15 @@ namespace BOforUnity.Editor
             metaWarmupItersProp = serializedObject.FindProperty("metaWarmupIters");
             metaDecayStartIterProp = serializedObject.FindProperty("metaDecayStartIter");
             metaDecayRateProp = serializedObject.FindProperty("metaDecayRate");
+            dboSpatialKernelProp = serializedObject.FindProperty("dboSpatialKernel");
+            dboAlphaParameterizationProp = serializedObject.FindProperty("dboAlphaParameterization");
+            dboInitialAlphaProp = serializedObject.FindProperty("dboInitialAlpha");
+            dboExplorationRatioProp = serializedObject.FindProperty("dboExplorationRatio");
+            dboAcquisitionTimeOffsetProp = serializedObject.FindProperty("dboAcquisitionTimeOffset");
+            dboValidationEveryProp = serializedObject.FindProperty("dboValidationEvery");
+            dboValidationConfidenceProp = serializedObject.FindProperty("dboValidationConfidence");
+            dboValidationVisitedOnlyProp = serializedObject.FindProperty("dboValidationVisitedOnly");
+            dboStationaryBaselineProp = serializedObject.FindProperty("dboStationaryBaseline");
             contextualOptimizationProp = serializedObject.FindProperty("contextualOptimization");
             contextEmbeddingSourceProp = serializedObject.FindProperty("contextEmbeddingSource");
             currentContextKeyProp = serializedObject.FindProperty("currentContextKey");
@@ -263,8 +281,9 @@ namespace BOforUnity.Editor
                 optimizerBackendProp,
                 new GUIContent(
                     "Backend",
-                    "Choose BoTorch (bo.py/mobo.py), CABOP (cost-aware backend), or MetaTAF " +
-                    "(multi-objective Meta-BO that transfers from population models of prior runs)."
+                    "Choose BoTorch (bo.py/mobo.py), CABOP (cost-aware backend), MetaTAF " +
+                    "(multi-objective Meta-BO that transfers from population models of prior runs), " +
+                    "or DBO (dynamic BO for a single objective that drifts during the session)."
                 )
             );
 
@@ -272,6 +291,8 @@ namespace BOforUnity.Editor
                             BoForUnityManager.OptimizerBackend.CABOP;
             bool useMetaTaf = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
                               BoForUnityManager.OptimizerBackend.MetaTAF;
+            bool useDbo = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
+                          BoForUnityManager.OptimizerBackend.DBO;
             if (useCabop)
             {
                 EditorGUILayout.PropertyField(
@@ -408,7 +429,102 @@ namespace BOforUnity.Editor
                 );
             }
 
-            DrawContextualOptimizationSettings(useCabop || useMetaTaf);
+            if (useDbo)
+            {
+                EditorGUILayout.PropertyField(
+                    dboSpatialKernelProp,
+                    new GUIContent(
+                        "DBO Spatial Kernel",
+                        "Covariance over the design parameters. Rbf (squared exponential with ARD) " +
+                        "matches the reference DBO implementation."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    dboAlphaParameterizationProp,
+                    new GUIContent(
+                        "DBO Alpha Parameterization",
+                        "How the temporal decay rate is fitted. Decay reproduces the reference " +
+                        "implementation; Direct behaves better when drift is fast."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    dboInitialAlphaProp,
+                    new GUIContent(
+                        "DBO Initial Alpha",
+                        "Starting decay rate before fitting. 0.99 matches the reference; the fitted " +
+                        "value per iteration is logged to DboDiagnosticsPerEvaluation.csv."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    dboExplorationRatioProp,
+                    new GUIContent(
+                        "DBO Exploration Ratio",
+                        "Re-search with inflated variance when the acquisition collapses onto a point " +
+                        "the model is already sure about. 0 disables (plain EI)."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    dboAcquisitionTimeOffsetProp,
+                    new GUIContent(
+                        "DBO Acquisition Time Offset",
+                        "0 scores candidates at the current time (reference behaviour); 1 scores them " +
+                        "at the time they will actually be evaluated."
+                    )
+                );
+                EditorGUILayout.PropertyField(
+                    dboValidationEveryProp,
+                    new GUIContent(
+                        "DBO Validation Every",
+                        "Every N iterations apply the model's best estimate instead of an exploratory " +
+                        "point, making optimisers comparable. 0 disables."
+                    )
+                );
+                if (dboValidationEveryProp.intValue > 0)
+                {
+                    EditorGUILayout.PropertyField(
+                        dboValidationConfidenceProp,
+                        new GUIContent(
+                            "DBO Validation Confidence",
+                            "Tail probability of the validation upper confidence bound " +
+                            "(0.01 ≈ mean + 2.33 sd)."
+                        )
+                    );
+                    EditorGUILayout.PropertyField(
+                        dboValidationVisitedOnlyProp,
+                        new GUIContent(
+                            "DBO Validation Visited Only",
+                            "Restrict validation candidates to already-evaluated inputs (reference " +
+                            "behaviour). Off searches the continuous domain."
+                        )
+                    );
+                }
+                EditorGUILayout.PropertyField(
+                    dboStationaryBaselineProp,
+                    new GUIContent(
+                        "DBO Stationary Baseline",
+                        "Pin alpha = 1, reducing DBO to plain stationary BO — the ablation/baseline " +
+                        "condition for comparisons."
+                    )
+                );
+
+                int dboObjectiveCount = objectiveList.count;
+                if (dboObjectiveCount != 1)
+                {
+                    EditorGUILayout.HelpBox(
+                        "DBO is single-objective: configure exactly 1 objective.",
+                        MessageType.Warning
+                    );
+                }
+                EditorGUILayout.HelpBox(
+                    "DBO models a cost that drifts while you optimise it (adaptation, learning, " +
+                    "fatigue). Watch the fitted alpha in DboDiagnosticsPerEvaluation.csv: near 1.0 " +
+                    "for a whole run means the objective did not measurably drift. See " +
+                    "Kim & Sergi, IEEE RA-L 2026 (doi 10.1109/LRA.2026.3665072).",
+                    MessageType.Info
+                );
+            }
+
+            DrawContextualOptimizationSettings(useCabop || useMetaTaf || useDbo);
 
             // ── Optimization Budget (iterations & termination) ──────────────────────
             EditorGUILayout.Space();

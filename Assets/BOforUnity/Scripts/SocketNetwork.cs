@@ -42,6 +42,12 @@ namespace BOforUnity.Scripts
         public bool metaRequireSources;
         public float metaRho, metaTargetWeight, metaDecayRate;
         public int metaWarmupIters, metaDecayStartIter;
+        // DBO backend settings (ignored by the other backends).
+        public string dboSpatialKernel, dboAlphaParameterization;
+        public float dboInitialAlpha, dboAcquisitionTimeOffset, dboValidationConfidence;
+        public int dboValidationEvery;
+        public bool dboValidationVisitedOnly, dboStationaryBaseline;
+        public float explorationRatio;
     }
 
     [Serializable] class ParamInit { public double low; public double high; }
@@ -711,7 +717,16 @@ namespace BOforUnity.Scripts
                     metaTargetWeight = _bomanager.metaTargetWeight,
                     metaWarmupIters = _bomanager.metaWarmupIters,
                     metaDecayStartIter = _bomanager.metaDecayStartIter,
-                    metaDecayRate = _bomanager.metaDecayRate
+                    metaDecayRate = _bomanager.metaDecayRate,
+                    dboSpatialKernel = NormalizeDboSpatialKernel(_bomanager.dboSpatialKernel),
+                    dboAlphaParameterization = NormalizeDboAlphaParameterization(_bomanager.dboAlphaParameterization),
+                    dboInitialAlpha = _bomanager.dboInitialAlpha,
+                    dboAcquisitionTimeOffset = _bomanager.dboAcquisitionTimeOffset,
+                    dboValidationEvery = _bomanager.dboValidationEvery,
+                    dboValidationConfidence = _bomanager.dboValidationConfidence,
+                    dboValidationVisitedOnly = _bomanager.dboValidationVisitedOnly,
+                    dboStationaryBaseline = _bomanager.dboStationaryBaseline,
+                    explorationRatio = _bomanager.dboExplorationRatio
                 },
                 parameters = parameterPayload,
                 objectives = objectivePayload,
@@ -897,10 +912,22 @@ namespace BOforUnity.Scripts
                     return "cabop";
                 case BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF:
                     return "meta-taf";
+                case BOforUnity.BoForUnityManager.OptimizerBackend.DBO:
+                    return "dbo";
                 case BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch:
                 default:
                     return "botorch";
             }
+        }
+
+        private static string NormalizeDboSpatialKernel(BOforUnity.BoForUnityManager.DboSpatialKernel kernel)
+        {
+            return kernel == BOforUnity.BoForUnityManager.DboSpatialKernel.Matern52 ? "matern52" : "rbf";
+        }
+
+        private static string NormalizeDboAlphaParameterization(BOforUnity.BoForUnityManager.DboAlphaParameterization p)
+        {
+            return p == BOforUnity.BoForUnityManager.DboAlphaParameterization.Direct ? "direct" : "decay";
         }
 
         private static string NormalizeMetaWeightMode(BOforUnity.BoForUnityManager.MetaWeightMode mode)

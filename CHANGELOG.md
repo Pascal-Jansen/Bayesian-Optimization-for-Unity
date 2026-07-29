@@ -9,6 +9,9 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+### Added
+- **DBO backend (Dynamic Bayesian Optimization)** for single-objective studies whose cost drifts during the session (participant adaptation, learning, fatigue). The GP covariance is multiplied by a temporal decay `alpha^|t-t'|` with the decay rate fitted by marginal likelihood, so the optimizer infers how fast the participant is changing; a `DBO Stationary Baseline` toggle pins `alpha = 1` for the matched plain-BO control condition, and optional validation iterations apply the model's best estimate on a schedule so optimizers can be compared without their exploration policies confounding the result. New `Backend -> DBO` inspector option with a dedicated settings section, `dbo.py`/`dbo_runtime.py` backend speaking the standard socket protocol and writing the standard CSVs, plus `DboDiagnosticsPerEvaluation.csv` with the fitted alpha per iteration. Implementation is the BSD-3-Clause [dbo-torch](https://github.com/M-Colley/dbo-torch) package (validated against the reference MATLAB DBO to ~1e-14), vendored under `BOData/BayesianOptimization/dbo_torch/`. Method: Kim & Sergi, Comput. Methods Biomech. Biomed. Eng. 2025 (doi 10.1080/10255842.2025.2595150) and IEEE RA-L 2026 (doi 10.1109/LRA.2026.3665072). See `docs/dbo-backend.md`; verify with `python tests/dbo_protocol_check.py` (manual, not part of unittest discovery).
+
 ## [1.6.1] - 2026-07-27
 
 ### Changed
