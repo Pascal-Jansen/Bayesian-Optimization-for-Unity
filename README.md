@@ -26,7 +26,7 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 - Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
 - Unified log routing below `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, including QuestionnaireToolkit CSVs and app-specific telemetry.
-- Ready-to-run example scenes, including questionnaire-driven design optimization and a 2D Fitts law pointing task based on Fitts's [1954 paper](https://doi.org/10.1037/h0055392).
+- Ready-to-run example scenes, including questionnaire-driven design optimization and a 2D Fitts's law pointing task based on Fitts's [1954 paper](https://doi.org/10.1037/h0055392).
 - Fitts law study support for `HITL MOBO`, `Static`, and `Random` conditions in one scene, with explicit design parameters, objective telemetry, and per-condition logs.
 
 ### Example Use Case
@@ -34,11 +34,25 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 To improve interface usability, treat selected UI attributes as **design parameters** $x$ (e.g., button size, color contrast, spacing, animation duration) and optimize two **objectives** $y$: **System Usability Scale** (0–100, maximize) and **task completion time** (seconds, minimize). In each iteration $t$, the optimizer proposes a configuration $x_t$; a participant completes a fixed task; Unity records time; the participant completes SUS; the posterior and acquisition function update; and the next $x_{t+1}$ is selected. After several iterations, the system returns an estimated Pareto front containing *Pareto-optimal* interface designs that represent the best compromise between the design objectives.
 
 
----
+<br>
 
 ## Publications
 
-Several scientific publications have used **Bayesian Optimization for Unity**:
+Several scientific publications have built upon **Bayesian Optimization for Unity**:
+
+**2026**
+
+[BlurDriving: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://arxiv.org/abs/2607.18628). In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM.
+
+Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization. In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM.
+
+[Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://arxiv.org/abs/2607.28552). In *Proceedings of the 18th International Conference on Automotive User Interfaces and Interactive Vehicular Applications*. **AutomotiveUI '26**. ACM.
+
+MoTUI: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind. In *Proceedings of the 39th Annual ACM Symposium on User Interface Software and Technology*. **UIST '26**. ACM.
+
+[ProVoice: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877). In *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems*. **CHI '26**. ACM.
+
+**2025**
 
 [OptiCarVis: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems*. **CHI '25**. ACM.
   **Best Paper Honorable Mention (top 5%)**
@@ -47,10 +61,8 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
 
 [Fly Away: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems*. **CHI '25**. ACM.
 
-[ProVoice: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877). In *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems*. **CHI '26**. ACM.
 
-
----
+<br>
 
 ## Contents
 
@@ -98,7 +110,7 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
 * [12. Citation](#12-citation)
 * [13. License](#13-license)
 
----
+<br>
 
 ## 1. Glossary (Plain Language)
 
@@ -108,7 +120,7 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
 | **Objective** | A score the optimizer tries to improve (for example usability, trust, completion time). |
 | **Smaller is Better** | Unity flag for an objective where lower values are preferred (for example time or errors). |
 | **Sampling Iterations** | Initial rounds used to explore the space before model-based optimization starts. |
-| **Optimization Iterations** | Main BO rounds where the model proposes the next best design. |
+| **Optimization Iterations** | Main BO rounds in which the model proposes the next-best design. |
 | **Warm Start** | Start from existing CSV data instead of collecting new initial samples. |
 | **Pareto Front** | Best trade-offs when you have multiple objectives and no single best point exists. |
 | **Dominated Point** | A point that is worse than another point in all objectives (and strictly worse in at least one). |
@@ -119,7 +131,7 @@ Several scientific publications have used **Bayesian Optimization for Unity**:
 | **Seed** | Number used to make stochastic parts reproducible across runs with the same setup. |
 
 
----
+<br>
 
 ## 2. Background
 
@@ -151,7 +163,7 @@ Step by step:
 3. **User Feedback:**
    After the simulation, the user rates the design via a questionnaire. Ratings are translated into objective values $y$. In the example, the objectives are trust and usability, each with defined ranges ($Y$).
 4. **Optimization:**
-   Based on current objective values, [MOBO](#24-results-of-multi-objective-bayesian-optimization-pareto-front) proposes another design, considering prior feedback. The loop repeats.
+   Based on the current objective values, [MOBO](#24-results-of-multi-objective-bayesian-optimization-pareto-front) proposes another design that considers prior feedback. The loop repeats.
 
 <a id="hitl_diagram"></a>
 
@@ -200,7 +212,7 @@ In short, the optimizer maximizes $y$ by proposing parameter vectors expected to
 
 MOBO is used in hyperparameter tuning, materials discovery, and engineering design where multiple objectives matter.
 
----
+<br>
 
 ## 3. Installation
 
@@ -216,7 +228,7 @@ Set up the asset as follows:
 
 > **Note:** You may set the Python path manually if you already have a local Python installation. See [Python Settings](#85-python-settings). Also, read [Configuration](#8-configuration) to ensure settings are saved.
 
----
+<br>
 
 ## 4. Integration Checklist (Required)
 
@@ -248,7 +260,7 @@ Before running your own scene, verify the following minimum setup:
 If any item above is missing, the loop may start but stall before sending/receiving valid optimization data.
 
 
----
+<br>
 
 ## 5. Quick Start (10 Minutes)
 
@@ -278,7 +290,7 @@ Expected successful outcome:
 If these outputs appear, your full Unity-Python loop is working.
 
 
----
+<br>
 
 ## 6. Example Usage
 
@@ -410,18 +422,18 @@ If the requested user folder already exists, BOforUnity creates a suffix such as
 
 This example is useful for HCI experiments where movement amplitude, button size, marker size, button color, objective pointing performance, and subjective single-item ratings should be optimized together. For the original model, see Fitts's 1954 paper, [The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement](https://doi.org/10.1037/h0055392).
 
----
+<br>
 
 ## 7. Demo Video
 
 Click the thumbnail for a short demo showing how to export the main-branch package and import it into a new Unity project. It also shows what to do after import if you have an up-to-date Python (currently, we recommend 3.13.7) on Windows. You can also open the video in the *images* folder.
-> **Note:** This video shows a previous version of this asset's user interface in Unity. The procedure is similar for the current version.
+> **Note:** This video shows a previous version of the user interface for this asset in Unity. The procedure is similar for the current version.
 
 [![Watch the video](./images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
 
 <!--![Watch the video](./images/Demo_BO_for_Unity.gif)-->
 
----
+<br>
 
 ## 8. Configuration
 
@@ -429,7 +441,7 @@ All configuration is done in Unity. Open *Assets/BOforUnity/Scenes/BO-example-sc
 
 Save the scene after changes. Re-select *BOforUnityManager* to confirm your edits. The *BOforUnityManager* prefab must be correct; it overrides previous settings (see the inspector top left).
 
-> **Note:** All configuration lives in this object. The options below follow the inspector from top to bottom.
+> **Note:** All configuration lives in this object. The options below are listed from top to bottom.
 > **Note:** If you add or remove parameters/objectives, back up and clear the current user log folder to regenerate CSV headers.
 
 
@@ -968,7 +980,7 @@ Because ViT-G/14 (like all CLIP-style encoders) maps semantically similar images
 
 #### 8.13.3 Warm Start Across Contexts
 
-To transfer data from other contexts, enable **Warm Start** and add a `Context` column to the initial **parameters** CSV assigning each row to a context key (see `ExampleContextInitDataParameters.csv` / `ExampleContextInitDataObjectives.csv` in `InitData/`):
+To transfer data from other contexts, enable **Warm Start** and add a `Context` column to the initial **parameters** CSV, assigning each row to a context key (see `ExampleContextInitDataParameters.csv` / `ExampleContextInitDataObjectives.csv` in `InitData/`):
 
 ```text
 Context;ButtonSize;AnimationSpeed
@@ -1067,7 +1079,7 @@ package (validated against the reference MATLAB implementation to ~1e-14), vendo
 and [IEEE RA-L 2026](https://doi.org/10.1109/LRA.2026.3665072). Backend details, protocol
 check, and vendor-update instructions: [docs/dbo-backend.md](docs/dbo-backend.md).
 
----
+<br>
 
 ## 9. Troubleshooting
 
@@ -1097,7 +1109,7 @@ check, and vendor-update instructions: [docs/dbo-backend.md](docs/dbo-backend.md
 | Image-embedding startup is very slow the first time | Large vision model weights (e.g., ~10 GB for ViT-bigG-14 / ViT-G/14) are downloaded once | Wait for the first run to finish (embeddings are cached afterwards) or switch to a smaller model such as `ViT-B-32`. |
 | `Warm-start row N references unknown context ...` | `Context` column value does not match any configured context key | Align the CSV `Context` values with the context keys configured in `BoForUnityManager`. |
 
----
+<br>
 
 ## 10. System Architecture
 
@@ -1111,7 +1123,7 @@ Once the server is running, *BoForUnityManager.cs* communicates with the selecte
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
----
+<br>
 
 ## 11. Portability to Your Own Project
 
@@ -1131,7 +1143,7 @@ To import: `Assets` → **Import Package** → **Custom Package...**, select you
 
 > **Note:** On first use of *TextMeshPro*, install *TextMeshPro-Essentials* when prompted. Refresh the scene if needed.
 
----
+<br>
 
 ## 12. Citation
 
@@ -1148,7 +1160,7 @@ If you use this software, please cite:
 ```
 
 
----
+<br>
 
 ## 13. License
 
