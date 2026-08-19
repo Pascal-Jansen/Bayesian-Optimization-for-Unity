@@ -637,6 +637,7 @@ class MoboTests(unittest.TestCase):
         mobo = load_mobo_module()
         with tempfile.TemporaryDirectory() as tmp:
             mobo.PROJECT_PATH = tmp
+            mobo.ref_point = FakeTensor([-1.0])
             mobo.save_hypervolume_to_file([0.1], iteration=0)
             mobo.save_hypervolume_to_file([0.2], iteration=1)
             hv_csv = pathlib.Path(tmp) / "HypervolumePerEvaluation.csv"
