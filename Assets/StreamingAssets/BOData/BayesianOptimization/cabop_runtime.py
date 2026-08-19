@@ -700,9 +700,9 @@ def append_compat_metric(iteration, coverage):
         w = csv.writer(f, delimiter=";")
         if write_header:
             if CABOP_MODE == "single":
-                w.writerow(["BestObjective", "Run"])
+                w.writerow(["BestObjective", "Iteration"])
             else:
-                w.writerow(["Hypervolume", "Run"])
+                w.writerow(["Hypervolume", "Iteration"])
         w.writerow([np.round(float(coverage), 6), int(iteration)])
 
 
