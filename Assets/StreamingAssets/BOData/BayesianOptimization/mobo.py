@@ -412,7 +412,7 @@ def objective_function(conn, x_tensor):
     return torch.tensor(fs, dtype=torch.double)
 
 # -------------------- data IO --------------------
-def generate_initial_data(conn, n_samples):
+def generate_initial_data(conn, n_samples, hv_util=None, hvs=None):
     global PROJECT_PATH
     if n_samples < 1:
         raise ValueError("n_samples must be >= 1 for non-warm-start runs.")
@@ -442,6 +442,12 @@ def generate_initial_data(conn, n_samples):
         with open(obs_csv, 'a', newline='') as f:
             csv.writer(f, delimiter=';').writerow(row)
         send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
+        if hv_util is not None and hvs is not None:
+            y_so_far = torch.stack(train_obj, dim=0).to(dtype=torch.double)
+            volume = hv_util.compute(y_so_far[is_non_dominated(y_so_far)])
+            hvs.append(volume)
+            save_hypervolume_to_file(hvs, i + 1)
+            send_json_line(conn, {"type": "coverage", "value": float(volume)})
 
     Y = torch.stack(train_obj, dim=0).to(dtype=torch.double)
     # Ensure sampling-only runs (N_ITERATIONS=0) have globally-correct IsPareto flags.
@@ -616,8 +622,13 @@ def save_hypervolume_to_file(hvs, iteration):
     with open(hv_csv, 'a', newline='') as f:
         w = csv.writer(f, delimiter=';')
         if write_header:
-            w.writerow(["Hypervolume", "Run"])
-        w.writerow([hvs[-1], iteration])
+            w.writerow(["Hypervolume", "Run", "Scale", "ReferencePoint"])
+        w.writerow([
+            hvs[-1],
+            iteration,
+            "normalized maximize-space [-1,1] per objective",
+            "[" + ",".join(str(float(value)) for value in as_numpy_array(ref_point)) + "]",
+        ])
 
 # -------------------- main loop --------------------
 def mobo_execute(conn, seed, iterations, initial_samples):
@@ -638,7 +649,9 @@ def mobo_execute(conn, seed, iterations, initial_samples):
     if WARM_START:
         train_x, train_y = load_data()
     else:
-        train_x, train_y = generate_initial_data(conn, n_samples=initial_samples)
+        train_x, train_y = generate_initial_data(
+            conn, n_samples=initial_samples, hv_util=hv_util, hvs=hvs
+        )
 
     expected_x_dim = PROBLEM_DIM + (1 if CONTEXT_SETUP is not None else 0)
     if train_x.shape[0] != train_y.shape[0]:
@@ -650,10 +663,11 @@ def mobo_execute(conn, seed, iterations, initial_samples):
 
     mll, model = initialize_model(train_x, train_y)
 
-    volume = current_context_hypervolume(hv_util, train_x, train_y)
-    hvs.append(volume)
-    save_hypervolume_to_file(hvs, 0)
-    send_json_line(conn, {"type": "coverage", "value": float(volume)})
+    if WARM_START:
+        volume = current_context_hypervolume(hv_util, train_x, train_y)
+        hvs.append(volume)
+        save_hypervolume_to_file(hvs, 0)
+        send_json_line(conn, {"type": "coverage", "value": float(volume)})
 
     for it in range(1, iterations + 1):
         t0 = time.time()
@@ -673,7 +687,7 @@ def mobo_execute(conn, seed, iterations, initial_samples):
         volume = current_context_hypervolume(hv_util, train_x, train_y)
         hvs.append(volume)
         save_xy(train_x, train_y, it)
-        save_hypervolume_to_file(hvs, it)
+        save_hypervolume_to_file(hvs, initial_samples + it)
         send_json_line(conn, {"type": "coverage", "value": float(volume)})
         mll, model = initialize_model(train_x, train_y)
 

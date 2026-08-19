@@ -230,7 +230,7 @@ class MetaRuntimeProtocolTests(unittest.TestCase):
             types = [m["type"] for m in sent]
             self.assertEqual(types.count("parameters"), 4)
             self.assertEqual(types.count("tempCoverage"), 2)
-            self.assertEqual(types.count("coverage"), 3)  # after sampling + 2 iterations
+            self.assertEqual(types.count("coverage"), 4)  # after every evaluation
             self.assertEqual(types.count("optimization_finished"), 1)
             self.assertEqual(types[-1], "optimization_finished")
 
@@ -270,8 +270,10 @@ class MetaRuntimeProtocolTests(unittest.TestCase):
 
             with open(run_dir / "HypervolumePerEvaluation.csv", newline="") as f:
                 hv_rows = list(csv.reader(f, delimiter=";"))
-            self.assertEqual(hv_rows[0], ["Hypervolume", "Run"])
-            self.assertEqual([r[1] for r in hv_rows[1:]], ["0", "1", "2"])
+            self.assertEqual(hv_rows[0], ["Hypervolume", "Run", "Scale", "ReferencePoint"])
+            self.assertEqual([r[1] for r in hv_rows[1:]], ["1", "2", "3", "4"])
+            self.assertTrue(all(r[2] == "normalized maximize-space [-1,1] per objective" for r in hv_rows[1:]))
+            self.assertTrue(all(r[3] == "[-1.0,-1.0]" for r in hv_rows[1:]))
 
             with open(run_dir / "ExecutionTimes.csv", newline="") as f:
                 exec_rows = list(csv.reader(f, delimiter=";"))

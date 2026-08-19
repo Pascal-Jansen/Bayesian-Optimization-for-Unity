@@ -643,10 +643,10 @@ class MoboTests(unittest.TestCase):
             with hv_csv.open() as f:
                 rows = list(csv.reader(f, delimiter=";"))
 
-        self.assertEqual(rows[0], ["Hypervolume", "Run"])
+        self.assertEqual(rows[0], ["Hypervolume", "Run", "Scale", "ReferencePoint"])
         self.assertEqual(len(rows), 3)
-        self.assertEqual(rows[1], ["0.1", "0"])
-        self.assertEqual(rows[2], ["0.2", "1"])
+        self.assertEqual(rows[1], ["0.1", "0", "normalized maximize-space [-1,1] per objective", "[-1.0]"])
+        self.assertEqual(rows[2], ["0.2", "1", "normalized maximize-space [-1,1] per objective", "[-1.0]"])
 
     def test_mobo_execute_with_simulated_unity_objective_stream(self):
         mobo = load_mobo_module()
@@ -710,8 +710,8 @@ class MoboTests(unittest.TestCase):
             np.array([[0.6, 0.6], [-0.6, -0.6], [0.0, 0.0]]),
             atol=1e-12,
         )
-        # Hypervolume logs: iteration 0 + iteration 1
-        self.assertEqual(len(hvs), 2)
+        # Hypervolume logs cover both sampling evaluations and the optimization step.
+        self.assertEqual(len(hvs), 3)
         # Ensure loop sent completion signal.
         self.assertTrue(any(m.get("type") == "optimization_finished" for m in out_msgs))
 

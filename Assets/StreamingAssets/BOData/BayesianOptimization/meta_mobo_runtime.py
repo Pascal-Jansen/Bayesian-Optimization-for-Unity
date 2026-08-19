@@ -496,8 +496,13 @@ def save_hypervolume_to_file(hvs, iteration):
     with open(hv_csv, 'a', newline='') as f:
         w = csv.writer(f, delimiter=';')
         if write_header:
-            w.writerow(["Hypervolume", "Run"])
-        w.writerow([hvs[-1], iteration])
+            w.writerow(["Hypervolume", "Run", "Scale", "ReferencePoint"])
+        w.writerow([
+            hvs[-1],
+            iteration,
+            "normalized maximize-space [-1,1] per objective",
+            "[" + ",".join(str(float(value)) for value in ref_point) + "]",
+        ])
 
 
 def append_meta_weights_row(weights_csv, iteration, optimizer, source_names):
@@ -595,21 +600,22 @@ def meta_execute(conn, seed, iterations, initial_samples):
     print("Initial Sobol X in [0,1]:", x_init, flush=True)
 
     y_rows = []
+    hvs = []
     for i in range(initial_samples):
         print(f"---- Initial Sample {i+1}", flush=True)
         y_row = objective_function(conn, x_init[i])
         y_rows.append(y_row)
         append_observation_row(i + 1, 'sampling', y_row, x_init[i])
         send_json_line(conn, {"type": "tempCoverage", "value": float(i + 1) / float(max(1, initial_samples))})
+        y_so_far = np.vstack(y_rows)
+        hvs.append(float(compute_hypervolume(y_so_far, np.asarray(ref_point, dtype=np.float64))))
+        save_hypervolume_to_file(hvs, i + 1)
+        send_json_line(conn, {"type": "coverage", "value": float(hvs[-1])})
 
     y_all = np.vstack(y_rows)
     x_all = np.asarray(x_init, dtype=np.float64)
     rewrite_pareto_flags(y_all)
     optimizer.observe(x_all, y_all)
-
-    hvs = [float(compute_hypervolume(y_all, np.asarray(ref_point, dtype=np.float64)))]
-    save_hypervolume_to_file(hvs, 0)
-    send_json_line(conn, {"type": "coverage", "value": float(hvs[-1])})
 
     # ---- optimization phase (ask/tell against openbo) ----
     for it in range(1, iterations + 1):
@@ -628,7 +634,7 @@ def meta_execute(conn, seed, iterations, initial_samples):
         append_observation_row(initial_samples + it, 'optimization', y_row, x_next[0])
         rewrite_pareto_flags(y_all)
         hvs.append(float(compute_hypervolume(y_all, np.asarray(ref_point, dtype=np.float64))))
-        save_hypervolume_to_file(hvs, it)
+        save_hypervolume_to_file(hvs, initial_samples + it)
         send_json_line(conn, {"type": "coverage", "value": float(hvs[-1])})
 
     send_json_line(conn, {"type": "optimization_finished"})
