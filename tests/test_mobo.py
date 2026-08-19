@@ -644,7 +644,7 @@ class MoboTests(unittest.TestCase):
             with hv_csv.open() as f:
                 rows = list(csv.reader(f, delimiter=";"))
 
-        self.assertEqual(rows[0], ["Hypervolume", "Run", "Scale", "ReferencePoint"])
+        self.assertEqual(rows[0], ["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
         self.assertEqual(len(rows), 3)
         self.assertEqual(rows[1], ["0.1", "0", "normalized maximize-space [-1,1] per objective", "[-1.0]"])
         self.assertEqual(rows[2], ["0.2", "1", "normalized maximize-space [-1,1] per objective", "[-1.0]"])

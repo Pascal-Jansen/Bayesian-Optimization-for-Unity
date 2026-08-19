@@ -581,7 +581,7 @@ def save_metric_to_file(metric_values, iteration):
     with open(best_csv, 'a', newline='') as f:
         w = csv.writer(f, delimiter=';')
         if write_best_header:
-            w.writerow(["BestObjective", "Run"])
+            w.writerow(["BestObjective", "Iteration"])
         w.writerow([metric_values[-1], iteration])
 
     # Legacy mirror for older analysis scripts that still read this file.
@@ -589,7 +589,7 @@ def save_metric_to_file(metric_values, iteration):
     with open(legacy_csv, 'a', newline='') as f:
         w = csv.writer(f, delimiter=';')
         if write_legacy_header:
-            w.writerow(["Hypervolume", "Run"])
+            w.writerow(["Hypervolume", "Iteration"])
         w.writerow([metric_values[-1], iteration])
 
 # -------------------- main loop --------------------

@@ -270,7 +270,7 @@ class MetaRuntimeProtocolTests(unittest.TestCase):
 
             with open(run_dir / "HypervolumePerEvaluation.csv", newline="") as f:
                 hv_rows = list(csv.reader(f, delimiter=";"))
-            self.assertEqual(hv_rows[0], ["Hypervolume", "Run", "Scale", "ReferencePoint"])
+            self.assertEqual(hv_rows[0], ["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
             self.assertEqual([r[1] for r in hv_rows[1:]], ["1", "2", "3", "4"])
             self.assertTrue(all(r[2] == "normalized maximize-space [-1,1] per objective" for r in hv_rows[1:]))
             self.assertTrue(all(r[3] == "[-1.0,-1.0]" for r in hv_rows[1:]))

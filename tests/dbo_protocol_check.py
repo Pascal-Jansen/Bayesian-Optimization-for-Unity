@@ -386,7 +386,7 @@ def check_protocol(result):
             f"expected {N_SAMPLING} 'tempCoverage' messages, got {len(result['temp_coverage'])}")
     require(abs(result["temp_coverage"][-1] - 1.0) < 1e-6,
             f"final tempCoverage should be 1.0, got {result['temp_coverage'][-1]}")
-    # One coverage after the sampling phase (Run 0) plus one per optimization step.
+    # One coverage after the sampling phase (Iteration 0) plus one per optimization step.
     require(len(result["coverage"]) == N_OPTIMIZATION + 1,
             f"expected {N_OPTIMIZATION + 1} 'coverage' messages, got {len(result['coverage'])}")
     require(all(-1.0 - 1e-9 <= v <= 1.0 + 1e-9 for v in result["coverage"]),
@@ -458,14 +458,14 @@ def check_logs(log_root, result):
 
     # -- the metric files bo.py's tooling reads -------------------------------
     best_rows = read_csv(run_dir / "BestObjectivePerEvaluation.csv")
-    require(best_rows[0] == ["BestObjective", "Run"], f"unexpected header: {best_rows[0]}")
+    require(best_rows[0] == ["BestObjective", "Iteration"], f"unexpected header: {best_rows[0]}")
     require(len(best_rows) - 1 == N_OPTIMIZATION + 1,
             f"expected {N_OPTIMIZATION + 1} best-objective rows, got {len(best_rows) - 1}")
     require([int(r[1]) for r in best_rows[1:]] == list(range(0, N_OPTIMIZATION + 1)),
-            "BestObjectivePerEvaluation Run column is not 0..N")
+            "BestObjectivePerEvaluation Iteration column is not 0..N")
 
     legacy_rows = read_csv(run_dir / "HypervolumePerEvaluation.csv")
-    require(legacy_rows[0] == ["Hypervolume", "Run"], f"unexpected header: {legacy_rows[0]}")
+    require(legacy_rows[0] == ["Hypervolume", "Iteration"], f"unexpected header: {legacy_rows[0]}")
     require(len(legacy_rows) == len(best_rows), "legacy mirror row count differs")
 
     exec_rows = read_csv(run_dir / "ExecutionTimes.csv")

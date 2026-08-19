@@ -424,12 +424,12 @@ class BoTests(unittest.TestCase):
             bo.save_metric_to_file([0.2], iteration=2)
             p_best = pathlib.Path(tmp) / "BestObjectivePerEvaluation.csv"
             lines_best = p_best.read_text(encoding="utf-8").strip().splitlines()
-            self.assertEqual(lines_best[0], "BestObjective;Run")
+            self.assertEqual(lines_best[0], "BestObjective;Iteration")
             self.assertEqual(len(lines_best), 3)
 
             p_legacy = pathlib.Path(tmp) / "HypervolumePerEvaluation.csv"
             lines_legacy = p_legacy.read_text(encoding="utf-8").strip().splitlines()
-            self.assertEqual(lines_legacy[0], "Hypervolume;Run")
+            self.assertEqual(lines_legacy[0], "Hypervolume;Iteration")
             self.assertEqual(len(lines_legacy), 3)
 
     def test_bo_execute_logs_metric_for_every_evaluation(self):

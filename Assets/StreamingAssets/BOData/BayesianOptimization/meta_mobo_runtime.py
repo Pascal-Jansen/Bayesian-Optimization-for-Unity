@@ -496,7 +496,7 @@ def save_hypervolume_to_file(hvs, iteration, ref_point):
     with open(hv_csv, 'a', newline='') as f:
         w = csv.writer(f, delimiter=';')
         if write_header:
-            w.writerow(["Hypervolume", "Run", "Scale", "ReferencePoint"])
+            w.writerow(["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
         w.writerow([
             hvs[-1],
             iteration,
