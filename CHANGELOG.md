@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-08-19
+
 ## [1.7.0] - 2026-07-29
 
 ### Added
