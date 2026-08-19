@@ -1,3 +1,4 @@
+import csv
 import importlib.util
 import json
 import os
@@ -419,8 +420,8 @@ class BoTests(unittest.TestCase):
         bo = load_bo_module()
         with tempfile.TemporaryDirectory() as tmp:
             bo.PROJECT_PATH = tmp
-            bo.save_metric_to_file([0.1], iteration=0)
-            bo.save_metric_to_file([0.2], iteration=1)
+            bo.save_metric_to_file([0.1], iteration=1)
+            bo.save_metric_to_file([0.2], iteration=2)
             p_best = pathlib.Path(tmp) / "BestObjectivePerEvaluation.csv"
             lines_best = p_best.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(lines_best[0], "BestObjective;Run")
@@ -430,6 +431,62 @@ class BoTests(unittest.TestCase):
             lines_legacy = p_legacy.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(lines_legacy[0], "Hypervolume;Run")
             self.assertEqual(len(lines_legacy), 3)
+
+    def test_bo_execute_logs_metric_for_every_evaluation(self):
+        bo = load_bo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            prev_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                bo.USER_ID = bo.USER_LOG_ID = "u"
+                bo.CONDITION_ID = bo.CONDITION_LOG_ID = "c"
+                bo.GROUP_ID = "g"
+                bo.WARM_START = False
+                bo.SEED = 3
+                bo.PROBLEM_DIM = 1
+                bo.NUM_OBJS = 1
+                bo.BATCH_SIZE = 1
+                bo.NUM_RESTARTS = 2
+                bo.RAW_SAMPLES = 16
+                bo.MC_SAMPLES = 8
+                bo.parameter_names = ["p0"]
+                bo.objective_names = ["o0"]
+                bo.parameters_info = [(0.0, 1.0)]
+                bo.objectives_info = [(0.0, 1.0, 0)]
+                bo.problem_bounds = FakeTensor([[0.0], [1.0]])
+                bo.SobolQMCNormalSampler = lambda sample_shape, seed: {
+                    "shape": sample_shape, "seed": seed
+                }
+                bo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor(
+                    [[[0.2], [0.8]]]
+                )
+                bo.optimize_candidates = lambda model, sampler, X_baseline: FakeTensor([[0.4]])
+
+                conn = _FakeConn([
+                    _json_line({"type": "objectives", "values": {"o0": 0.2}}),
+                    _json_line({"type": "objectives", "values": {"o0": 0.8}}),
+                    _json_line({"type": "objectives", "values": {"o0": 0.5}}),
+                ])
+                original_send = bo.send_json_line
+                bo.send_json_line = lambda c, payload: None
+                try:
+                    metric_values, _, _ = bo.bo_execute(
+                        conn=conn, seed=3, iterations=1, initial_samples=2
+                    )
+                finally:
+                    bo.send_json_line = original_send
+            finally:
+                os.chdir(prev_cwd)
+
+            with open(
+                pathlib.Path(tmp) / "LogData" / "u" / "c" / "run"
+                / "HypervolumePerEvaluation.csv",
+                newline="",
+            ) as f:
+                rows = list(csv.reader(f, delimiter=";"))
+
+        self.assertEqual(len(metric_values), 3)
+        self.assertEqual([row[1] for row in rows[1:]], ["1", "2", "3"])
 
     def test_create_and_write_csv_helpers_propagate_errors(self):
         bo = load_bo_module()

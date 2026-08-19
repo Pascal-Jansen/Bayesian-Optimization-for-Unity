@@ -333,7 +333,7 @@ def objective_function(conn, x_tensor):
     return torch.tensor([f], dtype=torch.double)
 
 # -------------------- data IO --------------------
-def generate_initial_data(conn, n_samples):
+def generate_initial_data(conn, n_samples, metric_values=None):
     global PROJECT_PATH
     if n_samples < 1:
         raise ValueError("n_samples must be >= 1 for non-warm-start runs.")
@@ -372,6 +372,10 @@ def generate_initial_data(conn, n_samples):
                'TRUE' if is_best else 'FALSE', y_den, *x_den]
         with open(obs_csv, 'a', newline='') as f:
             csv.writer(f, delimiter=';').writerow(row)
+
+        if metric_values is not None:
+            metric_values.append(best_so_far)
+            save_metric_to_file(metric_values, i + 1)
 
         send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
 
@@ -608,13 +612,13 @@ def bo_execute(conn, seed, iterations, initial_samples):
     if WARM_START:
         train_x, train_y = load_data()
     else:
-        train_x, train_y = generate_initial_data(conn, n_samples=initial_samples)
+        train_x, train_y = generate_initial_data(
+            conn, n_samples=initial_samples, metric_values=metric_values
+        )
 
     mll, model = initialize_model(train_x, train_y)
 
     best = best_current_context_objective(train_x, train_y)
-    metric_values.append(best)
-    save_metric_to_file(metric_values, 0)
     send_json_line(conn, {"type": "coverage", "value": float(best)})
 
     for it in range(1, iterations + 1):
@@ -634,7 +638,9 @@ def bo_execute(conn, seed, iterations, initial_samples):
         best = best_current_context_objective(train_x, train_y)
         metric_values.append(best)
         save_xy(train_x, train_y, it)
-        save_metric_to_file(metric_values, it)
+        save_metric_to_file(
+            metric_values, it if WARM_START else initial_samples + it
+        )
         send_json_line(conn, {"type": "coverage", "value": float(best)})
 
         mll, model = initialize_model(train_x, train_y)
