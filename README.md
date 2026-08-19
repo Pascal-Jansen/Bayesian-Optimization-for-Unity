@@ -914,7 +914,7 @@ Common files:
 
 MOBO (`mobo.py`, `m >= 2`):
 * `ObservationsPerEvaluation.csv` uses `IsPareto`.
-* `HypervolumePerEvaluation.csv` stores hypervolume per iteration.
+* `HypervolumePerEvaluation.csv` stores hypervolume after every sampling and optimization evaluation. Its `Scale` column records that objectives are normalized to maximize-space `[-1,1]`, and `ReferencePoint` records the default `[-1,...,-1]` reference point.
 * Unity `coverage` corresponds to current hypervolume.
 
 Single-objective BO (`bo.py`, `m = 1`):
