@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-08-20
+
 ### Changed
 - **MetaTAF `TafR` weighting is now objective-wise pairwise ranking agreement** (openbo's 2026-08 TAF-R rework, formulation by Yi-Chi Liao): every observation pair is scored once per objective with ranking labels `r_ijm ∈ {+1, −1, 0}` (ties detected at 1e-12 tolerance), and a source's distance is its label mismatch count over the fixed denominator `M·C(n,2)`; a source asserting no strict order anywhere (flat surrogate) is zero-weighted outright. The former Pareto-dominance agreement discarded mutually non-dominated pairs — the common case near a Pareto front — and so starved the similarity estimate exactly where HITL studies operate; it stays selectable as the new `TafRPareto` inspector option (init token `taf_r_pareto`) for ablations.
 - The MetaTAF backend now **refuses openbo installs predating that rework** at startup, printing the exact upgrade command (`pip install --force-reinstall --no-deps ...`; openbo kept version 0.1.0, so a plain `--upgrade` is a no-op). On a stale install the unchanged mode token `taf_r` would silently compute the old dominance similarity — variant drift across participants of one study. Documented in README 9 (troubleshooting), the student guide, and `requirements.txt`.
