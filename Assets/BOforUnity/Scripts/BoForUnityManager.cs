@@ -42,10 +42,15 @@ namespace BOforUnity
 
         public enum MetaWeightMode
         {
-            // Weights from Pareto-ranking agreement with the current user's observations.
+            // Weights from objective-wise pairwise ranking agreement with the current
+            // user's observations (each observation pair scored once per objective).
             TafR = 0,
             // Weights from meta-feature similarity (dimension + objective moments).
-            TafM = 1
+            TafM = 1,
+            // Ablation only: the former TafR — Pareto-dominance agreement, which discards
+            // mutually non-dominated pairs and so starves the similarity estimate near
+            // the front.
+            TafRPareto = 2
         }
 
         public enum CabopObjectiveMode

@@ -210,6 +210,8 @@ def install_openbo_stub():
     optimizers_mod = types.ModuleType("openbo.optimizers")
     mobo_taf_mod = types.ModuleType("openbo.optimizers.mobo_taf")
     mobo_botorch_mod = types.ModuleType("openbo.optimizers.mobo_botorch")
+    acquisition_mod = types.ModuleType("openbo.acquisition")
+    taf_mo_ehvi_mod = types.ModuleType("openbo.acquisition.taf_mo_ehvi")
 
     class _StubSource:
         def __init__(self, name):
@@ -268,17 +270,28 @@ def install_openbo_stub():
             return 0.0
         return float(np.sum(np.clip(arr - ref[None, :], 0.0, None)))
 
+    # The runtime probes this symbol to detect an openbo predating the 2026-08 TAF-R
+    # rework (which changed what mode token "taf_r" computes); the stub only needs it
+    # to exist, tests exercise absence by deleting it.
+    def compute_taf_r_ranking_weights(*args, **kwargs):
+        raise NotImplementedError("stub: weight math lives in the openbo test suite")
+
     mobo_taf_mod.MOTAFConfig = MOTAFConfig
     mobo_taf_mod.MOTAFSequentialOptimizer = MOTAFSequentialOptimizer
     mobo_botorch_mod.compute_hypervolume = compute_hypervolume
+    taf_mo_ehvi_mod.compute_taf_r_ranking_weights = compute_taf_r_ranking_weights
 
     openbo_mod.optimizers = optimizers_mod
     optimizers_mod.mobo_taf = mobo_taf_mod
     optimizers_mod.mobo_botorch = mobo_botorch_mod
+    openbo_mod.acquisition = acquisition_mod
+    acquisition_mod.taf_mo_ehvi = taf_mo_ehvi_mod
     sys.modules["openbo"] = openbo_mod
     sys.modules["openbo.optimizers"] = optimizers_mod
     sys.modules["openbo.optimizers.mobo_taf"] = mobo_taf_mod
     sys.modules["openbo.optimizers.mobo_botorch"] = mobo_botorch_mod
+    sys.modules["openbo.acquisition"] = acquisition_mod
+    sys.modules["openbo.acquisition.taf_mo_ehvi"] = taf_mo_ehvi_mod
     return mobo_taf_mod
 
 

@@ -53,6 +53,18 @@ python -m pip install -e path/to/openbo
   `requirements.txt` versions. If the backend starts without openbo it exits immediately
   with the exact install command above — nothing hangs.
 
+  Already installed openbo earlier? The backend requires the **2026-08 TAF-R rework**
+  (objective-wise ranking weights, see section 4) and refuses older installs at startup
+  with the exact upgrade command:
+
+```bash
+python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"
+```
+
+  (`--force-reinstall` because openbo's version number did not change, so a plain
+  `--upgrade` reports "already satisfied" and does nothing; `--no-deps` keeps your
+  pinned torch/botorch stack untouched.)
+
 * Not compatible with **Warm Start** or **Contextual Optimization** (both are rejected
   with a clear error; see section 8).
 
@@ -139,12 +151,20 @@ That's it — the participant experience is identical to a normal run.
 |---|---|---|
 | Meta Source Dir | `MetaSources` | Folder holding `gp_states/` + `trajectories/`. |
 | Meta Require Sources | On | Abort at startup when no population model survives validation, instead of silently running plain qLogNEHVI — which would turn a MetaTAF condition into a no-transfer control. Disable only if a source-less run is genuinely intended. |
-| Meta Weight Mode | `TafR` | How population models are weighted. `TafR`: by Pareto-ranking agreement with the current user's observations (recommended — this is the negative-transfer guard). `TafM`: by meta-feature similarity. |
+| Meta Weight Mode | `TafR` | How population models are weighted. `TafR`: by objective-wise pairwise ranking agreement with the current user's observations — every pair of observations is scored once per objective (higher / lower / tied), and a source's weight shrinks with its share of mismatched rankings (recommended — this is the negative-transfer guard). `TafM`: by meta-feature similarity. `TafRPareto`: the former Pareto-dominance variant of `TafR`, kept **only as an ablation** — pairs near the Pareto front are typically mutually non-dominated, which dominance must discard as "incomparable", starving the similarity estimate exactly where a tuned study spends its iterations. |
 | Meta Rho | `1.0` | Bandwidth of the weighting kernel. Smaller = stricter (disagreeing sources are dropped sooner). |
 | Meta Target Weight | `1.0` | Weight of the current user's own model in the blend. |
 | Meta Warmup Iters | `1` | The first *k* optimization suggestions follow the population models alone (the user's own model has too little data to say anything yet). Keep small — on a 10-iteration budget, 1 is a good default. |
 | Meta Decay Start Iter | `2` | Iteration after which population influence starts to fade (d1 in Liao et al.'s decay). |
 | Meta Decay Rate | `0.3` | How fast it fades per iteration (d2). `0` = never fade. With the defaults (2, 0.3), population influence is gone after iteration 5 and the run finishes fully personalized. |
+
+A note on **ties** under `TafR`: a tie in the participant's rated values is a ranking
+claim of its own, so a source that asserts a strict order there scores a mismatch (over
+the fixed denominator of all pairs × objectives). With quantized ratings (e.g. Likert
+scales) target ties are common while GP posterior means essentially never tie — so every
+source's absolute weight shrinks by roughly the tie fraction, uniformly. The *ordering*
+between sources is unaffected, but if you tighten `Meta Rho` below its default, remember
+this inflation: sources near the cutoff get dropped sooner on tie-heavy data.
 
 The remaining hyperparameters (restarts, raw samples, MC samples, seed, iteration counts)
 are the shared ones described in README 8.10/8.11 and apply unchanged.
@@ -185,6 +205,7 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 | Symptom | Fix |
 |---|---|
 | `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python BOforUnity uses** (README 8.5 shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` |
+| `The installed 'openbo' predates the TAF-R rework` | Your openbo is from before 2026-08, when the `taf_r` mode changed from Pareto-dominance to objective-wise ranking agreement; running it would silently compute a different similarity than configured. Run the printed command: `python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` does nothing here — openbo's version number did not change). |
 | `source '<name>' was built for a different study frame; skipping: ...` | The artifact was generated for different names/bounds/minimize flags. The message lists the exact field. Regenerate with a matching `frame.json`. |
 | `source '<name>' carries no frame block; skipping` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
 | `Meta-TAF: no valid population model found ... requires sources (metaRequireSources)` | The run aborts on purpose. Check the Meta Source Dir path, that `gp_states/` + `trajectories/` contain paired `.json` files, and the listed per-source rejection reasons; regenerate sources against the current frame. Only if a source-less (plain MOBO) run is genuinely intended, switch off **Meta Require Sources** in the inspector. |
@@ -227,6 +248,13 @@ implementation:
 Method summary for your paper's notation: the acquisition blends the current user's
 `qLogNEHVI` with per-source hypervolume-improvement terms computed from each population
 model's posterior mean against that model's own Pareto front, combined in log space as a
-weighted average; source weights come from Pareto-ranking agreement (TAF-R) or
-meta-feature similarity (TAF-M), multiplied by the Liao-et-al. decay γ(t) with
-hyperparameters (d1, d2) = (Meta Decay Start Iter, Meta Decay Rate).
+weighted average; source weights are multiplied by the Liao-et-al. decay γ(t) with
+hyperparameters (d1, d2) = (Meta Decay Start Iter, Meta Decay Rate). Under TAF-R each
+pair of observations (i, j) is labeled r_ijm ∈ {+1, −1, 0} per objective m — once on the
+participant's observed values, once on the source's posterior mean at the same designs
+(ties detected with a 10⁻¹² tolerance) — and the source's distance is its label mismatch
+count over the fixed denominator M·C(n, 2), mapped to a weight by an Epanechnikov kernel
+with bandwidth ρ (Meta Rho); a source asserting no strict order anywhere is zero-weighted.
+TAF-M instead measures meta-feature similarity (dimension + per-objective moments).
+`TafRPareto` is the pre-2026-08 dominance-agreement variant of TAF-R, retained as an
+ablation.

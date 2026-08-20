@@ -143,6 +143,25 @@ class MetaRuntimeModuleTests(unittest.TestCase):
         finally:
             sys.modules.update(saved)
 
+    def test_outdated_openbo_fails_fast_with_upgrade_command(self):
+        """An openbo predating the TAF-R rework must be refused: on such an install the
+        mode token 'taf_r' computes Pareto-dominance agreement instead of the configured
+        objective-wise ranking agreement — silent variant drift within one study."""
+        install_stub_modules()
+        install_openbo_stub()
+        module = _load(RUNTIME_PATH, "meta_runtime_stale_openbo")
+        taf_mo_ehvi = sys.modules["openbo.acquisition.taf_mo_ehvi"]
+        saved_probe = taf_mo_ehvi.compute_taf_r_ranking_weights
+        del taf_mo_ehvi.compute_taf_r_ranking_weights
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                module._import_openbo()
+            msg = str(ctx.exception)
+            self.assertIn("--force-reinstall", msg)  # pip '--upgrade' is a no-op at same version
+            self.assertNotIn("not installed", msg)   # distinct from the missing-package error
+        finally:
+            taf_mo_ehvi.compute_taf_r_ranking_weights = saved_probe
+
 
 class SourceStagingTests(unittest.TestCase):
     def setUp(self):
@@ -286,6 +305,27 @@ class MetaRuntimeProtocolTests(unittest.TestCase):
             self.assertEqual(len(w_rows[1:]), 2)
             for row in w_rows[1:]:
                 self.assertAlmostEqual(float(row[3]) + float(row[4]), 1.0, places=6)
+
+    def test_taf_r_pareto_ablation_mode_reaches_the_optimizer(self):
+        """The dominance ablation mode must pass init validation and arrive verbatim in
+        MOTAFConfig (openbo dispatches on the exact token)."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            responses = [{"o0": 2.0, "o1": 7.0}, {"o0": 4.0, "o1": 6.0}, {"o0": 1.0, "o1": 8.0}]
+            conn = self._run_main(
+                runtime,
+                base_init_message(numSamplingIterations=2, numOptimizationIterations=1,
+                                  metaWeightMode="taf_r_pareto"),
+                responses,
+                {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)},
+            )
+            types = [m["type"] for m in sent_messages(conn)]
+            self.assertEqual(types.count("optimization_finished"), 1)
+            optimizer = sys.modules["openbo.optimizers.mobo_taf"].MOTAFSequentialOptimizer.instances[-1]
+            self.assertEqual(optimizer.config.taf_weight_mode, "taf_r_pareto")
 
     def test_zero_sources_falls_back_to_plain_mobo_run(self):
         """Source-less runs stay possible, but only by explicit opt-out."""

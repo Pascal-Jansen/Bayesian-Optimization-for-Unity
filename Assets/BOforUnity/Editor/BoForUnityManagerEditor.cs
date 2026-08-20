@@ -371,8 +371,9 @@ namespace BOforUnity.Editor
                     metaWeightModeProp,
                     new GUIContent(
                         "Meta Weight Mode",
-                        "TafR: weight sources by Pareto-ranking agreement with the current user's data " +
-                        "(recommended). TafM: weight by meta-feature similarity."
+                        "TafR: weight sources by objective-wise pairwise ranking agreement with the " +
+                        "current user's data (recommended). TafM: weight by meta-feature similarity. " +
+                        "TafRPareto: the former Pareto-dominance TafR, kept only as an ablation."
                     )
                 );
                 EditorGUILayout.PropertyField(

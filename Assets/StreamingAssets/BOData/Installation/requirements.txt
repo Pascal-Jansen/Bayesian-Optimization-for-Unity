@@ -15,6 +15,10 @@ loguru==0.7.3
 # Optional: MetaTAF backend (multi-objective Meta-BO, README 8.14). Needs the openbo
 # fork with the multi-objective optimizers; install manually (requires git):
 #   python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"
+# To refresh an existing install (openbo stays at version 0.1.0, so pip's --upgrade
+# considers it already satisfied; the backend refuses installs predating the 2026-08
+# TAF-R rework):
+#   python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"
 # Not auto-installed here on purpose: machines without git (e.g. the bundled Python
 # setup) would otherwise fail this whole requirements install. The backend prints this
 # exact command if openbo is missing. openbo's dependency floors are satisfied by the

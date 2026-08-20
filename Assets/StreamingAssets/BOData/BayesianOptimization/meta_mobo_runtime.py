@@ -299,6 +299,25 @@ def _import_openbo():
             "    python -m pip install -e path/to/openbo\n"
             "See docs/meta-taf-student-guide.md for details."
         ) from e
+    # openbo's 2026-08 TAF-R rework changed what the mode token "taf_r" COMPUTES
+    # (objective-wise pairwise ranking agreement instead of Pareto-dominance agreement,
+    # which moved to "taf_r_pareto") without renaming the token. On an older install this
+    # backend would therefore run a different similarity measure than the one configured
+    # and logged -- silent variant drift across participants of one study. The function
+    # below exists exactly since that rework, so its absence identifies a stale install;
+    # refuse to start rather than guess (openbo kept version 0.1.0, hence the
+    # --force-reinstall: plain '--upgrade' considers the install already satisfied).
+    try:
+        from openbo.acquisition.taf_mo_ehvi import compute_taf_r_ranking_weights  # noqa: F401
+    except ImportError as e:
+        raise RuntimeError(
+            "The installed 'openbo' predates the TAF-R rework (objective-wise pairwise "
+            "ranking agreement; taf_r_pareto ablation mode) and would compute outdated "
+            "source weights. Upgrade it for this Python with:\n"
+            "    python -m pip install --force-reinstall --no-deps "
+            "\"open-bo @ git+https://github.com/M-Colley/openbo@main\"\n"
+            "See docs/meta-taf-student-guide.md for details."
+        ) from e
     return MOTAFConfig, MOTAFSequentialOptimizer, compute_hypervolume
 
 # -------------------- source artifact validation --------------------
@@ -727,8 +746,10 @@ def main():
         if BATCH_SIZE != 1:
             print(f"Warning: batchSize={BATCH_SIZE} is not supported in this HITL loop; forcing batchSize=1.", flush=True)
             BATCH_SIZE = 1
-        if META_WEIGHT_MODE not in ("taf_m", "taf_r"):
-            raise ValueError(f"metaWeightMode must be 'taf_m' or 'taf_r', got '{META_WEIGHT_MODE}'")
+        if META_WEIGHT_MODE not in ("taf_m", "taf_r", "taf_r_pareto"):
+            raise ValueError(
+                f"metaWeightMode must be 'taf_m', 'taf_r', or 'taf_r_pareto', got '{META_WEIGHT_MODE}'"
+            )
         if META_RHO <= 0:
             raise ValueError(f"metaRho must be > 0, got {META_RHO}")
         if META_TARGET_WEIGHT <= 0:

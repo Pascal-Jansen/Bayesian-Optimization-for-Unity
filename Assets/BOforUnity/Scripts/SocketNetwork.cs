@@ -932,7 +932,16 @@ namespace BOforUnity.Scripts
 
         private static string NormalizeMetaWeightMode(BOforUnity.BoForUnityManager.MetaWeightMode mode)
         {
-            return mode == BOforUnity.BoForUnityManager.MetaWeightMode.TafM ? "taf_m" : "taf_r";
+            switch (mode)
+            {
+                case BOforUnity.BoForUnityManager.MetaWeightMode.TafM:
+                    return "taf_m";
+                case BOforUnity.BoForUnityManager.MetaWeightMode.TafRPareto:
+                    return "taf_r_pareto";
+                case BOforUnity.BoForUnityManager.MetaWeightMode.TafR:
+                default:
+                    return "taf_r";
+            }
         }
 
         private static string NormalizeCabopObjectiveMode(BOforUnity.BoForUnityManager.CabopObjectiveMode mode)
