@@ -156,7 +156,7 @@ That's it — the participant experience is identical to a normal run.
 | Meta Target Weight | `1.0` | Weight of the current user's own model in the blend. |
 | Meta Warmup Iters | `1` | The first *k* optimization suggestions follow the population models alone (the user's own model has too little data to say anything yet). Keep small — on a 10-iteration budget, 1 is a good default. |
 | Meta Decay Start Iter | `2` | Iteration after which population influence starts to fade (d1 in Liao et al.'s decay). |
-| Meta Decay Rate | `0.3` | How fast it fades per iteration (d2). `0` = never fade. With the defaults (2, 0.3), population influence is gone after iteration 5 and the run finishes fully personalized. |
+| Meta Decay Rate | `0.3` | How fast it fades per iteration (d2). With the defaults (2, 0.3), population influence is gone after iteration 5 and the run finishes fully personalized. `0` = never fade — an ablation setting, not a study setting (see section 6). |
 
 A note on **ties** under `TafR`: a tie in the participant's rated values is a ranking
 claim of its own, so a source that asserts a strict order there scores a mismatch (over
@@ -194,6 +194,15 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 * **Compare against a no-transfer control.** The honest baseline for "Meta-BO helped" is
   the same study with the BoTorch backend (or MetaTAF with an empty source folder, which
   is the same optimizer). Liao et al. (CHI 2024) is the template for this comparison.
+* **Leave the decay on.** `Meta Decay Rate = 0` ("never fade") is an ablation setting,
+  not a study setting: without decay the population keeps a constant-size say in the
+  acquisition while the participant's own improvement signal shrinks as their model
+  converges, so late iterations stay population-driven and the run never finishes
+  personalizing. In simulation benchmarks, no-decay TAF finished **below plain
+  multi-objective BO** at the final checkpoint — the decay γ(t) is exactly what Liao et
+  al. added to hand control back. This applies to every weight mode (TafR, TafM,
+  TafRPareto) alike; keep the (d1, d2) defaults unless you are explicitly ablating the
+  decay mechanism itself.
 * **Population size:** their study used 14 population models; simulations showed benefits
   from as few as a handful, with earlier convergence as the population grows.
 * **Same frame, always.** Sources are only accepted when parameter/objective names,

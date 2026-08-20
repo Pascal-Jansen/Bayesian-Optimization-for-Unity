@@ -9,6 +9,9 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+### Documentation
+- Student guide + inspector tooltip: **keep the population-weight decay enabled** — `Meta Decay Rate = 0` is an ablation setting, not a study setting. In simulation benchmarks, no-decay TAF finished below plain multi-objective BO at the final checkpoint (sources keep a constant-size say while the converging participant model's improvement signal shrinks, so late iterations never personalize — the effect Liao et al.'s decay `γ(t)` exists to fix). This holds for every weight mode. The Unity path always sent the inspector's decay values (default d1=2, d2=0.3); openbo's `run_mobo_taf` simulation entry point, which previously defaulted to "never decay", now defaults to the same (2, 0.3).
+
 ## [1.7.2] - 2026-08-20
 
 ### Changed

@@ -402,7 +402,9 @@ namespace BOforUnity.Editor
                     metaDecayRateProp,
                     new GUIContent(
                         "Meta Decay Rate",
-                        "Per-iteration decay of population influence (d2). 0 disables the decay."
+                        "Per-iteration decay of population influence (d2). 0 disables the decay — " +
+                        "ablation only: without decay, sources never hand control back and final " +
+                        "hypervolume drops below plain multi-objective BO."
                     )
                 );
 
