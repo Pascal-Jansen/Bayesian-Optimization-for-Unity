@@ -44,11 +44,11 @@ Several scientific publications have built upon **Bayesian Optimization for Unit
 
 [BlurDriving: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://arxiv.org/abs/2607.18628). In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM. (conditionally accepted)
 
-Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization. In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM. (conditionally accepted)
+[Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://pascal-jansen.github.io/data/publications/BO-comparison-JP-DE.pdf). In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM. (conditionally accepted)
 
 [Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://arxiv.org/abs/2607.28552). In *Proceedings of the 18th International Conference on Automotive User Interfaces and Interactive Vehicular Applications*. **AutomotiveUI '26**. ACM. (conditionally accepted)
 
-MoTUI: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind. In *Proceedings of the 39th Annual ACM Symposium on User Interface Software and Technology*. **UIST '26**. ACM. (conditionally accepted)
+[MoTUI: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf). In *Proceedings of the 39th Annual ACM Symposium on User Interface Software and Technology*. **UIST '26**. ACM. (conditionally accepted)
 
 [ProVoice: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877). In *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems*. **CHI '26**. ACM.
 
