@@ -457,12 +457,17 @@ def check_logs(log_root, result):
             f"validation iterations {validation_rows} != expected {expected_validation}")
 
     # -- the metric files bo.py's tooling reads -------------------------------
+    # One row per evaluation on the global iteration index, sampling included, exactly
+    # as bo.py writes it, so DBO and BoTorch curves line up.
     best_rows = read_csv(run_dir / "BestObjectivePerEvaluation.csv")
     require(best_rows[0] == ["BestObjective", "Iteration"], f"unexpected header: {best_rows[0]}")
-    require(len(best_rows) - 1 == N_OPTIMIZATION + 1,
-            f"expected {N_OPTIMIZATION + 1} best-objective rows, got {len(best_rows) - 1}")
-    require([int(r[1]) for r in best_rows[1:]] == list(range(0, N_OPTIMIZATION + 1)),
-            "BestObjectivePerEvaluation Iteration column is not 0..N")
+    require(len(best_rows) - 1 == N_TOTAL,
+            f"expected {N_TOTAL} best-objective rows, got {len(best_rows) - 1}")
+    require([int(r[1]) for r in best_rows[1:]] == list(range(1, N_TOTAL + 1)),
+            "BestObjectivePerEvaluation Iteration column is not 1..N on the global index")
+    best_values = [float(r[0]) for r in best_rows[1:]]
+    require(all(b >= a - 1e-12 for a, b in zip(best_values, best_values[1:], strict=False)),
+            f"best objective must not decrease: {best_values}")
 
     legacy_rows = read_csv(run_dir / "HypervolumePerEvaluation.csv")
     require(legacy_rows[0] == ["Hypervolume", "Iteration"], f"unexpected header: {legacy_rows[0]}")
@@ -474,7 +479,31 @@ def check_logs(log_root, result):
     require(len(exec_rows) - 1 == N_OPTIMIZATION,
             f"expected {N_OPTIMIZATION} execution-time rows, got {len(exec_rows) - 1}")
 
+    # -- DboRunState.json: provenance and the optimizer's own record ------------
+    state_path = run_dir / "DboRunState.json"
+    require(state_path.exists(), f"expected state file is missing: {state_path}")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    require(state.get("kind") == "DynamicBO", f"unexpected state kind: {state.get('kind')!r}")
+    require(state["versions"].get("dbo_torch") == vendored_dbo_torch_version(),
+            f"state records dbo_torch {state['versions'].get('dbo_torch')!r}, "
+            f"vendored is {vendored_dbo_torch_version()!r}")
+    require(len(state["observations"]) == N_TOTAL,
+            f"expected {N_TOTAL} recorded observations, got {len(state['observations'])}")
+    require(state["config"]["validation_every"] == VALIDATION_EVERY,
+            f"state config validation_every={state['config']['validation_every']}")
+    recorded_validation = [o["iteration"] for o in state["observations"] if o["is_validation"]]
+    require(recorded_validation == expected_validation,
+            f"state validation iterations {recorded_validation} != {expected_validation}")
+
     return alphas
+
+
+def vendored_dbo_torch_version():
+    init_py = default_backend_path().parent / "dbo_torch" / "__init__.py"
+    for line in init_py.read_text(encoding="utf-8").splitlines():
+        if line.startswith("__version__"):
+            return line.split("=", 1)[1].strip().strip("\"'")
+    raise ProtocolError(f"no __version__ in {init_py}")
 
 
 def main():

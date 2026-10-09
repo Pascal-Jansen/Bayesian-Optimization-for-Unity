@@ -58,8 +58,11 @@ class TemporalDecayKernel(Kernel):
         when alpha is expected to be small (fast drift), because ``"decay"``
         pushes alpha through a clamp in that regime.
     initial_alpha:
-        Starting value for alpha. Defaults to ``0.99``, matching the reference
-        implementation's initial decay rate of ``0.01``.
+        Starting value for alpha, in ``(0, 1)``. Defaults to ``0.99``, matching
+        the reference implementation's initial decay rate of ``0.01``. Exactly
+        ``1`` is rejected: both parameterisations reach it only in a limit where
+        the gradient vanishes, so fitting could never move alpha away from it.
+        To pin alpha at 1, build a stationary model instead.
     alpha_constraint:
         Overrides the default constraint on the fitted parameter.
     alpha_prior:
@@ -82,8 +85,12 @@ class TemporalDecayKernel(Kernel):
             raise ValueError(
                 f"parameterization must be 'decay' or 'direct', got {parameterization!r}"
             )
-        if not 0.0 < initial_alpha <= 1.0:
-            raise ValueError(f"initial_alpha must lie in (0, 1], got {initial_alpha}")
+        if not 0.0 < initial_alpha < 1.0:
+            raise ValueError(
+                f"initial_alpha must lie in (0, 1), got {initial_alpha}. Fitting "
+                "cannot move alpha away from exactly 1; to pin alpha = 1 use "
+                "DBOModelConfig(stationary=True)."
+            )
 
         self.parameterization = parameterization
 

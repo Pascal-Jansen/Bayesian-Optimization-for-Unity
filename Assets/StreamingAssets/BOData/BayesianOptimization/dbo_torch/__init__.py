@@ -16,7 +16,7 @@ from .mo_optimizer import DynamicMOBO, MODBOConfig, MOObservation, as_stationary
 from .model import DBOModelConfig, build_model, fit_model, get_alpha, posterior_mean_std
 from .optimizer import DBOConfig, DynamicBO, Observation, as_stationary
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "DynamicBO",

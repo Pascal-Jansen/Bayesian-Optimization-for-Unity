@@ -33,12 +33,18 @@
 #   - single objective only (nObjectives == 1): DBO models one drifting cost,
 #   - no contextual optimization (the LCE-M context pipeline stays BoTorch-only).
 #
-# dbo_torch is VENDORED into ./dbo_torch/ (kernels.py, model.py, optimizer.py,
-# __init__.py, LICENSE) from https://github.com/M-Colley/dbo-torch so a study machine
-# needs nothing beyond the BoTorch stack bo.py already requires. The upstream
-# unity_bridge.py is deliberately NOT vendored: it implements a different, incompatible
-# request/response protocol.
+# dbo_torch is VENDORED into ./dbo_torch/ (the package's .py modules, LICENSE and
+# PROVENANCE.md) from https://github.com/M-Colley/dbo-torch so a study machine needs
+# nothing beyond the BoTorch stack bo.py already requires. The standalone bridge
+# (docs/standalone-bridge/) is deliberately NOT vendored: it implements a different,
+# incompatible request/response protocol.
+#
+# REPRODUCIBILITY. DynamicBO owns a private RNG seeded from DBOConfig.seed and never
+# touches torch's global generator, so a run is a function of the init message alone.
+# Results differ between dbo_torch versions for the same seed, so every run records the
+# version (and the full optimizer state) in DboRunState.json.
 
+import codecs
 import csv
 import json
 import os
@@ -60,6 +66,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 import bo_normalize
+import dbo_torch
 from dbo_torch import DBOConfig, DBOModelConfig, DynamicBO
 
 # -------------------- defaults (overwritten by Unity init) --------------------
@@ -122,7 +129,14 @@ PORT = 56001
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
+# Single-objective GPs at study sizes are too small for intra-op parallelism: one torch
+# thread was 1.4-1.6x faster per suggestion with identical candidates (d=2..8, n=12..80),
+# and leaves the remaining cores to Unity. BO_TORCH_THREADS overrides it.
+TORCH_THREADS = int(os.environ.get("BO_TORCH_THREADS", "1"))
 SOCKET_RECV_BUF = ""
+# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
+# must not become replacement characters (a key "Größe" would no longer match).
+SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
 
 def normalize_user_token(value, default="-1"):
@@ -179,15 +193,16 @@ def recv_json_message(conn):
         except socket.timeout as e:
             raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
         if not chunk:
-            trailing = SOCKET_RECV_BUF.strip()
+            trailing = (SOCKET_RECV_BUF + SOCKET_RECV_DECODER.decode(b"", final=True)).strip()
             SOCKET_RECV_BUF = ""
             if trailing:
                 print("Warning: discarding trailing unterminated socket data:", trailing, flush=True)
             return None
-        SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
+        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
         if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
             preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
             SOCKET_RECV_BUF = ""
+            SOCKET_RECV_DECODER.reset()
             raise RuntimeError(
                 f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
                 f"possible framing error or oversized message. Tail preview: {preview}"
@@ -219,21 +234,21 @@ def get_unique_folder(parent, folder_name):
 def create_csv_file(csv_file_path, fieldnames):
     os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
     write_header = not os.path.exists(csv_file_path)
-    with open(csv_file_path, 'a+', newline='') as f:
+    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         if write_header:
             w.writeheader()
 
 
 def write_data_to_csv(csv_file_path, fieldnames, rows):
-    with open(csv_file_path, 'a+', newline='') as f:
+    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         w.writerows(rows)
 
 # Frame transforms live in bo_normalize so that this backend, bo.py, mobo.py and the
 # offline Meta-TAF source generators cannot drift apart. Thin wrappers keep the call
 # sites (and the test suite) unchanged.
-def denormalize_to_original_param(val01, lo, hi, decimals=3):
+def denormalize_to_original_param(val01, lo, hi, decimals="log"):
     return bo_normalize.denormalize_to_original_param(val01, lo, hi, decimals)
 
 
@@ -254,10 +269,12 @@ def normalize_obj_column(col, lo, hi, minflag):
     )
 
 
+# Same layout as bo.py minus the context column (contexts are BoTorch-only).
+OBSERVATION_FIXED_COLUMNS = ['UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsBest']
+
+
 def expected_observation_columns():
-    # Same layout as bo.py minus the context column (contexts are BoTorch-only).
-    return (['UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsBest']
-            + objective_names + parameter_names)
+    return OBSERVATION_FIXED_COLUMNS + objective_names + parameter_names
 
 
 # Per-iteration DBO diagnostics. Alpha is the one that matters: it is the fitted
@@ -268,6 +285,10 @@ DBO_DIAGNOSTICS_FIELDS = [
     'Iteration', 'Phase', 'IsValidation', 'Alpha',
     'PredictedCost', 'PredictedSd', 'ObservedCost', 'ObservedObjective', 'SuggestSeconds',
 ]
+
+# Full optimizer state (config, dbo_torch/torch/botorch versions, RNG state, every
+# observation with its prediction), rewritten atomically after each evaluation.
+DBO_STATE_FILENAME = "DboRunState.json"
 
 # -------------------- protocol parsing --------------------
 def parse_param_init(init_val):
@@ -401,7 +422,9 @@ def sobol_seed_points(n_samples):
 
     Same Sobol call and same seed, so a DBO run and a BoTorch run configured
     identically visit the same sampling points and only diverge once the model
-    takes over.
+    takes over. n_samples points of a d-dimensional sequence (n=N, q=1); the
+    former n=1, q=N drew ONE point of an N*d-dimensional sequence, which spreads
+    no better than independent uniform draws.
     """
     if n_samples < 1:
         raise ValueError("n_samples must be >= 1 for non-warm-start runs.")
@@ -410,7 +433,7 @@ def sobol_seed_points(n_samples):
          torch.ones(PROBLEM_DIM, dtype=torch.double)],
         dim=0
     )
-    pts = draw_sobol_samples(bounds=bounds, n=1, q=n_samples, seed=SEED).squeeze(0)
+    pts = draw_sobol_samples(bounds=bounds, n=n_samples, q=1, seed=SEED).squeeze(1)
     print("Initial Sobol X in [0,1]:", pts, flush=True)
     return [[float(v) for v in row] for row in pts]
 
@@ -419,8 +442,9 @@ def build_optimizer(seed_points, num_seed_points):
     """Map the Unity init settings onto DynamicBO.
 
     The search box is the canonical [0,1]^d, so the frame is identical to bo.py's;
-    dbo_torch appends the time column itself. Validation scheduling starts disabled
-    and is switched on after the sampling phase (see ``dbo_execute``).
+    dbo_torch appends the time column itself. Validation iterations are scheduled on
+    the global iteration index; DynamicBO never schedules one while seed points are
+    still unspent, so the sampling phase is never displaced.
     """
     model_config = DBOModelConfig(
         spatial_kernel=DBO_SPATIAL_KERNEL,
@@ -432,7 +456,7 @@ def build_optimizer(seed_points, num_seed_points):
         model=model_config,
         seed_points=seed_points,
         num_seed_points=num_seed_points,
-        validation_every=None,
+        validation_every=DBO_VALIDATION_EVERY if DBO_VALIDATION_EVERY > 0 else None,
         exploration_ratio=EXPLORATION_RATIO,
         validation_confidence=DBO_VALIDATION_CONFIDENCE,
         validation_visited_only=DBO_VALIDATION_VISITED_ONLY,
@@ -466,8 +490,8 @@ def load_warm_start(dbo):
     if not os.path.exists(y_path):
         raise FileNotFoundError(f"Warm-start objective CSV not found: {y_path}")
 
-    x_df = pd.read_csv(x_path, delimiter=';')
-    y_df = pd.read_csv(y_path, delimiter=';')
+    x_df = pd.read_csv(x_path, delimiter=';', encoding='utf-8')
+    y_df = pd.read_csv(y_path, delimiter=';', encoding='utf-8')
 
     missing_param_cols = [k for k in parameter_names if k not in x_df.columns]
     missing_obj_cols = [k for k in objective_names if k not in y_df.columns]
@@ -554,7 +578,7 @@ def write_observations_csv():
         flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in ALL_NORM_MAX]
     tail = flags[-len(OBSERVATION_ROWS):] if OBSERVATION_ROWS else []
 
-    with open(obs_csv, 'w', newline='') as f:
+    with open(obs_csv, 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         w.writerow(expected_observation_columns())
         for row, is_best in zip(OBSERVATION_ROWS, tail):
@@ -569,7 +593,7 @@ def save_metric_to_file(metric_values, iteration):
     legacy_csv = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
 
     write_best_header = not os.path.exists(best_csv) or os.path.getsize(best_csv) == 0
-    with open(best_csv, 'a', newline='') as f:
+    with open(best_csv, 'a', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         if write_best_header:
             w.writerow(["BestObjective", "Iteration"])
@@ -577,7 +601,7 @@ def save_metric_to_file(metric_values, iteration):
 
     # Legacy mirror for older analysis scripts that still read this file.
     write_legacy_header = not os.path.exists(legacy_csv) or os.path.getsize(legacy_csv) == 0
-    with open(legacy_csv, 'a', newline='') as f:
+    with open(legacy_csv, 'a', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         if write_legacy_header:
             w.writerow(["Hypervolume", "Iteration"])
@@ -603,6 +627,22 @@ def save_dbo_diagnostics(iteration, phase, observation, alpha, raw_value, sugges
         'SuggestSeconds': round(float(suggest_seconds), 4),
     }])
 
+
+def save_dbo_state(dbo):
+    """Write DboRunState.json: provenance and an exact record of the optimizer.
+
+    Records the dbo_torch/torch/botorch/gpytorch versions next to the full config, RNG
+    state and every observation with its prediction, so a run can be attributed to the
+    library version that produced it and re-analysed offline (``DynamicBO.load``). The
+    write is atomic; a failure (e.g. the file briefly locked by Unity's asset importer)
+    only skips this snapshot, since provenance logging must never end a study.
+    """
+    path = os.path.join(PROJECT_PATH, DBO_STATE_FILENAME)
+    try:
+        dbo.save(path)
+    except OSError as e:
+        print(f"Warning: could not write {DBO_STATE_FILENAME}: {e}", flush=True)
+
 # -------------------- main loop --------------------
 def dbo_execute(conn, iterations, initial_samples):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH
@@ -617,14 +657,13 @@ def dbo_execute(conn, iterations, initial_samples):
     create_csv_file(os.path.join(PROJECT_PATH, 'DboDiagnosticsPerEvaluation.csv'),
                     DBO_DIAGNOSTICS_FIELDS)
 
-    torch.manual_seed(SEED)
-
     if WARM_START:
         # Warm-start rows already occupy the leading time slots, so no seed points.
         dbo = build_optimizer(None, 0)
         load_warm_start(dbo)
     else:
         dbo = build_optimizer(sobol_seed_points(initial_samples), initial_samples)
+    save_dbo_state(dbo)
 
     metric_values = []  # best normalized objective per evaluation
 
@@ -641,19 +680,24 @@ def dbo_execute(conn, iterations, initial_samples):
             obs = dbo.observe(x, -f)  # cost = -f
             ALL_NORM_MAX.append(f)
             record_observation(obs.iteration, 'sampling', f, x)
+            # One metric row per evaluation on the global index, as bo.py writes it.
+            metric_values.append(best_objective_so_far())
+            save_metric_to_file(metric_values, obs.iteration)
             save_dbo_diagnostics(obs.iteration, 'sampling', obs, dbo.alpha, raw_value, suggest_seconds)
+            save_dbo_state(dbo)
             send_json_line(conn, {"type": "tempCoverage",
                                   "value": float(i + 1) / float(max(1, initial_samples))})
 
-    # Validation iterations need a fitted model, so scheduling only starts once the
-    # sampling phase is done. The schedule is evaluated on the GLOBAL iteration index,
-    # which is also the model's time coordinate: with 5 sampling iterations and
-    # dboValidationEvery=5, the first validation step is global iteration 10.
-    dbo.config.validation_every = DBO_VALIDATION_EVERY if DBO_VALIDATION_EVERY > 0 else None
+    # Validation iterations need a fitted model, so DynamicBO only schedules them once
+    # the seed points (= the sampling phase) are spent. The schedule is evaluated on the
+    # GLOBAL iteration index, which is also the model's time coordinate: with 5 sampling
+    # iterations and dboValidationEvery=5, the first validation step is global iteration 10.
 
     best = best_objective_so_far()
-    metric_values.append(best)
-    save_metric_to_file(metric_values, 0)
+    if WARM_START:
+        # Baseline over the replayed rows, at the iteration of the last of them (as bo.py).
+        metric_values.append(best)
+        save_metric_to_file(metric_values, dbo.num_observations)
     send_json_line(conn, {"type": "coverage", "value": float(best)})
 
     # ---- optimization phase: global iterations continue from the sampling phase ----
@@ -677,8 +721,9 @@ def dbo_execute(conn, iterations, initial_samples):
         best = best_objective_so_far()
         metric_values.append(best)
         record_observation(obs.iteration, 'optimization', f, x)
-        save_metric_to_file(metric_values, it)
+        save_metric_to_file(metric_values, obs.iteration)
         save_dbo_diagnostics(obs.iteration, 'optimization', obs, alpha, raw_value, suggest_seconds)
+        save_dbo_state(dbo)
         send_json_line(conn, {"type": "coverage", "value": float(best)})
 
     final_alpha = dbo.alpha
@@ -710,6 +755,9 @@ def main():
     try:
         if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
             raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
+        if TORCH_THREADS < 1:
+            raise ValueError(f"BO_TORCH_THREADS must be >= 1, got {TORCH_THREADS}")
+        torch.set_num_threads(TORCH_THREADS)
         s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
         s.bind((HOST, PORT))
         s.listen(1)
@@ -723,6 +771,7 @@ def main():
             raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
         conn.settimeout(SOCKET_TIMEOUT_SEC)
         SOCKET_RECV_BUF = ""
+        SOCKET_RECV_DECODER.reset()
 
         # receive init
         init_msg = None
@@ -802,8 +851,19 @@ def main():
             raise ValueError(
                 f"dboAlphaParameterization must be 'decay' or 'direct', got '{DBO_ALPHA_PARAMETERIZATION}'"
             )
-        if not (0.0 < DBO_INITIAL_ALPHA <= 1.0):
-            raise ValueError(f"dboInitialAlpha must lie in (0, 1], got {DBO_INITIAL_ALPHA}")
+        if DBO_STATIONARY_BASELINE:
+            # alpha is pinned at 1 and the starting value is never used.
+            if not (0.0 < DBO_INITIAL_ALPHA <= 1.0):
+                raise ValueError(f"dboInitialAlpha must lie in (0, 1], got {DBO_INITIAL_ALPHA}")
+        elif not (0.0 < DBO_INITIAL_ALPHA < 1.0):
+            # Rejected here rather than at the first model fit, which would only happen
+            # after the participant has completed the sampling phase.
+            raise ValueError(
+                f"dboInitialAlpha must lie in (0, 1), got {DBO_INITIAL_ALPHA}. Fitting can never "
+                "move alpha away from exactly 1 (its gradient vanishes there), so the run would "
+                "be stationary BO labelled as DBO. Use 0.99 (the reference value), or enable "
+                "dboStationaryBaseline for a stationary control condition."
+            )
         if not np.isfinite(DBO_ACQUISITION_TIME_OFFSET):
             raise ValueError(f"dboAcquisitionTimeOffset must be finite, got {DBO_ACQUISITION_TIME_OFFSET}")
         if not (0.0 < DBO_VALIDATION_CONFIDENCE < 1.0):
@@ -846,6 +906,11 @@ def main():
         overlap = sorted(set(parameter_names).intersection(set(objective_names)))
         if overlap:
             raise ValueError(f"Parameter and objective keys must be distinct. Overlap: {overlap}")
+        # Keys become CSV columns next to the fixed ones; a key such as "Phase" would
+        # duplicate a column and make the observation log ambiguous.
+        reserved = sorted(set(parameter_names + objective_names).intersection(OBSERVATION_FIXED_COLUMNS))
+        if reserved:
+            raise ValueError(f"Parameter/objective keys collide with log columns: {reserved}. Rename them.")
 
         if len(parameter_names) != PROBLEM_DIM:
             raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
@@ -889,6 +954,7 @@ def main():
             WARM_START=WARM_START,
         ), flush=True)
         print("DBO settings:", dict(
+            dboTorchVersion=dbo_torch.__version__,
             spatialKernel=DBO_SPATIAL_KERNEL,
             alphaParameterization=DBO_ALPHA_PARAMETERIZATION,
             initialAlpha=DBO_INITIAL_ALPHA,

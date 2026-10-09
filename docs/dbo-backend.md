@@ -33,7 +33,7 @@ working.
 |---|---|---|
 | DBO Spatial Kernel | Rbf | Covariance over design parameters. Rbf matches the reference DBO implementation. |
 | DBO Alpha Parameterization | Decay | How alpha is fitted. Decay reproduces the reference; Direct behaves better under fast drift. |
-| DBO Initial Alpha | 0.99 | Starting decay rate before fitting. |
+| DBO Initial Alpha | 0.99 | Starting decay rate before fitting, strictly below 1: fitting can never move alpha away from exactly 1, so 1 is refused at startup (pin alpha = 1 with Stationary Baseline instead). |
 | DBO Exploration Ratio | 0.1 | Re-search with inflated variance when the acquisition collapses onto an already-certain point. 0 disables. |
 | DBO Acquisition Time Offset | 0 | 0 scores candidates at the current time (reference behaviour); 1 scores at the time they will actually be evaluated. |
 | DBO Validation Every | 0 (off) | Every N iterations apply the model's best estimate instead of an exploratory point, making optimisers comparable across conditions. |
@@ -76,7 +76,18 @@ first thing to look at after a run: **near 1.0 throughout means the objective
 did not measurably drift and the BoTorch backend would have done the same job.**
 `PredictedCost` vs `ObservedCost` on validation rows measures model accuracy
 independently of exploration luck — the quantity that separates DBO from BO as
-a session progresses.
+a session progresses. The prediction is made before the point is evaluated, for
+the iteration at which it is evaluated.
+
+```
+DboRunState.json
+```
+
+The optimizer's own record, rewritten atomically after every evaluation: the
+dbo_torch, torch, botorch and gpytorch versions, the full configuration, the RNG
+state and every observation with its prediction. It attributes a run to the
+library version that produced it, and `DynamicBO.load()` restores it exactly for
+offline analysis (e.g. `prediction_error()`).
 
 `coverage` keeps its usual meaning (best observed objective so far, normalized
 frame) for comparability with all other backends; under drift, prefer the
@@ -90,8 +101,21 @@ python tests/dbo_protocol_check.py
 ```
 
 launches the real backend and drives it with a mock Unity client speaking the
-wire protocol byte for byte, including messages split across TCP writes. ~15s,
-needs torch/botorch installed. Deliberately not part of `unittest discover`.
+wire protocol byte for byte, including messages split across TCP writes, and
+checks every log file including `DboRunState.json`. Needs torch/botorch
+installed; deliberately not part of `unittest discover`. `tests/test_dbo_runtime.py`
+is part of the normal suite (skipped without torch): init validation, run
+reproducibility, validation scheduling and the state record.
+
+## Reproducibility and the dbo_torch version
+
+The vendored dbo_torch is **0.2.0**. Each optimizer owns its random-number
+generator, seeded from the inspector **Seed**, so a run is a function of its
+configuration and the participant's responses alone. Results for the same
+seed differ from 0.1.0 (private random streams, inputs normalised against the
+fixed domain, hyperparameters fitted from three starting lengthscales keeping
+the most likely fit), so **do not mix dbo_torch versions within one study**;
+`DboRunState.json` records the version each run used.
 
 ## Updating the vendored dbo_torch package
 
@@ -101,10 +125,13 @@ puts its own folder first on `sys.path`, so the snapshot always wins. To
 refresh it after an upstream change, copy from a dbo-torch checkout:
 
 ```
-dbo-torch/src/dbo_torch/{__init__,kernels,model,optimizer,mo_optimizer}.py
+dbo-torch/src/dbo_torch/*.py
 dbo-torch/LICENSE
+dbo-torch/PROVENANCE.md
   -> Assets/StreamingAssets/BOData/BayesianOptimization/dbo_torch/
 ```
 
-Do **not** copy `unity_bridge.py` — it implements a different, incompatible
-socket protocol. Re-run `tests/dbo_protocol_check.py` after refreshing.
+Commit a `.meta` file for every new file (Unity creates them on import), and do
+**not** copy the standalone bridge — it implements a different, incompatible
+socket protocol. Re-run `tests/dbo_protocol_check.py` and
+`python -m unittest tests.test_dbo_runtime` after refreshing.
