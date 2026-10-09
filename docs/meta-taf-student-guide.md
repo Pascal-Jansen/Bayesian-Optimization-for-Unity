@@ -22,10 +22,11 @@ During a new participant's session, the optimizer blends:
 Population models that *agree* with the current user's observed data keep their influence;
 models that disagree are automatically down-weighted (that is the "TAF" part — Transfer
 Acquisition Function). On top of that, a **decay schedule** shifts control to the current
-user as their own data accumulates, and with **zero** population models the backend is
-plain multi-objective BO. So enabling MetaTAF is always safe — it can only add
-information, and it lets go of that information when it stops matching the person in
-front of you.
+user as their own data accumulates, so the run finishes on the participant's own model.
+Weighting and decay limit — but do not remove — the risk of a population that does not
+fit the person in front of you: the first transfer iterations can still be pulled in a
+wrong direction. And if no population model can be loaded at all, the run refuses to
+start (see **Meta Require Sources**) instead of silently running plain multi-objective BO.
 
 This is the multi-objective (Pareto/hypervolume) counterpart of the meta-BO approach that
 Liao et al. (CHI 2024) showed cuts calibration to a handful of trials in wrist-input
@@ -123,9 +124,11 @@ the objective values (`human`, `llm-persona`, `synthetic`) and whether they were
 — a false "human/measured" stamp poisons the audit trail of every study using the source.
 
 For every run this fits one GP per objective, normalizes everything into the optimizer's
-internal space, stamps the frame into the artifact, and **self-checks** that the written
-artifact reproduces its own run (the `fit residual` it prints; values ⪅ 0.15 are typical,
-a warning appears above 0.3). Output:
+internal space, stamps the frame into the artifact, and **self-checks** — before anything
+is written — that the artifact reproduces its own run (the `fit residual` it prints;
+values ⪅ 0.15 are typical, a warning appears above 0.3). A run that fails the check, or
+whose parameter values lie outside the bounds in `frame.json` (i.e. it was recorded with
+different bounds), is skipped with the reason and leaves no artifact behind. Output:
 
 ```
 MetaSources/
@@ -138,10 +141,11 @@ MetaSources/
 1. In the `BoForUnityManager` inspector, set **Backend = MetaTAF**.
 2. Leave **Meta Source Dir** at `MetaSources` (or point it at your folder; relative paths
    resolve against `StreamingAssets/BOData/`).
-3. Press play. The backend log lists which population models were accepted:
-   `Meta-TAF: using 3 population model(s): [...]`. If **none** is accepted, the run
-   aborts with the per-source rejection reasons (see **Meta Require Sources** below)
-   instead of silently continuing as plain multi-objective BO.
+3. Press play. The backend log lists the population models the optimizer actually loaded:
+   `Meta-TAF: using 3 population model(s): [...]`. A source that matches the study frame
+   but cannot be used is named with the reason and left out. If **none** is loaded, the
+   run aborts before the first trial with the per-source reasons (see **Meta Require
+   Sources** below) instead of silently continuing as plain multi-objective BO.
 
 That's it — the participant experience is identical to a normal run.
 
@@ -180,9 +184,19 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
   the population alone; the per-source columns show TAF weights after decay. If one source
   dominates every participant, your population may be too homogeneous — if weights differ
   a lot between participants, TAF is doing its job selecting matching predecessors.
-* **`MetaSourcesUsed/`** — an exact copy of the population models this run used. This is
-  your provenance record: even if the shared `MetaSources` folder changes later, every
-  run archives what it actually saw.
+* **`MetaSourcesUsed/`** — an exact copy of the population models this run actually
+  loaded. Candidates that matched the study frame but could not be used by the optimizer
+  (unreadable trajectory, malformed hyperparameters, a Pareto front that never beats the
+  reference point) are removed from this folder and listed with the reason in
+  `MetaRunState.json`. Even if the shared `MetaSources` folder changes later, every run
+  archives what it actually used.
+* **`MetaRunState.json`** — the run's provenance, written before the first trial: library
+  versions (torch, botorch, gpytorch, open-bo, numpy, ...), how openbo is installed (pip's
+  `direct_url.json`: git commit or editable path) plus SHA-256 hashes of the openbo modules
+  in use, the exact optimizer configuration (`MOTAFConfig`, including the settings the
+  backend pins instead of relying on openbo defaults), the study frame and its digest, the
+  seed and the Unity init configuration, and the loaded / dropped / frame-rejected sources
+  with their provenance stamps. When the run aborts at startup, `abort_reason` says why.
 
 ## 6. Study-design guidance (read before running a real experiment)
 
@@ -192,8 +206,16 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
   a new source, participant N's treatment depends on participants 1..N-1 — an ordering
   confound that breaks independence assumptions in your analysis.
 * **Compare against a no-transfer control.** The honest baseline for "Meta-BO helped" is
-  the same study with the BoTorch backend (or MetaTAF with an empty source folder, which
-  is the same optimizer). Liao et al. (CHI 2024) is the template for this comparison.
+  the same study with the BoTorch backend. For the same Seed both backends draw the
+  identical initial Sobol design and use the same target model and acquisition
+  (SingleTaskGP, qLogNEHVI with reference point −1, same MC-sampler seed), so they differ
+  in the transfer terms plus one implementation detail: the acquisition optimizer. MetaTAF
+  (openbo) uses BoTorch's `optimize_acqf` defaults (all restarts in one L-BFGS-B batch, up
+  to 2000 iterations, a per-iteration RNG seed); `mobo.py` optimizes the restarts in
+  batches of 5 with at most 200 iterations. Suggestions after the sampling phase are
+  therefore methodologically equivalent, not bit-identical. (A source-less MetaTAF run
+  needs **Meta Require Sources** switched off.) Liao et al. (CHI 2024) is the template for
+  this comparison.
 * **Leave the decay on.** `Meta Decay Rate = 0` ("never fade") is an ablation setting,
   not a study setting: without decay the population keeps a constant-size say in the
   acquisition while the participant's own improvement signal shrinks as their model
@@ -217,7 +239,10 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 | `The installed 'openbo' predates the TAF-R rework` | Your openbo is from before 2026-08, when the `taf_r` mode changed from Pareto-dominance to objective-wise ranking agreement; running it would silently compute a different similarity than configured. Run the printed command: `python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` does nothing here — openbo's version number did not change). |
 | `source '<name>' was built for a different study frame; skipping: ...` | The artifact was generated for different names/bounds/minimize flags. The message lists the exact field. Regenerate with a matching `frame.json`. |
 | `source '<name>' carries no frame block; skipping` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
-| `Meta-TAF: no valid population model found ... requires sources (metaRequireSources)` | The run aborts on purpose. Check the Meta Source Dir path, that `gp_states/` + `trajectories/` contain paired `.json` files, and the listed per-source rejection reasons; regenerate sources against the current frame. Only if a source-less (plain MOBO) run is genuinely intended, switch off **Meta Require Sources** in the inspector. |
+| `source '<name>' passed frame validation but openbo did not load it` | The artifact matches the study frame but the optimizer cannot use it: an unreadable (e.g. half-synced) trajectory file, malformed hyperparameters, or a Pareto front that never beats the reference point. The message carries openbo's reason; regenerate the source with `meta_train.py`, which refuses such artifacts up front. The run continues with the remaining sources (or aborts if none is left). |
+| `Meta-TAF: no valid population model found ... requires sources (metaRequireSources)` | The run aborts on purpose, before the first trial (`MetaRunState.json` in the run folder records why). Check the Meta Source Dir path, that `gp_states/` + `trajectories/` contain paired `.json` files, and the listed per-source rejection reasons (frame mismatches as well as sources openbo could not load); regenerate sources against the current frame. Only if a source-less (plain MOBO) run is genuinely intended, switch off **Meta Require Sources** in the inspector. |
+| `Parameter/objective key(s) [...] collide with the fixed columns of ObservationsPerEvaluation.csv` | Rename that parameter/objective key: `UserID`, `ConditionID`, `GroupID`, `Timestamp`, `Iteration`, `Phase` and `IsPareto` are columns of the observation log. |
+| `meta_train.py` prints `Parameter column '<name>': ... outside the frame bounds` | That run was recorded with different parameter bounds than `frame.json` describes. Use the frame it was recorded with, or leave the run out — rescaling it would silently distort the population model. |
 | Backend log stops right after `using N population model(s)` | Stale PyTorch JIT lock from a previously killed run. Current builds isolate this per-process; if you ever see it, delete `%LOCALAPPDATA%\torch_extensions` and restart. |
 | Suggestions feel slow | Per-iteration optimization cost grows with the number of population models (measured: ~5 s with 0 sources to ~17 s with 14 sources at study-quality settings, machine-dependent). Cap the population folder to the most relevant sources if needed. |
 | `MetaTAF does not support Warm Start` / contextual error | By design — see section 8. |

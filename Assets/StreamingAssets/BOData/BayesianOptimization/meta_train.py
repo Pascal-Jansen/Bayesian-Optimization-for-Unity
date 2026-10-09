@@ -34,9 +34,12 @@
 import argparse
 import datetime
 import json
+import math
 import os
 import re
+import shutil
 import sys
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -93,6 +96,10 @@ def load_frame(frame_path):
     objectives_info = [(float(o["low"]), float(o["high"]), int(o.get("minimize", 0))) for o in objs]
     if len(objective_names) < 2:
         raise SystemExit("Meta-TAF sources are multi-objective: define at least 2 objectives.")
+    for name, bounds in zip(parameter_names + objective_names, parameters_info + objectives_info):
+        lo, hi = bounds[0], bounds[1]
+        if not (math.isfinite(lo) and math.isfinite(hi)) or hi < lo:
+            raise SystemExit(f"frame.json: '{name}' needs finite bounds with low <= high, got [{lo}, {hi}].")
     frame = meta_fingerprint.canonical_frame(
         parameter_names, parameters_info, objective_names, objectives_info
     )
@@ -116,7 +123,34 @@ def read_run_csv(run_path):
         csv_path = os.path.join(run_path, "ObservationsPerEvaluation.csv")
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"No ObservationsPerEvaluation.csv under: {run_path}")
-    return pd.read_csv(csv_path, delimiter=";")
+    return pd.read_csv(csv_path, delimiter=";", encoding="utf-8")
+
+
+def normalize_param_column_strict(col, lo, hi, name):
+    """Raw parameter column -> [0, 1], refusing any value outside the frame's raw bounds.
+
+    bo_normalize.normalize_param_column falls back to "already normalized" for values that
+    miss the raw bounds but lie in [0, 1] -- a warm-start convenience. ObservationsPerEvaluation.csv
+    is raw by construction, so here that fallback would silently reinterpret a run recorded
+    under DIFFERENT bounds (pilot [0, 1], frame.json [0.2, 0.8]: raw 0.05 became x = 0.05),
+    and the frame stamp would then certify the distorted source. Values may overshoot the
+    bounds only by bo_normalize's rounding tolerance (a 5e-4 fraction of the range, for logs
+    rounded to few decimals) and are clipped back.
+    """
+    col = np.asarray(col, dtype=np.float64)
+    tol = max(bo_normalize._PARAM_EPS, bo_normalize._PARAM_RAW_TOL_FRACTION * (hi - lo))
+    outside = (col < lo - tol) | (col > hi + tol)
+    if np.any(outside):
+        bad = np.unique(col[outside])
+        shown = ", ".join(format(float(v), ".10g") for v in bad[:5]) + (", ..." if bad.size > 5 else "")
+        raise ValueError(
+            f"Parameter column '{name}': {int(np.count_nonzero(outside))} value(s) outside the "
+            f"frame bounds [{lo:.10g}, {hi:.10g}]: {shown}. The run was not recorded with the "
+            "bounds in frame.json (did the study bounds change?); refusing to rescale it."
+        )
+    # Clipped into the bounds, so normalize_param_column always takes its raw-units branch;
+    # raw units are guaranteed here, so its raw-vs-normalized ambiguity notice would mislead.
+    return bo_normalize.normalize_param_column(np.clip(col, lo, hi), lo, hi, warn=lambda _msg: None)
 
 
 def extract_normalized_xy(df, parameter_names, parameters_info, objective_names, objectives_info):
@@ -140,12 +174,18 @@ def extract_normalized_xy(df, parameter_names, parameters_info, objective_names,
 
     x_unit = np.zeros_like(x_raw)
     for j, (lo, hi) in enumerate(parameters_info):
-        x_unit[:, j] = bo_normalize.normalize_param_column(x_raw[:, j], lo, hi)
+        x_unit[:, j] = normalize_param_column_strict(x_raw[:, j], lo, hi, parameter_names[j])
     y_norm = np.zeros_like(y_raw)
     for j, (lo, hi, minflag) in enumerate(objectives_info):
         # ObservationsPerEvaluation.csv stores raw units by construction.
         y_norm[:, j] = bo_normalize.normalize_obj_column(y_raw[:, j], lo, hi, minflag, fmt="raw")
     return x_unit, y_norm
+
+
+def is_finite_restart(score, entry):
+    """True when a restart's score and every exported hyperparameter are finite numbers."""
+    values = [score, entry["variance"], entry["noise"], entry["mean_constant"], *entry["lengthscale"]]
+    return all(math.isfinite(float(v)) for v in values)
 
 
 def fit_per_objective_hyperparameters(x_unit, y_norm, stack):
@@ -219,19 +259,26 @@ def fit_per_objective_hyperparameters(x_unit, y_norm, stack):
             mll.train()
             with torch.no_grad():
                 score = float(mll(gp(x_t), gp.train_targets).sum())
+            entry = {
+                "kernel_type": "matern52",
+                "lengthscale": [float(v) for v in
+                                gp.covar_module.base_kernel.lengthscale.detach().reshape(-1)],
+                "variance": float(gp.covar_module.outputscale.detach()),
+                "noise": float(gp.likelihood.noise.detach().reshape(-1)[0]),
+                "mean_constant": float(gp.mean_module.constant.detach().reshape(-1)[0]),
+                "standardize_targets": True,
+                "optimize_noise": True,
+            }
 
+            # NaN never compares greater, so a NaN score on the FIRST successful restart
+            # would otherwise stay "best" for good; non-finite hyperparameters would replay
+            # as a NaN surface. Either way this restart counts as failed.
+            if not is_finite_restart(score, entry):
+                failures.append(f"restart {restart}: non-finite marginal likelihood or hyperparameters")
+                continue
             if best_score is None or score > best_score:
                 best_score = score
-                best_entry = {
-                    "kernel_type": "matern52",
-                    "lengthscale": [float(v) for v in
-                                    gp.covar_module.base_kernel.lengthscale.detach().reshape(-1)],
-                    "variance": float(gp.covar_module.outputscale.detach()),
-                    "noise": float(gp.likelihood.noise.detach().reshape(-1)[0]),
-                    "mean_constant": float(gp.mean_module.constant.detach().reshape(-1)[0]),
-                    "standardize_targets": True,
-                    "optimize_noise": True,
-                }
+                best_entry = entry
 
         if best_entry is None:
             raise RuntimeError(
@@ -259,11 +306,6 @@ def write_artifact(out_dir, name, x_unit, y_norm, gp_entries, frame, run_path,
             "objective columns and the frame's objective bounds."
         )
 
-    traj_dir = os.path.join(out_dir, "trajectories")
-    gp_dir = os.path.join(out_dir, "gp_states")
-    os.makedirs(traj_dir, exist_ok=True)
-    os.makedirs(gp_dir, exist_ok=True)
-
     trajectory = {
         "x_values": x_unit.tolist(),
         "y_values": y_norm.tolist(),
@@ -284,24 +326,53 @@ def write_artifact(out_dir, name, x_unit, y_norm, gp_entries, frame, run_path,
             "n_observations": int(x_unit.shape[0]),
         },
     }
-    with open(os.path.join(traj_dir, f"{name}.json"), "w", encoding="utf-8") as f:
-        json.dump(trajectory, f)
-    with open(os.path.join(gp_dir, f"{name}.json"), "w", encoding="utf-8") as f:
-        json.dump(gp_payload, f, indent=1)
+    # Self-check BEFORE publishing. The pair is written into a private scratch folder inside
+    # out_dir (same volume, so the final os.replace calls are atomic), reloaded there through
+    # the SAME loader the runtime uses, and its replayed posterior mean compared against the
+    # data it was fitted on (a large residual means the artifact does not reproduce the run it
+    # claims to represent). Only an artifact that passes is moved into gp_states/ +
+    # trajectories/: a failed one leaves nothing behind that the runtime would stage and then
+    # have to drop. The scratch name starts with "." so Unity's asset importer ignores it.
+    os.makedirs(out_dir, exist_ok=True)
+    scratch = tempfile.mkdtemp(prefix=".meta_train_", dir=out_dir)
+    try:
+        scratch_traj = os.path.join(scratch, "trajectories", f"{name}.json")
+        scratch_gp = os.path.join(scratch, "gp_states", f"{name}.json")
+        os.makedirs(os.path.dirname(scratch_traj))
+        os.makedirs(os.path.dirname(scratch_gp))
+        _write_json(scratch_traj, trajectory)
+        _write_json(scratch_gp, gp_payload, indent=1)
 
-    # Self-check: reload through the SAME loader the runtime uses and compare the
-    # replayed posterior mean against the data it was fitted on. A large residual means
-    # the artifact does not reproduce the run it claims to represent.
-    sources = load_sources(out_dir, expected_m=y_norm.shape[1], expected_d=x_unit.shape[1])
-    match = [s for s in sources if s.name == name]
-    if not match:
-        raise RuntimeError(f"Self-check failed: artifact '{name}' did not load back.")
-    mu = match[0].posterior_mean(x_unit)
-    residual = float(np.max(np.abs(mu - y_norm)))
-    gp_payload["provenance"]["fit_residual"] = residual
-    with open(os.path.join(gp_dir, f"{name}.json"), "w", encoding="utf-8") as f:
-        json.dump(gp_payload, f, indent=1)
+        sources = load_sources(scratch, expected_m=y_norm.shape[1], expected_d=x_unit.shape[1])
+        match = [s for s in sources if s.name == name]
+        if not match:
+            raise RuntimeError(f"Self-check failed: artifact '{name}' did not load back.")
+        mu = match[0].posterior_mean(x_unit)
+        residual = float(np.max(np.abs(mu - y_norm)))
+        if not math.isfinite(residual):
+            raise RuntimeError(
+                f"Self-check failed: artifact '{name}' replays a non-finite posterior mean."
+            )
+        gp_payload["provenance"]["fit_residual"] = residual
+        _write_json(scratch_gp, gp_payload, indent=1)
+
+        traj_dir = os.path.join(out_dir, "trajectories")
+        gp_dir = os.path.join(out_dir, "gp_states")
+        os.makedirs(traj_dir, exist_ok=True)
+        os.makedirs(gp_dir, exist_ok=True)
+        # Trajectory first: the runtime discovers sources through gp_states/, so a crash
+        # between the two replaces leaves at most an orphan trajectory it never stages.
+        os.replace(scratch_traj, os.path.join(traj_dir, f"{name}.json"))
+        os.replace(scratch_gp, os.path.join(gp_dir, f"{name}.json"))
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
     return residual
+
+
+def _write_json(path, payload, indent=None):
+    # allow_nan=False: a NaN/Inf that slipped through is an error, never a non-JSON artifact.
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=indent, allow_nan=False)
 
 
 def main(argv=None):

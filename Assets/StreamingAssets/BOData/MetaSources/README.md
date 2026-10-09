@@ -14,9 +14,17 @@ You do not write these files by hand. Generate them from completed runs with:
 ```
 python Assets/StreamingAssets/BOData/BayesianOptimization/meta_train.py ^
     --frame frame.json --out Assets/StreamingAssets/BOData/MetaSources ^
+    --source-type human --y-calibration measured ^
     path/to/LogData/<user>/<condition>/run ...
 ```
 
+`--source-type` (`human`, `llm-persona`, `synthetic`) and `--y-calibration` (`measured`,
+`generated`) are required provenance stamps written into every artifact — label them
+honestly.
+
 Sources whose study frame (parameter/objective names, bounds, minimize flags) does not
 match the live study are skipped at runtime with a field-by-field explanation — that is
-intentional, not a bug. See `docs/meta-taf-student-guide.md` for the full workflow.
+intentional, not a bug. Sources that match the frame but cannot be loaded by the optimizer
+are dropped with the reason as well; each run records what it actually used in its
+`MetaSourcesUsed/` folder and `MetaRunState.json`. See `docs/meta-taf-student-guide.md`
+for the full workflow.
