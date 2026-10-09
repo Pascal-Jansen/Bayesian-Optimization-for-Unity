@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-09
+
 ### Changed
 - **The initial design is now a real Sobol design in every backend.** `draw_sobol_samples(n=1, q=N)` drew *one* point of an N·d-dimensional Sobol sequence and reshaped it — no better spread than independent uniform draws (mean centered L2 discrepancy, d=2, N=6, 200 seeds: 0.064 vs 0.061 for i.i.d. uniform and 0.019 for a real Sobol design). BoTorch, MOBO, DBO and MetaTAF now draw N points of one d-dimensional sequence with the same call (`n=N, q=1`), so all of them share the initial design for a given seed — MetaTAF previously used a different generator, so its participants started from other designs than the BoTorch control condition. CABOP's own Sobol draw is fixed separately (below). **Initial designs differ from earlier versions: do not upgrade within a running study.**
 - CSV logs keep 10 significant digits instead of 3 decimals. Small ranges were erased (0.000274 on [0, 0.004] logged as 0.0; two objective values 0.0035 and 0.0041 both as 0.004), so the logs could not reproduce the evaluated design, and FinalDesignSelector, warm starts and Meta-TAF sources worked from different values than the participant experienced. 10 digits keep every bit of the float32 values Unity exchanges while hiding float64 round-trip noise (`6.0`, not `5.999999999999999`).
