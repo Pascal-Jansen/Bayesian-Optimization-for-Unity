@@ -1,4 +1,5 @@
 # cabop_runtime.py — Unity NDJSON runtime for CABOP backend (single + scalarized multi-objective)
+import codecs
 import csv
 import json
 import os
@@ -9,6 +10,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+import bo_normalize
 from cabop.bayesopt import BayesOpt, BOSpace
 
 # -------------------- defaults (overwritten by Unity init) --------------------
@@ -63,6 +65,9 @@ SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
 SOCKET_RECV_BUF = ""
+# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
+# must not become replacement characters (a key "Größe" would no longer match).
+SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
 
 def normalize_user_token(value, default="-1"):
@@ -119,16 +124,17 @@ def recv_json_message(conn):
         except socket.timeout as e:
             raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
         if not chunk:
-            trailing = SOCKET_RECV_BUF.strip()
+            trailing = (SOCKET_RECV_BUF + SOCKET_RECV_DECODER.decode(b"", final=True)).strip()
             SOCKET_RECV_BUF = ""
             if trailing:
                 print("Warning: discarding trailing unterminated socket data:", trailing, flush=True)
             return None
 
-        SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
+        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
         if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
             preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
             SOCKET_RECV_BUF = ""
+            SOCKET_RECV_DECODER.reset()
             raise RuntimeError(
                 f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
                 f"possible framing error or oversized message. Tail preview: {preview}"
@@ -295,20 +301,41 @@ def init_parameter_and_objective_metadata(init_msg):
     if overlap:
         raise ValueError(f"Parameter and objective keys must be distinct. Overlap: {overlap}")
 
+    # Keys become CSV columns next to the fixed ones; a key such as "Phase" would duplicate
+    # a column and break the log rewrite after the first evaluation.
+    reserved = sorted(
+        set(parameter_names + objective_names).intersection(
+            {"UserID", "ConditionID", "GroupID", "Timestamp", "Iteration", "Phase", "IsBest", "IsPareto"}
+        )
+    )
+    if reserved:
+        raise ValueError(f"Parameter/objective keys collide with log columns: {reserved}. Rename them.")
+
     if len(parameter_names) != PROBLEM_DIM:
         raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
     if len(objective_names) != NUM_OBJS:
         raise ValueError(f"objective_names len {len(objective_names)} != nObjectives {NUM_OBJS}")
 
     parameters_info = []
+    # Unity matches CABOP groups case-insensitively; collapse spellings onto the first seen
+    # so a group and its configured costs cannot drift apart over letter case.
+    group_spellings = {}
     for i, p in enumerate(parameters):
         lo, hi = parse_param_init(p.get("init"))
         if not np.isfinite(lo) or not np.isfinite(hi):
             raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
         if hi < lo:
             raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
+        if hi == lo:
+            # CABOP maps parameters to [0,1] by (x - lo) / (hi - lo); a frozen parameter
+            # would turn the first GP fit, after the sampling phase, into NaN.
+            raise ValueError(
+                f"Parameter '{parameter_names[i]}' has a degenerate range [{lo}, {hi}]. "
+                "The CABOP backend needs a non-empty range on every parameter."
+            )
 
         group = str(p.get("group") or "default").strip() or "default"
+        group = group_spellings.setdefault(group.casefold(), group)
         tol = safe_float(p.get("tolerance"), 0.05)
         if tol < 0:
             tol = 0.0
@@ -345,9 +372,9 @@ def init_group_costs(init_msg):
             group = str(entry.get("group") or "").strip()
             if not group:
                 continue
-            if group in cabop_group_costs:
+            if group.casefold() in cabop_group_costs:
                 continue
-            cabop_group_costs[group] = {
+            cabop_group_costs[group.casefold()] = {
                 "cost": normalize_cost_triplet(entry.get("cost")),
                 "actual_cost": normalize_cost_triplet(entry.get("actualCost")),
             }
@@ -358,9 +385,9 @@ def init_group_costs(init_msg):
             groups_from_parameters.append(group)
 
     for group in groups_from_parameters:
-        if group in cabop_group_costs:
+        if group.casefold() in cabop_group_costs:
             continue
-        cabop_group_costs[group] = {
+        cabop_group_costs[group.casefold()] = {
             "cost": normalize_cost_triplet({}),
             "actual_cost": normalize_cost_triplet({}),
         }
@@ -383,7 +410,7 @@ def build_cabop_space_dict():
     cost = {}
     actual_cost = {}
     for group in groups:
-        group_data = cabop_group_costs.get(group, None)
+        group_data = cabop_group_costs.get(group.casefold(), None)
         if group_data is None:
             group_data = {
                 "cost": normalize_cost_triplet({}),
@@ -471,27 +498,10 @@ def normalize_obj_column_to_raw(col, lo, hi, minflag):
 
 
 def normalize_param_column_to_raw(col, lo, hi):
-    col = np.asarray(col, dtype=np.float64)
-    eps = 1e-8
-    in_raw_range = np.all((lo - eps <= col) & (col <= hi + eps))
-    in_norm_range = np.all((-eps <= col) & (col <= 1.0 + eps))
-
-    if hi == lo:
-        if np.allclose(col, lo, rtol=0.0, atol=1e-8):
-            return np.full_like(col, lo)
-        if in_norm_range and np.allclose(col, 0.0, rtol=0.0, atol=1e-8):
-            return np.full_like(col, lo)
-        raise ValueError(f"Warm-start parameter values out of bounds for degenerate interval [{lo}, {hi}]")
-
-    if in_raw_range:
-        return np.asarray(col, dtype=np.float64)
-    if in_norm_range:
-        return lo + np.clip(col, 0.0, 1.0) * (hi - lo)
-
-    raise ValueError(
-        f"Warm-start parameter values must be within raw bounds [{lo}, {hi}] or normalized [0,1], "
-        f"got range [{np.min(col)}, {np.max(col)}]"
-    )
+    # Same scale inference as the BoTorch/DBO backends (raw vs already-normalized, rounding
+    # tolerance, warnings), mapped back to the raw units CABOP works in.
+    unit = bo_normalize.normalize_param_column(col, lo, hi)
+    return lo + unit * (hi - lo)
 
 
 def load_warm_start_raw():
@@ -506,8 +516,8 @@ def load_warm_start_raw():
     if not os.path.exists(y_path):
         raise FileNotFoundError(f"Warm-start objective CSV not found: {y_path}")
 
-    x_df = pd.read_csv(x_path, delimiter=";")
-    y_df = pd.read_csv(y_path, delimiter=";")
+    x_df = pd.read_csv(x_path, delimiter=";", encoding="utf-8")
+    y_df = pd.read_csv(y_path, delimiter=";", encoding="utf-8")
 
     missing_param_cols = [k for k in parameter_names if k not in x_df.columns]
     missing_obj_cols = [k for k in objective_names if k not in y_df.columns]
@@ -601,13 +611,13 @@ def create_observations_file_if_missing(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path):
         return
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         csv.writer(f, delimiter=";").writerow(expected_observation_columns())
 
 
 def append_execution_time(iteration, elapsed_sec):
     write_header = not os.path.exists(EXECUTION_LOG_PATH) or os.path.getsize(EXECUTION_LOG_PATH) == 0
-    with open(EXECUTION_LOG_PATH, "a", newline="") as f:
+    with open(EXECUTION_LOG_PATH, "a", newline="", encoding="utf-8") as f:
         w = csv.writer(f, delimiter=";")
         if write_header:
             w.writerow(["Optimization", "Execution_Time"])
@@ -633,7 +643,13 @@ def append_observation_row(iteration, phase, scalarized_value, objective_raw, pa
     for i, name in enumerate(parameter_names):
         row[name] = np.round(float(parameter_raw[i]), 3)
 
-    df = pd.read_csv(OBSERVATIONS_LOG_PATH, delimiter=";") if os.path.exists(OBSERVATIONS_LOG_PATH) else pd.DataFrame(columns=expected_observation_columns())
+    # Read back as text: type inference would rewrite IDs such as "007" as 7 in every
+    # earlier row, and FinalDesignSelector matches IDs as exact strings.
+    df = (
+        pd.read_csv(OBSERVATIONS_LOG_PATH, delimiter=";", dtype=str, keep_default_na=False, encoding="utf-8")
+        if os.path.exists(OBSERVATIONS_LOG_PATH)
+        else pd.DataFrame(columns=expected_observation_columns())
+    )
     expected_cols = expected_observation_columns()
     if list(df.columns) != expected_cols:
         raise ValueError(
@@ -671,7 +687,7 @@ def append_observation_row(iteration, phase, scalarized_value, objective_raw, pa
 
 def append_metrics_row(iteration, phase, scalarized_value, best_scalarized, coverage, realized_cost, cumulative_cost):
     write_header = not os.path.exists(METRICS_LOG_PATH) or os.path.getsize(METRICS_LOG_PATH) == 0
-    with open(METRICS_LOG_PATH, "a", newline="") as f:
+    with open(METRICS_LOG_PATH, "a", newline="", encoding="utf-8") as f:
         w = csv.writer(f, delimiter=";")
         if write_header:
             w.writerow([
@@ -696,7 +712,7 @@ def append_metrics_row(iteration, phase, scalarized_value, best_scalarized, cove
 
 def append_compat_metric(iteration, coverage):
     write_header = not os.path.exists(COMPAT_METRIC_LOG_PATH) or os.path.getsize(COMPAT_METRIC_LOG_PATH) == 0
-    with open(COMPAT_METRIC_LOG_PATH, "a", newline="") as f:
+    with open(COMPAT_METRIC_LOG_PATH, "a", newline="", encoding="utf-8") as f:
         w = csv.writer(f, delimiter=";")
         if write_header:
             if CABOP_MODE == "single":
@@ -784,7 +800,8 @@ def run_cabop(conn):
 
     space_dict = build_cabop_space_dict()
     space = BOSpace(parameters=space_dict)
-    optimizer = BayesOpt(space, ifCost=bool(CABOP_USE_COST_AWARE), random_state=SEED)
+    # numpy rejects negative seeds, which Unity allows; wrap into numpy's seed range.
+    optimizer = BayesOpt(space, ifCost=bool(CABOP_USE_COST_AWARE), random_state=SEED % (2**32))
 
     prefab = build_prefab_dict()
 
@@ -934,6 +951,7 @@ def main(forced_mode=None):
             raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
         conn.settimeout(SOCKET_TIMEOUT_SEC)
         SOCKET_RECV_BUF = ""
+        SOCKET_RECV_DECODER.reset()
 
         init_msg = None
         while True:
