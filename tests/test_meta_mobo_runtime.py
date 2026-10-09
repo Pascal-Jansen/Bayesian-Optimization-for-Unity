@@ -37,6 +37,7 @@ from _stubs import (  # noqa: E402
     install_openbo_stub,
     install_stub_modules,
     json_line as _json_line,
+    reset_protocol_state,
     run_main_recording_listener,
 )
 
@@ -58,7 +59,9 @@ def _load(path, prefix):
 def load_runtime():
     install_stub_modules()
     install_openbo_stub()
-    return _load(RUNTIME_PATH, "meta_runtime_test")
+    runtime = _load(RUNTIME_PATH, "meta_runtime_test")
+    reset_protocol_state()
+    return runtime
 
 
 def load_fingerprint():
@@ -120,15 +123,18 @@ def make_frame(fp_module, flip_minimize=False):
     )
 
 
-def write_source(meta_dir, name, frame=None, unframed=False, truncate_trajectory=False, front=None):
+def write_source(meta_dir, name, frame=None, unframed=False, truncate_trajectory=False, front=None,
+                 provenance=None, trajectory_of=None):
     """Write one artifact pair. ``truncate_trajectory`` mimics a half-synced cloud copy and
     ``front`` overrides the stored Pareto front: both pass the runtime's frame validation
-    but are skipped by openbo's loader/constructor (warn-and-skip)."""
+    but are skipped by openbo's loader/constructor (warn-and-skip). Each name gets its own
+    trajectory; ``trajectory_of`` reuses another name's (the same run under two names)."""
     gp_dir = meta_dir / "gp_states"
     traj_dir = meta_dir / "trajectories"
     gp_dir.mkdir(parents=True, exist_ok=True)
     traj_dir.mkdir(parents=True, exist_ok=True)
-    x = [[0.1, 0.2], [0.5, 0.6], [0.9, 0.4]]
+    offset = sum(map(ord, trajectory_of or name)) % 50 / 1000.0
+    x = [[0.1 + offset, 0.2], [0.5, 0.6], [0.9, 0.4]]
     y = [[0.2, 0.1], [-0.3, 0.5], [0.4, -0.2]]
     trajectory = json.dumps({"x_values": x, "y_values": y, "pareto_front": y if front is None else front})
     if truncate_trajectory:
@@ -140,6 +146,8 @@ def write_source(meta_dir, name, frame=None, unframed=False, truncate_trajectory
     ]}}
     if not unframed:
         payload["frame"] = frame
+    if provenance is not None:
+        payload["provenance"] = provenance
     (gp_dir / f"{name}.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
@@ -340,7 +348,7 @@ class MetaRuntimeProtocolTests(_RunMainMixin, unittest.TestCase):
             self.assertEqual(hv_rows[0], ["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
             self.assertEqual([r[1] for r in hv_rows[1:]], ["1", "2", "3", "4"])
             self.assertTrue(all(r[2] == "normalized maximize-space [-1,1] per objective" for r in hv_rows[1:]))
-            self.assertTrue(all(r[3] == "[-1.0,-1.0]" for r in hv_rows[1:]))
+            self.assertTrue(all(r[3] == "[-1.1,-1.1]" for r in hv_rows[1:]))
 
             with open(run_dir / "ExecutionTimes.csv", newline="") as f:
                 exec_rows = list(csv.reader(f, delimiter=";"))
@@ -349,10 +357,11 @@ class MetaRuntimeProtocolTests(_RunMainMixin, unittest.TestCase):
 
             with open(run_dir / "MetaWeightsPerEvaluation.csv", newline="") as f:
                 w_rows = list(csv.reader(f, delimiter=";"))
-            self.assertEqual(w_rows[0], ["Iteration", "TargetWeight", "DecayFactor", "srcA", "srcB"])
+            self.assertEqual(w_rows[0], ["Iteration", "OptimizationStep", "TargetWeight", "DecayFactor",
+                                         "srcA", "srcB"])
             self.assertEqual(len(w_rows[1:]), 2)
             for row in w_rows[1:]:
-                self.assertAlmostEqual(float(row[3]) + float(row[4]), 1.0, places=6)
+                self.assertAlmostEqual(float(row[4]) + float(row[5]), 1.0, places=6)
 
     def test_taf_r_pareto_ablation_mode_reaches_the_optimizer(self):
         """The dominance ablation mode must pass init validation and arrive verbatim in
@@ -393,7 +402,7 @@ class MetaRuntimeProtocolTests(_RunMainMixin, unittest.TestCase):
             weights_csv = tmp / "LogData" / "u1" / "c1" / "run" / "MetaWeightsPerEvaluation.csv"
             with open(weights_csv, newline="") as f:
                 w_rows = list(csv.reader(f, delimiter=";"))
-            self.assertEqual(w_rows[0], ["Iteration", "TargetWeight", "DecayFactor"])
+            self.assertEqual(w_rows[0], ["Iteration", "OptimizationStep", "TargetWeight", "DecayFactor"])
 
     def test_zero_sources_fails_fast_by_default(self):
         """metaRequireSources defaults to true: a source-less MetaTAF run must abort
@@ -493,7 +502,7 @@ class LoadedSourceTests(_RunMainMixin, unittest.TestCase):
             self.assertEqual(sorted(p.stem for p in (used / "trajectories").glob("*.json")), ["srcA"])
             with open(run_dir / "MetaWeightsPerEvaluation.csv", newline="", encoding="utf-8") as f:
                 header = next(csv.reader(f, delimiter=";"))
-            self.assertEqual(header, ["Iteration", "TargetWeight", "DecayFactor", "srcA"])
+            self.assertEqual(header, ["Iteration", "OptimizationStep", "TargetWeight", "DecayFactor", "srcA"])
 
             state = json.loads((run_dir / "MetaRunState.json").read_text(encoding="utf-8"))
             self.assertIsNone(state["abort_reason"])
@@ -512,7 +521,8 @@ class LoadedSourceTests(_RunMainMixin, unittest.TestCase):
             tmp = pathlib.Path(tmp)
             src = tmp / "MetaSources"
             write_source(src, "srcA", frame=make_frame(fp), truncate_trajectory=True)
-            write_source(src, "srcB", frame=make_frame(fp), front=[[-1.0, 0.5]])
+            # Below the reference point (-1.1) in the first objective: no hypervolume term.
+            write_source(src, "srcB", frame=make_frame(fp), front=[[-1.5, 0.5]])
             with self.assertRaises(RuntimeError) as ctx:
                 self._run_main(runtime, base_init_message(), [], self._env(tmp))
             msg = str(ctx.exception)
@@ -670,8 +680,8 @@ class SocketFramingTests(unittest.TestCase):
         line = (json.dumps({"type": "objectives", "values": {"Übersicht": 3.0, "Dauer": 2.0}},
                            ensure_ascii=False) + "\n").encode("utf-8")
         cut = line.index("Ü".encode("utf-8")) + 1  # inside the two-byte 'Ü'
-        msg = runtime.recv_json_message(_FakeConn([line[:cut], line[cut:]]))
-        self.assertEqual(set(msg["values"]), {"Übersicht", "Dauer"})
+        values = runtime.recv_objectives_blocking(_FakeConn([line[:cut], line[cut:]]))
+        self.assertEqual(set(values), {"Übersicht", "Dauer"})
 
 
 class ParetoFlagTests(unittest.TestCase):
@@ -793,6 +803,537 @@ class MetaTrainTests(unittest.TestCase):
             payload = json.loads((pathlib.Path(tmp) / "gp_states" / "src.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["provenance"]["fit_residual"], 0.0)
             self.assertNotEqual(checked_dirs[0], os.path.abspath(tmp))  # checked on the scratch copy
+
+
+
+def _run_dir(tmp, user="u1", condition="c1"):
+    return tmp / "LogData" / user / condition / "run"
+
+
+def _read_rows(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.reader(f, delimiter=";"))
+
+
+def _sha256(path):
+    import hashlib
+    return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+
+
+class StagingRobustnessTests(unittest.TestCase):
+    """A candidate that cannot be copied or read is skipped with its reason, never a crash,
+    and what is validated is the staged copy openbo will load."""
+
+    def setUp(self):
+        self.runtime = load_runtime()
+        self.fp = load_fingerprint()
+        self.runtime.FRAME = make_frame(self.fp)
+
+    def _stage(self, src, staging):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            kept, rejected = self.runtime.validate_and_stage_sources(str(src), str(staging))
+        return kept, rejected, out.getvalue()
+
+    def test_appledouble_and_undecodable_files_are_skipped_with_a_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(self.fp))
+            # macOS AppleDouble companions (exFAT/SMB copies): binary, not UTF-8 JSON.
+            junk = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X        \xb0\xff\x00"
+            for sub in ("gp_states", "trajectories"):
+                (src / sub / "._srcA.json").write_bytes(junk)
+                (src / sub / "latin.json").write_bytes(b"\xff\xfe{\x00}")
+            kept, rejected, log = self._stage(src, tmp / "staged")
+            self.assertEqual(kept, ["srcA"])
+            self.assertTrue(any(r.startswith("'._srcA'") and "AppleDouble" in r for r in rejected), rejected)
+            self.assertTrue(any(r.startswith("'latin'") and "unreadable" in r for r in rejected), rejected)
+            staged = sorted(p.name for p in (tmp / "staged" / "gp_states").iterdir())
+            self.assertEqual(staged, ["srcA.json"])
+
+    def test_json_that_is_not_an_object_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(self.fp))
+            write_source(src, "listy", frame=make_frame(self.fp))
+            (src / "gp_states" / "listy.json").write_text("[1, 2, 3]", encoding="utf-8")
+            kept, rejected, _ = self._stage(src, tmp / "staged")
+            self.assertEqual(kept, ["srcA"])
+            self.assertTrue(any(r.startswith("'listy'") and "not a JSON object" in r for r in rejected), rejected)
+            self.assertFalse((tmp / "staged" / "trajectories" / "listy.json").exists())
+
+    def test_file_that_cannot_be_copied_is_skipped(self):
+        """A locked file or an offline cloud placeholder raised from shutil.copyfile and
+        aborted the start with a traceback."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "locked", frame=make_frame(self.fp))
+            write_source(src, "srcA", frame=make_frame(self.fp))
+            real_copy = self.runtime.shutil.copyfile
+
+            def copyfile(a, b, *args, **kwargs):
+                if os.path.basename(a) == "locked.json":
+                    raise PermissionError(13, "The process cannot access the file", a)
+                return real_copy(a, b, *args, **kwargs)
+
+            with mock.patch.object(self.runtime.shutil, "copyfile", copyfile):
+                kept, rejected, _ = self._stage(src, tmp / "staged")
+            self.assertEqual(kept, ["srcA"])
+            self.assertTrue(any(r.startswith("'locked'") and "could not be copied" in r for r in rejected), rejected)
+
+    def test_the_staged_copy_is_what_gets_validated(self):
+        """A sync client replacing the file between the frame check and the copy used to
+        stage content nobody had validated (here: an inverted minimize flag)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(self.fp))
+            gp_path = src / "gp_states" / "srcA.json"
+            flipped = json.loads(gp_path.read_text(encoding="utf-8"))
+            flipped["frame"] = make_frame(self.fp, flip_minimize=True)
+            real_copy = self.runtime.shutil.copyfile
+
+            def copyfile(a, b, *args, **kwargs):
+                if pathlib.Path(a) == gp_path:  # the sync client replaces the file now
+                    gp_path.write_text(json.dumps(flipped), encoding="utf-8")
+                return real_copy(a, b, *args, **kwargs)
+
+            with mock.patch.object(self.runtime.shutil, "copyfile", copyfile):
+                kept, rejected, _ = self._stage(src, tmp / "staged")
+            self.assertEqual(kept, [])
+            self.assertIn("minimize flag", " ".join(rejected))
+            self.assertEqual(list((tmp / "staged" / "gp_states").iterdir()), [])
+
+    def test_trajectory_stamp_mismatch_is_skipped(self):
+        """meta_train.py stamps the trajectory's SHA-256 into the gp_state: a pair whose
+        gp_state replace failed (new trajectory, old gp_state) must not be used."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "stale", frame=make_frame(self.fp), provenance={"trajectory_sha256": "0" * 64})
+            write_source(src, "srcA", frame=make_frame(self.fp))
+            good = _sha256(src / "trajectories" / "srcA.json")
+            write_source(src, "srcA", frame=make_frame(self.fp), provenance={"trajectory_sha256": good})
+            kept, rejected, _ = self._stage(src, tmp / "staged")
+            self.assertEqual(kept, ["srcA"])
+            self.assertTrue(any(r.startswith("'stale'") and "half-replaced" in r for r in rejected), rejected)
+
+    def test_source_named_like_a_weights_column_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "Iteration", frame=make_frame(self.fp))
+            write_source(src, "srcA", frame=make_frame(self.fp))
+            kept, rejected, _ = self._stage(src, tmp / "staged")
+            self.assertEqual(kept, ["srcA"])
+            self.assertTrue(any(r.startswith("'Iteration'") for r in rejected), rejected)
+
+
+class RunStateProgressTests(_RunMainMixin, unittest.TestCase):
+    """MetaRunState.json follows the run like DboRunState.json and says how it ended."""
+
+    def _env(self, tmp):
+        return {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)}
+
+    def _state(self, tmp):
+        return json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+
+    def test_completed_run_records_progress_weights_and_finish(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            write_source(tmp / "MetaSources", "srcB", frame=make_frame(fp))
+            self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+            state = self._state(tmp)
+            hv_rows = _read_rows(_run_dir(tmp) / "HypervolumePerEvaluation.csv")[1:]
+        self.assertTrue(state["finished"])
+        self.assertEqual(state["finish_reason"], "completed")
+        self.assertIsNone(state["abort_reason"])
+        progress = state["progress"]
+        self.assertEqual((progress["evaluations_completed"], progress["last_iteration"],
+                          progress["planned_evaluations"], progress["last_phase"]),
+                         (4, 4, 4, "optimization"))
+        self.assertAlmostEqual(progress["latest_hypervolume"], float(hv_rows[-1][0]))
+        weights = progress["latest_weights"]
+        self.assertEqual((weights["iteration"], weights["optimization_step"]), (4, 2))
+        self.assertEqual(set(weights["source_weights"]), {"srcA", "srcB"})
+
+    def test_rewritten_after_every_evaluation(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        snapshots = []
+        original_write = runtime.RunStateLog.write
+
+        def write(log_self):
+            ok = original_write(log_self)
+            snapshots.append(json.loads(pathlib.Path(log_self.path).read_text(encoding="utf-8")))
+            return ok
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(runtime.RunStateLog, "write", write):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+        counts = [snap["progress"]["evaluations_completed"] for snap in snapshots]
+        self.assertEqual(counts, [0, 1, 2, 3, 4, 4])  # before the first trial ... finish
+        self.assertEqual([snap["finished"] for snap in snapshots], [False] * 5 + [True])
+
+    def test_an_unwritable_run_state_never_ends_the_study(self):
+        """Rewritten after every evaluation now, so a file that cannot be written (held open
+        by another program) must cost a warning, never the session."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            run_dir = _run_dir(tmp)
+            (run_dir / "MetaRunState.json" / "blocked").mkdir(parents=True)  # neither replace nor write works
+            with mock.patch.object(runtime, "create_run_folder", lambda: str(run_dir)):
+                self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+            self.assertEqual(len(_read_rows(run_dir / "ObservationsPerEvaluation.csv")), 5)
+            self.assertIn("optimization_finished", [m["type"] for m in sent_messages(self.last_conn)])
+            # Still unwritable at shutdown: the final state is saved next to it.
+            state = json.loads((run_dir / "MetaRunState.unsaved.json").read_text(encoding="utf-8"))
+        self.assertEqual((state["finish_reason"], state["progress"]["evaluations_completed"]), ("completed", 4))
+
+    def test_stop_requested_by_unity_is_recorded(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            chunks = [_json_line(base_init_message())]
+            chunks += [_json_line({"type": "objectives", "values": v}) for v in RESPONSES[:2]]
+            chunks += [_json_line({"type": "stop", "reason": "perfect rating twice"})]
+            conn = _FakeConn(chunks)
+            original_socket_ctor = runtime.socket.socket
+            try:
+                runtime.socket.socket = lambda *args, **kwargs: _FakeServerSocket(conn)
+                with mock.patch.dict(os.environ, self._env(tmp)):
+                    runtime.main()  # StopRequested ends the study cleanly
+            finally:
+                runtime.socket.socket = original_socket_ctor
+            state = self._state(tmp)
+        self.assertTrue(state["finished"])
+        self.assertEqual(state["finish_reason"], "stop_requested")
+        self.assertIn("perfect rating twice", state["finish_detail"])
+        self.assertEqual(state["progress"]["evaluations_completed"], 2)
+
+    def _expected_flags(self, runtime, responses):
+        import bo_normalize
+        y = np.array([[bo_normalize.normalize_objective_value(r[o["key"]], o["init"]["low"], o["init"]["high"],
+                                                              o["init"]["minimize"], name=o["key"])
+                       for o in OBJECTIVES] for r in responses])
+        return ["TRUE" if b else "FALSE" for b in runtime.is_non_dominated_mask(y)]
+
+    def test_stop_during_the_sampling_phase_leaves_correct_pareto_flags(self):
+        """Sampling rows are logged FALSE and flagged after the last of them; a perfect-rating
+        stop in the initial rounds left every row FALSE (no Pareto design to select)."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        replies = RESPONSES[:3]
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            chunks = [_json_line(base_init_message(numSamplingIterations=4))]
+            chunks += [_json_line({"type": "objectives", "values": v}) for v in replies]
+            chunks += [_json_line({"type": "stop", "reason": "perfect_rating"})]
+            conn = _FakeConn(chunks)
+            original_socket_ctor = runtime.socket.socket
+            try:
+                runtime.socket.socket = lambda *args, **kwargs: _FakeServerSocket(conn)
+                with mock.patch.dict(os.environ, self._env(tmp)):
+                    runtime.main()
+            finally:
+                runtime.socket.socket = original_socket_ctor
+            rows = _read_rows(_run_dir(tmp) / "ObservationsPerEvaluation.csv")
+            state = self._state(tmp)
+        flags = [r[rows[0].index("IsPareto")] for r in rows[1:]]
+        self.assertEqual(flags, self._expected_flags(runtime, replies))
+        self.assertIn("TRUE", flags)
+        self.assertEqual(state["finish_reason"], "stop_requested")
+
+    def test_error_during_the_sampling_phase_leaves_correct_pareto_flags(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        replies = RESPONSES[:2]
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            with self.assertRaises(RuntimeError):  # Unity gone before the third sample
+                self._run_main(runtime, base_init_message(numSamplingIterations=4), replies, self._env(tmp))
+            rows = _read_rows(_run_dir(tmp) / "ObservationsPerEvaluation.csv")
+        self.assertEqual([r[rows[0].index("IsPareto")] for r in rows[1:]], self._expected_flags(runtime, replies))
+
+    def test_error_mid_run_is_recorded(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            with self.assertRaises(RuntimeError):
+                self._run_main(runtime, base_init_message(), RESPONSES[:3], self._env(tmp))
+            state = self._state(tmp)
+        self.assertEqual((state["finished"], state["finish_reason"]), (True, "error"))
+        self.assertIn("No objectives received", state["finish_detail"])
+        self.assertEqual(state["progress"]["evaluations_completed"], 3)
+
+
+class StartupAbortTests(_RunMainMixin, unittest.TestCase):
+    def _env(self, tmp):
+        return {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)}
+
+    def test_negative_seed_is_rejected_at_init_with_an_abort_record(self):
+        """openbo's np.random.default_rng(seed) rejects negative seeds; the backend crashed
+        after staging, with no MetaRunState.json. It must refuse at init, before staging."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            with self.assertRaises(ValueError) as ctx:
+                self._run_main(runtime, base_init_message(seed=-5), RESPONSES, self._env(tmp))
+            self.assertIn("Seed must be >= 0", str(ctx.exception))
+            self.assertNotIn("parameters", [m["type"] for m in sent_messages(self.last_conn)])
+            run_dir = _run_dir(tmp)
+            state = json.loads((run_dir / "MetaRunState.json").read_text(encoding="utf-8"))
+            self.assertFalse((run_dir / "MetaSourcesUsed").exists())  # refused before staging
+        self.assertIn("Seed must be >= 0", state["abort_reason"])
+        self.assertEqual((state["finished"], state["finish_reason"], state["seed"]),
+                         (True, "startup_abort", -5))
+
+    def test_unexpected_startup_failure_writes_an_abort_record(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        mobo_taf = sys.modules["openbo.optimizers.mobo_taf"]
+
+        def broken(config):
+            raise ValueError("ref_point must have shape (M,) with M >= 2.")
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(mobo_taf, "MOTAFSequentialOptimizer", broken):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            with self.assertRaises(ValueError):
+                self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+            state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+        self.assertIn("ref_point must have shape", state["abort_reason"])
+        self.assertEqual(state["motaf_config"]["seed"], 7)
+
+
+class IterationAxisTests(_RunMainMixin, unittest.TestCase):
+    def test_weights_rows_carry_the_global_iteration_of_their_evaluation(self):
+        """MetaWeightsPerEvaluation.csv logged 1..N from the end of sampling while every
+        other log uses the global index, so joins on Iteration paired weights with the
+        evaluation numSamplingIterations rows earlier."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            self._run_main(runtime, base_init_message(numSamplingIterations=3, numOptimizationIterations=2),
+                           RESPONSES + [{"o0": 5.0, "o1": 5.0}],
+                           {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)})
+            weights = _read_rows(_run_dir(tmp) / "MetaWeightsPerEvaluation.csv")
+            obs = _read_rows(_run_dir(tmp) / "ObservationsPerEvaluation.csv")[1:]
+            sent = [m for m in sent_messages(self.last_conn) if m["type"] == "parameters"]
+        self.assertEqual(weights[0][:2], ["Iteration", "OptimizationStep"])
+        self.assertEqual([r[0] for r in weights[1:]], ["4", "5"])
+        self.assertEqual([r[1] for r in weights[1:]], ["1", "2"])
+        optimization_iterations = [r[4] for r in obs if r[5] == "optimization"]
+        self.assertEqual([r[0] for r in weights[1:]], optimization_iterations)
+        self.assertEqual([m["iteration"] for m in sent][-2:], [4, 5])
+
+
+class HypervolumeTests(_RunMainMixin, unittest.TestCase):
+    def _env(self, tmp):
+        return {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)}
+
+    def test_logged_hypervolume_is_openbos_own_value(self):
+        """openbo's observe() already computes the hypervolume of all observations against
+        the same reference point; the runtime logged a second computation of it."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        cls = sys.modules["openbo.optimizers.mobo_taf"].MOTAFSequentialOptimizer
+        original_observe = cls.observe
+
+        def observe(opt, x_new, y_new):
+            original_observe(opt, x_new, y_new)
+            n = len(opt.hypervolume_history)
+            for k in range(len(y_new)):  # recognizable values: 1000 + evaluation index
+                opt.hypervolume_history[n - len(y_new) + k] = 1000.0 + n - len(y_new) + k + 1
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(cls, "observe", observe):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+            hv_rows = _read_rows(_run_dir(tmp) / "HypervolumePerEvaluation.csv")[1:]
+        self.assertEqual([float(r[0]) for r in hv_rows], [1001.0, 1002.0, 1003.0, 1004.0])
+        coverage = [m["value"] for m in sent_messages(self.last_conn) if m["type"] == "coverage"]
+        self.assertEqual(coverage, [1001.0, 1002.0, 1003.0, 1004.0])
+
+    def test_reference_point_is_the_shared_hypervolume_reference(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        import bo_normalize
+        ref = bo_normalize.HYPERVOLUME_REFERENCE_VALUE
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+            state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+            hv_rows = _read_rows(_run_dir(tmp) / "HypervolumePerEvaluation.csv")[1:]
+        config = sys.modules["openbo.optimizers.mobo_taf"].MOTAFSequentialOptimizer.instances[-1].config
+        self.assertEqual(ref, -1.1)
+        self.assertEqual(list(config.ref_point), [ref, ref])
+        self.assertEqual(state["motaf_config"]["ref_point"], [ref, ref])
+        self.assertEqual(state["hypervolume_reference_point"], [ref, ref])
+        self.assertEqual({r[3] for r in hv_rows}, {"[-1.1,-1.1]"})
+
+    def test_a_source_at_the_worst_bound_still_counts(self):
+        """With the reference point at -1 a front point rated worst in one objective added
+        no hypervolume, and such a source was dropped."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp), front=[[-1.0, 0.5]])
+            self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp))
+        optimizer = sys.modules["openbo.optimizers.mobo_taf"].MOTAFSequentialOptimizer.instances[-1]
+        self.assertEqual([s.name for s in optimizer.source_surrogates], ["srcA"])
+
+
+class DuplicateAndManifestTests(_RunMainMixin, unittest.TestCase):
+    def _env(self, tmp):
+        return {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp)}
+
+    def _run(self, runtime, tmp, responses=RESPONSES):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self._run_main(runtime, base_init_message(), responses, self._env(tmp))
+        return out.getvalue()
+
+    @staticmethod
+    def _write_manifest(src):
+        fp = load_fingerprint()
+        train = load_meta_train()
+        with contextlib.redirect_stdout(io.StringIO()):
+            return train.write_manifest(str(src), make_frame(fp))
+
+    def test_identical_trajectories_are_warned_and_recorded(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "00_p01_main_run", frame=make_frame(fp))
+            write_source(tmp / "MetaSources", "p01_main_run", frame=make_frame(fp),
+                         trajectory_of="00_p01_main_run")
+            write_source(tmp / "MetaSources", "p02_main_run", frame=make_frame(fp))
+            log = self._run(runtime, tmp)
+            state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+        self.assertIn("identical trajectories", log)
+        self.assertEqual(state["sources"]["duplicate_trajectories"], [["00_p01_main_run", "p01_main_run"]])
+
+    def test_matching_manifest_runs_and_is_recorded(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(fp))
+            write_source(src, "srcB", frame=make_frame(fp))
+            self._write_manifest(src)
+            self._run(runtime, tmp)
+            state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["finish_reason"], "completed")
+        manifest = state["sources"]["population_manifest"]
+        self.assertEqual(manifest["sources"], ["srcA", "srcB"])
+        self.assertEqual(manifest["frame_digest"], fp.frame_digest(make_frame(fp)))
+
+    def test_line_ending_conversion_is_not_a_change(self):
+        """A population built on one OS and checked out by git with core.autocrlf (the Git for
+        Windows default) on another has CRLF instead of LF line endings: the same artifacts,
+        which the raw-byte hashes reported as replaced, refusing every session."""
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            for name in ("srcA", "srcB"):
+                write_source(src, name, frame=make_frame(fp))
+                traj = src / "trajectories" / f"{name}.json"
+                traj.write_text(json.dumps(json.loads(traj.read_text(encoding="utf-8")), indent=1), encoding="utf-8")
+                gp = src / "gp_states" / f"{name}.json"
+                payload = json.loads(gp.read_text(encoding="utf-8"))
+                payload["provenance"] = {"trajectory_sha256": _sha256(traj)}  # as meta_train.py stamps it
+                gp.write_bytes(json.dumps(payload, indent=1).encode("utf-8"))
+            self._write_manifest(src)
+            for path in [*(src / "gp_states").iterdir(), *(src / "trajectories").iterdir()]:
+                path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))  # the checkout
+            self._run(runtime, tmp)
+            state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["finish_reason"], "completed")
+        self.assertEqual([r["name"] for r in state["sources"]["loaded"]], ["srcA", "srcB"])
+
+    def _assert_aborts(self, tmp, *snippets):
+        runtime = load_runtime()
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run(runtime, tmp)
+        msg = str(ctx.exception)
+        self.assertIn("population manifest", msg)
+        for snippet in snippets:
+            self.assertIn(snippet, msg)
+        self.assertNotIn("parameters", [m["type"] for m in sent_messages(self.last_conn)])
+        state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+        self.assertIn("population manifest", state["abort_reason"])
+
+    def test_source_missing_from_the_frozen_population_aborts(self):
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(fp))
+            write_source(src, "srcB", frame=make_frame(fp))
+            self._write_manifest(src)
+            (src / "gp_states" / "srcB.json").unlink()
+            self._assert_aborts(tmp, "'srcB' is listed but was not loaded")
+
+    def test_source_added_after_freezing_aborts(self):
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(fp))
+            self._write_manifest(src)
+            write_source(src, "p09_main_run", frame=make_frame(fp))
+            self._assert_aborts(tmp, "'p09_main_run' was loaded but is not listed")
+
+    def test_replaced_source_aborts(self):
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(fp))
+            self._write_manifest(src)
+            write_source(src, "srcA", frame=make_frame(fp), trajectory_of="someone else")
+            self._assert_aborts(tmp, "'srcA' differs from the listed trajectory")
+
+    def test_unloadable_listed_source_aborts_even_without_require_sources(self):
+        runtime = load_runtime()
+        fp = load_fingerprint()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            src = tmp / "MetaSources"
+            write_source(src, "srcA", frame=make_frame(fp))
+            self._write_manifest(src)
+            write_source(src, "srcA", frame=make_frame(fp), truncate_trajectory=True)
+            with self.assertRaises(RuntimeError) as ctx, contextlib.redirect_stdout(io.StringIO()):
+                self._run_main(runtime, base_init_message(metaRequireSources=False), RESPONSES, self._env(tmp))
+            self.assertIn("'srcA' is listed but was not loaded: not loaded by openbo", str(ctx.exception))
 
 
 if __name__ == "__main__":

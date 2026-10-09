@@ -1,21 +1,15 @@
-import json
 import socket
 import time
-import codecs
-import csv
 import os
 import numpy as np
-import pandas as pd
 import torch
 import moocore
 
 from botorch.acquisition.multi_objective.logei import qLogNoisyExpectedHypervolumeImprovement
-from botorch.models import SingleTaskGP
 from botorch.fit import fit_gpytorch_mll
 from botorch.optim.optimize import optimize_acqf
 from botorch.sampling.normal import SobolQMCNormalSampler
 from botorch.utils.sampling import draw_sobol_samples
-from gpytorch.mlls import ExactMarginalLogLikelihood
 
 import sys
 
@@ -27,6 +21,19 @@ if _SCRIPT_DIR not in sys.path:
 
 import context_support
 import bo_normalize
+# Warm-start loading, model construction, context bookkeeping and the observation-log append,
+# shared with bo.py.
+import botorch_common
+# Socket, NDJSON, init parsing and log-writing plumbing shared by every backend.
+from bo_protocol import (
+    SOCKET_ACCEPT_TIMEOUT_SEC, SOCKET_TIMEOUT_SEC, StopRequested,
+    accept_unity_connection, append_csv_rows, close_connection, configure_listener_socket,
+    create_csv_file, flush_pending_logs, get_cfg_int, get_unique_folder, log_exists,
+    parse_obj_init, parse_param_init, parse_user_ids, read_observation_log,
+    receive_init_message, recv_objectives_blocking, send_json_line,
+    validate_objective_bounds, validate_parameter_bounds, validate_raw_samples,
+    write_csv_rows, write_data_to_csv, write_dataframe_csv,
+)
 
 # -------------------- defaults (overwritten by Unity init) --------------------
 N_INITIAL = 5
@@ -34,7 +41,8 @@ N_ITERATIONS = 10
 BATCH_SIZE = 1
 NUM_RESTARTS = 10
 RAW_SAMPLES = 1024
-MC_SAMPLES = 512
+# Matches Unity's default (was 512); used only when the init message omits mcSamples.
+MC_SAMPLES = 128
 SEED = 3
 
 PROBLEM_DIM = None
@@ -74,146 +82,7 @@ CONTEXT_SETUP = None
 tkwargs = {"dtype": torch.double, "device": torch.device("cpu")}
 device = torch.device("cpu")
 
-# -------------------- TCP server helpers --------------------
-# Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
-HOST = '127.0.0.1'
-PORT = 56001
-SOCKET_RECV_BUF = ""
-# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
-# must not become replacement characters (a key "Größe" would no longer match).
-SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
-SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
-SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
-SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
-
-
-def normalize_user_token(value, default="-1"):
-    token = str(value).strip() if value is not None else ""
-    return token if token else default
-
-
-def normalize_log_folder_token(value, default="-1"):
-    token = normalize_user_token(value, default=default)
-    invalid_chars = set('/\\:*?"<>|')
-    cleaned_chars = []
-    for ch in token:
-        if ch in invalid_chars or ord(ch) < 32:
-            cleaned_chars.append("_")
-        else:
-            cleaned_chars.append(ch)
-    cleaned = "".join(cleaned_chars).strip().strip(".")
-    if cleaned in ("", ".", ".."):
-        return default
-    return cleaned
-
-def send_json_line(conn, obj):
-    line = json.dumps(obj, ensure_ascii=False) + "\n"
-    try:
-        conn.sendall(line.encode("utf-8"))
-    except (BrokenPipeError, ConnectionResetError, OSError) as e:
-        t = obj.get("type") if isinstance(obj, dict) else "unknown"
-        raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
-
-
-def configure_listener_socket(s):
-    """Socket options for the backend's single listening socket.
-
-    On Windows, SO_REUSEADDR lets a second process bind a port that is still being listened
-    on, so a stale backend could receive Unity's connection; SO_EXCLUSIVEADDRUSE refuses that
-    and still allows an immediate restart. On POSIX, SO_REUSEADDR only permits rebinding
-    while an earlier connection lingers in TIME_WAIT, which a quick restart needs.
-    """
-    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-    else:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-
-def ndjson_reader(conn):
-    while True:
-        msg = recv_json_message(conn)
-        if msg is None:
-            return
-        yield msg
-
-def recv_json_message(conn):
-    """Receive one NDJSON message while preserving unread bytes across calls."""
-    global SOCKET_RECV_BUF
-    while True:
-        idx = SOCKET_RECV_BUF.find("\n")
-        if idx >= 0:
-            line = SOCKET_RECV_BUF[:idx].rstrip("\r")
-            SOCKET_RECV_BUF = SOCKET_RECV_BUF[idx + 1:]
-            if not line.strip():
-                continue
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError as e:
-                preview = line[:200]
-                # Keep the reader tolerant to non-critical malformed lines.
-                print(
-                    f"Warning: skipping malformed JSON line from Unity: {e}. Payload preview: {preview!r}",
-                    flush=True,
-                )
-                continue
-
-        try:
-            chunk = conn.recv(4096)
-        except socket.timeout as e:
-            raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
-        if not chunk:
-            SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(b"", final=True)
-            if SOCKET_RECV_BUF.strip():
-                trailing = SOCKET_RECV_BUF
-                SOCKET_RECV_BUF = ""
-                # NDJSON requires newline framing. On close, remaining bytes are trailing partial data.
-                preview = trailing[-200:].replace("\n", "\\n")
-                print("Warning: discarding trailing unterminated socket data:", preview, flush=True)
-            return None
-        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
-        if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
-            preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
-            SOCKET_RECV_BUF = ""
-            SOCKET_RECV_DECODER.reset()
-            raise RuntimeError(
-                f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
-                f"possible framing error or oversized message. Tail preview: {preview}"
-            )
-
-# -------------------- IO utils --------------------
-def get_unique_folder(parent, folder_name):
-    base_path = os.path.join(parent, folder_name)
-    if not os.path.exists(base_path):
-        os.makedirs(base_path)
-        return base_path
-    if os.path.isdir(base_path):
-        visible_entries = [
-            name for name in os.listdir(base_path)
-            if name != ".DS_Store" and not name.endswith(".meta")
-        ]
-        if not visible_entries:
-            return base_path
-    k = 1
-    while True:
-        p = os.path.join(parent, f"{folder_name}_{k}")
-        if not os.path.exists(p):
-            os.makedirs(p)
-            return p
-        k += 1
-
-def create_csv_file(csv_file_path, fieldnames):
-    os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
-    write_header = not os.path.exists(csv_file_path)
-    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-        if write_header:
-            w.writeheader()
-
-def write_data_to_csv(csv_file_path, fieldnames, rows):
-    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-        w.writerows(rows)
-
+# -------------------- Pareto / hypervolume helpers --------------------
 def as_numpy_array(values):
     if hasattr(values, "detach"):
         values = values.detach()
@@ -286,42 +155,21 @@ def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
     return bo_normalize.denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better)
 
 def fixed_observation_columns():
-    cols = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase']
-    if CONTEXT_SETUP is not None:
-        cols.append(context_support.CONTEXT_CSV_COLUMN)
-    return cols + ['IsPareto']
+    return botorch_common.fixed_observation_columns(CONTEXT_SETUP, 'IsPareto')
 
 
 def expected_observation_columns():
     return fixed_observation_columns() + objective_names + parameter_names
 
 
-def read_observation_log(path):
-    """Read ObservationsPerEvaluation.csv back without re-typing any cell.
-
-    The log is rewritten after every evaluation; type inference would turn IDs such as
-    "007" or "NA" into 7 or an empty cell in every earlier row, while FinalDesignSelector
-    and the questionnaire logs match IDs as exact strings.
-    """
-    return pd.read_csv(path, delimiter=';', dtype=str, keep_default_na=False, encoding='utf-8')
-
-
 def observation_context_cells():
     """Extra CSV cells for the context column (empty when contexts are disabled)."""
-    return [CONTEXT_SETUP.current_key] if CONTEXT_SETUP is not None else []
+    return botorch_common.observation_context_cells(CONTEXT_SETUP)
 
 
 def current_context_mask(x_sample):
-    """Boolean numpy row mask of observations that belong to the current context.
-
-    In contextual mode the last column of ``x_sample`` carries the context/task
-    index; only current-context rows should count towards run metrics.
-    """
-    n_rows = int(x_sample.shape[0])
-    if CONTEXT_SETUP is None:
-        return np.ones(n_rows, dtype=bool)
-    x_np = x_sample.cpu().numpy() if hasattr(x_sample, "cpu") else np.asarray(x_sample)
-    return np.asarray(x_np)[:, -1] == float(CONTEXT_SETUP.current_index)
+    """Boolean numpy row mask of observations that belong to the current context."""
+    return botorch_common.current_context_mask(x_sample, CONTEXT_SETUP)
 
 
 def current_context_hypervolume(hv_util, train_x, train_y):
@@ -352,55 +200,13 @@ def normalize_obj_column(col, lo, hi, minflag):
         col, lo, hi, minflag, fmt=WARM_START_OBJECTIVE_FORMAT
     )
 
-# -------------------- protocol parsing --------------------
-def parse_param_init(init_val):
-    # Accept typed JSON: {"low": ..., "high": ...}
-    if isinstance(init_val, dict):
-        if "low" not in init_val or "high" not in init_val:
-            raise ValueError(f"Parameter init parse error (missing 'low'/'high'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"])
-    parts = [p.strip() for p in str(init_val).split(",")]
-    if len(parts) < 2:
-        raise ValueError(f"Parameter init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1])
-
-def parse_obj_init(init_val):
-    # Accept typed JSON: {"low": ..., "high": ..., "minimize": 0/1}
-    if isinstance(init_val, dict):
-        if "low" not in init_val or "high" not in init_val:
-            raise ValueError(f"Objective init parse error (missing 'low'/'high'): {init_val}")
-        if "minimize" not in init_val:
-            raise ValueError(f"Objective init parse error (missing 'minimize'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"]), int(init_val["minimize"])
-    parts = [p.strip() for p in str(init_val).split(",")]
-    if len(parts) < 3:
-        raise ValueError(f"Objective init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1]), int(float(parts[2]))
-
-def get_cfg_int(cfg, key, default=None, required=False):
-    if key in cfg and cfg.get(key) is not None:
-        try:
-            return int(cfg.get(key))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Config field '{key}' must be an integer, got {cfg.get(key)!r}") from e
-    if required:
-        raise ValueError(f"Missing required config field '{key}'")
-    return int(default) if default is not None else None
-
 # -------------------- objective evaluation --------------------
-def recv_objectives_blocking(conn):
-    while True:
-        msg = recv_json_message(conn)
-        if msg is None:
-            return None
-        if not isinstance(msg, dict):
-            continue
-        t = msg.get("type")
-        if t == "objectives":
-            return msg.get("values")
-        continue
+def objective_function(conn, x_tensor, iteration):
+    """Send one design to Unity and block for its objectives (normalized, maximized).
 
-def objective_function(conn, x_tensor):
+    ``iteration`` is the Iteration the design is logged under in ObservationsPerEvaluation.csv;
+    Unity receives it with the parameters.
+    """
     x = x_tensor.cpu().numpy()
     values = {}
     for i, name in enumerate(parameter_names):
@@ -408,15 +214,13 @@ def objective_function(conn, x_tensor):
         # Keep full precision for optimizer-proposed points sent to Unity.
         values[name] = denormalize_to_original_param(x[i], lo, hi, decimals=None)
 
-    payload = {"type": "parameters", "values": values}
+    payload = {"type": "parameters", "values": values, "iteration": int(iteration)}
     print("Send parameters:", payload, flush=True)
     send_json_line(conn, payload)
 
-    resp = recv_objectives_blocking(conn)
+    resp = recv_objectives_blocking(conn)  # a dict, or None once Unity disconnected
     if resp is None:
         raise RuntimeError("No objectives received from Unity.")
-    if not isinstance(resp, dict):
-        raise TypeError(f"Unity objectives payload must be a dict, got {type(resp).__name__}")
 
     fs = []
     missing = [name for name in objective_names if name not in resp]
@@ -426,40 +230,21 @@ def objective_function(conn, x_tensor):
     if unexpected:
         raise KeyError(f"Unity objectives payload contains unexpected key(s): {unexpected}")
 
+    # normalize to [-1,1] and maximize: the transform every backend applies to Unity's values
     for i, name in enumerate(objective_names):
-        try:
-            val = float(resp[name])
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Objective '{name}' must be numeric, got {resp[name]!r}") from e
-        if not np.isfinite(val):
-            raise ValueError(f"Objective '{name}' is non-finite: {val}")
         lo, hi, minflag = objectives_info[i]
-        eps = 1e-9
-        if hi == lo:
-            if not np.isclose(val, lo, rtol=0.0, atol=eps):
-                raise ValueError(f"Objective '{name}' value {val} is out of bounds for degenerate interval [{lo}, {hi}]")
-            f = 0.0
-        else:
-            if val < (lo - eps) or val > (hi + eps):
-                raise ValueError(f"Objective '{name}' value {val} is out of bounds [{lo}, {hi}]")
-            f = (val - lo) / (hi - lo) * 2 - 1
-        if int(minflag) == 1:
-            f *= -1
-        fs.append(float(np.clip(f, -1.0, 1.0)))
+        fs.append(bo_normalize.normalize_objective_value(resp[name], lo, hi, minflag, name=name))
 
     return torch.tensor(fs, dtype=torch.double)
 
 # -------------------- data IO --------------------
 def generate_initial_data(conn, n_samples, hv_util=None, hvs=None):
-    global PROJECT_PATH
     if n_samples < 1:
         raise ValueError("n_samples must be >= 1 for non-warm-start runs.")
 
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
-    if not os.path.exists(obs_csv):
-        header = expected_observation_columns()
-        with open(obs_csv, 'w', newline='', encoding='utf-8') as f:
-            csv.writer(f, delimiter=';').writerow(header)
+    if not log_exists(obs_csv):
+        write_csv_rows(obs_csv, expected_observation_columns(), [])
 
     # n_samples points of a d-dimensional Sobol sequence (n=N, q=1). The former n=1, q=N
     # drew ONE point of an N*d-dimensional sequence, which spreads no better than
@@ -468,120 +253,80 @@ def generate_initial_data(conn, n_samples, hv_util=None, hvs=None):
     print("Initial Sobol X in [0,1]:", train_x, flush=True)
 
     train_obj = []
-    for i, x in enumerate(train_x):
-        print(f"---- Initial Sample {i+1}", flush=True)
-        y = objective_function(conn, x)
-        train_obj.append(y)
+    try:
+        for i, x in enumerate(train_x):
+            print(f"---- Initial Sample {i+1}", flush=True)
+            y = objective_function(conn, x, i + 1)
+            train_obj.append(y)
 
-        x_np = x.cpu().numpy()
-        y_np = y.cpu().numpy()
-        x_den = [denormalize_to_original_param(x_np[j], parameters_info[j][0], parameters_info[j][1]) for j in range(PROBLEM_DIM)]
-        y_den = [denormalize_to_original_obj(y_np[j], objectives_info[j][0], objectives_info[j][1], objectives_info[j][2]) for j in range(NUM_OBJS)]
-        row = [USER_ID, CONDITION_ID, GROUP_ID,
-               time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-               i+1, 'sampling', *observation_context_cells(), 'FALSE', *y_den, *x_den]
-        with open(obs_csv, 'a', newline='', encoding='utf-8') as f:
-            csv.writer(f, delimiter=';').writerow(row)
-        send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
-        if hv_util is not None and hvs is not None:
-            y_so_far = torch.stack(train_obj, dim=0).to(dtype=torch.double)
-            volume = hv_util.compute(y_so_far[is_non_dominated(y_so_far)])
-            hvs.append(volume)
-            save_hypervolume_to_file(hvs, i + 1)
-            send_json_line(conn, {"type": "coverage", "value": float(volume)})
+            x_np = x.cpu().numpy()
+            y_np = y.cpu().numpy()
+            x_den = [denormalize_to_original_param(x_np[j], parameters_info[j][0], parameters_info[j][1]) for j in range(PROBLEM_DIM)]
+            y_den = [denormalize_to_original_obj(y_np[j], objectives_info[j][0], objectives_info[j][1], objectives_info[j][2]) for j in range(NUM_OBJS)]
+            # IsPareto is provisional (FALSE) until sampling ends.
+            row = [USER_ID, CONDITION_ID, GROUP_ID,
+                   time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                   i+1, 'sampling', *observation_context_cells(), 'FALSE', *y_den, *x_den]
+            append_csv_rows(obs_csv, [row])
+            send_json_line(conn, {"type": "tempCoverage", "value": float(i+1)/float(max(1,n_samples))})
+            if hv_util is not None and hvs is not None:
+                y_so_far = torch.stack(train_obj, dim=0).to(dtype=torch.double)
+                volume = hv_util.compute(y_so_far[is_non_dominated(y_so_far)])
+                hvs.append(volume)
+                save_hypervolume_to_file(hvs, i + 1)
+                send_json_line(conn, {"type": "coverage", "value": float(volume)})
+    except StopRequested:
+        # Unity ended the study during the sampling phase (perfect-rating stop): the rows logged
+        # so far must not keep their provisional flags.
+        finalize_sampling_flags(obs_csv, train_obj)
+        raise
 
-    Y = torch.stack(train_obj, dim=0).to(dtype=torch.double)
-    # Ensure sampling-only runs (N_ITERATIONS=0) have globally-correct IsPareto flags.
-    pareto_flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(Y).tolist()]
-    if pareto_flags:
-        df = read_observation_log(obs_csv)
-        if len(df) >= len(pareto_flags):
-            df.loc[df.index[:len(pareto_flags)], 'IsPareto'] = pareto_flags
-            df.to_csv(obs_csv, sep=';', index=False)
+    # Sampling-only runs (N_ITERATIONS=0) end here, so the flags must be final now.
+    Y = finalize_sampling_flags(obs_csv, train_obj)
 
     if CONTEXT_SETUP is not None:
         # All freshly sampled observations belong to the current context.
         train_x = context_support.append_task_column(train_x, CONTEXT_SETUP.current_index)
     return train_x, Y
 
+def finalize_sampling_flags(obs_csv, train_obj):
+    """Write the final IsPareto flags of the sampling rows; returns their objectives (n x M)."""
+    if not train_obj:
+        return None
+    Y = torch.stack(train_obj, dim=0).to(dtype=torch.double)
+    pareto_flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(Y).tolist()]
+    df = read_observation_log(obs_csv)
+    if len(df) >= len(pareto_flags):
+        df.loc[df.index[:len(pareto_flags)], 'IsPareto'] = pareto_flags
+        write_dataframe_csv(obs_csv, df)
+    return Y
+
 def load_data():
-    if not CSV_PATH_PARAMETERS or not CSV_PATH_OBJECTIVES:
-        raise ValueError("Warm start is enabled, but initial CSV paths are missing.")
-
-    init_root = os.environ.get("BO_INIT_ROOT") or os.path.join(os.getcwd(), "InitData")
-    x_path = os.path.join(init_root, CSV_PATH_PARAMETERS)
-    y_path = os.path.join(init_root, CSV_PATH_OBJECTIVES)
-    if not os.path.exists(x_path):
-        raise FileNotFoundError(f"Warm-start parameter CSV not found: {x_path}")
-    if not os.path.exists(y_path):
-        raise FileNotFoundError(f"Warm-start objective CSV not found: {y_path}")
-
-    x_df = pd.read_csv(x_path, delimiter=';', encoding='utf-8',
-                       dtype={context_support.CONTEXT_CSV_COLUMN: str})
-    y_df = pd.read_csv(y_path, delimiter=';', encoding='utf-8')
-
-    missing_param_cols = [k for k in parameter_names if k not in x_df.columns]
-    missing_obj_cols = [k for k in objective_names if k not in y_df.columns]
-    if missing_param_cols:
-        raise ValueError(f"Warm-start parameter CSV is missing columns: {missing_param_cols}")
-    if missing_obj_cols:
-        raise ValueError(f"Warm-start objective CSV is missing columns: {missing_obj_cols}")
-
-    x_raw = x_df[parameter_names].apply(pd.to_numeric, errors='raise').to_numpy(dtype=np.float64)
-    y_raw = y_df[objective_names].apply(pd.to_numeric, errors='raise').to_numpy(dtype=np.float64)
-    if x_raw.shape[0] != y_raw.shape[0]:
-        raise ValueError(f"Warm-start rows mismatch: parameters={x_raw.shape[0]}, objectives={y_raw.shape[0]}")
-    if x_raw.shape[0] < 1:
-        raise ValueError("Warm-start CSVs must contain at least one data row.")
-    if not np.all(np.isfinite(x_raw)):
-        raise ValueError("Warm-start parameter CSV contains NaN/Inf values.")
-    if not np.all(np.isfinite(y_raw)):
-        raise ValueError("Warm-start objective CSV contains NaN/Inf values.")
-
-    x_norm = np.zeros_like(x_raw, dtype=np.float64)
-    for j in range(PROBLEM_DIM):
-        lo, hi = parameters_info[j]
-        x_norm[:, j] = normalize_param_column(x_raw[:, j], lo, hi)
-
-    y_norm = np.zeros_like(y_raw, dtype=np.float64)
-    for j in range(NUM_OBJS):
-        lo, hi, minflag = objectives_info[j]
-        y_norm[:, j] = normalize_obj_column(y_raw[:, j], lo, hi, minflag)
-
-    if not np.all(np.isfinite(x_norm)):
-        raise ValueError("Warm-start normalized parameters contain non-finite values.")
-    if not np.all(np.isfinite(y_norm)):
-        raise ValueError("Warm-start normalized objectives contain non-finite values.")
-
-    train_x = torch.tensor(x_norm, dtype=torch.double)
-    if CONTEXT_SETUP is not None:
-        # Optional 'Context' column assigns each warm-start row to a context.
-        ctx_indices = context_support.context_indices_from_dataframe(
-            x_df, CONTEXT_SETUP, x_norm.shape[0]
-        )
-        train_x = context_support.append_task_column(train_x, ctx_indices)
-    return train_x, torch.tensor(y_norm, dtype=torch.double)
+    """Warm-start CSVs -> (train_x, train_y) in the canonical frame (see botorch_common)."""
+    return botorch_common.load_warm_start_data(
+        CSV_PATH_PARAMETERS, CSV_PATH_OBJECTIVES, parameter_names, parameters_info,
+        objective_names, objectives_info, CONTEXT_SETUP,
+        normalize_param_column=normalize_param_column, normalize_obj_column=normalize_obj_column,
+    )
 
 # -------------------- model --------------------
 def initialize_model(train_x, train_obj):
-    if CONTEXT_SETUP is not None:
-        return context_support.build_contextual_model(train_x, train_obj, CONTEXT_SETUP)
-    model = SingleTaskGP(train_x, train_obj)
-    mll = ExactMarginalLogLikelihood(model.likelihood, model)
-    return mll, model
+    return botorch_common.initialize_model(train_x, train_obj, CONTEXT_SETUP)
 
 def acquisition_baseline(train_x):
-    """Baseline design points for the acquisition function.
-
-    In contextual mode the trailing task column is stripped: the LCE-M GP is
-    restricted to the current context, so its posterior over plain (n x d)
-    design points already predicts current-context outcomes.
-    """
-    if CONTEXT_SETUP is not None:
-        return context_support.strip_task_column(train_x)
-    return train_x
+    """Baseline design points for the acquisition function (task column stripped)."""
+    return botorch_common.acquisition_baseline(train_x, CONTEXT_SETUP)
 
 # -------------------- acquisition --------------------
+def reference_point(num_objs):
+    """Hypervolume reference point, shared by qLogNEHVI, the coverage metric and the log.
+
+    It lies beyond the worst normalized value (-1): with exactly [-1]^M a Pareto-optimal
+    design rated worst on one objective added no hypervolume, so it counted for nothing in
+    the coverage metric and in the acquisition function.
+    """
+    return torch.full((num_objs,), bo_normalize.HYPERVOLUME_REFERENCE_VALUE, dtype=torch.double)
+
 def optimize_qnehvi(model, sampler, X_baseline):
     if X_baseline.dim() == 3:
         X_baseline = X_baseline[0]
@@ -599,7 +344,8 @@ def optimize_qnehvi(model, sampler, X_baseline):
         num_restarts=NUM_RESTARTS,
         raw_samples=RAW_SAMPLES,
         # init_batch_limit scores the raw samples 128 at a time instead of batch_limit's 5:
-        # same candidates, less wait.
+        # same candidates, a fraction of the wait. batch_limit stays 5: polishing all restarts
+        # in one batch saved < 0.1 s but ended at a different local optimum in ~1% of problems.
         options={"batch_limit": 5, "init_batch_limit": 128, "maxiter": 200},
         sequential=True,
     )
@@ -607,72 +353,31 @@ def optimize_qnehvi(model, sampler, X_baseline):
 
 # -------------------- logging --------------------
 def save_xy(x_sample, y_sample, iteration):
-    obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
-    x_np = x_sample.clone().cpu().numpy()
-    y_np = y_sample.clone().cpu().numpy()
-    # Evaluation index within this run: warm-start rows imported from *other*
-    # contexts inform the model but do not count as iterations of this run.
-    ctx_mask = current_context_mask(x_sample)
-    iteration_index = int(np.sum(ctx_mask))
-    if CONTEXT_SETUP is not None:
-        # Drop the trailing context/task column for parameter logging.
-        x_np = np.asarray(x_np)[:, :PROBLEM_DIM]
+    """Log the newest evaluation to ObservationsPerEvaluation.csv; returns its Iteration."""
+    def is_pareto_flags(y, ctx_mask):
+        # Only current-context observations compete for the Pareto front; warm-start
+        # rows from other contexts inform the model but are not part of this run.
+        y_current = as_objective_matrix(y)[ctx_mask]
+        return ['TRUE' if b else 'FALSE' for b in is_non_dominated(y_current).tolist()]
 
-    for j in range(PROBLEM_DIM):
-        x_np[-1][j] = denormalize_to_original_param(x_np[-1][j], parameters_info[j][0], parameters_info[j][1])
-    for j in range(NUM_OBJS):
-        y_np[-1][j] = denormalize_to_original_obj(y_np[-1][j], objectives_info[j][0], objectives_info[j][1], objectives_info[j][2])
-
-    if os.path.exists(obs_csv):
-        df = read_observation_log(obs_csv)
-        expected_cols = expected_observation_columns()
-        if list(df.columns) != expected_cols:
-            raise ValueError(
-                f"ObservationsPerEvaluation.csv columns mismatch. "
-                f"Expected {expected_cols}, got {list(df.columns)}"
-            )
-    else:
-        cols = expected_observation_columns()
-        df = pd.DataFrame(columns=cols)
-
-    new_row = pd.DataFrame([[USER_ID, CONDITION_ID, GROUP_ID,
-                             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                             iteration_index, 'optimization', *observation_context_cells(),
-                             'FALSE', *y_np[-1], *x_np[-1]]], columns=df.columns)
-
-    if df.empty:
-        df = new_row.copy()
-    else:
-        df = pd.concat([df, new_row], ignore_index=True)
-
-    # Update IsPareto for the current run tail while preserving any older, unrelated rows.
-    # Only current-context observations compete for the Pareto front; warm-start
-    # rows from other contexts inform the model but are not part of this run.
-    y_current = as_objective_matrix(y_sample)[ctx_mask]
-    flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated(y_current).tolist()]
-    df['IsPareto'] = df['IsPareto'].astype(str)
-    if len(flags) >= len(df):
-        df['IsPareto'] = flags[-len(df):]
-    elif len(flags) > 0:
-        tail = df.index[-len(flags):]
-        df.loc[tail, 'IsPareto'] = flags
-    df.to_csv(obs_csv, sep=';', index=False)
-    return iteration_index
+    return botorch_common.append_optimization_observation(
+        os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv"), x_sample, y_sample,
+        context_setup=CONTEXT_SETUP, parameters_info=parameters_info, objectives_info=objectives_info,
+        id_cells=[USER_ID, CONDITION_ID, GROUP_ID], expected_columns=expected_observation_columns(),
+        flag_column='IsPareto', current_context_flags=is_pareto_flags,
+    )
 
 def save_hypervolume_to_file(hvs, iteration):
-    hv_csv = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
-    os.makedirs(os.path.dirname(hv_csv), exist_ok=True)
-    write_header = not os.path.exists(hv_csv) or os.path.getsize(hv_csv) == 0
-    with open(hv_csv, 'a', newline='', encoding='utf-8') as f:
-        w = csv.writer(f, delimiter=';')
-        if write_header:
-            w.writerow(["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
-        w.writerow([
+    append_csv_rows(
+        os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv"),
+        [[
             hvs[-1],
             iteration,
             "normalized maximize-space [-1,1] per objective",
             "[" + ",".join(str(float(value)) for value in as_numpy_array(ref_point)) + "]",
-        ])
+        ]],
+        header=["Hypervolume", "Iteration", "Scale", "ReferencePoint"],
+    )
 
 # -------------------- main loop --------------------
 def mobo_execute(conn, seed, iterations, initial_samples):
@@ -724,7 +429,9 @@ def mobo_execute(conn, seed, iterations, initial_samples):
         write_data_to_csv(exec_csv, ['Optimization', 'Execution_Time'],
                           [{'Optimization': it, 'Execution_Time': t_elapsed}])
 
-        new_y = objective_function(conn, new_x[0])
+        # The Iteration save_xy will log this design under: this run's rows so far + 1.
+        iteration = int(np.sum(current_context_mask(train_x))) + 1
+        new_y = objective_function(conn, new_x[0], iteration)
         if CONTEXT_SETUP is not None:
             new_x = context_support.append_task_column(new_x, CONTEXT_SETUP.current_index)
         train_x = torch.cat([train_x, new_x])
@@ -748,51 +455,13 @@ def main():
     global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID
     global parameter_names, objective_names, parameters_info, objectives_info
     global CONTEXT_SETUP
-    global SOCKET_RECV_BUF
-    global SOCKET_ACCEPT_TIMEOUT_SEC
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     configure_listener_socket(s)
     conn = None
     try:
-        if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
-            raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
-        s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
-        try:
-            s.bind((HOST, PORT))
-        except OSError as e:
-            raise OSError(
-                f"Port {PORT} is already in use, most likely by an optimizer backend left over "
-                "from an earlier session. End that python process (Task Manager / Activity "
-                f"Monitor) and start again. ({e})"
-            ) from e
-        s.listen(1)
-        print('Server starts, waiting for connection...', flush=True)
-        try:
-            conn, addr = s.accept()
-        except socket.timeout as e:
-            raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
-        s.close()  # one Unity client per run: accept no further connections
-        print('Connected by', addr, flush=True)
-        if SOCKET_TIMEOUT_SEC <= 0:
-            raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
-        conn.settimeout(SOCKET_TIMEOUT_SEC)
-        SOCKET_RECV_BUF = ""
-        SOCKET_RECV_DECODER.reset()
-
-        init_msg = None
-        while True:
-            msg = recv_json_message(conn)
-            if msg is None:
-                break
-            if not isinstance(msg, dict):
-                continue
-            if msg.get("type") == "init":
-                init_msg = msg
-                break
-            continue
-        if init_msg is None:
-            raise RuntimeError("Did not receive init message.")
+        conn = accept_unity_connection(s, SOCKET_ACCEPT_TIMEOUT_SEC)
+        init_msg = receive_init_message(conn, SOCKET_TIMEOUT_SEC)
 
         cfg = init_msg.get("config", {}) or {}
         N_INITIAL      = get_cfg_int(cfg, "numSamplingIterations", default=N_INITIAL)
@@ -831,26 +500,12 @@ def main():
             raise ValueError(
                 f"numRestarts/rawSamples/mcSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}/{MC_SAMPLES}"
             )
+        validate_raw_samples(NUM_RESTARTS, RAW_SAMPLES)
         if BATCH_SIZE != 1:
             print(f"Warning: batchSize={BATCH_SIZE} is not supported in this HITL loop; forcing batchSize=1.", flush=True)
             BATCH_SIZE = 1
 
-        user = init_msg.get("user", {}) or {}
-        USER_ID      = normalize_user_token(user.get("userId"), default="-1")
-        CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
-        GROUP_ID     = normalize_user_token(user.get("groupId"), default="-1")
-        USER_LOG_ID  = normalize_log_folder_token(USER_ID, default="-1")
-        CONDITION_LOG_ID = normalize_log_folder_token(CONDITION_ID, default="-1")
-        if USER_LOG_ID != USER_ID:
-            print(
-                f"Warning: userId '{USER_ID}' was normalized to safe log-folder token '{USER_LOG_ID}'.",
-                flush=True,
-            )
-        if CONDITION_LOG_ID != CONDITION_ID:
-            print(
-                f"Warning: conditionId '{CONDITION_ID}' was normalized to safe log-folder token '{CONDITION_LOG_ID}'.",
-                flush=True,
-            )
+        USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID = parse_user_ids(init_msg)
 
         parameters = init_msg.get("parameters", []) or []
         objectives = init_msg.get("objectives", []) or []
@@ -874,18 +529,8 @@ def main():
         parameters_info = [parse_param_init(p.get("init")) for p in parameters]
         objectives_info = [parse_obj_init(o.get("init")) for o in objectives]
 
-        for i, (lo, hi) in enumerate(parameters_info):
-            if not np.isfinite(lo) or not np.isfinite(hi):
-                raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
-            if hi < lo:
-                raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
-        for i, (lo, hi, minflag) in enumerate(objectives_info):
-            if not np.isfinite(lo) or not np.isfinite(hi):
-                raise ValueError(f"Objective '{objective_names[i]}' bounds must be finite, got ({lo}, {hi})")
-            if hi < lo:
-                raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
-            if int(minflag) not in (0, 1):
-                raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
+        validate_parameter_bounds(parameter_names, parameters_info, "BoTorch")
+        validate_objective_bounds(objective_names, objectives_info)
 
         CONTEXT_SETUP = context_support.parse_context_config(init_msg)
         if CONTEXT_SETUP is not None:
@@ -899,7 +544,7 @@ def main():
         if reserved:
             raise ValueError(f"Parameter/objective keys collide with log columns: {reserved}. Rename them.")
 
-        ref_point = torch.full((NUM_OBJS,), -1.0, dtype=torch.double)
+        ref_point = reference_point(NUM_OBJS)
         problem_bounds = torch.stack(
             [torch.zeros(PROBLEM_DIM, dtype=torch.double),
              torch.ones(PROBLEM_DIM, dtype=torch.double)],
@@ -914,17 +559,12 @@ def main():
         ), flush=True)
 
         mobo_execute(conn, SEED, N_ITERATIONS, N_INITIAL)
+    except StopRequested:
+        pass  # Unity ended the study on purpose; every completed evaluation is logged
     finally:
-        if conn is not None:
-            try:
-                conn.shutdown(socket.SHUT_RDWR)
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
+        close_connection(conn)
         s.close()
+        flush_pending_logs()
 
 if __name__ == "__main__":
     main()

@@ -13,10 +13,36 @@ in test_context_support.TaskColumnTests).
 """
 
 import json
+import pathlib
 import sys
 import types
 
 import numpy as np
+
+BACKEND_DIR = (
+    pathlib.Path(__file__).resolve().parents[1] / "Assets/StreamingAssets/BOData/BayesianOptimization"
+)
+
+
+def protocol_module():
+    """The shared bo_protocol module that every backend imports its plumbing from."""
+    if str(BACKEND_DIR) not in sys.path:
+        sys.path.insert(0, str(BACKEND_DIR))
+    import bo_protocol
+
+    return bo_protocol
+
+
+def reset_protocol_state():
+    """Empty NDJSON reader and no unsaved logs.
+
+    Each test loads its own copy of a backend module, but all copies share bo_protocol's
+    module state (the receive buffer, logs kept in memory while locked).
+    """
+    protocol = protocol_module()
+    protocol.reset_receive_state()
+    protocol.discard_unsaved_logs()
+    return protocol
 
 
 class FakeTensor:
@@ -256,10 +282,14 @@ def install_openbo_stub():
 
         def __init__(self, config):
             self.config = config
+            # As in openbo's MOBoTorchSequentialOptimizer (rejects negative seeds).
+            self.rng = np.random.default_rng(config.seed)
             self.d = len(config.bounds)
             self.n_suggestions = 0
             self.observed_x = []
             self.observed_y = []
+            # openbo's MOBoTorchSequentialOptimizer: one hypervolume entry per observed row.
+            self.hypervolume_history = []
             gp_dir = os.path.join(str(config.taf_run_dir), "gp_states")
             traj_dir = os.path.join(str(config.taf_run_dir), "trajectories")
             names = []
@@ -313,6 +343,12 @@ def install_openbo_stub():
                 raise ValueError("stub observe(): bad shapes")
             self.observed_x.append(x_new)
             self.observed_y.append(y_new)
+            all_y = np.vstack(self.observed_y)
+            first_new = all_y.shape[0] - y_new.shape[0]
+            for k in range(y_new.shape[0]):
+                self.hypervolume_history.append(
+                    compute_hypervolume(all_y[: first_new + k + 1], self.config.ref_point)
+                )
 
     def compute_hypervolume(y, ref_point):
         arr = np.asarray(y, dtype=np.float64)

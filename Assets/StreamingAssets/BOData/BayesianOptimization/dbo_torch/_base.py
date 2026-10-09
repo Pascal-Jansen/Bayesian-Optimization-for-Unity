@@ -274,7 +274,14 @@ class DynamicOptimizerBase:
             fixed_features={self.dim: t},
             # All restarts in one batch. For q = 1 and study-sized data this
             # is about twice as fast as smaller batches, with the same optimum.
-            options={"batch_limit": self.config.num_restarts, "maxiter": 200},
+            # BOforUnity patch: init_batch_limit scores the raw samples 128 at
+            # a time; without it they are scored batch_limit (num_restarts) at
+            # a time. Same candidates, bit for bit; see PROVENANCE.md.
+            options={
+                "batch_limit": self.config.num_restarts,
+                "init_batch_limit": 128,
+                "maxiter": 200,
+            },
         )
         return candidate.squeeze(0)[: self.dim].tolist(), float(value)
 

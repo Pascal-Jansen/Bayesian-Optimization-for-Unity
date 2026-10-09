@@ -125,9 +125,79 @@ class ObjectiveColumnTests(unittest.TestCase):
 
     def test_ambiguous_warning_is_routed_to_callback(self):
         seen = []
-        # Bounds [-1,1] make raw and normalized ranges coincide.
-        self.n.normalize_obj_column([0.5], -1.0, 1.0, 0, fmt="auto", warn=seen.append)
-        self.assertTrue(any("ambiguous" in m for m in seen))
+        # Bounds [-1,1] make raw and normalized ranges coincide; for a minimized objective the
+        # two readings differ in sign.
+        got = self.n.normalize_obj_column([0.5], -1.0, 1.0, 1, fmt="auto", warn=seen.append)
+        np.testing.assert_allclose(got, [-0.5])  # raw reading
+        self.assertTrue(any("ambiguous" in m and "assuming raw" in m for m in seen))
+
+    def test_coinciding_objective_readings_are_not_announced(self):
+        # Bounds [-1,1] on a maximized objective: raw and normalized readings are identical.
+        seen = []
+        got = self.n.normalize_obj_column([0.5, -0.2], -1.0, 1.0, 0, fmt="auto", warn=seen.append)
+        np.testing.assert_allclose(got, [0.5, -0.2])
+        self.assertEqual(seen, [])
+
+    def test_objective_column_rounding_artifact_stays_raw(self):
+        # Minimized objective on [0, 0.0045] from a log written at 3 decimals: the float32
+        # bound 0.0045 was logged as 0.005. The column used to be read as already normalized
+        # (every value then sat at mid-scale, ~0); it is raw.
+        seen = []
+        got = self.n.normalize_obj_column([0.0, 0.002, 0.005], 0.0, 0.0045, 1, fmt="auto", warn=seen.append)
+        np.testing.assert_allclose(got, [1.0, 1.0 - 2 * 0.002 / 0.0045, -1.0])
+        self.assertTrue(any("assuming raw" in m for m in seen))
+        # The explicit raw format accepts the same artifact (it used to raise).
+        np.testing.assert_allclose(
+            self.n.normalize_obj_column([0.0, 0.005], 0.0, 0.0045, 1, fmt="raw"), [1.0, -1.0]
+        )
+
+    def test_objective_column_tolerance_does_not_grow_with_the_range(self):
+        # Only log rounding counts as a raw artifact: 100.0004 on [0, 100] does, 100.04 does not.
+        np.testing.assert_allclose(
+            self.n.normalize_obj_column([0.0, 100.0004], 0.0, 100.0, 0, fmt="raw"), [-1.0, 1.0]
+        )
+        with self.assertRaises(ValueError):
+            self.n.normalize_obj_column([0.0, 100.04], 0.0, 100.0, 0, fmt="raw")
+        # A tolerance of 0.05% of the range swallowed the values just below 0 that tell a
+        # normalized column from a raw one: normalized SUS scores [-0.04, 0.3, 0.8] on [0, 100]
+        # and normalized task times on [0, 10000] (tolerance 5: every normalized column) were
+        # read as raw, i.e. as the worst / best values of the range.
+        for col, lo, hi, minflag in (([-0.04, 0.3, 0.8], 0.0, 100.0, 0),
+                                     ([-0.95, 0.2, 0.9], 0.0, 10000.0, 1)):
+            with self.subTest(hi=hi):
+                seen = []
+                got = self.n.normalize_obj_column(col, lo, hi, minflag, fmt="auto", warn=seen.append)
+                np.testing.assert_allclose(got, col)
+                self.assertTrue(any("already normalized" in m for m in seen))
+
+    def test_objective_raw_bounds_tolerance(self):
+        # Half a unit of the third decimal, or of the 10th significant digit above 1e6.
+        self.assertAlmostEqual(self.n.objective_raw_bounds_tolerance(0.0, 0.0045), 5e-4, places=7)
+        self.assertAlmostEqual(self.n.objective_raw_bounds_tolerance(0.0, 10000.0), 5e-4, places=7)
+        self.assertAlmostEqual(self.n.objective_raw_bounds_tolerance(-1e8, 0.0), 0.05, places=7)
+        # Current logs keep 10 significant digits: a bound such as 123456789.98 logs as
+        # 123456790.0, still read as raw.
+        np.testing.assert_allclose(
+            self.n.normalize_obj_column([0.0, 123456790.0], 0.0, 123456789.98, 0, fmt="raw"), [-1.0, 1.0]
+        )
+
+    def test_objective_column_normalized_fallback_is_announced(self):
+        seen = []
+        got = self.n.normalize_obj_column([-0.5, 0.25], 2.0, 8.0, 1, fmt="auto", warn=seen.append)
+        np.testing.assert_allclose(got, [-0.5, 0.25])
+        self.assertTrue(any("already normalized" in m for m in seen))
+
+    def test_objective_column_explicit_formats_are_not_announced(self):
+        seen = []
+        self.n.normalize_obj_column([-0.5, 0.25], 2.0, 8.0, 1, fmt="normalized_max", warn=seen.append)
+        self.n.normalize_obj_column([0.5], -1.0, 1.0, 1, fmt="raw", warn=seen.append)
+        self.assertEqual(seen, [])
+
+    def test_raw_bounds_tolerance(self):
+        # Half a unit of the third decimal (3-decimal logs), or 0.05% of a range wider than 1.
+        self.assertAlmostEqual(self.n.raw_bounds_tolerance(0.0, 0.0045), 5e-4, places=7)
+        self.assertAlmostEqual(self.n.raw_bounds_tolerance(0.0, 1.0), 5e-4, places=7)
+        self.assertAlmostEqual(self.n.raw_bounds_tolerance(0.0, 100.0), 0.05, places=7)
 
     def test_param_column_raw_and_normalized(self):
         np.testing.assert_allclose(
@@ -147,6 +217,14 @@ class ObjectiveColumnTests(unittest.TestCase):
         # flip the whole column to the "already normalized" reading.
         seen = []
         got = self.n.normalize_param_column([0.1, 0.11, 0.1235000001], 0.1, 0.1235, warn=seen.append)
+        np.testing.assert_allclose(got, [0.0, 0.01 / 0.0235, 1.0])
+        self.assertTrue(any("assuming raw" in m for m in seen))
+
+    def test_param_column_three_decimal_log_on_a_narrow_range_stays_raw(self):
+        # 0.1235 logged as 0.124 at 3 decimals: 0.0005 outside [0.1, 0.1235], far more than
+        # 0.05% of that range. It used to switch the column to the normalized reading.
+        seen = []
+        got = self.n.normalize_param_column([0.1, 0.11, 0.124], 0.1, 0.1235, warn=seen.append)
         np.testing.assert_allclose(got, [0.0, 0.01 / 0.0235, 1.0])
         self.assertTrue(any("assuming raw" in m for m in seen))
 
@@ -219,7 +297,8 @@ class MoboFrameParityTests(unittest.TestCase):
                 )
 
     def test_scalar_transform_matches_mobo_live_objective_math(self):
-        """The scalar path must equal mobo's inline objective_function arithmetic."""
+        """The scalar path must equal the arithmetic mobo's objective_function used inline before it
+        called bo_normalize (see test_bo.test_objective_function_matches_former_inline_transform)."""
         for raw, lo, hi, minflag in ((2.0, 0.0, 10.0, 0), (2.0, 0.0, 10.0, 1), (7.0, 1.0, 9.0, 1)):
             with self.subTest(raw=raw, minflag=minflag):
                 f = (raw - lo) / (hi - lo) * 2 - 1

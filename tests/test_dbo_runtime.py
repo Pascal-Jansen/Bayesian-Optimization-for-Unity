@@ -12,6 +12,7 @@ The end-to-end wire protocol (real TCP socket, split messages, float32
 narrowing) is covered separately by ``tests/dbo_protocol_check.py``.
 """
 
+import importlib
 import importlib.util
 import json
 import os
@@ -33,6 +34,7 @@ from _stubs import (  # noqa: E402
     FakeServerSocket,
     assert_hardened_listener,
     json_line,
+    reset_protocol_state,
     run_main_recording_listener,
 )
 
@@ -40,19 +42,14 @@ _REAL_MODULE_ROOTS = ("torch", "botorch", "gpytorch", "linear_operator", "pandas
 
 try:
     import torch  # noqa: F401
-    import botorch  # noqa: F401
-    import botorch.acquisition  # noqa: F401
-    import botorch.acquisition.analytic  # noqa: F401
-    import botorch.fit  # noqa: F401
-    import botorch.models  # noqa: F401
-    import botorch.models.transforms  # noqa: F401
-    import botorch.optim  # noqa: F401
-    import botorch.utils.sampling  # noqa: F401
-    import botorch.utils.transforms  # noqa: F401
-    import gpytorch.constraints  # noqa: F401
-    import gpytorch.kernels  # noqa: F401
-    import gpytorch.mlls  # noqa: F401
-    import pandas  # noqa: F401
+    # Imported now so the real modules are captured below, before stubs replace them.
+    for _module in (
+        "botorch", "botorch.acquisition", "botorch.acquisition.analytic", "botorch.fit",
+        "botorch.models", "botorch.models.transforms", "botorch.optim", "botorch.utils.sampling",
+        "botorch.utils.transforms", "gpytorch.constraints", "gpytorch.kernels", "gpytorch.mlls",
+        "pandas",
+    ):
+        importlib.import_module(_module)
 
     HAS_REAL_STACK = True
     _REAL_MODULES = {
@@ -81,6 +78,7 @@ def load_dbo_runtime():
     spec = importlib.util.spec_from_file_location(name, BACKEND_DIR / "dbo_runtime.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    reset_protocol_state()
     return module
 
 
@@ -273,8 +271,45 @@ class DboRuntimeTests(unittest.TestCase):
             with open(run_dir / "BestObjectivePerEvaluation.csv", newline="", encoding="utf-8") as f:
                 best_rows = [line.rstrip("\r\n").split(";") for line in f][1:]
             self.assertEqual([int(r[1]) for r in best_rows], [3, 4, 5])
-            # cost 20 on [0, 100] with minimize=1 is +0.6 in the canonical frame.
+            # cost 20 on [0, 100] with minimize=1 is +0.6 in the canonical frame; the raw column
+            # reports it in the objective's own units, as bo.py does.
             self.assertAlmostEqual(float(best_rows[0][0]), 0.6)
+            self.assertIn("minimized", best_rows[0][2])
+            self.assertAlmostEqual(float(best_rows[0][3]), 20.0)
+
+    def test_raw_samples_are_scored_in_large_batches_with_identical_suggestions(self):
+        """The vendored init_batch_limit patch (dbo_torch/PROVENANCE.md) must survive a refresh.
+
+        Without it BoTorch scores the raw samples batch_limit (= num_restarts) at a time, about
+        twice as slow per suggestion for the same candidates.
+        """
+        module = load_dbo_runtime()
+        base = sys.modules["dbo_torch._base"]
+        real_optimize_acqf = base.optimize_acqf
+
+        def suggestion(force_small_batches):
+            options_seen = []
+
+            def recording(*args, **kwargs):
+                options = dict(kwargs["options"])
+                options_seen.append(dict(options))
+                if force_small_batches:
+                    options["init_batch_limit"] = options["batch_limit"]  # the unpatched behaviour
+                return real_optimize_acqf(*args, **{**kwargs, "options": options})
+
+            dbo = module.DynamicBO(bounds=[(0.0, 1.0)] * 2, config=module.DBOConfig(
+                seed_points=[[0.2, 0.3], [0.7, 0.6], [0.4, 0.9]], num_restarts=4, raw_samples=256, seed=5))
+            for _ in range(3):
+                x = dbo.suggest()
+                dbo.observe(x, (x[0] - 0.5) ** 2 + (x[1] - 0.4) ** 2)
+            with mock.patch.object(base, "optimize_acqf", recording):
+                return dbo.suggest(), options_seen
+
+        patched, options_seen = suggestion(force_small_batches=False)
+        self.assertTrue(options_seen)
+        for options in options_seen:
+            self.assertEqual((options["batch_limit"], options["init_batch_limit"]), (4, 128))
+        self.assertEqual(suggestion(force_small_batches=True)[0], patched)
 
 
 if __name__ == "__main__":

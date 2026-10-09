@@ -1,7 +1,7 @@
 # Meta-BO in BOforUnity — Student Guide (MetaTAF backend)
 
-*BOforUnity v1.6.0. For questions, start with section 7 (troubleshooting) and section 9
-(what to cite).*
+*Written for BOforUnity v1.8. For questions, start with section 7 (troubleshooting) and
+section 9 (what to cite).*
 
 ## 1. What this does, in plain language
 
@@ -38,7 +38,11 @@ backend.
 
 * BOforUnity set up and working normally (any backend) — see the main README first.
 * **At least 2 objectives** (this backend is multi-objective only).
-* The **openbo** package installed for the same Python that BOforUnity launches:
+* The **openbo** package installed for the same Python that BOforUnity launches. That is
+  BOforUnity's private environment (README 8.5), not your system Python: the Unity Console
+  logs its interpreter at startup as `Optimizer Python: …`; use that path in place of
+  `python` in the commands below (`"<that path>" -m pip install …`). The backend's error
+  messages print the complete command with that interpreter.
 
 ```bash
 python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"
@@ -108,7 +112,9 @@ BoForUnityManager configuration):
 }
 ```
 
-Then convert the pilot runs (any machine with the full Python stack + openbo):
+Then convert the pilot runs (any machine with the full Python stack + openbo; on the Unity
+machine that is the `Optimizer Python` interpreter from section 2, so use its path in place
+of `python`):
 
 ```bash
 cd Assets/StreamingAssets/BOData/BayesianOptimization
@@ -123,6 +129,9 @@ the objective values (`human`, `llm-persona`, `synthetic`) and whether they were
 `measured` from real participants/systems or `generated` by a model. Label them honestly
 — a false "human/measured" stamp poisons the audit trail of every study using the source.
 
+Every objective in `frame.json` needs its `minimize` flag (`0` or `1`); the tool refuses
+a frame without it instead of assuming "maximize".
+
 For every run this fits one GP per objective, normalizes everything into the optimizer's
 internal space, stamps the frame into the artifact, and **self-checks** — before anything
 is written — that the artifact reproduces its own run (the `fit residual` it prints;
@@ -132,9 +141,38 @@ different bounds), is skipped with the reason and leaves no artifact behind. Out
 
 ```
 MetaSources/
-  gp_states/00_..._run.json      hyperparameters + frame + provenance
-  trajectories/00_..._run.json   normalized observations + Pareto front
+  gp_states/p01_main_run.json      hyperparameters + frame + provenance
+  trajectories/p01_main_run.json   normalized observations + Pareto front
+  population.json                  the population manifest (see below)
 ```
+
+* **Names** come from the last three folders of the run path
+  (`<participant>_<condition>_<run>`), never from the order of the command line, so
+  rebuilding the folder with one more participant adds exactly one source. Two runs with
+  the same path tail (e.g. from two studies) get a short path hash appended
+  (`p01_main_run-1a2b3c4d`). Explicit names: `--name p01 --name p02` (one per run, in
+  order; `--name p01 run1 --name p02 run2` works too) or `--names p01,p02`.
+* **Existing artifacts are kept**: a run already in `--out` is reported as `[KEEP]` and not
+  rebuilt; add `--force` to rebuild it (this changes the population). It keeps the name it
+  has there, also an index-prefixed `00_p01_main_run` from an older `meta_train.py` (which
+  numbered sources by command-line position), and also when it was built from another path
+  (on another machine, or before the project folder moved: the same path tail with
+  identical observations), so rebuilding a folder with one more participant adds that
+  participant only. If the same run is in the folder under *two* names (or you give it
+  another one with `--name`), the tool warns: delete one pair, or that participant counts
+  twice in every later run.
+* **`--dry-run`** checks the frame, every run and the names, and prints what would be
+  written — without fitting or writing anything (no torch/openbo needed).
+* **`population.json`** is rewritten after every build: the name and SHA-256 hashes of every
+  source pair in the folder plus the frame digest (line endings do not count, so a git
+  checkout that converts them, e.g. `core.autocrlf` on Windows, is not a change). When it
+  is present, the backend refuses to start if the population it loads differs from it in
+  any way (a source added, removed, replaced, or no longer loadable) — this enforces
+  "freeze the population" (section 6).
+  After changing the folder by hand *before* the study, rewrite it with
+  `python meta_train.py --frame frame.json --out ../MetaSources --manifest-only`.
+* Copy the folder as a whole. Copies through exFAT/FAT32 drives or network shares can add
+  macOS `._<name>.json` metadata files; the backend ignores them (listed as skipped).
 
 ### Step 3 — Run new participants
 
@@ -145,7 +183,12 @@ MetaSources/
    `Meta-TAF: using 3 population model(s): [...]`. A source that matches the study frame
    but cannot be used is named with the reason and left out. If **none** is loaded, the
    run aborts before the first trial with the per-source reasons (see **Meta Require
-   Sources** below) instead of silently continuing as plain multi-objective BO.
+   Sources** below) instead of silently continuing as plain multi-objective BO. If the
+   folder has a `population.json` and the loaded population differs from it, the run also
+   aborts before the first trial and lists the differences.
+4. Use a **Random Seed ≥ 0** (the same in every condition). MetaTAF refuses negative seeds
+   at startup: openbo cannot use them, and mapping them to another value would also change
+   the initial Sobol design, which must equal the BoTorch condition's.
 
 That's it — the participant experience is identical to a normal run.
 
@@ -179,11 +222,21 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 `IsPareto`, `HypervolumePerEvaluation.csv`, `ExecutionTimes.csv`), plus:
 
 * **`MetaWeightsPerEvaluation.csv`** — one row per optimization iteration:
-  `Iteration; TargetWeight; DecayFactor; <one column per population model>`.
+  `Iteration; OptimizationStep; TargetWeight; DecayFactor; <one column per population model>`.
+  `Iteration` is the global evaluation index — the same as the design's row in
+  `ObservationsPerEvaluation.csv` and `HypervolumePerEvaluation.csv`, so the files join on
+  it (with 5 sampling iterations, the first weights row is `Iteration` 6);
+  `OptimizationStep` counts the optimization iterations only (1, 2, …). Files written
+  before this change logged the optimization step as `Iteration`: add the number of
+  sampling iterations before joining them.
   Read it as "who was steering": `TargetWeight = 0.0` marks warmup iterations driven by
   the population alone; the per-source columns show TAF weights after decay. If one source
   dominates every participant, your population may be too homogeneous — if weights differ
   a lot between participants, TAF is doing its job selecting matching predecessors.
+* **`HypervolumePerEvaluation.csv`** — the hypervolume openbo computes after every
+  evaluation, against the reference point −1.1 in every objective of the normalized
+  [−1, 1] space (the `ReferencePoint` column), the same as the BoTorch backend. Values are
+  not comparable with logs written with the former reference point −1.
 * **`MetaSourcesUsed/`** — an exact copy of the population models this run actually
   loaded. Candidates that matched the study frame but could not be used by the optimizer
   (unreadable trajectory, malformed hyperparameters, a Pareto front that never beats the
@@ -194,9 +247,16 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
   versions (torch, botorch, gpytorch, open-bo, numpy, ...), how openbo is installed (pip's
   `direct_url.json`: git commit or editable path) plus SHA-256 hashes of the openbo modules
   in use, the exact optimizer configuration (`MOTAFConfig`, including the settings the
-  backend pins instead of relying on openbo defaults), the study frame and its digest, the
-  seed and the Unity init configuration, and the loaded / dropped / frame-rejected sources
-  with their provenance stamps. When the run aborts at startup, `abort_reason` says why.
+  backend pins instead of relying on openbo defaults, and the hypervolume reference
+  point), the study frame and its digest, the seed and the Unity init configuration, the
+  loaded / dropped / frame-rejected sources with their provenance stamps, sources with
+  identical trajectories, and the population manifest it was checked against. It is
+  rewritten after every evaluation: `progress` holds the evaluations completed, the last
+  `Iteration`, the latest hypervolume and source weights; at the end `finished` is `true`
+  and `finish_reason` says why — `completed`, `stop_requested` (Unity ended the study,
+  e.g. perfect ratings; the reason is in `finish_detail`), `error`, or `startup_abort`
+  (then `abort_reason` says why). A file that still says `"finished": false` belongs to a
+  backend that was killed mid-run.
 
 ## 6. Study-design guidance (read before running a real experiment)
 
@@ -204,18 +264,21 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
   population models from a *pilot* cohort, freeze the folder, and give every analyzed
   participant the identical set. If you instead keep adding each finished participant as
   a new source, participant N's treatment depends on participants 1..N-1 — an ordering
-  confound that breaks independence assumptions in your analysis.
+  confound that breaks independence assumptions in your analysis. The `population.json`
+  that `meta_train.py` writes enforces this: once it is in the folder, a run whose loaded
+  population differs from it does not start. Each run's `MetaRunState.json` records the
+  manifest's hash, so you can show that every participant got the same population.
 * **Compare against a no-transfer control.** The honest baseline for "Meta-BO helped" is
   the same study with the BoTorch backend. For the same Seed both backends draw the
   identical initial Sobol design and use the same target model and acquisition
-  (SingleTaskGP, qLogNEHVI with reference point −1, same MC-sampler seed), so they differ
+  (SingleTaskGP, qLogNEHVI with reference point −1.1, same MC-sampler seed), so they differ
   in the transfer terms plus one implementation detail: the acquisition optimizer. MetaTAF
   (openbo) uses BoTorch's `optimize_acqf` defaults (all restarts in one L-BFGS-B batch, up
   to 2000 iterations, a per-iteration RNG seed); `mobo.py` optimizes the restarts in
   batches of 5 with at most 200 iterations. Suggestions after the sampling phase are
-  therefore methodologically equivalent, not bit-identical. (A source-less MetaTAF run
-  needs **Meta Require Sources** switched off.) Liao et al. (CHI 2024) is the template for
-  this comparison.
+  therefore methodologically equivalent, not bit-identical. (A
+  source-less MetaTAF run needs **Meta Require Sources** switched off.) Liao et al. (CHI
+  2024) is the template for this comparison.
 * **Leave the decay on.** `Meta Decay Rate = 0` ("never fade") is an ablation setting,
   not a study setting: without decay the population keeps a constant-size say in the
   acquisition while the participant's own improvement signal shrinks as their model
@@ -237,8 +300,16 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 |---|---|
 | `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python BOforUnity uses** (README 8.5 shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` |
 | `The installed 'openbo' predates the TAF-R rework` | Your openbo is from before 2026-08, when the `taf_r` mode changed from Pareto-dominance to objective-wise ranking agreement; running it would silently compute a different similarity than configured. Run the printed command: `python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` does nothing here — openbo's version number did not change). |
-| `source '<name>' was built for a different study frame; skipping: ...` | The artifact was generated for different names/bounds/minimize flags. The message lists the exact field. Regenerate with a matching `frame.json`. |
-| `source '<name>' carries no frame block; skipping` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
+| `source '<name>' skipped: built for a different study frame` | The artifact was generated for different names/bounds/minimize flags. The lines below it list the exact field. Regenerate with a matching `frame.json`. |
+| `source '<name>' skipped: no frame block` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
+| `source '._<name>' skipped: macOS AppleDouble metadata file` | Harmless: metadata files that macOS adds when a folder is copied via an exFAT/FAT32 drive or a network share. Delete them (`dot_clean` on macOS) to silence the message. |
+| `source '<name>' skipped: could not be copied` / `gp_states unreadable` / `is not a JSON object` | The file is locked by another program, is a cloud-storage placeholder that is not downloaded, or is not a valid artifact. Make the folder available offline / close the program, or regenerate the source. |
+| `source '<name>' skipped: its trajectory is not the one its gp_state was built with` | The pair was only half replaced (a `meta_train.py` rebuild that could not replace the gp_state, or an interrupted sync). Rebuild that run with `meta_train.py --force`. |
+| `sources [...] have identical trajectories` | The same run is in the folder under two names (e.g. `00_p01_main_run` and `p01_main_run`); it counts twice. Delete all but one and rewrite `population.json` (`--manifest-only`). |
+| `the population loaded from '...' differs from its frozen population manifest` | The source folder changed since `population.json` was written (a source added, removed, replaced, or no longer loadable — each difference is listed). During a study: restore the frozen folder. Before the study: rewrite the manifest with `meta_train.py --frame frame.json --out <folder> --manifest-only`. |
+| `Seed must be >= 0 for the Meta-TAF backend` | Set a non-negative **Random Seed** in the inspector — the same in every condition, so MetaTAF and the BoTorch control start from the same initial design. |
+| `meta_train.py` prints `[KEEP] <name>: already in --out` | That run is already a source in the folder; it is not rebuilt (that would change the population). Add `--force` to rebuild it on purpose. |
+| `meta_train.py`: `'--names' placed before the run paths takes them as names` | Put `--names a b` after the run paths, or use `--names a,b` / `--name a --name b`. |
 | `source '<name>' passed frame validation but openbo did not load it` | The artifact matches the study frame but the optimizer cannot use it: an unreadable (e.g. half-synced) trajectory file, malformed hyperparameters, or a Pareto front that never beats the reference point. The message carries openbo's reason; regenerate the source with `meta_train.py`, which refuses such artifacts up front. The run continues with the remaining sources (or aborts if none is left). |
 | `Meta-TAF: no valid population model found ... requires sources (metaRequireSources)` | The run aborts on purpose, before the first trial (`MetaRunState.json` in the run folder records why). Check the Meta Source Dir path, that `gp_states/` + `trajectories/` contain paired `.json` files, and the listed per-source rejection reasons (frame mismatches as well as sources openbo could not load); regenerate sources against the current frame. Only if a source-less (plain MOBO) run is genuinely intended, switch off **Meta Require Sources** in the inspector. |
 | `Parameter/objective key(s) [...] collide with the fixed columns of ObservationsPerEvaluation.csv` | Rename that parameter/objective key: `UserID`, `ConditionID`, `GroupID`, `Timestamp`, `Iteration`, `Phase` and `IsPareto` are columns of the observation log. |

@@ -44,9 +44,6 @@
 # Results differ between dbo_torch versions for the same seed, so every run records the
 # version (and the full optimizer state) in DboRunState.json.
 
-import codecs
-import csv
-import json
 import os
 import socket
 import sys
@@ -68,6 +65,15 @@ if _SCRIPT_DIR not in sys.path:
 import bo_normalize
 import dbo_torch
 from dbo_torch import DBOConfig, DBOModelConfig, DynamicBO
+# Socket, NDJSON, init parsing and log-writing plumbing shared by every backend.
+from bo_protocol import (
+    SOCKET_ACCEPT_TIMEOUT_SEC, SOCKET_TIMEOUT_SEC, StopRequested,
+    accept_unity_connection, append_csv_rows, close_connection, configure_listener_socket,
+    create_csv_file, flush_pending_logs, get_cfg_bool, get_cfg_float, get_cfg_int, get_cfg_str,
+    get_unique_folder, parse_obj_init, parse_param_init, parse_user_ids, receive_init_message,
+    recv_objectives_blocking, send_json_line, validate_objective_bounds,
+    validate_parameter_bounds, validate_raw_samples, write_csv_rows, write_data_to_csv,
+)
 
 # -------------------- defaults (overwritten by Unity init) --------------------
 N_INITIAL = 5
@@ -123,142 +129,11 @@ OBSERVATION_ROWS = []  # [(iteration, phase, timestamp, y_denormalized, [x_denor
 
 # Dtype/device are owned by DBOConfig (float64 on CPU), so there is no tkwargs here.
 
-# -------------------- TCP server helpers --------------------
-# Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
-HOST = '127.0.0.1'
-PORT = 56001
-SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
-SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
-SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
+# -------------------- threading --------------------
 # Single-objective GPs at study sizes are too small for intra-op parallelism: one torch
 # thread was 1.4-1.6x faster per suggestion with identical candidates (d=2..8, n=12..80),
 # and leaves the remaining cores to Unity. BO_TORCH_THREADS overrides it.
 TORCH_THREADS = int(os.environ.get("BO_TORCH_THREADS", "1"))
-SOCKET_RECV_BUF = ""
-# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
-# must not become replacement characters (a key "Größe" would no longer match).
-SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
-
-
-def normalize_user_token(value, default="-1"):
-    token = str(value).strip() if value is not None else ""
-    return token if token else default
-
-
-def normalize_log_folder_token(value, default="-1"):
-    token = normalize_user_token(value, default=default)
-    invalid_chars = set('/\\:*?"<>|')
-    cleaned_chars = []
-    for ch in token:
-        if ch in invalid_chars or ord(ch) < 32:
-            cleaned_chars.append("_")
-        else:
-            cleaned_chars.append(ch)
-    cleaned = "".join(cleaned_chars).strip().strip(".")
-    if cleaned in ("", ".", ".."):
-        return default
-    return cleaned
-
-
-def send_json_line(conn, obj):
-    line = json.dumps(obj, ensure_ascii=False) + "\n"
-    try:
-        conn.sendall(line.encode("utf-8"))
-    except (BrokenPipeError, ConnectionResetError, OSError) as e:
-        t = obj.get("type") if isinstance(obj, dict) else "unknown"
-        raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
-
-
-def configure_listener_socket(s):
-    """Socket options for the backend's single listening socket.
-
-    On Windows, SO_REUSEADDR lets a second process bind a port that is still being listened
-    on, so a stale backend could receive Unity's connection; SO_EXCLUSIVEADDRUSE refuses that
-    and still allows an immediate restart. On POSIX, SO_REUSEADDR only permits rebinding
-    while an earlier connection lingers in TIME_WAIT, which a quick restart needs.
-    """
-    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-    else:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-
-def recv_json_message(conn):
-    """Receive one NDJSON message while preserving unread bytes across calls."""
-    global SOCKET_RECV_BUF
-    while True:
-        idx = SOCKET_RECV_BUF.find("\n")
-        if idx >= 0:
-            line = SOCKET_RECV_BUF[:idx].rstrip("\r")
-            SOCKET_RECV_BUF = SOCKET_RECV_BUF[idx + 1:]
-            if not line.strip():
-                continue
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError as e:
-                preview = line[:200]
-                # Keep the reader tolerant to non-critical malformed lines.
-                print(
-                    f"Warning: skipping malformed JSON line from Unity: {e}. Payload preview: {preview!r}",
-                    flush=True,
-                )
-                continue
-        try:
-            chunk = conn.recv(4096)
-        except socket.timeout as e:
-            raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
-        if not chunk:
-            trailing = (SOCKET_RECV_BUF + SOCKET_RECV_DECODER.decode(b"", final=True)).strip()
-            SOCKET_RECV_BUF = ""
-            if trailing:
-                print("Warning: discarding trailing unterminated socket data:", trailing, flush=True)
-            return None
-        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
-        if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
-            preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
-            SOCKET_RECV_BUF = ""
-            SOCKET_RECV_DECODER.reset()
-            raise RuntimeError(
-                f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
-                f"possible framing error or oversized message. Tail preview: {preview}"
-            )
-
-
-# -------------------- IO utils --------------------
-def get_unique_folder(parent, folder_name):
-    base_path = os.path.join(parent, folder_name)
-    if not os.path.exists(base_path):
-        os.makedirs(base_path)
-        return base_path
-    if os.path.isdir(base_path):
-        visible_entries = [
-            name for name in os.listdir(base_path)
-            if name != ".DS_Store" and not name.endswith(".meta")
-        ]
-        if not visible_entries:
-            return base_path
-    k = 1
-    while True:
-        p = os.path.join(parent, f"{folder_name}_{k}")
-        if not os.path.exists(p):
-            os.makedirs(p)
-            return p
-        k += 1
-
-
-def create_csv_file(csv_file_path, fieldnames):
-    os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
-    write_header = not os.path.exists(csv_file_path)
-    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-        if write_header:
-            w.writeheader()
-
-
-def write_data_to_csv(csv_file_path, fieldnames, rows):
-    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
-        w.writerows(rows)
 
 # Frame transforms live in bo_normalize so that this backend, bo.py, mobo.py and the
 # offline Meta-TAF source generators cannot drift apart. Thin wrappers keep the call
@@ -305,98 +180,13 @@ DBO_DIAGNOSTICS_FIELDS = [
 # observation with its prediction), rewritten atomically after each evaluation.
 DBO_STATE_FILENAME = "DboRunState.json"
 
-# -------------------- protocol parsing --------------------
-def parse_param_init(init_val):
-    if isinstance(init_val, dict):
-        if "low" not in init_val or "high" not in init_val:
-            raise ValueError(f"Parameter init parse error (missing 'low'/'high'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"])
-    parts = [p.strip() for p in str(init_val).split(",")]
-    if len(parts) < 2:
-        raise ValueError(f"Parameter init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1])
-
-
-def parse_obj_init(init_val):
-    if isinstance(init_val, dict):
-        if "low" not in init_val or "high" not in init_val:
-            raise ValueError(f"Objective init parse error (missing 'low'/'high'): {init_val}")
-        if "minimize" not in init_val:
-            raise ValueError(f"Objective init parse error (missing 'minimize'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"]), int(init_val["minimize"])
-    parts = [p.strip() for p in str(init_val).split(",")]
-    if len(parts) < 3:
-        raise ValueError(f"Objective init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1]), int(float(parts[2]))
-
-
-def get_cfg_int(cfg, key, default=None, required=False):
-    if key in cfg and cfg.get(key) is not None:
-        try:
-            return int(cfg.get(key))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Config field '{key}' must be an integer, got {cfg.get(key)!r}") from e
-    if required:
-        raise ValueError(f"Missing required config field '{key}'")
-    return int(default) if default is not None else None
-
-
-def get_cfg_float(cfg, key, default=None, required=False):
-    if key in cfg and cfg.get(key) is not None:
-        try:
-            return float(cfg.get(key))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Config field '{key}' must be a number, got {cfg.get(key)!r}") from e
-    if required:
-        raise ValueError(f"Missing required config field '{key}'")
-    return float(default) if default is not None else None
-
-
-def get_cfg_bool(cfg, key, default=None, required=False):
-    if key in cfg and cfg.get(key) is not None:
-        val = cfg.get(key)
-        if isinstance(val, bool):
-            return val
-        if isinstance(val, (int, float)) and float(val) in (0.0, 1.0):
-            return bool(val)
-        if isinstance(val, str):
-            token = val.strip().lower()
-            if token in ("true", "1"):
-                return True
-            if token in ("false", "0"):
-                return False
-        raise ValueError(f"Config field '{key}' must be a boolean, got {cfg.get(key)!r}")
-    if required:
-        raise ValueError(f"Missing required config field '{key}'")
-    return default
-
-
-def get_cfg_str(cfg, key, default=""):
-    val = cfg.get(key)
-    if val is None:
-        return default
-    token = str(val).strip().lower()
-    return token if token else default
-
 # -------------------- objective evaluation --------------------
-def recv_objectives_blocking(conn):
-    while True:
-        msg = recv_json_message(conn)
-        if msg is None:
-            return None
-        if not isinstance(msg, dict):
-            continue
-        t = msg.get("type")
-        if t == "objectives":
-            return msg.get("values")
-        continue
-
-
-def objective_function(conn, x_norm):
+def objective_function(conn, x_norm, iteration):
     """Send one design to Unity, block for its objective, return the canonical frame.
 
-    ``x_norm`` is a list of d values in [0,1]. Returns ``(f_max, raw_value)`` where
-    ``f_max`` is in [-1,1] and points UP (maximization, minimize flag folded in) and
+    ``x_norm`` is a list of d values in [0,1]; ``iteration`` is the global iteration it is
+    logged under (Unity receives it with the parameters). Returns ``(f_max, raw_value)``
+    where ``f_max`` is in [-1,1] and points UP (maximization, minimize flag folded in) and
     ``raw_value`` is what Unity reported, in the objective's original units. The caller
     negates ``f_max`` before handing it to DynamicBO, which minimises cost.
     """
@@ -404,15 +194,13 @@ def objective_function(conn, x_norm):
     for i, name in enumerate(parameter_names):
         lo, hi = parameters_info[i]
         values[name] = denormalize_to_original_param(x_norm[i], lo, hi, decimals=None)
-    payload = {"type": "parameters", "values": values}
+    payload = {"type": "parameters", "values": values, "iteration": int(iteration)}
     print("Send parameters:", payload, flush=True)
     send_json_line(conn, payload)
 
-    resp = recv_objectives_blocking(conn)
+    resp = recv_objectives_blocking(conn)  # a dict, or None once Unity disconnected
     if resp is None:
         raise RuntimeError("No objectives received from Unity.")
-    if not isinstance(resp, dict):
-        raise TypeError(f"Unity objectives payload must be a dict, got {type(resp).__name__}")
 
     name = objective_names[0]
     missing = [k for k in objective_names if k not in resp]
@@ -585,7 +373,6 @@ def write_observations_csv():
     TRUE row — same as bo.py.
     """
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
-    os.makedirs(PROJECT_PATH, exist_ok=True)
 
     flags = []
     if ALL_NORM_MAX:
@@ -593,34 +380,38 @@ def write_observations_csv():
         flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in ALL_NORM_MAX]
     tail = flags[-len(OBSERVATION_ROWS):] if OBSERVATION_ROWS else []
 
-    with open(obs_csv, 'w', newline='', encoding='utf-8') as f:
-        w = csv.writer(f, delimiter=';')
-        w.writerow(expected_observation_columns())
-        for row, is_best in zip(OBSERVATION_ROWS, tail):
-            iteration, phase, timestamp, y_den, x_den = row
-            w.writerow([USER_ID, CONDITION_ID, GROUP_ID, timestamp,
-                        iteration, phase, is_best, y_den, *x_den])
+    rows = []
+    for row, is_best in zip(OBSERVATION_ROWS, tail):
+        iteration, phase, timestamp, y_den, x_den = row
+        rows.append([USER_ID, CONDITION_ID, GROUP_ID, timestamp,
+                     iteration, phase, is_best, y_den, *x_den])
+    write_csv_rows(obs_csv, expected_observation_columns(), rows)
+
+
+def metric_scale():
+    """`Scale` column of the metric logs: the frame of BestObjective and the objective's direction."""
+    if int(objectives_info[0][2]) == 1:
+        return "normalized maximize-space [-1,1] (objective minimized: sign-flipped)"
+    return "normalized maximize-space [-1,1] (objective maximized)"
 
 
 def save_metric_to_file(metric_values, iteration):
-    os.makedirs(PROJECT_PATH, exist_ok=True)
-    best_csv = os.path.join(PROJECT_PATH, "BestObjectivePerEvaluation.csv")
-    legacy_csv = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
+    """Append the best-so-far metric of one evaluation, with the same columns as bo.py.
 
-    write_best_header = not os.path.exists(best_csv) or os.path.getsize(best_csv) == 0
-    with open(best_csv, 'a', newline='', encoding='utf-8') as f:
-        w = csv.writer(f, delimiter=';')
-        if write_best_header:
-            w.writerow(["BestObjective", "Iteration"])
-        w.writerow([metric_values[-1], iteration])
-
+    BestObjective is the normalized [-1,1] maximize-space value Unity's coverage reports;
+    BestObjectiveRaw is the same best observation in the objective's own units and direction.
+    """
+    best = metric_values[-1]
+    lo, hi, minflag = objectives_info[0]
+    raw = denormalize_to_original_obj(best, lo, hi, minflag) if ALL_NORM_MAX else ""
+    scale = metric_scale()
+    append_csv_rows(os.path.join(PROJECT_PATH, "BestObjectivePerEvaluation.csv"),
+                    [[best, iteration, scale, raw]],
+                    header=["BestObjective", "Iteration", "Scale", "BestObjectiveRaw"])
     # Legacy mirror for older analysis scripts that still read this file.
-    write_legacy_header = not os.path.exists(legacy_csv) or os.path.getsize(legacy_csv) == 0
-    with open(legacy_csv, 'a', newline='', encoding='utf-8') as f:
-        w = csv.writer(f, delimiter=';')
-        if write_legacy_header:
-            w.writerow(["Hypervolume", "Iteration"])
-        w.writerow([metric_values[-1], iteration])
+    append_csv_rows(os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv"),
+                    [[best, iteration, scale, raw]],
+                    header=["Hypervolume", "Iteration", "Scale", "BestObjectiveRaw"])
 
 
 def save_dbo_diagnostics(iteration, phase, observation, alpha, raw_value, suggest_seconds):
@@ -691,7 +482,7 @@ def dbo_execute(conn, iterations, initial_samples):
             t0 = time.time()
             x = dbo.suggest()
             suggest_seconds = time.time() - t0
-            f, raw_value = objective_function(conn, x)
+            f, raw_value = objective_function(conn, x, dbo.next_iteration)
             obs = dbo.observe(x, -f)  # cost = -f
             ALL_NORM_MAX.append(f)
             record_observation(obs.iteration, 'sampling', f, x)
@@ -729,7 +520,7 @@ def dbo_execute(conn, iterations, initial_samples):
               f"{', validation' if is_validation else ''}): "
               f"alpha={'unfitted' if alpha is None else f'{alpha:.6f}'}", flush=True)
 
-        f, raw_value = objective_function(conn, x)
+        f, raw_value = objective_function(conn, x, dbo.next_iteration)
         obs = dbo.observe(x, -f)  # cost = -f
         ALL_NORM_MAX.append(f)
 
@@ -761,55 +552,16 @@ def main():
     global DBO_SPATIAL_KERNEL, DBO_ALPHA_PARAMETERIZATION, DBO_INITIAL_ALPHA
     global DBO_ACQUISITION_TIME_OFFSET, DBO_VALIDATION_EVERY, DBO_VALIDATION_CONFIDENCE
     global DBO_VALIDATION_VISITED_ONLY, DBO_STATIONARY_BASELINE, EXPLORATION_RATIO
-    global SOCKET_ACCEPT_TIMEOUT_SEC
-    global SOCKET_RECV_BUF
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     configure_listener_socket(s)
     conn = None
     try:
-        if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
-            raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
         if TORCH_THREADS < 1:
             raise ValueError(f"BO_TORCH_THREADS must be >= 1, got {TORCH_THREADS}")
         torch.set_num_threads(TORCH_THREADS)
-        s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
-        try:
-            s.bind((HOST, PORT))
-        except OSError as e:
-            raise OSError(
-                f"Port {PORT} is already in use, most likely by an optimizer backend left over "
-                "from an earlier session. End that python process (Task Manager / Activity "
-                f"Monitor) and start again. ({e})"
-            ) from e
-        s.listen(1)
-        print('Server starts, waiting for connection...', flush=True)
-        try:
-            conn, addr = s.accept()
-        except socket.timeout as e:
-            raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
-        s.close()  # one Unity client per run: accept no further connections
-        print('Connected by', addr, flush=True)
-        if SOCKET_TIMEOUT_SEC <= 0:
-            raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
-        conn.settimeout(SOCKET_TIMEOUT_SEC)
-        SOCKET_RECV_BUF = ""
-        SOCKET_RECV_DECODER.reset()
-
-        # receive init
-        init_msg = None
-        while True:
-            msg = recv_json_message(conn)
-            if msg is None:
-                break
-            if not isinstance(msg, dict):
-                continue
-            if msg.get("type") == "init":
-                init_msg = msg
-                break
-            continue
-        if init_msg is None:
-            raise RuntimeError("Did not receive init message.")
+        conn = accept_unity_connection(s, SOCKET_ACCEPT_TIMEOUT_SEC)
+        init_msg = receive_init_message(conn, SOCKET_TIMEOUT_SEC)
 
         cfg = init_msg.get("config", {}) or {}
         N_INITIAL      = get_cfg_int(cfg, "numSamplingIterations", default=N_INITIAL)
@@ -859,6 +611,7 @@ def main():
             raise ValueError(
                 f"numRestarts/rawSamples must be >=1, got {NUM_RESTARTS}/{RAW_SAMPLES}"
             )
+        validate_raw_samples(NUM_RESTARTS, RAW_SAMPLES)
         if WARM_START_OBJECTIVE_FORMAT not in ("auto", "raw", "normalized_max", "normalized_native"):
             raise ValueError(
                 "warmStartObjectiveFormat must be one of: auto, raw, normalized_max, normalized_native; "
@@ -900,22 +653,7 @@ def main():
             print("Warning: dboStationaryBaseline is on; alpha is frozen at 1 and this run is a "
                   "stationary-BO control, not a DBO run.", flush=True)
 
-        user = init_msg.get("user", {}) or {}
-        USER_ID      = normalize_user_token(user.get("userId"), default="-1")
-        CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
-        GROUP_ID     = normalize_user_token(user.get("groupId"), default="-1")
-        USER_LOG_ID  = normalize_log_folder_token(USER_ID, default="-1")
-        CONDITION_LOG_ID = normalize_log_folder_token(CONDITION_ID, default="-1")
-        if USER_LOG_ID != USER_ID:
-            print(
-                f"Warning: userId '{USER_ID}' was normalized to safe log-folder token '{USER_LOG_ID}'.",
-                flush=True,
-            )
-        if CONDITION_LOG_ID != CONDITION_ID:
-            print(
-                f"Warning: conditionId '{CONDITION_ID}' was normalized to safe log-folder token '{CONDITION_LOG_ID}'.",
-                flush=True,
-            )
+        USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID = parse_user_ids(init_msg)
 
         parameters = init_msg.get("parameters", []) or []
         objectives = init_msg.get("objectives", []) or []
@@ -942,25 +680,10 @@ def main():
 
         parameters_info = [parse_param_init(p.get("init")) for p in parameters]
         objectives_info = [parse_obj_init(o.get("init")) for o in objectives]
-        for i, (lo, hi) in enumerate(parameters_info):
-            if not np.isfinite(lo) or not np.isfinite(hi):
-                raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
-            if hi < lo:
-                raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
-            if hi == lo:
-                # DynamicBO requires hi > lo on every axis; a frozen parameter has no
-                # search dimension and must be removed from the study configuration.
-                raise ValueError(
-                    f"Parameter '{parameter_names[i]}' has a degenerate range [{lo}, {hi}]. "
-                    "The DBO backend needs a non-empty range on every parameter."
-                )
-        for i, (lo, hi, minflag) in enumerate(objectives_info):
-            if not np.isfinite(lo) or not np.isfinite(hi):
-                raise ValueError(f"Objective '{objective_names[i]}' bounds must be finite, got ({lo}, {hi})")
-            if hi < lo:
-                raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
-            if int(minflag) not in (0, 1):
-                raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
+        # DynamicBO requires hi > lo on every axis; a frozen parameter has no search
+        # dimension and must be removed from the study configuration.
+        validate_parameter_bounds(parameter_names, parameters_info, "DBO")
+        validate_objective_bounds(objective_names, objectives_info)
 
         context_cfg = init_msg.get("context") or {}
         if isinstance(context_cfg, dict) and bool(context_cfg.get("enabled", False)):
@@ -999,17 +722,12 @@ def main():
                   "one continuous clock across both phases.", flush=True)
 
         dbo_execute(conn, N_ITERATIONS, N_INITIAL)
+    except StopRequested:
+        pass  # Unity ended the study on purpose; every completed evaluation is logged
     finally:
-        if conn is not None:
-            try:
-                conn.shutdown(socket.SHUT_RDWR)
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
+        close_connection(conn)
         s.close()
+        flush_pending_logs()
 
 
 if __name__ == "__main__":

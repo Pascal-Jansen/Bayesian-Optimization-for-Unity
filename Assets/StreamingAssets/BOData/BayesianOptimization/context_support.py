@@ -19,6 +19,7 @@
 
 import hashlib
 import os
+import sys
 
 import numpy as np
 
@@ -188,6 +189,78 @@ def l2_normalize_rows(arr):
     return arr / safe_norms
 
 
+def standardize_embedding_columns(arr):
+    """Standardize each embedding feature across contexts (manual embeddings).
+
+    Every feature that varies between contexts is z-scored (population standard deviation)
+    and the result is scaled by 1/sqrt(number of varying features), so the contexts' mean
+    squared distance from their centroid is 1 -- the scale of unit-norm vectors, which the
+    task kernel's lengthscale range (0, 2] is built for. Features with the same value in
+    every context (and every feature when there is only one context) carry no information
+    about context similarity and become 0. Unlike L2 row normalization this keeps magnitude:
+    ages [25], [40], [60] stay distinct, and [3, 4] stays apart from [6, 8].
+    """
+    arr = np.asarray(arr, dtype=np.float64)
+    mean = arr.mean(axis=0)
+    std = arr.std(axis=0)
+    scale = np.maximum(np.abs(arr).max(axis=0), 1.0)
+    varying = std > 1e-12 * scale
+    out = np.zeros_like(arr)
+    n_varying = int(np.sum(varying))
+    if n_varying:
+        out[:, varying] = (arr[:, varying] - mean[varying]) / std[varying] / np.sqrt(n_varying)
+    return out
+
+
+def normalization_description(setup):
+    """How resolve_embeddings normalizes this setup's embeddings (for logs and docs)."""
+    if setup is None or setup.embedding_source == "learned":
+        return "none (learned embeddings)"
+    if not setup.normalize_embeddings:
+        return "off"
+    if setup.embedding_source == "manual":
+        return "per-feature standardization across contexts"
+    return "L2 per context"
+
+
+def _indistinct_context_pairs(keys, embeddings):
+    """(key_a, key_b) pairs whose embedding rows are numerically identical."""
+    embeddings = np.asarray(embeddings, dtype=np.float64)
+    pairs = []
+    for i in range(len(keys) - 1):
+        same = np.all(np.isclose(embeddings[i + 1:], embeddings[i], rtol=1e-9, atol=1e-12), axis=1)
+        pairs.extend((keys[i], keys[i + 1 + j]) for j in np.flatnonzero(same))
+    return pairs
+
+
+def _describe_pairs(pairs, limit=5):
+    shown = ", ".join(f"'{a}'/'{b}'" for a, b in pairs[:limit])
+    return shown + (f" and {len(pairs) - limit} more pair(s)" if len(pairs) > limit else "")
+
+
+def _warn_indistinct_contexts(keys, raw, resolved):
+    """Warn when contexts share an embedding: the model then starts from treating them as one."""
+    raw_pairs = set(_indistinct_context_pairs(keys, raw))
+    resolved_pairs = _indistinct_context_pairs(keys, resolved)
+    identical = [p for p in resolved_pairs if p in raw_pairs]
+    merged = [p for p in resolved_pairs if p not in raw_pairs]
+    if identical:
+        print(
+            f"Warning: contexts {_describe_pairs(identical)} have identical embeddings; the model "
+            "treats them as the same context until the observed contexts' data show otherwise.",
+            flush=True,
+        )
+    if merged:
+        print(
+            f"Warning: contexts {_describe_pairs(merged)} have different embeddings that become "
+            "identical after normalization (L2 normalization keeps only the direction, e.g. [3, 4] "
+            "and [6, 8]); the model treats them as the same context until the observed contexts' data "
+            "show otherwise. "
+            "Disable embedding normalization if their magnitude matters.",
+            flush=True,
+        )
+
+
 def resolve_embeddings(setup, init_root=None):
     """Resolve the (K, m) embedding matrix for the given ContextSetup in-place.
 
@@ -234,8 +307,18 @@ def resolve_embeddings(setup, init_root=None):
             )
         if not np.all(np.isfinite(setup.embeddings)):
             raise ValueError("Resolved context embeddings contain NaN/Inf values.")
+        raw = setup.embeddings
         if setup.normalize_embeddings:
-            setup.embeddings = l2_normalize_rows(setup.embeddings)
+            # Manual embeddings are feature vectors (age, questionnaire scores, ...): their
+            # magnitude is information, so each feature is standardized across contexts. L2
+            # row normalization made every positive 1-d embedding 1.0 and merged proportional
+            # profiles, so all contexts looked alike and their data was pooled. Image (CLIP)
+            # embeddings keep the L2 convention: their direction carries the semantics.
+            if setup.embedding_source == "manual":
+                setup.embeddings = standardize_embedding_columns(raw)
+            else:
+                setup.embeddings = l2_normalize_rows(raw)
+        _warn_indistinct_contexts(setup.keys, raw, setup.embeddings)
 
     setup.embeddings_resolved = True
     return setup.embeddings
@@ -255,8 +338,8 @@ def _embed_images_with_open_clip(paths, model_name, pretrained):
     except ImportError as e:
         raise RuntimeError(
             "embeddingSource=image requires the optional dependencies 'open_clip_torch' and 'pillow'. "
-            "Install them into the Python environment used by the optimizer, e.g. "
-            "`python -m pip install open_clip_torch pillow`. "
+            "Install them into the Python environment used by the optimizer: "
+            f"`{sys.executable or 'python'} -m pip install open_clip_torch pillow`. "
             f"Underlying import error: {e}"
         ) from e
 
@@ -422,18 +505,100 @@ def _lcemgp_class():
     has no rows yet (a new participant with warm-start data from others, or several
     contexts without warm start). Skipping it is exact for LCEMGP: posteriors are
     unchanged when every context is observed.
+
+    What an unobserved context does need is a mean level: MultiTaskGP fits one constant mean
+    per task, and an unobserved task's constant never leaves its initial 0, so a new
+    participant's prediction was offset from every observed context it is correlated with
+    (with an identical embedding, RMSE 0.52 against 0.09 for its observed twin). As
+    MultiTaskGP.eval() does for the task covariance, it takes the average of the observed
+    contexts' constants. Observed contexts' posteriors are unchanged.
     """
     global _LCEMGP_CLASS
     if _LCEMGP_CLASS is None:
+        import torch
         from botorch.models.contextual_multioutput import LCEMGP
         from botorch.models.multitask import MultiTaskGP
+        from gpytorch.means import MultitaskMean
 
         class _UnobservedContextLCEMGP(LCEMGP):
             def eval(self):
+                unobserved = self._unobserved_task_indices.tolist()
+                if unobserved and isinstance(self.mean_module, MultitaskMean):
+                    means = self.mean_module.base_means
+                    with torch.no_grad():
+                        level = torch.stack(
+                            [means[i].constant for i in self._observed_task_indices.tolist()]
+                        ).mean(dim=0)
+                        for i in unobserved:
+                            means[i].constant = level
                 return super(MultiTaskGP, self).eval()
 
         _LCEMGP_CLASS = _UnobservedContextLCEMGP
     return _LCEMGP_CLASS
+
+
+_PROVIDED_LCEMGP_CLASS = None
+
+
+def _provided_embedding_lcemgp_class():
+    """LCEMGP whose context embeddings are exactly the provided (manual/image) ones.
+
+    Stock LCEMGP always learns a categorical embedding and concatenates the provided one to
+    it. A context without observations never moves its learned value away from the random
+    initialization, so its similarity to the other contexts -- the whole point of transfer to
+    a new participant -- depended on the torch seed (fitted correlation between two contexts
+    with the same manual embedding, seeds 0-5: 0.00, 0.66, 1.00, 1.00, 0.99, 0.51). With
+    provided embeddings the task kernel now sees only them, so that similarity is determined
+    by the embeddings and the data.
+
+    Without the learned embedding, contexts with identical embeddings (two participants of the
+    same age) would be perfectly correlated whatever their data, so the current participant
+    could never be fitted apart from such a twin. The context correlation is therefore
+    (1 - w) * RBF(embeddings) + w * [same context], with one learned weight w in [0, 1] that
+    starts at 0: it grows only as far as the observed contexts disagree beyond what their
+    embeddings explain, and it is the same for every seed.
+    """
+    global _PROVIDED_LCEMGP_CLASS
+    if _PROVIDED_LCEMGP_CLASS is None:
+        import torch
+        from gpytorch.constraints import Interval
+        from gpytorch.kernels.rbf_kernel import RBFKernel
+
+        class _ProvidedEmbeddingLCEMGP(_lcemgp_class()):
+            def __init__(self, train_X, *args, context_emb_feature, **kwargs):
+                super().__init__(train_X, *args, context_emb_feature=context_emb_feature, **kwargs)
+                # No learned embedding: drop its layers (they would be untrained parameters)
+                # and size the task kernel for the provided dimensions only, with LCEMGP's own
+                # kernel settings.
+                self.emb_layers = torch.nn.ModuleList()
+                self.task_covar_module_base = RBFKernel(
+                    ard_num_dims=context_emb_feature.shape[-1],
+                    lengthscale_constraint=Interval(0.0, 2.0, transform=None, initial_value=1.0),
+                ).to(train_X)
+                self.register_parameter(
+                    "raw_context_specific_weight",
+                    torch.nn.Parameter(torch.zeros(1, dtype=train_X.dtype, device=train_X.device)),
+                )
+                self.register_constraint(
+                    "raw_context_specific_weight",
+                    Interval(0.0, 1.0, transform=None, initial_value=0.0).to(train_X),
+                )
+
+            @property
+            def context_specific_weight(self):
+                return self.raw_context_specific_weight_constraint.transform(self.raw_context_specific_weight)
+
+            def _task_embeddings(self):
+                return self.context_emb_feature.to(self.device)
+
+            def _eval_context_covar(self):
+                base = self.task_covar_module_base(self._task_embeddings()).to_dense()
+                w = self.context_specific_weight
+                eye = torch.eye(base.shape[-1], dtype=base.dtype, device=base.device)
+                return (1.0 - w) * base + w * eye
+
+        _PROVIDED_LCEMGP_CLASS = _ProvidedEmbeddingLCEMGP
+    return _PROVIDED_LCEMGP_CLASS
 
 
 def build_contextual_model(train_x_with_task, train_y, setup):
@@ -443,29 +608,35 @@ def build_contextual_model(train_x_with_task, train_y, setup):
     restricted to ``output_tasks=[current context]`` so its posterior over
     task-free inputs X (n x d) directly predicts outcomes for the current
     context — acquisition functions can then be used unchanged.
+
+    Learned embeddings: one learned embedding dimension per context (LCEMGP default).
+    Manual/image embeddings: the task kernel uses the provided embeddings only (plus a learned
+    context-specific share, see _provided_embedding_lcemgp_class).
     """
     import torch
     from botorch.models import ModelListGP
-    from gpytorch.constraints import Interval
-    from gpytorch.kernels.rbf_kernel import RBFKernel
     from gpytorch.mlls import ExactMarginalLogLikelihood
     from gpytorch.mlls import SumMarginalLogLikelihood
 
     if not setup.embeddings_resolved:
         raise RuntimeError("resolve_embeddings() must be called before building the contextual model.")
 
-    context_emb_feature = None
-    if setup.embeddings is not None:
-        context_emb_feature = torch.tensor(setup.embeddings, dtype=torch.double)
-
     # LCEMGP infers embedding rows from the observed task values by default;
     # pass explicit categorical indices so unobserved contexts stay addressable.
     context_cat_feature = torch.arange(setup.num_contexts, dtype=torch.double).unsqueeze(-1)
     all_tasks = list(range(setup.num_contexts))
     task_feature = train_x_with_task.shape[-1] - 1
-    embs_dim_list = [1]  # one learned embedding dim for the single categorical feature
 
-    lcemgp = _lcemgp_class()
+    if setup.embeddings is not None:
+        lcemgp = _provided_embedding_lcemgp_class()
+        embedding_kwargs = {
+            "context_emb_feature": torch.tensor(setup.embeddings, dtype=torch.double),
+        }
+    else:
+        lcemgp = _lcemgp_class()
+        # one learned embedding dim for the single categorical feature
+        embedding_kwargs = {"embs_dim_list": [1]}
+
     models = []
     for j in range(train_y.shape[-1]):
         model_j = lcemgp(
@@ -473,22 +644,10 @@ def build_contextual_model(train_x_with_task, train_y, setup):
             train_Y=train_y[:, j: j + 1],
             task_feature=task_feature,
             context_cat_feature=context_cat_feature,
-            context_emb_feature=context_emb_feature,
-            embs_dim_list=embs_dim_list,
             output_tasks=[setup.current_index],
             all_tasks=all_tasks,
+            **embedding_kwargs,
         )
-        if context_emb_feature is not None:
-            # BoTorch sizes the task kernel only for the learned embedding dims,
-            # but evaluates it on learned + provided embeddings concatenated.
-            # Rebuild it with the full dimensionality (same kernel/constraints).
-            total_emb_dim = sum(embs_dim_list) + context_emb_feature.shape[-1]
-            model_j.task_covar_module_base = RBFKernel(
-                ard_num_dims=total_emb_dim,
-                lengthscale_constraint=Interval(
-                    0.0, 2.0, transform=None, initial_value=1.0
-                ),
-            ).to(train_x_with_task)
         models.append(model_j)
 
     if len(models) == 1:
@@ -513,5 +672,5 @@ def describe(setup):
             emb += f" ({setup.embeddings.shape[1]}-dim)"
     return (
         f"{setup.num_contexts} context(s) {setup.keys}, current='{setup.current_key}' "
-        f"(index {setup.current_index}), embeddings={emb}, normalize={setup.normalize_embeddings}"
+        f"(index {setup.current_index}), embeddings={emb}, normalization={normalization_description(setup)}"
     )

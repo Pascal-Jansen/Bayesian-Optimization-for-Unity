@@ -10,8 +10,10 @@ byte:
   * NDJSON: one UTF-8 JSON object per line, terminated by '\\n'.
   * Unity speaks first with {"type": "init", ...}; Python then DRIVES, sending
     {"type": "parameters", ...} and blocking for {"type": "objectives", ...}.
-  * Python -> Unity types: parameters, coverage, tempCoverage,
-    optimization_finished.
+  * Python -> Unity types: parameters (carrying the global "iteration" the design
+    is logged under), coverage, tempCoverage, optimization_finished.
+  * Unity -> Python {"type": "stop"} ends the study early on purpose; the backend
+    must then exit cleanly (code 0) with every completed evaluation logged.
 
 Two things here are deliberate rather than incidental:
 
@@ -331,6 +333,9 @@ def run_session(client):
             require(isinstance(values, dict), f"'parameters' without a values dict: {msg!r}")
             require(set(values) == set(PARAM_BOUNDS),
                     f"parameter keys {sorted(values)} != {sorted(PARAM_BOUNDS)}")
+            # The global iteration this design is logged under in ObservationsPerEvaluation.csv.
+            require(msg.get("iteration") == parameters_seen + 1,
+                    f"'parameters' #{parameters_seen + 1} carries iteration {msg.get('iteration')!r}")
 
             narrowed = {}
             for key, (lo, hi) in PARAM_BOUNDS.items():
@@ -370,6 +375,64 @@ def run_session(client):
         "finished": finished,
         "sent_params": sent_params,
     }
+
+
+STOP_AFTER = N_SAMPLING + 2  # evaluations completed before Unity sends the stop
+STOP_REASON = "perfect rating"
+
+
+def run_stop_session(client):
+    """Answer STOP_AFTER designs, then reply to the next one with a stop request."""
+    client.send(build_init_message())
+    answered = 0
+    deadline = time.time() + RUN_DEADLINE_SEC
+    while True:
+        require(time.time() < deadline, f"stop run exceeded {RUN_DEADLINE_SEC}s")
+        msg = client.recv()
+        if msg is None:
+            return answered
+        kind = msg.get("type")
+        require(kind != "optimization_finished", "backend finished the study despite the stop request")
+        if kind != "parameters":
+            continue
+        if answered == STOP_AFTER:
+            client.send({"type": "stop", "reason": STOP_REASON})
+            continue
+        answered += 1
+        narrowed = {key: f32(value) for key, value in msg["values"].items()}
+        client.send({"type": "objectives", "values": {OBJ_KEY: drifting_objective(narrowed, answered)}})
+
+
+def check_stop_request(backend):
+    """A stop request must end the backend with exit code 0 and complete logs."""
+    with tempfile.TemporaryDirectory(prefix="dbo_protocol_stop_") as tmp:
+        log_root = Path(tmp) / "LogData"
+        assert_port_free()
+        proc, output = start_backend(backend, log_root)
+        try:
+            sock = connect_with_retry(proc)
+            try:
+                answered = run_stop_session(MockUnity(sock))
+            finally:
+                sock.close()
+            code = proc.wait(timeout=60)
+            time.sleep(0.2)  # let the stdout pump drain
+            require(code == 0, f"backend exited with code {code} after the stop request")
+            require(any(f"Stop requested by Unity: {STOP_REASON}" in line for line in output),
+                    "backend did not report the stop request")
+            rows = read_csv(log_root / "dbo_protocol_test" / "c1" / "run" / "ObservationsPerEvaluation.csv")
+            require(len(rows) - 1 == STOP_AFTER,
+                    f"expected {STOP_AFTER} logged evaluations before the stop, got {len(rows) - 1}")
+            return answered
+        except Exception:
+            print("---- stop-run backend stdout (last 20 lines) ----")
+            for line in output[-20:]:
+                print("  " + line)
+            raise
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=10)
 
 
 def read_csv(path):
@@ -460,7 +523,8 @@ def check_logs(log_root, result):
     # One row per evaluation on the global iteration index, sampling included, exactly
     # as bo.py writes it, so DBO and BoTorch curves line up.
     best_rows = read_csv(run_dir / "BestObjectivePerEvaluation.csv")
-    require(best_rows[0] == ["BestObjective", "Iteration"], f"unexpected header: {best_rows[0]}")
+    require(best_rows[0] == ["BestObjective", "Iteration", "Scale", "BestObjectiveRaw"],
+            f"unexpected header: {best_rows[0]}")
     require(len(best_rows) - 1 == N_TOTAL,
             f"expected {N_TOTAL} best-objective rows, got {len(best_rows) - 1}")
     require([int(r[1]) for r in best_rows[1:]] == list(range(1, N_TOTAL + 1)),
@@ -470,7 +534,8 @@ def check_logs(log_root, result):
             f"best objective must not decrease: {best_values}")
 
     legacy_rows = read_csv(run_dir / "HypervolumePerEvaluation.csv")
-    require(legacy_rows[0] == ["Hypervolume", "Iteration"], f"unexpected header: {legacy_rows[0]}")
+    require(legacy_rows[0] == ["Hypervolume", "Iteration", "Scale", "BestObjectiveRaw"],
+            f"unexpected header: {legacy_rows[0]}")
     require(len(legacy_rows) == len(best_rows), "legacy mirror row count differs")
 
     exec_rows = read_csv(run_dir / "ExecutionTimes.csv")
@@ -542,6 +607,8 @@ def main():
             code = proc.wait(timeout=60)
             require(code == 0, f"backend exited with code {code}")
 
+            stopped_after = check_stop_request(backend)
+
         except Exception as exc:  # noqa: BLE001 - the test reports, it does not raise
             print()
             print("---- backend stdout (last 40 lines) ----")
@@ -563,6 +630,7 @@ def main():
     print(f"coverage            : {[round(v, 4) for v in result['coverage']]}")
     print(f"fitted alpha        : {[round(a, 4) for a in alphas]}")
     print("split messages      : init (2 writes), objectives #3 (2 writes)")
+    print(f"stop request        : clean exit (code 0) after {stopped_after} evaluations")
     print(f"elapsed             : {elapsed:.1f}s")
     print()
     print("PASS")

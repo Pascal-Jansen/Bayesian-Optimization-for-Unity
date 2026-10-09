@@ -24,6 +24,35 @@ _VALUE_EPS = 1e-9
 # rounding artifact -- logs used to be written at 3 decimals -- not evidence that the whole
 # column was already normalized.
 _PARAM_RAW_TOL_FRACTION = 5e-4
+# Logs written before 1.8.0 rounded every value to 3 decimals, so a raw value there can lie up
+# to half a unit of the third decimal outside its bounds whatever the range (0.0045 on
+# [0, 0.0045] logged as 0.005; 0.1235 on [0.1, 0.1235] as 0.124).
+_LEGACY_LOG_ROUNDING = 5e-4
+
+
+def raw_bounds_tolerance(lo, hi):
+    """How far outside [lo, hi] a warm-start parameter may lie and still be read as raw.
+
+    Covers 3-decimal logs (half a unit of the third decimal) and, on ranges wider than 1,
+    0.05% of the range. Within the tolerance a value is a rounding artifact, not evidence that
+    the whole column is already normalized. Objective columns use the narrower
+    objective_raw_bounds_tolerance.
+    """
+    return max(_PARAM_RAW_TOL_FRACTION * (hi - lo), _LEGACY_LOG_ROUNDING) + _PARAM_EPS
+
+
+def objective_raw_bounds_tolerance(lo, hi):
+    """How far outside [lo, hi] a warm-start objective value may lie and still be read as raw.
+
+    Log rounding only: half a unit of the third decimal (logs written before 1.8.0) or of the
+    last of LOG_SIGNIFICANT_DIGITS significant digits (current logs; matters above 1e6). No
+    fraction of the range as for parameters: objective values are checked against their bounds
+    before they are logged, and on a range starting at 0 the values just below 0 are what tells
+    a normalized column from a raw one -- 0.05% of [0, 10000] (5) would read every normalized
+    column as raw.
+    """
+    magnitude = max(abs(lo), abs(hi))
+    return max(_LEGACY_LOG_ROUNDING, 0.5 * 10.0 ** (1 - LOG_SIGNIFICANT_DIGITS) * magnitude) + _COL_EPS
 
 
 # -------------------- denormalization (frame -> original units) --------------------
@@ -33,6 +62,13 @@ _PARAM_RAW_TOL_FRACTION = 5e-4
 # the logs could not reproduce the evaluated design, and FinalDesignSelector, warm starts and
 # Meta-TAF sources then worked from different values than the participant experienced.
 LOG_SIGNIFICANT_DIGITS = 10
+
+
+# Hypervolume reference point per objective, in the [-1,1] maximization space shared by MOBO and
+# MetaTAF. It lies slightly beyond the worst possible value: with exactly -1, a Pareto-optimal
+# design rated worst on one objective (common with extreme Likert ratings) added no hypervolume,
+# so it counted for nothing in the coverage metric and in qLogNEHVI's acquisition.
+HYPERVOLUME_REFERENCE_VALUE = -1.1
 
 
 def round_for_log(v):
@@ -105,7 +141,7 @@ def normalize_param_column(col, lo, hi, warn=None):
             print(msg, flush=True)
 
     col = np.asarray(col, dtype=np.float64)
-    raw_tol = max(_PARAM_EPS, _PARAM_RAW_TOL_FRACTION * (hi - lo))
+    raw_tol = raw_bounds_tolerance(lo, hi)
     in_raw_range = np.all((lo - raw_tol <= col) & (col <= hi + raw_tol))
     in_norm_range = np.all((-_PARAM_EPS <= col) & (col <= 1.0 + _PARAM_EPS))
 
@@ -142,8 +178,11 @@ def normalize_obj_column(col, lo, hi, minflag, fmt="auto", warn=None):
     """Normalize a raw (or already-normalized) objective column into [-1,1] maximization.
 
     ``fmt`` selects how the incoming scale is interpreted and must be one of
-    VALID_OBJECTIVE_FORMATS. ``warn`` is an optional callable used for the ambiguous-scale
-    notice; it defaults to printing, matching the historical behaviour.
+    VALID_OBJECTIVE_FORMATS. With "auto", values within the raw bounds (up to log rounding,
+    objective_raw_bounds_tolerance) are read as raw, otherwise values within
+    [-1,1] as already normalized (maximize-space). ``warn`` (default: print) announces the
+    choice whenever the other reading would also have fit and differs, and always announces the
+    normalized fallback, because the two readings differ silently by up to the whole range.
     """
     if fmt not in VALID_OBJECTIVE_FORMATS:
         raise ValueError(
@@ -154,7 +193,8 @@ def normalize_obj_column(col, lo, hi, minflag, fmt="auto", warn=None):
             print(msg, flush=True)
 
     col = np.asarray(col, dtype=np.float64)
-    raw_range_detected = np.all((lo - _COL_EPS <= col) & (col <= hi + _COL_EPS))
+    raw_tol = objective_raw_bounds_tolerance(lo, hi)
+    raw_range_detected =np.all((lo - raw_tol <= col) & (col <= hi + raw_tol))
     norm_range_detected = np.all((-1.0 - _COL_EPS <= col) & (col <= 1.0 + _COL_EPS))
     in_raw_range = raw_range_detected
     in_norm_range = norm_range_detected
@@ -185,9 +225,13 @@ def normalize_obj_column(col, lo, hi, minflag, fmt="auto", warn=None):
         in_norm_range = True
 
     if in_raw_range:
-        if fmt == "auto" and in_norm_range:
+        # Bounds [-1,1] on a maximized objective: both readings give the same values.
+        readings_coincide = (lo, hi) == (-1.0, 1.0) and int(minflag) == 0
+        if fmt == "auto" and in_norm_range and not readings_coincide:
             warn(
-                "Warning: warm-start objective values are ambiguous (fit both raw bounds and [-1,1]); assuming raw scale."
+                f"Warning: warm-start objective values [{np.min(col)}, {np.max(col)}] are ambiguous: they "
+                f"fit both the raw bounds [{lo}, {hi}] and [-1,1]; assuming raw values. Set the warm-start "
+                "objective format if they are normalized."
             )
         if hi == lo:
             y = np.zeros_like(col)
@@ -196,6 +240,12 @@ def normalize_obj_column(col, lo, hi, minflag, fmt="auto", warn=None):
             if int(minflag) == 1:
                 y = -y
     elif in_norm_range:
+        if fmt == "auto":
+            warn(
+                f"Warning: warm-start objective values [{np.min(col)}, {np.max(col)}] fall outside the raw "
+                f"bounds [{lo}, {hi}] but inside [-1,1]; treating the column as already normalized "
+                "(maximize-space)."
+            )
         # already normalized
         y = np.clip(col, -1.0, 1.0)
         if fmt == "normalized_native" and int(minflag) == 1:

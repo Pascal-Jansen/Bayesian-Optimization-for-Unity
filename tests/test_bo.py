@@ -25,6 +25,7 @@ from _stubs import (  # noqa: E402
     assert_hardened_listener,
     install_stub_modules,
     json_line as _json_line,
+    reset_protocol_state,
     run_main_recording_listener,
 )
 
@@ -39,7 +40,47 @@ def load_bo_module():
     spec = importlib.util.spec_from_file_location(name, BO_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    reset_protocol_state()
     return module
+
+
+def legacy_inline_objective(name, raw, lo, hi, minflag):
+    """bo.py/mobo.py's inline objective transform before they called bo_normalize (reference)."""
+    try:
+        val = float(raw)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Objective '{name}' must be numeric, got {raw!r}") from e
+    if not np.isfinite(val):
+        raise ValueError(f"Objective '{name}' is non-finite: {val}")
+    eps = 1e-9
+    if hi == lo:
+        if not np.isclose(val, lo, rtol=0.0, atol=eps):
+            raise ValueError(f"Objective '{name}' value {val} is out of bounds for degenerate interval [{lo}, {hi}]")
+        f = 0.0
+    else:
+        if val < (lo - eps) or val > (hi + eps):
+            raise ValueError(f"Objective '{name}' value {val} is out of bounds [{lo}, {hi}]")
+        f = (val - lo) / (hi - lo) * 2 - 1
+    if int(minflag) == 1:
+        f *= -1
+    return float(np.clip(f, -1.0, 1.0))
+
+
+# (raw value, lo, hi): bounds, interior, a hair outside (within 1e-9), out of bounds, degenerate,
+# non-numeric and non-finite payloads.
+OBJECTIVE_TRANSFORM_CASES = [
+    (0.0, 0.0, 10.0), (10.0, 0.0, 10.0), (2.5, 0.0, 10.0), (7.0, 1.0, 9.0), (-3.0, -5.0, 5.0),
+    (10.0 + 5e-10, 0.0, 10.0), (-5e-10, 0.0, 10.0), (0.7, 0.1, 0.7), (11.0, 0.0, 10.0),
+    (-0.1, 0.0, 10.0), (3.0, 3.0, 3.0), (3.0 + 5e-10, 3.0, 3.0), (3.5, 3.0, 3.0),
+    ("abc", 0.0, 1.0), (None, 0.0, 1.0), ("inf", 0.0, 1.0), (float("nan"), 0.0, 1.0),
+]
+
+
+def legacy_outcome(name, raw, lo, hi, minflag):
+    try:
+        return ("value", legacy_inline_objective(name, raw, lo, hi, minflag))
+    except ValueError as e:
+        return ("error", str(e))
 
 
 class BoTests(unittest.TestCase):
@@ -98,53 +139,8 @@ class BoTests(unittest.TestCase):
         with self.assertRaises(ConnectionError):
             bo.send_json_line(conn, {"type": "coverage", "value": 1.0})
 
-    def test_recv_json_message_multiple_lines_single_chunk(self):
-        bo = load_bo_module()
-        bo.SOCKET_RECV_BUF = ""
-        conn = _FakeConn([b'{"type":"a"}\n{"type":"b"}\n'])
-
-        msg1 = bo.recv_json_message(conn)
-        msg2 = bo.recv_json_message(conn)
-
-        self.assertEqual(msg1["type"], "a")
-        self.assertEqual(msg2["type"], "b")
-
-    def test_recv_json_message_discards_unterminated_tail(self):
-        bo = load_bo_module()
-        bo.SOCKET_RECV_BUF = ""
-        conn = _FakeConn([b'{"type":"init"}\n{"type":"partial"', b""])
-
-        msg1 = bo.recv_json_message(conn)
-        self.assertEqual(msg1["type"], "init")
-
-        msg2 = bo.recv_json_message(conn)
-        self.assertIsNone(msg2)
-        self.assertEqual(bo.SOCKET_RECV_BUF, "")
-
-    def test_recv_json_message_timeout_raises(self):
-        bo = load_bo_module()
-        bo.SOCKET_RECV_BUF = ""
-        bo.SOCKET_TIMEOUT_SEC = 7
-        conn = _FakeConn([bo.socket.timeout("timeout")])
-
-        with self.assertRaises(TimeoutError) as ctx:
-            bo.recv_json_message(conn)
-        self.assertIn("7", str(ctx.exception))
-
-    def test_recv_json_message_buffer_overflow_raises_and_resets(self):
-        bo = load_bo_module()
-        bo.SOCKET_RECV_BUF = ""
-        bo.SOCKET_MAX_RECV_BUF_BYTES = 8
-        conn = _FakeConn([b"123456789"])
-
-        with self.assertRaises(RuntimeError) as ctx:
-            bo.recv_json_message(conn)
-        self.assertIn("exceeded 8 bytes", str(ctx.exception))
-        self.assertEqual(bo.SOCKET_RECV_BUF, "")
-
     def test_recv_objectives_blocking_preserves_buffer_across_calls(self):
         bo = load_bo_module()
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn(
             [
                 (
@@ -169,11 +165,10 @@ class BoTests(unittest.TestCase):
         bo.parameters_info = [(0.0, 1.0)]
         bo.objective_names = ["o0"]
         bo.objectives_info = [(0.0, 1.0, 0)]
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn([_json_line({"type": "objectives", "values": {"wrong": 0.2}})])
 
         with self.assertRaises(KeyError):
-            bo.objective_function(conn, FakeTensor([0.2]))
+            bo.objective_function(conn, FakeTensor([0.2]), 1)
 
     def test_objective_function_non_numeric_objective_raises(self):
         bo = load_bo_module()
@@ -181,11 +176,10 @@ class BoTests(unittest.TestCase):
         bo.parameters_info = [(0.0, 1.0)]
         bo.objective_names = ["o0"]
         bo.objectives_info = [(0.0, 1.0, 0)]
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": "abc"}})])
 
         with self.assertRaises(ValueError):
-            bo.objective_function(conn, FakeTensor([0.2]))
+            bo.objective_function(conn, FakeTensor([0.2]), 1)
 
     def test_objective_function_non_finite_objective_raises(self):
         bo = load_bo_module()
@@ -193,11 +187,10 @@ class BoTests(unittest.TestCase):
         bo.parameters_info = [(0.0, 1.0)]
         bo.objective_names = ["o0"]
         bo.objectives_info = [(0.0, 1.0, 0)]
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": "inf"}})])
 
         with self.assertRaises(ValueError):
-            bo.objective_function(conn, FakeTensor([0.2]))
+            bo.objective_function(conn, FakeTensor([0.2]), 1)
 
     def test_objective_function_out_of_bounds_raises(self):
         bo = load_bo_module()
@@ -205,11 +198,10 @@ class BoTests(unittest.TestCase):
         bo.parameters_info = [(0.0, 1.0)]
         bo.objective_names = ["o0"]
         bo.objectives_info = [(0.0, 1.0, 0)]
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": 2.0}})])
 
         with self.assertRaises(ValueError):
-            bo.objective_function(conn, FakeTensor([0.2]))
+            bo.objective_function(conn, FakeTensor([0.2]), 1)
 
     def test_objective_function_preserves_parameter_precision(self):
         bo = load_bo_module()
@@ -217,10 +209,9 @@ class BoTests(unittest.TestCase):
         bo.parameters_info = [(0.0, 1.0)]
         bo.objective_names = ["o0"]
         bo.objectives_info = [(0.0, 1.0, 0)]
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": 0.5}})])
 
-        bo.objective_function(conn, FakeTensor([0.123456789]))
+        bo.objective_function(conn, FakeTensor([0.123456789]), 1)
         sent = json.loads(conn.sent[0].decode("utf-8"))
         self.assertAlmostEqual(sent["values"]["p0"], 0.123456789, places=9)
 
@@ -230,11 +221,60 @@ class BoTests(unittest.TestCase):
         bo.parameters_info = [(0.0, 1.0)]
         bo.objective_names = ["o0"]
         bo.objectives_info = [(0.0, 1.0, 0)]
-        bo.SOCKET_RECV_BUF = ""
         conn = _FakeConn([_json_line({"type": "objectives", "values": [1.0]})])
 
-        with self.assertRaises(TypeError):
-            bo.objective_function(conn, FakeTensor([0.2]))
+        with self.assertRaisesRegex(RuntimeError, "non-dict 'values'"):
+            bo.objective_function(conn, FakeTensor([0.2]), 1)
+
+    def test_objective_function_matches_former_inline_transform(self):
+        # objective_function now calls bo_normalize.normalize_objective_value (like DBO and
+        # MetaTAF) instead of its own copy: same values, same errors.
+        bo = load_bo_module()
+        bo.parameter_names = ["p0"]
+        bo.parameters_info = [(0.0, 1.0)]
+        bo.objective_names = ["o0"]
+        for raw, lo, hi in OBJECTIVE_TRANSFORM_CASES:
+            for minflag in (0, 1):
+                with self.subTest(raw=raw, lo=lo, hi=hi, minflag=minflag):
+                    bo.objectives_info = [(lo, hi, minflag)]
+                    reset_protocol_state()
+                    conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": raw}})])
+                    try:
+                        got = ("value", bo.objective_function(conn, FakeTensor([0.5]), 1).item())
+                    except ValueError as e:
+                        got = ("error", str(e))
+                    self.assertEqual(got, legacy_outcome("o0", raw, lo, hi, minflag))
+
+        bo.objectives_info = [(0.0, 10.0, 1)]
+        conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": 2.5}})])
+        with mock.patch.object(bo.bo_normalize, "normalize_objective_value",
+                               wraps=bo.bo_normalize.normalize_objective_value) as shared:
+            bo.objective_function(conn, FakeTensor([0.5]), 1)
+        shared.assert_called_once_with(2.5, 0.0, 10.0, 1, name="o0")
+
+    def test_acquisition_keeps_batch_limit_five(self):
+        bo = load_bo_module()
+        captured = {}
+
+        def fake_optimize_acqf(acq_function, bounds, q, num_restarts, raw_samples, options, sequential):
+            captured.update(options=options, num_restarts=num_restarts)
+            return FakeTensor([[0.5]]), None
+
+        bo.optimize_acqf = fake_optimize_acqf
+        bo.qLogNoisyExpectedImprovement = lambda **kwargs: object()
+        bo.NUM_RESTARTS, bo.RAW_SAMPLES, bo.BATCH_SIZE = 7, 64, 1
+        bo.problem_bounds = FakeTensor([[0.0], [1.0]])
+        bo.optimize_candidates(model=None, sampler=None, X_baseline=FakeTensor([[0.1]]))
+        self.assertEqual(captured["num_restarts"], 7)
+        # batch_limit = restarts changed the local optimum in ~1% of problems for < 0.1 s; keep 5.
+        self.assertEqual(captured["options"], {"batch_limit": 5, "init_batch_limit": 128, "maxiter": 200})
+
+    def test_mc_samples_fallback_matches_unity_default(self):
+        bo = load_bo_module()
+        init_msg = self._base_init()
+        del init_msg["config"]["mcSamples"]
+        self._run_main_with_init(bo, init_msg)
+        self.assertEqual(bo.MC_SAMPLES, 128)
 
     def test_load_data_normalizes_and_validates(self):
         bo = load_bo_module()
@@ -420,19 +460,71 @@ class BoTests(unittest.TestCase):
 
     def test_save_metric_to_file_writes_bestobjective_header_once(self):
         bo = load_bo_module()
+        bo.objectives_info = [(0.0, 1.0, 0)]
         with tempfile.TemporaryDirectory() as tmp:
             bo.PROJECT_PATH = tmp
             bo.save_metric_to_file([0.1], iteration=1)
             bo.save_metric_to_file([0.2], iteration=2)
             p_best = pathlib.Path(tmp) / "BestObjectivePerEvaluation.csv"
             lines_best = p_best.read_text(encoding="utf-8").strip().splitlines()
-            self.assertEqual(lines_best[0], "BestObjective;Iteration")
+            self.assertEqual(lines_best[0], "BestObjective;Iteration;Scale;BestObjectiveRaw")
             self.assertEqual(len(lines_best), 3)
 
             p_legacy = pathlib.Path(tmp) / "HypervolumePerEvaluation.csv"
             lines_legacy = p_legacy.read_text(encoding="utf-8").strip().splitlines()
-            self.assertEqual(lines_legacy[0], "Hypervolume;Iteration")
+            self.assertEqual(lines_legacy[0], "Hypervolume;Iteration;Scale;BestObjectiveRaw")
             self.assertEqual(len(lines_legacy), 3)
+
+    def _metric_rows(self, tmp, filename):
+        with open(pathlib.Path(tmp) / filename, newline="", encoding="utf-8") as f:
+            return list(csv.reader(f, delimiter=";"))
+
+    def test_metric_logs_carry_raw_best_objective_and_direction(self):
+        # BestObjective stays the normalized maximize-space value (sign-flipped for a minimized
+        # objective); BestObjectiveRaw is the same observation in the objective's own units.
+        bo = load_bo_module()
+        bo.objectives_info = [(0.0, 10.0, 1)]  # task time in s, smaller is better
+        with tempfile.TemporaryDirectory() as tmp:
+            bo.PROJECT_PATH = tmp
+            best_norm = bo.bo_normalize.normalize_objective_value(2.5, 0.0, 10.0, 1)
+            bo.save_metric_to_file([best_norm], iteration=4)
+            for filename in ("BestObjectivePerEvaluation.csv", "HypervolumePerEvaluation.csv"):
+                header, row = self._metric_rows(tmp, filename)
+                self.assertEqual(header[2:], ["Scale", "BestObjectiveRaw"])
+                self.assertAlmostEqual(float(row[0]), 0.5)  # (2.5 on [0,10] -> -0.5) sign-flipped
+                self.assertEqual(row[1], "4")
+                self.assertIn("minimized", row[2])
+                self.assertEqual(float(row[3]), 2.5)
+
+        bo.objectives_info = [(0.0, 10.0, 0)]
+        with tempfile.TemporaryDirectory() as tmp:
+            bo.PROJECT_PATH = tmp
+            bo.save_metric_to_file([0.5], iteration=1)
+            _, row = self._metric_rows(tmp, "BestObjectivePerEvaluation.csv")
+            self.assertIn("maximized", row[2])
+            self.assertEqual(float(row[3]), 7.5)
+
+    def test_metric_raw_column_is_empty_without_current_context_observations(self):
+        bo = load_bo_module()
+        bo.objectives_info = [(0.0, 10.0, 0)]
+        with tempfile.TemporaryDirectory() as tmp:
+            bo.PROJECT_PATH = tmp
+            bo.save_metric_to_file([-1.0], iteration=0, observed=False)
+            _, row = self._metric_rows(tmp, "BestObjectivePerEvaluation.csv")
+        self.assertEqual(row[:2], ["-1.0", "0"])
+        self.assertEqual(row[3], "")
+
+    def test_bo_execute_metric_raw_column_tracks_best_observation(self):
+        bo = load_bo_module()
+        bo.objectives_info = [(0.0, 1.0, 1)]
+        with tempfile.TemporaryDirectory() as tmp:
+            # Stub values 0.2, 0.8, then 0.5, 0.5: minimized, so the best raw value stays 0.2.
+            self._run_bo_execute(bo, tmp, iterations=2, keep_objectives_info=True)
+            rows = self._metric_rows(pathlib.Path(tmp) / "LogData" / "ids" / "ids" / "run",
+                                     "BestObjectivePerEvaluation.csv")
+        self.assertEqual([r[1] for r in rows[1:]], ["1", "2", "3", "4"])
+        self.assertEqual([float(r[3]) for r in rows[1:]], [0.2, 0.2, 0.2, 0.2])
+        self.assertTrue(all(abs(float(r[0]) - 0.6) < 1e-12 for r in rows[1:]))
 
     def test_bo_execute_logs_metric_for_every_evaluation(self):
         bo = load_bo_module()
@@ -491,7 +583,7 @@ class BoTests(unittest.TestCase):
         self.assertEqual(len(metric_values), 3)
         self.assertEqual([row[1] for row in rows[1:]], ["1", "2", "3"])
 
-    def _run_bo_execute(self, bo, tmp, iterations, user_ids=("u", "c", "g")):
+    def _run_bo_execute(self, bo, tmp, iterations, user_ids=("u", "c", "g"), keep_objectives_info=False):
         """bo_execute against stubs: Sobol draws x=0.2, 0.8; candidates x=0.4."""
         sobol_calls = []
         bo.USER_ID, bo.CONDITION_ID, bo.GROUP_ID = user_ids
@@ -507,7 +599,8 @@ class BoTests(unittest.TestCase):
         bo.parameter_names = ["p0"]
         bo.objective_names = ["o0"]
         bo.parameters_info = [(0.0, 1.0)]
-        bo.objectives_info = [(0.0, 1.0, 0)]
+        if not keep_objectives_info:
+            bo.objectives_info = [(0.0, 1.0, 0)]
         bo.problem_bounds = FakeTensor([[0.0], [1.0]])
         bo.SobolQMCNormalSampler = lambda sample_shape, seed: {"shape": sample_shape, "seed": seed}
 
@@ -530,6 +623,33 @@ class BoTests(unittest.TestCase):
             os.chdir(prev_cwd)
         return sobol_calls
 
+    def test_stop_during_sampling_finalizes_isbest_flags(self):
+        # A perfect-rating stop in the sampling phase used to leave the provisional best-so-far
+        # flags (2, 5, 8 -> TRUE, TRUE, TRUE) in the log, which FinalDesignSelector reads.
+        bo = load_bo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            bo.PROJECT_PATH = tmp
+            bo.USER_ID, bo.CONDITION_ID, bo.GROUP_ID = "u", "c", "g"
+            bo.SEED = 3
+            bo.PROBLEM_DIM = 1
+            bo.parameter_names = ["p0"]
+            bo.objective_names = ["o0"]
+            bo.parameters_info = [(0.0, 1.0)]
+            bo.objectives_info = [(0.0, 10.0, 0)]
+            bo.problem_bounds = FakeTensor([[0.0], [1.0]])
+            bo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor([[[0.1]], [[0.2]], [[0.3]], [[0.4]]])
+            conn = _FakeConn(
+                [_json_line({"type": "objectives", "values": {"o0": v}}) for v in (2.0, 5.0, 8.0)]
+                + [_json_line({"type": "stop", "reason": "perfect_rating"})]
+            )
+            with mock.patch.object(bo, "send_json_line", lambda c, payload: None):
+                with self.assertRaises(bo.StopRequested):
+                    bo.generate_initial_data(conn, n_samples=4, metric_values=[])
+            with open(pathlib.Path(tmp) / "ObservationsPerEvaluation.csv", newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f, delimiter=";"))
+        self.assertEqual([(r["o0"], r["IsBest"]) for r in rows],
+                         [("2.0", "FALSE"), ("5.0", "FALSE"), ("8.0", "TRUE")])
+
     def test_initial_design_is_n_points_of_one_sobol_sequence(self):
         bo = load_bo_module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -547,14 +667,13 @@ class BoTests(unittest.TestCase):
         self.assertEqual(len(rows), 4)
         self.assertTrue(all(r[:3] == ["007", "01", "NA"] for r in rows), rows)
 
-    def test_recv_json_message_decodes_utf8_split_across_chunks(self):
+    def test_objectives_decode_utf8_split_across_chunks(self):
         bo = load_bo_module()
-        bo.SOCKET_RECV_BUF = ""
         payload = '{"type":"objectives","values":{"Größe":1.0}}\n'.encode("utf-8")
         cut = payload.index("ö".encode("utf-8")) + 1  # inside the two-byte character
         conn = _FakeConn([payload[:cut], payload[cut:]])
-        msg = bo.recv_json_message(conn)
-        self.assertEqual(list(msg["values"]), ["Größe"])
+        values = bo.recv_objectives_blocking(conn)
+        self.assertEqual(list(values), ["Größe"])
 
     def test_main_pins_torch_threads_from_environment(self):
         bo = load_bo_module()
@@ -598,13 +717,22 @@ class BoTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "collide with log columns"):
             self._run_main_with_init(bo, init_msg, execute_stub=lambda *args, **kwargs: None)
 
-    def test_create_and_write_csv_helpers_propagate_errors(self):
+    def test_csv_helpers_survive_a_locked_log_and_catch_up(self):
         bo = load_bo_module()
-        with mock.patch("builtins.open", side_effect=OSError("disk full")):
-            with self.assertRaises(OSError):
-                bo.create_csv_file("/tmp/a.csv", ["A"])
-            with self.assertRaises(OSError):
-                bo.write_data_to_csv("/tmp/a.csv", ["A"], [{"A": 1}])
+        protocol = reset_protocol_state()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ExecutionTimes.csv")
+            with mock.patch.object(protocol, "LOG_WRITE_RETRY_SEC", 0.0), \
+                    mock.patch("builtins.open", side_effect=PermissionError(13, "locked by Excel")), \
+                    mock.patch("builtins.print"):
+                bo.create_csv_file(path, ["A"])  # no exception: the study goes on
+                bo.write_data_to_csv(path, ["A"], [{"A": 1}])
+            self.assertFalse(os.path.exists(path))
+            with mock.patch("builtins.print"):
+                bo.write_data_to_csv(path, ["A"], [{"A": 2}])  # lock gone: everything is written
+            with open(path, newline="", encoding="utf-8") as f:
+                self.assertEqual(list(csv.reader(f, delimiter=";")), [["A"], ["1"], ["2"]])
+        self.assertEqual(protocol.unsaved_logs(), [])
 
     def test_main_rejects_missing_required_nparameters(self):
         bo = load_bo_module()

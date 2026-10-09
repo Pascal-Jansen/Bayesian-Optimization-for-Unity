@@ -25,8 +25,10 @@ from _stubs import (  # noqa: E402
     assert_hardened_listener,
     install_stub_modules,
     json_line as _json_line,
+    reset_protocol_state,
     run_main_recording_listener,
 )
+from test_bo import OBJECTIVE_TRANSFORM_CASES, legacy_outcome  # noqa: E402
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -39,6 +41,7 @@ def load_mobo_module():
     spec = importlib.util.spec_from_file_location(name, MOBO_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    reset_protocol_state()
     return module
 
 
@@ -113,64 +116,6 @@ class MoboTests(unittest.TestCase):
         with self.assertRaises(ConnectionError):
             mobo.send_json_line(conn, {"type": "coverage", "value": 1.0})
 
-    def test_recv_json_message_skips_malformed_line(self):
-        mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
-        conn = _FakeConn([b'{"type":bad}\n{"type":"ok"}\n'])
-        msg = mobo.recv_json_message(conn)
-        self.assertEqual(msg["type"], "ok")
-
-    def test_recv_json_message_multiple_lines_single_chunk(self):
-        mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
-        conn = _FakeConn([b'{"type":"a"}\n{"type":"b"}\n'])
-
-        msg1 = mobo.recv_json_message(conn)
-        msg2 = mobo.recv_json_message(conn)
-
-        self.assertEqual(msg1["type"], "a")
-        self.assertEqual(msg2["type"], "b")
-
-    def test_ndjson_reader_uses_persistent_buffer(self):
-        mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
-        conn = _FakeConn([b'{"type":"a"}\n{"type":"b"}\n'])
-        msgs = list(mobo.ndjson_reader(conn))
-        self.assertEqual([m["type"] for m in msgs], ["a", "b"])
-
-    def test_recv_json_message_discards_unterminated_tail(self):
-        mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
-        conn = _FakeConn([b'{"type":"init"}\n{"type":"partial"', b""])
-
-        msg1 = mobo.recv_json_message(conn)
-        self.assertEqual(msg1["type"], "init")
-
-        msg2 = mobo.recv_json_message(conn)
-        self.assertIsNone(msg2)
-        self.assertEqual(mobo.SOCKET_RECV_BUF, "")
-
-    def test_recv_json_message_timeout_raises(self):
-        mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
-        mobo.SOCKET_TIMEOUT_SEC = 7
-        conn = _FakeConn([mobo.socket.timeout("timeout")])
-
-        with self.assertRaises(TimeoutError) as ctx:
-            mobo.recv_json_message(conn)
-        self.assertIn("7", str(ctx.exception))
-
-    def test_recv_json_message_buffer_overflow_raises_and_resets(self):
-        mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
-        mobo.SOCKET_MAX_RECV_BUF_BYTES = 8
-        conn = _FakeConn([b"123456789"])
-
-        with self.assertRaises(RuntimeError) as ctx:
-            mobo.recv_json_message(conn)
-        self.assertIn("exceeded 8 bytes", str(ctx.exception))
-        self.assertEqual(mobo.SOCKET_RECV_BUF, "")
-
     def test_objective_function_mixed_minimize_maximize(self):
         mobo = load_mobo_module()
         conn = _FakeConn(
@@ -195,14 +140,64 @@ class MoboTests(unittest.TestCase):
         ]
 
         x = FakeTensor([0.123456789])
-        y = mobo.objective_function(conn=conn, x_tensor=x)
+        y = mobo.objective_function(conn=conn, x_tensor=x, iteration=1)
 
         np.testing.assert_allclose(y.numpy(), np.array([0.6, 0.6, -0.8]), atol=1e-12)
         self.assertGreaterEqual(len(conn.sent), 1)
         sent_obj = json.loads(conn.sent[0].decode("utf-8"))
         self.assertEqual(sent_obj["type"], "parameters")
+        self.assertEqual(sent_obj["iteration"], 1)
         # Precision-preserving payload (not rounded to 3 decimals)
         self.assertAlmostEqual(sent_obj["values"]["p0"], 0.123456789, places=9)
+
+    def test_objective_function_matches_former_inline_transform(self):
+        # objective_function now calls bo_normalize.normalize_objective_value per objective
+        # (like DBO and MetaTAF) instead of its own copy: same values, same errors.
+        mobo = load_mobo_module()
+        mobo.parameter_names = ["p0"]
+        mobo.parameters_info = [(0.0, 1.0)]
+        mobo.objective_names = ["o0", "o1"]
+        for raw, lo, hi in OBJECTIVE_TRANSFORM_CASES:
+            for minflag in (0, 1):
+                with self.subTest(raw=raw, lo=lo, hi=hi, minflag=minflag):
+                    mobo.objectives_info = [(0.0, 10.0, 1), (lo, hi, minflag)]
+                    reset_protocol_state()
+                    conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": 2.5, "o1": raw}})])
+                    try:
+                        got = ("value", mobo.objective_function(conn, FakeTensor([0.5]), 1).tolist())
+                    except ValueError as e:
+                        got = ("error", str(e))
+                    kind, want = legacy_outcome("o1", raw, lo, hi, minflag)
+                    self.assertEqual(got, (kind, [0.5, want] if kind == "value" else want))
+
+    def test_acquisition_uses_shared_reference_point_and_batch_limit_five(self):
+        mobo = load_mobo_module()
+        captured = {}
+
+        def fake_acq(**kwargs):
+            captured["ref_point"] = kwargs["ref_point"]
+            return object()
+
+        def fake_optimize_acqf(acq_function, bounds, q, num_restarts, raw_samples, options, sequential):
+            captured.update(options=options, num_restarts=num_restarts)
+            return FakeTensor([[0.5]]), None
+
+        mobo.qLogNoisyExpectedHypervolumeImprovement = fake_acq
+        mobo.optimize_acqf = fake_optimize_acqf
+        mobo.NUM_RESTARTS, mobo.RAW_SAMPLES, mobo.BATCH_SIZE = 6, 64, 1
+        mobo.problem_bounds = FakeTensor([[0.0], [1.0]])
+        mobo.ref_point = mobo.reference_point(3)
+        mobo.optimize_qnehvi(model=None, sampler=None, X_baseline=FakeTensor([[0.1]]))
+        self.assertEqual(captured["ref_point"], [-1.1, -1.1, -1.1])
+        self.assertEqual(captured["options"], {"batch_limit": 5, "init_batch_limit": 128, "maxiter": 200})
+
+    def test_main_sets_reference_point_and_mc_samples_fallback(self):
+        mobo = load_mobo_module()
+        init_msg = self._base_init_message()
+        del init_msg["config"]["mcSamples"]
+        self._run_main_with_init(mobo, init_msg)
+        self.assertEqual(mobo.MC_SAMPLES, 128)
+        self.assertEqual(mobo.ref_point.tolist(), [-1.1, -1.1])
 
     def test_objective_function_missing_objective_key_raises(self):
         mobo = load_mobo_module()
@@ -213,7 +208,7 @@ class MoboTests(unittest.TestCase):
         mobo.objectives_info = [(0.0, 1.0, 0), (0.0, 1.0, 0)]
 
         with self.assertRaises(KeyError):
-            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.5]))
+            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.5]), iteration=1)
 
     def test_objective_function_non_finite_objective_raises(self):
         mobo = load_mobo_module()
@@ -223,7 +218,7 @@ class MoboTests(unittest.TestCase):
         mobo.objective_names = ["obj0"]
         mobo.objectives_info = [(0.0, 1.0, 0)]
         with self.assertRaises(ValueError):
-            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]))
+            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]), iteration=1)
 
     def test_objective_function_non_numeric_objective_raises(self):
         mobo = load_mobo_module()
@@ -233,7 +228,7 @@ class MoboTests(unittest.TestCase):
         mobo.objective_names = ["obj0"]
         mobo.objectives_info = [(0.0, 1.0, 0)]
         with self.assertRaises(ValueError):
-            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]))
+            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]), iteration=1)
 
     def test_objective_function_out_of_bounds_raises(self):
         mobo = load_mobo_module()
@@ -243,7 +238,7 @@ class MoboTests(unittest.TestCase):
         mobo.objective_names = ["obj0"]
         mobo.objectives_info = [(0.0, 1.0, 0)]
         with self.assertRaises(ValueError):
-            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]))
+            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]), iteration=1)
 
     def test_objective_function_invalid_values_payload_type_raises(self):
         mobo = load_mobo_module()
@@ -252,8 +247,8 @@ class MoboTests(unittest.TestCase):
         mobo.parameters_info = [(0.0, 1.0)]
         mobo.objective_names = ["obj0"]
         mobo.objectives_info = [(0.0, 1.0, 0)]
-        with self.assertRaises(TypeError):
-            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]))
+        with self.assertRaisesRegex(RuntimeError, "non-dict 'values'"):
+            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]), iteration=1)
 
     def test_objective_function_timeout_mid_eval_raises(self):
         mobo = load_mobo_module()
@@ -264,7 +259,7 @@ class MoboTests(unittest.TestCase):
         mobo.objective_names = ["obj0"]
         mobo.objectives_info = [(0.0, 1.0, 0)]
         with self.assertRaises(TimeoutError):
-            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]))
+            mobo.objective_function(conn=conn, x_tensor=FakeTensor([0.2]), iteration=1)
 
     def test_recv_objectives_blocking_skips_non_objective_messages(self):
         mobo = load_mobo_module()
@@ -512,13 +507,22 @@ class MoboTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mobo.generate_initial_data(conn=None, n_samples=0)
 
-    def test_create_and_write_csv_helpers_propagate_errors(self):
+    def test_csv_helpers_survive_a_locked_log_and_catch_up(self):
         mobo = load_mobo_module()
-        with mock.patch("builtins.open", side_effect=OSError("disk full")):
-            with self.assertRaises(OSError):
-                mobo.create_csv_file("/tmp/a.csv", ["A"])
-            with self.assertRaises(OSError):
-                mobo.write_data_to_csv("/tmp/a.csv", ["A"], [{"A": 1}])
+        protocol = reset_protocol_state()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ExecutionTimes.csv")
+            with mock.patch.object(protocol, "LOG_WRITE_RETRY_SEC", 0.0), \
+                    mock.patch("builtins.open", side_effect=PermissionError(13, "locked by Excel")), \
+                    mock.patch("builtins.print"):
+                mobo.create_csv_file(path, ["A"])  # no exception: the study goes on
+                mobo.write_data_to_csv(path, ["A"], [{"A": 1}])
+            self.assertFalse(os.path.exists(path))
+            with mock.patch("builtins.print"):
+                mobo.write_data_to_csv(path, ["A"], [{"A": 2}])  # lock gone: everything is written
+            with open(path, newline="", encoding="utf-8") as f:
+                self.assertEqual(list(csv.reader(f, delimiter=";")), [["A"], ["1"], ["2"]])
+        self.assertEqual(protocol.unsaved_logs(), [])
 
     def test_moocore_metric_wrappers_use_maximized_objective_space(self):
         mobo = load_mobo_module()
@@ -639,7 +643,7 @@ class MoboTests(unittest.TestCase):
         mobo = load_mobo_module()
         with tempfile.TemporaryDirectory() as tmp:
             mobo.PROJECT_PATH = tmp
-            mobo.ref_point = FakeTensor([-1.0])
+            mobo.ref_point = mobo.reference_point(1)
             mobo.save_hypervolume_to_file([0.1], iteration=0)
             mobo.save_hypervolume_to_file([0.2], iteration=1)
             hv_csv = pathlib.Path(tmp) / "HypervolumePerEvaluation.csv"
@@ -648,8 +652,8 @@ class MoboTests(unittest.TestCase):
 
         self.assertEqual(rows[0], ["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
         self.assertEqual(len(rows), 3)
-        self.assertEqual(rows[1], ["0.1", "0", "normalized maximize-space [-1,1] per objective", "[-1.0]"])
-        self.assertEqual(rows[2], ["0.2", "1", "normalized maximize-space [-1,1] per objective", "[-1.0]"])
+        self.assertEqual(rows[1], ["0.1", "0", "normalized maximize-space [-1,1] per objective", "[-1.1]"])
+        self.assertEqual(rows[2], ["0.2", "1", "normalized maximize-space [-1,1] per objective", "[-1.1]"])
 
     def test_mobo_execute_with_simulated_unity_objective_stream(self):
         mobo = load_mobo_module()
@@ -673,7 +677,7 @@ class MoboTests(unittest.TestCase):
                 mobo.parameters_info = [(0.0, 10.0)]
                 mobo.objectives_info = [(0.0, 10.0, 1), (0.0, 10.0, 0)]
                 mobo.problem_bounds = FakeTensor([[0.0], [1.0]])
-                mobo.ref_point = FakeTensor([-1.0, -1.0])
+                mobo.ref_point = mobo.reference_point(2)
                 mobo.SobolQMCNormalSampler = lambda sample_shape, seed: {"shape": sample_shape, "seed": seed}
 
                 # Initial samples (n=2, q=1, d=1): x=0.2 then x=0.8
@@ -718,6 +722,36 @@ class MoboTests(unittest.TestCase):
         # Ensure loop sent completion signal.
         self.assertTrue(any(m.get("type") == "optimization_finished" for m in out_msgs))
 
+    def test_stop_during_sampling_finalizes_ispareto_flags(self):
+        # A perfect-rating stop in the sampling phase used to leave every sampling row at its
+        # provisional IsPareto = FALSE, so FinalDesignSelector found no Pareto candidates.
+        mobo = load_mobo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            mobo.PROJECT_PATH = tmp
+            mobo.USER_ID, mobo.CONDITION_ID, mobo.GROUP_ID = "u", "c", "g"
+            mobo.SEED = 3
+            mobo.PROBLEM_DIM = 1
+            mobo.NUM_OBJS = 2
+            mobo.parameter_names = ["p0"]
+            mobo.objective_names = ["o0", "o1"]
+            mobo.parameters_info = [(0.0, 1.0)]
+            mobo.objectives_info = [(0.0, 10.0, 0), (0.0, 10.0, 1)]
+            mobo.problem_bounds = FakeTensor([[0.0], [1.0]])
+            mobo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor([[[0.1]], [[0.2]], [[0.3]], [[0.4]]])
+            # The second design is dominated by the third (worse on both objectives).
+            mobo.is_non_dominated = lambda y: np.array([True, False, True][: len(np.asarray(y.tolist()))])
+            conn = _FakeConn(
+                [_json_line({"type": "objectives", "values": {"o0": a, "o1": b}})
+                 for a, b in ((2.0, 2.0), (5.0, 8.0), (8.0, 5.0))]
+                + [_json_line({"type": "stop", "reason": "perfect_rating"})]
+            )
+            with mock.patch.object(mobo, "send_json_line", lambda c, payload: None):
+                with self.assertRaises(mobo.StopRequested):
+                    mobo.generate_initial_data(conn, n_samples=4)
+            with open(pathlib.Path(tmp) / "ObservationsPerEvaluation.csv", newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f, delimiter=";"))
+        self.assertEqual([r["IsPareto"] for r in rows], ["TRUE", "FALSE", "TRUE"])
+
     def test_initial_design_ids_and_one_iteration_axis(self):
         mobo = load_mobo_module()
         sobol_calls = []
@@ -740,7 +774,7 @@ class MoboTests(unittest.TestCase):
                 mobo.parameters_info = [(0.0, 10.0)]
                 mobo.objectives_info = [(0.0, 10.0, 1), (0.0, 10.0, 0)]
                 mobo.problem_bounds = FakeTensor([[0.0], [1.0]])
-                mobo.ref_point = FakeTensor([-1.0, -1.0])
+                mobo.ref_point = mobo.reference_point(2)
                 mobo.SobolQMCNormalSampler = lambda sample_shape, seed: {"shape": sample_shape, "seed": seed}
 
                 def sobol(bounds, n, q, seed):
@@ -775,14 +809,13 @@ class MoboTests(unittest.TestCase):
         self.assertEqual([r[4] for r in obs_rows], ["1", "2", "3", "4"])
         self.assertEqual([r[1] for r in hv_rows], ["1", "2", "3", "4"])
 
-    def test_recv_json_message_decodes_utf8_split_across_chunks(self):
+    def test_objectives_decode_utf8_split_across_chunks(self):
         mobo = load_mobo_module()
-        mobo.SOCKET_RECV_BUF = ""
         payload = '{"type":"objectives","values":{"Übersicht":1.0}}\n'.encode("utf-8")
         cut = payload.index("Ü".encode("utf-8")) + 1  # inside the two-byte character
         conn = _FakeConn([payload[:cut], payload[cut:]])
-        msg = mobo.recv_json_message(conn)
-        self.assertEqual(list(msg["values"]), ["Übersicht"])
+        values = mobo.recv_objectives_blocking(conn)
+        self.assertEqual(list(values), ["Übersicht"])
 
     def test_main_listens_on_loopback_only_and_stops_after_connect(self):
         mobo = load_mobo_module()

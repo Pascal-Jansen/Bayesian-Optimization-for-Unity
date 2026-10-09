@@ -108,3 +108,18 @@ Reference implementation:
   <https://uk.mathworks.com/matlabcentral/fileexchange/183999-dynamic-bayesian-optimization>
 
 [fex]: https://uk.mathworks.com/matlabcentral/fileexchange/183999-dynamic-bayesian-optimization
+
+## Local patches in BOforUnity
+
+This copy is dbo-torch 0.2.0 from [M-Colley/dbo-torch](https://github.com/M-Colley/dbo-torch)
+`main` @ `1a268cd`, with the following local changes. Re-apply them after refreshing the
+vendored files (copying upstream's `PROVENANCE.md` drops this section; keep it).
+
+| File | Change | Why |
+|---|---|---|
+| `_base.py`, `DynamicOptimizerBase._maximize` | `optimize_acqf` options gain `"init_batch_limit": 128`. | Without it BoTorch scores the `raw_samples` (1024 in BOforUnity) initial candidates `batch_limit` = `num_restarts` (10) at a time. Measured on torch 2.14.1 / BoTorch 0.18.1, one thread, seed 3, 5 Sobol seeds + 15 optimization iterations, median of three interleaved runs: d = 2, mean suggestion 0.42 s → 0.25 s (`_maximize` 3.7 s → 1.2 s over 30 calls); d = 4, 0.70 s → 0.54 s. Every suggestion and the fitted alpha were bit-identical with and without the patch (128, 256 and 1024 all identical; 256 was within measurement noise of 128). Same setting as BOforUnity's `bo.py`/`mobo.py`. |
+
+`mo_optimizer.py` (`DynamicMOBO`, the multi-objective variant) is not used by BOforUnity's DBO
+backend, which is single-objective. It is kept verbatim so the package stays a faithful copy
+of upstream. `__init__.py` still imports it eagerly; that costs about 20 ms of the ~1.3 s
+it takes the backend to import torch/BoTorch, which is not worth a further local patch.

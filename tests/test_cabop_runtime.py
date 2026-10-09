@@ -10,7 +10,11 @@ lightweight CI environment); they run in a full dev environment and in the
 full-stack CI job.
 """
 
+import contextlib
+import csv
+import importlib
 import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -18,6 +22,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from unittest import mock
 
 import numpy as np
 
@@ -30,6 +35,7 @@ from _stubs import (  # noqa: E402
     FakeConn,
     assert_hardened_listener,
     json_line,
+    reset_protocol_state,
     run_main_recording_listener,
 )
 
@@ -41,9 +47,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 try:
-    import loguru  # noqa: F401
-    import scipy  # noqa: F401
-    import sklearn  # noqa: F401
+    for _dependency in ("loguru", "scipy", "sklearn"):
+        importlib.import_module(_dependency)
 
     HAS_CABOP_DEPS = True
 except ImportError:
@@ -55,6 +60,7 @@ def load_cabop_runtime():
     spec = importlib.util.spec_from_file_location(name, BACKEND_DIR / "cabop_runtime.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    reset_protocol_state()
     return module
 
 
@@ -99,6 +105,76 @@ def interleaved_group_init_msg():
 
 
 PARAM_BOUNDS = {"p0": (0.0, 1.0), "p1": (10.0, 20.0), "p2": (100.0, 200.0)}
+
+
+def simple_init_msg(mode="single", sampling=2, optimization=1, param_range=(0.0, 1.0), n_params=1,
+                    objectives=None, **config):
+    """One CABOP group; objectives default to one maximized objective on [0, 10]."""
+    if objectives is None:
+        objectives = [("o0", 0.0, 10.0, 0)]
+    msg = {
+        "type": "init",
+        "config": {
+            "numSamplingIterations": sampling,
+            "numOptimizationIterations": optimization,
+            "seed": 3,
+            "nParameters": n_params,
+            "nObjectives": len(objectives),
+            "warmStart": False,
+            "optimizerBackend": "cabop",
+            "cabopObjectiveMode": mode,
+            "cabopUseCostAwareAcquisition": True,
+            "cabopUpdateRule": "actual",
+        },
+        "parameters": [
+            {"key": f"p{i}", "init": {"low": param_range[0], "high": param_range[1]}, "group": "g",
+             "tolerance": 0.05, "prefabValues": []}
+            for i in range(n_params)
+        ],
+        "objectives": [
+            {"key": key, "init": {"low": lo, "high": hi, "minimize": minimize}, "weight": 1.0}
+            for key, lo, hi, minimize in objectives
+        ],
+        "user": {"userId": "u", "conditionId": "c", "groupId": "g"},
+    }
+    msg["config"].update(config)
+    return msg
+
+
+def run_session(runtime, replies, init_root=None):
+    """run_cabop against scripted objective replies; returns (sent messages, {log name: rows})."""
+    conn = FakeConn([json_line({"type": "objectives", "values": v}) for v in replies])
+    logs = {}
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {"BO_LOG_ROOT": tmp}
+        if init_root is not None:
+            env["BO_INIT_ROOT"] = init_root
+        with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()):
+            runtime.run_cabop(conn)
+        for path in pathlib.Path(runtime.PROJECT_PATH).glob("*.csv"):
+            with open(path, newline="", encoding="utf-8") as f:
+                logs[path.name] = list(csv.DictReader(f, delimiter=";"))
+    sent = [json.loads(line) for chunk in conn.sent for line in chunk.decode("utf-8").splitlines() if line]
+    return sent, logs
+
+
+def write_warm_start(folder, params, objectives):
+    """Warm-start CSVs x.csv / y.csv from {column: values} dicts."""
+    import pandas as pd
+
+    pd.DataFrame(params).to_csv(os.path.join(folder, "x.csv"), sep=";", index=False)
+    pd.DataFrame(objectives).to_csv(os.path.join(folder, "y.csv"), sep=";", index=False)
+    return {"warmStart": True, "initialParametersDataPath": "x.csv", "initialObjectivesDataPath": "y.csv"}
+
+
+def one_param_space(lo, hi, tolerance=0.05):
+    from cabop.bayesopt import BOSpace
+
+    costs = {"g": {"unchanged": 1.0, "swapped": 10.0, "acquired": 100.0}}
+    return BOSpace(parameters={
+        "groups": ["g"], "cost": costs, "actual_cost": costs,
+        "parameters": {"p": {"bound": np.asarray([lo, hi]), "tolerance": tolerance, "group": "g"}},
+    })
 
 
 @unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
@@ -342,6 +418,217 @@ class CabopRuntimeLoopTests(unittest.TestCase):
                     os.environ["BO_LOG_ROOT"] = prev_log_root
         self.assertEqual(len(rows), 3)
         self.assertTrue(all(r[:3] == ["007", "01", "NA"] for r in rows), rows)
+
+
+@unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
+class CabopUnitSpaceTests(unittest.TestCase):
+    """Reuse tolerance and soft costs are fractions of each range, not parameter units."""
+
+    def test_soft_cost_is_the_same_on_every_parameter_range(self):
+        from cabop.bayesopt import BayesOpt
+
+        expected = None
+        for lo, hi in [(0.0, 1.0), (0.0, 100.0), (0.0, 0.01), (-3.0, 7.0)]:
+            with self.subTest(range=(lo, hi)):
+                optimizer = BayesOpt(one_param_space(lo, hi), ifCost=True, random_state=0)
+                middle = np.array([lo + 0.5 * (hi - lo)])
+                optimizer.tell(middle, 0.5, middle)
+                # Unit-space candidates: the last design, moves of 1%, 5% and 40% of the range.
+                costs = optimizer._compute_costs(np.array([[0.5], [0.51], [0.55], [0.9]]))
+                if expected is None:
+                    expected = costs
+                    # [0, 1] keeps its previous values: cheap near the last design, full price far away.
+                    np.testing.assert_allclose(costs, [10.0, 10.09, 12.7, 100.0], atol=0.01)
+                # Was: [0, 100] charged the full 100 for a 1% move, [0, 0.01] charged ~10 everywhere.
+                np.testing.assert_allclose(costs, expected, rtol=1e-9)
+
+    def test_tolerance_is_a_fraction_of_the_range(self):
+        from cabop.bayesopt import BayesOpt
+
+        # (range, last design, proposal, reused?) with tolerance 0.05 = 5% of the range.
+        cases = [
+            ((0.0, 100.0), 50.0, 52.0, True),    # 2% of the range: same prototype (was: acquired)
+            ((0.0, 100.0), 50.0, 60.0, False),   # 10%: a new one
+            ((0.0, 0.1), 0.05, 0.06, False),     # 10% (was: reused, as 0.01 < 0.05 units)
+            ((0.0, 0.1), 0.05, 0.052, True),     # 2%
+            ((0.0, 1.0), 0.5, 0.54, True),       # [0, 1] unchanged
+            ((0.0, 1.0), 0.5, 0.56, False),
+        ]
+        for (lo, hi), last, proposal, reused in cases:
+            with self.subTest(range=(lo, hi), proposal=proposal):
+                optimizer = BayesOpt(one_param_space(lo, hi), ifCost=True, random_state=0)
+                optimizer.tell(np.array([last]), 0.5, np.array([last]))
+                costs, realized = optimizer.select_sample(np.array([proposal]))
+                self.assertEqual(costs, (1.0,) if reused else (100.0,))
+                self.assertEqual(float(realized[0]), last if reused else proposal)
+
+    def test_runs_on_any_parameter_range_show_the_same_designs(self):
+        from cabop.bayesopt import BayesOpt, BOSpace
+
+        def run(lo, hi):
+            costs = {"g": {"unchanged": 1.0, "swapped": 10.0, "acquired": 100.0}}
+            params = {name: {"bound": np.asarray([lo, hi]), "tolerance": 0.05, "group": "g"} for name in "ab"}
+            optimizer = BayesOpt(
+                BOSpace(parameters={"groups": ["g"], "cost": costs, "actual_cost": costs, "parameters": params}),
+                ifCost=True, random_state=3,
+            )
+            shown = []
+            for i in range(10):
+                x, _ = optimizer.ask(n_init=4)
+                _, realized = optimizer.select_sample(x)
+                u = (realized - lo) / (hi - lo)
+                optimizer.tell(realized, float(np.sum((u - 0.7) ** 2) + 0.01 * np.sin(7 * i)), x)
+                shown.append(u)
+            return np.array(shown)
+
+        reference = run(0.0, 1.0)
+        for lo, hi in [(0.0, 0.1), (0.0, 100.0)]:
+            with self.subTest(range=(lo, hi)):
+                # Was: on [0, 0.1] every proposal was "within tolerance" and only 2 distinct
+                # designs were ever shown.
+                np.testing.assert_allclose(run(lo, hi), reference, atol=1e-5)
+
+    def test_reported_expected_cost_is_the_cost_at_the_proposal(self):
+        from cabop.bayesopt import BayesOpt
+
+        optimizer = BayesOpt(one_param_space(0.0, 100.0), ifCost=True, random_state=0)
+        optimizer.tell(np.array([50.0]), 0.5, np.array([50.0]))
+        x, result = optimizer.ask(n_init=1)
+        direct = optimizer.cost_model.smooth_cost(x, optimizer._numpy_to_design, optimizer._design_to_numpy)[0]
+        # Was: smooth_cost received the unit-space coordinate (e.g. 0.54) as if it were 0.54 units.
+        self.assertAlmostEqual(result.expected_cost, direct, places=9)
+        self.assertLess(result.expected_cost, 100.0)
+
+    def test_tolerance_outside_zero_one_is_rejected_at_init(self):
+        for tolerance in (-0.1, 1.5, 5.0, "abc"):
+            with self.subTest(tolerance=tolerance):
+                msg = simple_init_msg(param_range=(0.0, 100.0))
+                msg["parameters"][0]["tolerance"] = tolerance
+                with self.assertRaisesRegex(ValueError, r"must lie in \[0, 1\] \(a fraction of its range"):
+                    load_cabop_runtime().parse_init_and_validate(msg, forced_mode="single")
+
+        msg = simple_init_msg()
+        del msg["parameters"][0]["tolerance"]  # older senders: the default 5% of the range
+        runtime = load_cabop_runtime()
+        runtime.parse_init_and_validate(msg, forced_mode="single")
+        self.assertEqual(runtime.build_cabop_space_dict()["parameters"]["p0"]["tolerance"], 0.05)
+
+    def test_prefabricated_values_outside_the_bounds_are_rejected_at_init(self):
+        msg = simple_init_msg()
+        msg["parameters"][0]["prefabValues"] = [-0.1, 0.5, 1.0]
+        with self.assertRaisesRegex(ValueError, r"prefabricated value\(s\) \[-0.1\] of parameter 'p0'"):
+            load_cabop_runtime().parse_init_and_validate(msg, forced_mode="single")
+
+
+@unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
+class CabopLogTests(unittest.TestCase):
+    def test_observation_log_keeps_ten_significant_digits(self):
+        from bo_normalize import round_for_log
+
+        runtime = load_cabop_runtime()
+        runtime.parse_init_and_validate(
+            simple_init_msg(param_range=(0.0, 0.004), objectives=[("o0", 0.0, 0.004, 1)], optimization=0),
+            forced_mode="single",
+        )
+        sent, logs = run_session(runtime, [{"o0": 0.0035}, {"o0": 0.000274}])
+        rows = logs["ObservationsPerEvaluation.csv"]
+        designs = [m["values"]["p0"] for m in sent if m["type"] == "parameters"]
+        # Was: 3 decimals, so the designs and 0.000274 were logged as 0.0 or 0.004.
+        self.assertEqual([float(r["p0"]) for r in rows], [round_for_log(v) for v in designs])
+        self.assertEqual([float(r["o0"]) for r in rows], [0.0035, 0.000274])
+        self.assertEqual([r["IsBest"] for r in rows], ["FALSE", "TRUE"])
+
+
+@unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
+class CabopWarmStartTests(unittest.TestCase):
+    def _run(self, warm_objectives, replies, sampling=3, mode="single", objectives=None):
+        from cabop.bayesopt import BayesOpt
+
+        with tempfile.TemporaryDirectory() as init_root:
+            n_warm = len(next(iter(warm_objectives.values())))
+            config = write_warm_start(init_root, {"p0": np.linspace(0.2, 0.8, n_warm)}, warm_objectives)
+            runtime = load_cabop_runtime()
+            runtime.parse_init_and_validate(
+                simple_init_msg(mode=mode, sampling=sampling, optimization=len(replies),
+                                objectives=objectives, **config),
+                forced_mode=mode,
+            )
+            # Warm start replaces the sampling phase: no Sobol point may be drawn.
+            with mock.patch.object(BayesOpt, "_sobol_sample", side_effect=AssertionError("Sobol draw")):
+                return run_session(runtime, replies, init_root=init_root)
+
+    def test_warm_start_skips_sampling_and_continues_the_iteration_axis(self):
+        sent, logs = self._run({"o0": [9.0, 3.0]}, [{"o0": 5.0}, {"o0": 6.0}])
+        iterations = [m["iteration"] for m in sent if m["type"] == "parameters"]
+        # Was: iterations 1, 2 and the remaining sampling rounds drawn from the optimization budget.
+        self.assertEqual(iterations, [3, 4])
+        observations = logs["ObservationsPerEvaluation.csv"]
+        self.assertEqual([int(r["Iteration"]) for r in observations], [3, 4])
+        self.assertEqual([r["Phase"] for r in observations], ["optimization", "optimization"])
+        self.assertEqual([int(r["Optimization"]) for r in logs["ExecutionTimes.csv"]], [3, 4])
+        self.assertEqual([int(r["Iteration"]) for r in logs["CABOPMetricsPerEvaluation.csv"]], [3, 4])
+        # Baseline at the last warm-start row, as bo.py writes it: best warm-start o0 = 9 of
+        # [0, 10] maximized, i.e. scalarized 0.1 and coverage 0.9.
+        metric = logs["BestObjectivePerEvaluation.csv"]
+        self.assertEqual([int(r["Iteration"]) for r in metric], [2, 3, 4])
+        self.assertAlmostEqual(float(metric[0]["BestObjective"]), 0.9)
+        self.assertAlmostEqual([m["value"] for m in sent if m["type"] == "coverage"][0], 0.9)
+        # The warm-start best (9.0) beats both live rows, so neither is IsBest (as in bo.py).
+        self.assertEqual([r["IsBest"] for r in observations], ["FALSE", "FALSE"])
+
+    def test_a_live_row_better_than_the_warm_start_is_best(self):
+        _, logs = self._run({"o0": [4.0, 3.0]}, [{"o0": 5.0}, {"o0": 6.0}])
+        self.assertEqual([r["IsBest"] for r in logs["ObservationsPerEvaluation.csv"]], ["FALSE", "TRUE"])
+
+    def test_warm_start_rows_compete_for_is_pareto(self):
+        # o0 maximized, o1 minimized. The warm-start row (8.5, 2) dominates the live (8, 2).
+        objectives = [("o0", 0.0, 10.0, 0), ("o1", 0.0, 10.0, 1)]
+        replies = [{"o0": 5.0, "o1": 5.0}, {"o0": 8.0, "o1": 2.0}, {"o0": 9.0, "o1": 6.0}]
+        _, logs = self._run({"o0": [8.5], "o1": [2.0]}, replies, mode="multi", objectives=objectives)
+        self.assertEqual([r["IsPareto"] for r in logs["ObservationsPerEvaluation.csv"]],
+                         ["FALSE", "FALSE", "TRUE"])
+
+
+@unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
+class CabopParetoTests(unittest.TestCase):
+    def test_is_pareto_marks_every_non_dominated_row_once(self):
+        runtime = load_cabop_runtime()
+        runtime.parse_init_and_validate(
+            simple_init_msg(mode="multi", sampling=4, optimization=0,
+                            objectives=[("o0", 0.0, 10.0, 0), ("o1", 0.0, 10.0, 1)]),
+            forced_mode="multi",
+        )
+        # o0 maximized, o1 minimized: (8, 2) dominates (5, 5); (9, 6) trades off against (8, 2);
+        # the second (8, 2) is a duplicate.
+        replies = [{"o0": 5.0, "o1": 5.0}, {"o0": 8.0, "o1": 2.0}, {"o0": 9.0, "o1": 6.0}, {"o0": 8.0, "o1": 2.0}]
+        _, logs = run_session(runtime, replies)
+        # Was: TRUE only for the rows with the lowest weighted score -- both copies of (8, 2) --
+        # so FinalDesignSelector never saw the (9, 6) trade-off.
+        self.assertEqual([r["IsPareto"] for r in logs["ObservationsPerEvaluation.csv"]],
+                         ["FALSE", "TRUE", "TRUE", "FALSE"])
+
+    def test_non_dominated_mask_matches_mobo_semantics(self):
+        # The installed moocore, not the stub other test modules leave in sys.modules.
+        saved = sys.modules.pop("moocore", None)
+        try:
+            moocore = importlib.import_module("moocore")
+        except ImportError:
+            self.skipTest("moocore not installed")
+        finally:
+            if saved is not None:
+                sys.modules["moocore"] = saved
+        runtime = load_cabop_runtime()
+        rng = np.random.default_rng(0)
+        for _ in range(300):
+            # Likert-like ratings: many ties and duplicates.
+            values = rng.integers(1, 6, size=(int(rng.integers(1, 15)), int(rng.integers(2, 4)))).astype(float)
+            first_copy = np.zeros(len(values), dtype=bool)
+            seen = set()
+            for i, row in enumerate(values):
+                first_copy[i] = tuple(row) not in seen
+                seen.add(tuple(row))
+            expected = moocore.is_nondominated(values, maximise=True, keep_weakly=True) & first_copy
+            np.testing.assert_array_equal(runtime.non_dominated_mask(values), expected, err_msg=str(values))
 
 
 if __name__ == "__main__":

@@ -8,10 +8,13 @@ everything is stored already normalized. Loading such a source transfers an exac
 response surface. Only the fingerprint catches it.
 """
 
+import hashlib
 import importlib.util
+import json
 import os
 import pathlib
 import sys
+import tempfile
 import unittest
 import uuid
 
@@ -135,6 +138,70 @@ class CanonicalFrameTests(unittest.TestCase):
                 self.assertTrue(diffs)
 
 
+class TruncatedOrMalformedFrameTests(unittest.TestCase):
+    """zip() stopped at the shorter list, so a frame whose params/objs were missing or cut
+    short compared as compatible without a single entry being checked."""
+
+    def setUp(self):
+        self.fp = load_fingerprint()
+        self.expected = self.fp.canonical_frame(PARAM_NAMES, PARAMS_INFO, OBJ_NAMES, OBJS_INFO)
+
+    def actual(self, **changes):
+        frame = json.loads(json.dumps(self.expected))
+        frame.update(changes)
+        return frame
+
+    def assert_incompatible(self, actual, snippet):
+        diffs = self.fp.frame_differences(self.expected, actual)
+        self.assertTrue(diffs)
+        self.assertFalse(self.fp.frames_compatible(self.expected, actual))
+        self.assertIn(snippet, " ".join(diffs))
+
+    def test_missing_params_or_objs_are_incompatible(self):
+        for key in ("params", "objs"):
+            with self.subTest(key=key):
+                frame = self.actual()
+                del frame[key]
+                self.assert_incompatible(frame, f"'{key}' must list 2")
+
+    def test_shortened_lists_are_incompatible(self):
+        self.assert_incompatible(self.actual(params=self.expected["params"][:1]), "'params' must list 2")
+        self.assert_incompatible(self.actual(objs=[]), "'objs' must list 2")
+        self.assert_incompatible(self.actual(objs="comfort,duration"), "'objs' must list 2")
+
+    def test_malformed_entries_are_incompatible(self):
+        cases = [
+            ("params", [["speed", "0", "10"], ["gap", "1"]], "parameter 1 is not a list of 3"),
+            ("params", [["speed", "zero", "10"], ["gap", "1", "5"]], "not a finite number"),
+            ("params", [["speed", "0", "nan"], ["gap", "1", "5"]], "not a finite number"),
+            ("params", [[7, "0", "10"], ["gap", "1", "5"]], "name is not a string"),
+            ("objs", [["comfort", "0", "100", 0], ["duration", "0", "60", 2]], "minimize flag 2"),
+            ("objs", [["comfort", "0", "100", 0], ["duration", "0", "60"]], "objective 1 is not a list of 4"),
+            ("objs", [None, ["duration", "0", "60", 1]], "objective 0 is not a list of 4"),
+        ]
+        for key, value, snippet in cases:
+            with self.subTest(value=value):
+                self.assert_incompatible(self.actual(**{key: value}), snippet)
+
+    def test_negative_zero_bound_matches_zero(self):
+        """format(-0.0, '.12g') is '-0': a bound sent as -0 never matched a frame with 0."""
+        neg = self.fp.canonical_frame(PARAM_NAMES, [(-0.0, 10.0), (1.0, 5.0)], OBJ_NAMES,
+                                      [(-0.0, 100.0, 0), (0.0, 60.0, 1)])
+        self.assertEqual(neg["params"][0][1], "0")
+        self.assertTrue(self.fp.frames_compatible(self.expected, neg))
+        self.assertEqual(self.fp.frame_digest(neg), self.fp.frame_digest(self.expected))
+
+    def test_artifact_stored_with_negative_zero_still_matches(self):
+        stored = self.actual()
+        stored["params"][0][1] = "-0"  # written before the normalization
+        self.assertEqual(self.fp.frame_differences(self.expected, stored), [])
+
+    def test_numeric_bounds_in_a_hand_written_frame_compare_by_value(self):
+        stored = self.actual()
+        stored["params"][1][1:] = [1, 5.0]
+        self.assertEqual(self.fp.frame_differences(self.expected, stored), [])
+
+
 class DigestTests(unittest.TestCase):
     def setUp(self):
         self.fp = load_fingerprint()
@@ -158,6 +225,29 @@ class DigestTests(unittest.TestCase):
             self.fp.frame_digest(self.frame()),
             self.fp.frame_digest(self.frame(objectives_info=flipped)),
         )
+
+
+class ArtifactHashTests(unittest.TestCase):
+    """The file identity in population.json and the trajectory stamp."""
+
+    def setUp(self):
+        self.fp = load_fingerprint()
+
+    def _hash(self, data):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "a.json")
+            with open(path, "wb") as f:
+                f.write(data)
+            return self.fp.artifact_sha256(path)
+
+    def test_line_endings_do_not_change_the_identity(self):
+        """A git checkout with core.autocrlf (or the reverse on commit) converts them."""
+        lf = json.dumps({"gp_state": {"noise": 0.1}, "frame": None}, indent=1).encode("utf-8")
+        self.assertEqual(self._hash(lf), hashlib.sha256(lf).hexdigest())  # LF: the plain hash
+        self.assertEqual(self._hash(lf.replace(b"\n", b"\r\n")), self._hash(lf))
+
+    def test_content_changes_change_the_identity(self):
+        self.assertNotEqual(self._hash(b'{"noise": 0.1}'), self._hash(b'{"noise": 0.2}'))
 
 
 class ValidationTests(unittest.TestCase):

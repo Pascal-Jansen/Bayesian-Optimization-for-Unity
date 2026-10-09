@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import os
 import pathlib
 import sys
@@ -167,10 +169,89 @@ class EmbeddingResolutionTests(unittest.TestCase):
         np.testing.assert_allclose(out[1], np.array([0.0, 0.0]))
 
     def test_resolve_manual_normalized(self):
+        # Manual embeddings are standardized per feature across contexts (z-score, scaled by
+        # 1/sqrt(#varying features)), not L2-normalized per context.
         setup = self.cs.parse_context_config(make_init_msg())
         emb = self.cs.resolve_embeddings(setup)
-        np.testing.assert_allclose(np.linalg.norm(emb, axis=1), np.ones(2))
+        np.testing.assert_allclose(emb, np.array([[1.0, -1.0], [-1.0, 1.0]]) / np.sqrt(2.0))
         self.assertTrue(setup.embeddings_resolved)
+
+    def _resolve_manual(self, embeddings, normalize=True):
+        msg = make_init_msg(
+            normalizeEmbeddings=normalize,
+            currentContext="c0",
+            contexts=[{"key": f"c{i}", "embedding": list(e)} for i, e in enumerate(embeddings)],
+        )
+        setup = self.cs.parse_context_config(msg)
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            emb = self.cs.resolve_embeddings(setup)
+        return emb, printed.getvalue()
+
+    def test_manual_standardization_keeps_magnitude(self):
+        # L2 normalization turned every positive 1-d embedding into 1.0: ages 25, 40, 60 became
+        # one context and their data was pooled.
+        emb, printed = self._resolve_manual([[25.0], [40.0], [60.0]])
+        self.assertEqual(len(np.unique(emb[:, 0])), 3)
+        np.testing.assert_allclose(emb[:, 0], (np.array([25, 40, 60]) - 125 / 3) / np.std([25, 40, 60]))
+        self.assertNotIn("Warning", printed)
+        # ...and merged proportional profiles.
+        emb, printed = self._resolve_manual([[3.0, 4.0], [6.0, 8.0], [1.0, 0.0]])
+        self.assertFalse(np.allclose(emb[0], emb[1]))
+        self.assertNotIn("Warning", printed)
+
+    def test_manual_standardization_scale_and_constant_features(self):
+        emb, _ = self._resolve_manual([[1.0, 5.0, 2.0], [3.0, 5.0, 0.0], [2.0, 5.0, 7.0]])
+        # A feature equal in every context carries no similarity information -> 0.
+        np.testing.assert_allclose(emb[:, 1], np.zeros(3))
+        np.testing.assert_allclose(emb.mean(axis=0), np.zeros(3), atol=1e-12)
+        # Mean squared distance from the centroid is 1, the scale of unit-norm vectors.
+        self.assertAlmostEqual(float(np.mean(np.sum(emb ** 2, axis=1))), 1.0)
+
+    def test_manual_standardization_with_one_context(self):
+        emb, printed = self._resolve_manual([[25.0, 3.0]])
+        np.testing.assert_allclose(emb, np.zeros((1, 2)))
+        self.assertTrue(np.all(np.isfinite(emb)))
+
+    def test_identical_manual_embeddings_are_reported(self):
+        _, printed = self._resolve_manual([[1.0, 2.0], [1.0, 2.0], [0.0, 1.0]])
+        self.assertIn("contexts 'c0'/'c1' have identical embeddings", printed)
+
+    def test_image_embeddings_keep_l2_and_report_merged_contexts(self):
+        calls = []
+
+        def fake_backend(paths, model_name, pretrained):
+            calls.append(list(paths))
+            return np.array([[3.0, 4.0], [6.0, 8.0], [0.0, 2.0]])
+
+        self.cs.IMAGE_EMBEDDING_BACKEND = fake_backend
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("a", "b", "c"):
+                (pathlib.Path(tmp) / f"{name}.png").write_bytes(name.encode())
+            msg = make_init_msg(
+                embeddingSource="image",
+                currentContext="user_A",
+                contexts=[
+                    {"key": "user_A", "imagePath": "a.png"},
+                    {"key": "user_B", "imagePath": "b.png"},
+                    {"key": "user_C", "imagePath": "c.png"},
+                ],
+            )
+            setup = self.cs.parse_context_config(msg)
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                emb = self.cs.resolve_embeddings(setup, init_root=tmp)
+        np.testing.assert_allclose(emb, np.array([[0.6, 0.8], [0.6, 0.8], [0.0, 1.0]]))
+        self.assertIn("'user_A'/'user_B' have different embeddings that become identical", printed.getvalue())
+        self.assertEqual(self.cs.normalization_description(setup), "L2 per context")
+
+    def test_normalization_description_per_source(self):
+        setup = self.cs.parse_context_config(make_init_msg())
+        self.assertEqual(self.cs.normalization_description(setup), "per-feature standardization across contexts")
+        setup = self.cs.parse_context_config(make_init_msg(normalizeEmbeddings=False))
+        self.assertEqual(self.cs.normalization_description(setup), "off")
+        setup = self.cs.parse_context_config(make_init_msg(embeddingSource="learned"))
+        self.assertEqual(self.cs.normalization_description(setup), "none (learned embeddings)")
 
     def test_resolve_manual_unnormalized(self):
         setup = self.cs.parse_context_config(make_init_msg(normalizeEmbeddings=False))

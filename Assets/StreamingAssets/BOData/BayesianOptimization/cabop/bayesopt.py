@@ -45,7 +45,8 @@ class BOSpace:
         - "groups": List of group names (e.g., ["hardware", "software"])
         - "parameters": Dict mapping parameter names to their config:
             - "bound": np.ndarray of [lower, upper] bounds
-            - "tolerance": float tolerance for matching previous samples
+            - "tolerance": float tolerance for matching previous samples, as a
+              fraction of the parameter's range (0.05 = 5% of upper - lower)
             - "group": str group name this parameter belongs to
         - "cost": Dict mapping groups to cost values for unchanged/swapped/acquired
         - "actual_cost": Dict mapping groups to actual realized costs
@@ -98,11 +99,21 @@ class CostModel:
     - unchanged: Same as the most recent sample (cheapest)
     - swapped: Matches a previous sample in history (medium cost)
     - acquired: New configuration requiring fabrication (most expensive)
+
+    Distances (the tolerance check and the soft-cost kernel) are measured in
+    unit space, i.e. as fractions of each parameter's range, so a parameter's
+    units do not decide whether two designs count as the same prototype.
     """
 
     def __init__(self, space: BOSpace):
         self.space = space
         self.history: list[dict] = []
+
+    def _range(self, name: str) -> Tuple[float, float]:
+        """(lower bound, width) of a parameter; width 1 for a degenerate range."""
+        lo, hi = (float(v) for v in self.space.parameters["parameters"][name]["bound"])
+        width = hi - lo
+        return lo, (width if width > 0.0 else 1.0)
 
     def update(self, x_dict: dict) -> None:
         """
@@ -207,6 +218,15 @@ class CostModel:
 
             last_g, samples_g = self._get_group_history(group, names)
 
+            # Soft matching in unit space: the kernel bandwidth is a fraction of each
+            # parameter's range, whatever units the parameter is configured in.
+            lo_g = np.array([self._range(n)[0] for n in names], dtype=float)
+            width_g = np.array([self._range(n)[1] for n in names], dtype=float)
+            xg = (xg - lo_g) / width_g
+            samples_g = (samples_g - lo_g) / width_g
+            if last_g is not None:
+                last_g = (last_g - lo_g) / width_g
+
             cost_dict = self.space.parameters["cost"][group]
             c_unchanged = float(cost_dict["unchanged"])
             c_swapped = float(cost_dict["swapped"])
@@ -217,7 +237,7 @@ class CostModel:
             )
             total_cost += c_exp
 
-            for name, val in zip(names, x_exp):
+            for name, val in zip(names, lo_g + x_exp * width_g):
                 matched_dict[group][name] = float(val)
 
         matched_vec = design_to_numpy(matched_dict)
@@ -280,6 +300,8 @@ class CostModel:
         """
         Compute soft expected cost for a parameter group using RBF weighting.
 
+        All points are in unit space (fractions of each parameter's range).
+
         Args:
             xg: Candidate values for this group
             tg: Tolerance values for this group (unused, kept for future)
@@ -288,7 +310,7 @@ class CostModel:
             c_unchanged: Cost if unchanged from last sample
             c_swapped: Cost if swapped from history
             c_new: Cost if newly acquired
-            sigma: RBF kernel bandwidth
+            sigma: RBF kernel bandwidth, as a fraction of the range
 
         Returns:
             Tuple of (expected cost, expected matched point)
@@ -335,11 +357,11 @@ class CostModel:
         return float(expected_cost), x_exp.astype(float, copy=False)
 
     def _within_tolerance(self, a: dict, all_params: dict) -> bool:
-        """Check if parameter values are within tolerance of each other."""
+        """Check if parameter values are within tolerance (a fraction of each range)."""
         flattened = {k: all_params[g][k] for g in all_params for k in all_params[g]}
         for key in a.keys():
             tolerance = self.space.parameters["parameters"][key]["tolerance"]
-            if abs(a[key] - flattened[key]) > tolerance:
+            if abs(a[key] - flattened[key]) > tolerance * self._range(key)[1]:
                 return False
         return True
 
@@ -611,10 +633,10 @@ class BayesOpt:
         # when the optimizer lands exactly on a unit bound, which is common.
         min_x = np.clip(min_x, self.space.bounds[:, 0], self.space.bounds[:, 1])
 
-        # Compute metrics for result
+        # Compute metrics for result. smooth_cost takes a point in original units.
         predicted_cost = float(
             self.cost_model.smooth_cost(
-                u_best if u_best is not None else self._to_unit(min_x),
+                min_x,
                 self._numpy_to_design,
                 self._design_to_numpy,
             )[0]

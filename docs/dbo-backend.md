@@ -102,10 +102,13 @@ python tests/dbo_protocol_check.py
 
 launches the real backend and drives it with a mock Unity client speaking the
 wire protocol byte for byte, including messages split across TCP writes, and
-checks every log file including `DboRunState.json`. Needs torch/botorch
+checks every log file including `DboRunState.json` and the `iteration` each
+design is sent with; a second session ends with a stop request, after which the
+backend must exit with code 0 with every completed evaluation logged. Needs torch/botorch
 installed; deliberately not part of `unittest discover`. `tests/test_dbo_runtime.py`
 is part of the normal suite (skipped without torch): init validation, run
-reproducibility, validation scheduling and the state record.
+reproducibility, validation scheduling, the state record and the vendored
+speed patch.
 
 ## Reproducibility and the dbo_torch version
 
@@ -135,3 +138,13 @@ Commit a `.meta` file for every new file (Unity creates them on import), and do
 **not** copy the standalone bridge — it implements a different, incompatible
 socket protocol. Re-run `tests/dbo_protocol_check.py` and
 `python -m unittest tests.test_dbo_runtime` after refreshing.
+
+The snapshot carries one local patch, listed with its measurements under
+"Local patches in BOforUnity" at the end of `dbo_torch/PROVENANCE.md`: the
+acquisition search scores its 1024 raw samples 128 at a time
+(`init_batch_limit`) instead of 10 at a time: 0.42 s → 0.25 s per suggestion
+at two parameters, with bit-identical suggestions. Upstream's `PROVENANCE.md` does not
+contain that section, so keep it when copying, and re-apply the patch to
+`_base.py` unless upstream has adopted it; `tests/test_dbo_runtime.py` fails if
+it is lost. `mo_optimizer.py` (multi-objective DBO) is not used by this backend
+and is kept verbatim.

@@ -1,16 +1,22 @@
 # cabop_runtime.py — Unity NDJSON runtime for CABOP backend (single + scalarized multi-objective)
-import codecs
-import csv
-import json
 import os
 import socket
 import time
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 
 import bo_normalize
+# Socket, NDJSON, init parsing and log-writing plumbing shared by every backend.
+from bo_protocol import (
+    SOCKET_ACCEPT_TIMEOUT_SEC, SOCKET_TIMEOUT_SEC, StopRequested,
+    accept_unity_connection, append_csv_rows, close_connection, configure_listener_socket,
+    flush_pending_logs, get_cfg_int, get_unique_folder, log_exists, parse_obj_init,
+    parse_param_init, parse_user_ids, read_observation_log, receive_init_message,
+    recv_objectives_blocking, send_json_line, validate_objective_bounds,
+    validate_parameter_bounds, write_csv_rows, write_dataframe_csv,
+)
 from cabop.bayesopt import BayesOpt, BOSpace
 
 # -------------------- defaults (overwritten by Unity init) --------------------
@@ -41,8 +47,11 @@ CABOP_MAX_CUMULATIVE_COST = -1.0
 
 parameter_names: List[str] = []
 objective_names: List[str] = []
+# tolerance is a fraction of the parameter's range (0.05 = 5% of hi - lo)
 parameters_info: List[Tuple[float, float, str, float, List[float]]] = []  # (lo, hi, group, tolerance, prefab)
 objectives_info: List[Tuple[float, float, int, float]] = []  # (lo, hi, minimizeFlag, weight)
+
+DEFAULT_CABOP_TOLERANCE = 0.05
 
 cabop_group_costs: Dict[str, Dict[str, Dict[str, float]]] = {}
 
@@ -53,147 +62,16 @@ EXECUTION_LOG_PATH = ""
 METRICS_LOG_PATH = ""
 COMPAT_METRIC_LOG_PATH = ""
 
-# Full-precision scalarized objective per logged observation row of this run.
-# Used for IsBest/IsPareto marker flags so they are not derived from the
-# 3-decimal-rounded values written to the CSV.
+# Every observation handed to the optimizer, at full precision: the warm-start rows first
+# (N_WARM_START_ROWS of them), then this run's evaluations -- the rows that reach the CSV.
+# IsBest/IsPareto compete over all of them, as in bo.py/mobo.py, and are not derived from the
+# rounded values written to the CSV.
 SCALARIZED_HISTORY: List[float] = []
-
-# -------------------- TCP server helpers --------------------
-# Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
-HOST = "127.0.0.1"
-PORT = 56001
-SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
-SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
-SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
-SOCKET_RECV_BUF = ""
-# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
-# must not become replacement characters (a key "Größe" would no longer match).
-SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
+OBJECTIVE_HISTORY: List[List[float]] = []  # raw objective values, Unity's units
+N_WARM_START_ROWS = 0
 
 
-def normalize_user_token(value, default="-1"):
-    token = str(value).strip() if value is not None else ""
-    return token if token else default
-
-
-def normalize_log_folder_token(value, default="-1"):
-    token = normalize_user_token(value, default=default)
-    invalid_chars = set('/\\:*?"<>|')
-    cleaned_chars = []
-    for ch in token:
-        if ch in invalid_chars or ord(ch) < 32:
-            cleaned_chars.append("_")
-        else:
-            cleaned_chars.append(ch)
-    cleaned = "".join(cleaned_chars).strip().strip(".")
-    if cleaned in ("", ".", ".."):
-        return default
-    return cleaned
-
-
-def send_json_line(conn, obj):
-    line = json.dumps(obj, ensure_ascii=False) + "\n"
-    try:
-        conn.sendall(line.encode("utf-8"))
-    except (BrokenPipeError, ConnectionResetError, OSError) as e:
-        t = obj.get("type") if isinstance(obj, dict) else "unknown"
-        raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
-
-
-def configure_listener_socket(s):
-    """Socket options for the backend's single listening socket.
-
-    On Windows, SO_REUSEADDR lets a second process bind a port that is still being listened
-    on, so a stale backend could receive Unity's connection; SO_EXCLUSIVEADDRUSE refuses that
-    and still allows an immediate restart. On POSIX, SO_REUSEADDR only permits rebinding
-    while an earlier connection lingers in TIME_WAIT, which a quick restart needs.
-    """
-    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-    else:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-
-def recv_json_message(conn):
-    global SOCKET_RECV_BUF
-    while True:
-        idx = SOCKET_RECV_BUF.find("\n")
-        if idx >= 0:
-            line = SOCKET_RECV_BUF[:idx].rstrip("\r")
-            SOCKET_RECV_BUF = SOCKET_RECV_BUF[idx + 1:]
-            if not line.strip():
-                continue
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError as e:
-                preview = line[:200]
-                # Tolerate malformed lines (parity with bo.py/mobo.py).
-                print(
-                    f"Warning: skipping malformed JSON line from Unity: {e}. Payload preview: {preview!r}",
-                    flush=True,
-                )
-                continue
-
-        try:
-            chunk = conn.recv(4096)
-        except socket.timeout as e:
-            raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
-        if not chunk:
-            trailing = (SOCKET_RECV_BUF + SOCKET_RECV_DECODER.decode(b"", final=True)).strip()
-            SOCKET_RECV_BUF = ""
-            if trailing:
-                print("Warning: discarding trailing unterminated socket data:", trailing, flush=True)
-            return None
-
-        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
-        if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
-            preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
-            SOCKET_RECV_BUF = ""
-            SOCKET_RECV_DECODER.reset()
-            raise RuntimeError(
-                f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
-                f"possible framing error or oversized message. Tail preview: {preview}"
-            )
-
-
-def recv_objectives_blocking(conn):
-    while True:
-        msg = recv_json_message(conn)
-        if msg is None:
-            return None
-        # Skip unrelated messages while waiting (parity with bo.py/mobo.py) so
-        # future Unity-side status messages cannot break the CABOP backend.
-        if not isinstance(msg, dict):
-            continue
-        if msg.get("type") != "objectives":
-            continue
-        values = msg.get("values")
-        if not isinstance(values, dict):
-            raise RuntimeError("Received malformed 'objectives' message: missing or non-dict 'values'.")
-        return values
-
-
-def get_unique_folder(parent, folder_name):
-    base_path = os.path.join(parent, folder_name)
-    if not os.path.exists(base_path):
-        os.makedirs(base_path)
-        return base_path
-    if os.path.isdir(base_path):
-        visible_entries = [
-            name for name in os.listdir(base_path)
-            if name != ".DS_Store" and not name.endswith(".meta")
-        ]
-        if not visible_entries:
-            return base_path
-    k = 1
-    while True:
-        p = os.path.join(parent, f"{folder_name}_{k}")
-        if not os.path.exists(p):
-            os.makedirs(p)
-            return p
-        k += 1
-
-
+# -------------------- init parsing --------------------
 def safe_float(value, fallback):
     try:
         f = float(value)
@@ -202,41 +80,6 @@ def safe_float(value, fallback):
     if not np.isfinite(f):
         return float(fallback)
     return float(f)
-
-
-def parse_param_init(init_val):
-    if isinstance(init_val, dict):
-        if "low" not in init_val or "high" not in init_val:
-            raise ValueError(f"Parameter init parse error (missing 'low'/'high'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"])
-    parts = [p.strip() for p in str(init_val).split(",")]
-    if len(parts) < 2:
-        raise ValueError(f"Parameter init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1])
-
-
-def parse_obj_init(init_val):
-    if isinstance(init_val, dict):
-        if "low" not in init_val or "high" not in init_val:
-            raise ValueError(f"Objective init parse error (missing 'low'/'high'): {init_val}")
-        if "minimize" not in init_val:
-            raise ValueError(f"Objective init parse error (missing 'minimize'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"]), int(init_val["minimize"])
-    parts = [p.strip() for p in str(init_val).split(",")]
-    if len(parts) < 3:
-        raise ValueError(f"Objective init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1]), int(float(parts[2]))
-
-
-def get_cfg_int(cfg, key, default=None, required=False):
-    if key in cfg and cfg.get(key) is not None:
-        try:
-            return int(cfg.get(key))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Config field '{key}' must be an integer, got {cfg.get(key)!r}") from e
-    if required:
-        raise ValueError(f"Missing required config field '{key}'")
-    return int(default) if default is not None else None
 
 
 def normalize_update_rule(value):
@@ -298,7 +141,6 @@ def normalize_cost_triplet(raw_triplet):
 
 
 def init_parameter_and_objective_metadata(init_msg):
-    global PROBLEM_DIM, NUM_OBJS
     global parameter_names, objective_names, parameters_info, objectives_info
 
     parameters = init_msg.get("parameters", []) or []
@@ -331,43 +173,46 @@ def init_parameter_and_objective_metadata(init_msg):
     if len(objective_names) != NUM_OBJS:
         raise ValueError(f"objective_names len {len(objective_names)} != nObjectives {NUM_OBJS}")
 
+    bounds = [parse_param_init(p.get("init")) for p in parameters]
+    # CABOP maps parameters to [0,1] by (x - lo) / (hi - lo); a frozen parameter would turn
+    # the first GP fit, after the sampling phase, into NaN.
+    validate_parameter_bounds(parameter_names, bounds, "CABOP")
+
     parameters_info = []
     # Unity matches CABOP groups case-insensitively; collapse spellings onto the first seen
     # so a group and its configured costs cannot drift apart over letter case.
     group_spellings = {}
-    for i, p in enumerate(parameters):
-        lo, hi = parse_param_init(p.get("init"))
-        if not np.isfinite(lo) or not np.isfinite(hi):
-            raise ValueError(f"Parameter '{parameter_names[i]}' bounds must be finite, got ({lo}, {hi})")
-        if hi < lo:
-            raise ValueError(f"Parameter '{parameter_names[i]}' has invalid bounds: low={lo} > high={hi}")
-        if hi == lo:
-            # CABOP maps parameters to [0,1] by (x - lo) / (hi - lo); a frozen parameter
-            # would turn the first GP fit, after the sampling phase, into NaN.
-            raise ValueError(
-                f"Parameter '{parameter_names[i]}' has a degenerate range [{lo}, {hi}]. "
-                "The CABOP backend needs a non-empty range on every parameter."
-            )
-
+    for name, p, (lo, hi) in zip(parameter_names, parameters, bounds):
         group = str(p.get("group") or "default").strip() or "default"
         group = group_spellings.setdefault(group.casefold(), group)
-        tol = safe_float(p.get("tolerance"), 0.05)
-        if tol < 0:
-            tol = 0.0
+        # The reuse tolerance is a fraction of the parameter's range, so it means the same for
+        # a parameter on [0, 0.1] and one on [0, 100]. A value outside [0, 1] cannot be such a
+        # fraction -- most likely a tolerance in parameter units from an older configuration.
+        raw_tol = p.get("tolerance")
+        tol = DEFAULT_CABOP_TOLERANCE if raw_tol is None else safe_float(raw_tol, float("nan"))
+        if not 0.0 <= tol <= 1.0:
+            raise ValueError(
+                f"CABOP tolerance of parameter '{name}' must lie in [0, 1] (a fraction of its range "
+                f"[{lo}, {hi}]), got {raw_tol!r}. To keep a tolerance given in parameter units, "
+                f"divide it by the range ({hi - lo})."
+            )
         prefab_values = normalize_prefab_values(p.get("prefabValues", []))
+        # Proposals snap to the nearest prefabricated value, and Unity applies what it receives:
+        # a value outside the bounds would be shown to the participant as is.
+        outside = [v for v in prefab_values if v < lo - 1e-9 or v > hi + 1e-9]
+        if outside:
+            raise ValueError(
+                f"CABOP prefabricated value(s) {outside} of parameter '{name}' lie outside its bounds "
+                f"[{lo}, {hi}]; designs snapped to them would leave the configured range."
+            )
 
         parameters_info.append((float(lo), float(hi), group, float(tol), prefab_values))
 
-    objectives_info = []
-    for i, o in enumerate(objectives):
-        lo, hi, minflag = parse_obj_init(o.get("init"))
-        if not np.isfinite(lo) or not np.isfinite(hi):
-            raise ValueError(f"Objective '{objective_names[i]}' bounds must be finite, got ({lo}, {hi})")
-        if hi < lo:
-            raise ValueError(f"Objective '{objective_names[i]}' has invalid bounds: low={lo} > high={hi}")
-        if int(minflag) not in (0, 1):
-            raise ValueError(f"Objective '{objective_names[i]}' minimize flag must be 0 or 1, got {minflag}")
+    objective_inits = [parse_obj_init(o.get("init")) for o in objectives]
+    validate_objective_bounds(objective_names, objective_inits)
 
+    objectives_info = []
+    for o, (lo, hi, minflag) in zip(objectives, objective_inits):
         weight = safe_float(o.get("weight"), 1.0)
         if weight <= 0:
             weight = 1.0
@@ -452,64 +297,15 @@ def build_prefab_dict():
 
 
 def normalize_obj_column_to_raw(col, lo, hi, minflag):
-    col = np.asarray(col, dtype=np.float64)
-    raw_range_detected = np.all((lo - 1e-8 <= col) & (col <= hi + 1e-8))
-    norm_range_detected = np.all((-1.0 - 1e-8 <= col) & (col <= 1.0 + 1e-8))
-
-    mode = WARM_START_OBJECTIVE_FORMAT
-
-    if mode == "raw":
-        if not raw_range_detected:
-            raise ValueError(
-                f"warmStartObjectiveFormat=raw requires values in [{lo},{hi}], "
-                f"but received range [{np.min(col)}, {np.max(col)}]"
-            )
-        return np.asarray(col, dtype=np.float64)
-
-    if mode == "normalized_max":
-        if not norm_range_detected:
-            raise ValueError(
-                "warmStartObjectiveFormat=normalized_max requires values in [-1,1], "
-                f"but received range [{np.min(col)}, {np.max(col)}]"
-            )
-        y_max = np.clip(col, -1.0, 1.0)
-        y_native = -y_max if int(minflag) == 1 else y_max
-        if hi == lo:
-            return np.full_like(y_native, lo)
-        return lo + (y_native + 1.0) * 0.5 * (hi - lo)
-
-    if mode == "normalized_native":
-        if not norm_range_detected:
-            raise ValueError(
-                "warmStartObjectiveFormat=normalized_native requires values in [-1,1], "
-                f"but received range [{np.min(col)}, {np.max(col)}]"
-            )
-        y_native = np.clip(col, -1.0, 1.0)
-        if hi == lo:
-            return np.full_like(y_native, lo)
-        return lo + (y_native + 1.0) * 0.5 * (hi - lo)
-
-    # auto
-    if raw_range_detected:
-        if norm_range_detected:
-            print(
-                "Warning: warm-start objective values are ambiguous (fit both raw bounds and [-1,1]); assuming raw scale.",
-                flush=True,
-            )
-        return np.asarray(col, dtype=np.float64)
-
-    if norm_range_detected:
-        # auto mirrors previous behavior: normalized values are treated as normalized_max
-        y_max = np.clip(col, -1.0, 1.0)
-        y_native = -y_max if int(minflag) == 1 else y_max
-        if hi == lo:
-            return np.full_like(y_native, lo)
-        return lo + (y_native + 1.0) * 0.5 * (hi - lo)
-
-    raise ValueError(
-        f"Warm-start objective values must be within raw bounds [{lo}, {hi}] or normalized [-1,1], "
-        f"got range [{np.min(col)}, {np.max(col)}]"
-    )
+    # Same scale inference as the BoTorch/DBO backends (raw vs already-normalized, the shared rounding
+    # tolerance, announced fallbacks), mapped back to the raw units CABOP works in. The former copy
+    # here accepted raw values only within 1e-8 of the bounds, so 3-decimal logs on small ranges were
+    # silently re-read as normalized.
+    y_max = bo_normalize.normalize_obj_column(col, lo, hi, minflag, fmt=WARM_START_OBJECTIVE_FORMAT)
+    y_native = -y_max if int(minflag) == 1 else y_max
+    if hi == lo:
+        return np.full_like(y_native, lo)
+    return lo + (y_native + 1.0) * 0.5 * (hi - lo)
 
 
 def normalize_param_column_to_raw(col, lo, hi):
@@ -623,20 +419,58 @@ def expected_observation_columns():
 
 
 def create_observations_file_if_missing(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    if os.path.exists(path):
+    if log_exists(path):
         return
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        csv.writer(f, delimiter=";").writerow(expected_observation_columns())
+    write_csv_rows(path, expected_observation_columns(), [])
 
 
 def append_execution_time(iteration, elapsed_sec):
-    write_header = not os.path.exists(EXECUTION_LOG_PATH) or os.path.getsize(EXECUTION_LOG_PATH) == 0
-    with open(EXECUTION_LOG_PATH, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f, delimiter=";")
-        if write_header:
-            w.writerow(["Optimization", "Execution_Time"])
-        w.writerow([iteration, elapsed_sec])
+    append_csv_rows(EXECUTION_LOG_PATH, [[iteration, elapsed_sec]], header=["Optimization", "Execution_Time"])
+
+
+def record_history(scalarized_value, objective_raw):
+    """Remember one observation (warm-start or live) for the IsBest/IsPareto flags."""
+    SCALARIZED_HISTORY.append(float(scalarized_value))
+    OBJECTIVE_HISTORY.append([float(v) for v in objective_raw])
+
+
+def non_dominated_mask(values_max):
+    """Rows of a maximization matrix that no other row dominates.
+
+    Of identical rows only the first counts, as in mobo.py/MetaTAF (moocore's
+    is_nondominated with keep_weakly=True, then first copy of each duplicate only).
+    """
+    arr = np.asarray(values_max, dtype=np.float64)
+    keep = np.zeros(arr.shape[0], dtype=bool)
+    seen = set()
+    for i, row in enumerate(arr):
+        key = tuple(row.tolist())
+        if key in seen:
+            continue
+        seen.add(key)
+        dominated_by = np.all(arr >= row, axis=1) & np.any(arr > row, axis=1)
+        keep[i] = not np.any(dominated_by)
+    return keep
+
+
+def marker_flags():
+    """IsBest (single) / IsPareto (multi) flag of every observation in the history.
+
+    Warm-start rows compete like in bo.py/mobo.py: a run whose best (or a dominating) design
+    came from the warm-start data marks no live row for it. In multi mode IsPareto is the real
+    non-dominated set of the raw objective vectors in each objective's direction -- the
+    candidates FinalDesignSelector chooses from -- not the rows with the lowest weighted score.
+    """
+    if not SCALARIZED_HISTORY:
+        return []
+    if CABOP_MODE == "single":
+        best = min(SCALARIZED_HISTORY)
+        flags = [abs(v - best) <= 1e-12 for v in SCALARIZED_HISTORY]
+    else:
+        signs = np.array([1.0 if int(minflag) == 1 else -1.0 for _, _, minflag, _ in objectives_info])
+        # Minimized objectives flip sign, so larger is better in every column.
+        flags = non_dominated_mask(-signs * np.asarray(OBJECTIVE_HISTORY, dtype=np.float64)).tolist()
+    return ["TRUE" if f else "FALSE" for f in flags]
 
 
 def append_observation_row(iteration, phase, scalarized_value, objective_raw, parameter_raw):
@@ -653,16 +487,17 @@ def append_observation_row(iteration, phase, scalarized_value, objective_raw, pa
         marker_col: "FALSE",
     }
 
+    # 10 significant digits, as every other backend logs (3 decimals erased small ranges).
     for j, name in enumerate(objective_names):
-        row[name] = np.round(float(objective_raw[j]), 3)
+        row[name] = bo_normalize.round_for_log(objective_raw[j])
     for i, name in enumerate(parameter_names):
-        row[name] = np.round(float(parameter_raw[i]), 3)
+        row[name] = bo_normalize.round_for_log(parameter_raw[i])
 
     # Read back as text: type inference would rewrite IDs such as "007" as 7 in every
     # earlier row, and FinalDesignSelector matches IDs as exact strings.
     df = (
-        pd.read_csv(OBSERVATIONS_LOG_PATH, delimiter=";", dtype=str, keep_default_na=False, encoding="utf-8")
-        if os.path.exists(OBSERVATIONS_LOG_PATH)
+        read_observation_log(OBSERVATIONS_LOG_PATH)
+        if log_exists(OBSERVATIONS_LOG_PATH)
         else pd.DataFrame(columns=expected_observation_columns())
     )
     expected_cols = expected_observation_columns()
@@ -677,44 +512,23 @@ def append_observation_row(iteration, phase, scalarized_value, objective_raw, pa
     else:
         df = pd.concat([df, new_row_df], ignore_index=True)
 
-    # Mark the currently best scalarized (lowest) row(s) as candidates.
-    # Prefer the full-precision in-memory history over re-deriving from the
-    # rounded CSV values (which can mislabel near-ties).
-    SCALARIZED_HISTORY.append(float(scalarized_value))
-    if len(SCALARIZED_HISTORY) == len(df):
-        values = np.asarray(SCALARIZED_HISTORY, dtype=float)
-    else:
-        # Defensive fallback for unexpected row-count drift.
-        values = np.asarray(
-            [
-                scalarize_objectives([float(r[name]) for name in objective_names])
-                for _, r in df.iterrows()
-            ],
-            dtype=float,
-        )
+    # Flags from the full-precision in-memory history (warm-start rows included), assigned to
+    # this run's rows at the end of the log, as bo.py/mobo.py do.
+    record_history(scalarized_value, objective_raw)
+    flags = marker_flags()[N_WARM_START_ROWS:]
+    df[marker_col] = df[marker_col].astype(str)
+    if len(flags) >= len(df):
+        df[marker_col] = flags[-len(df):]
+    elif flags:
+        df.loc[df.index[-len(flags):], marker_col] = flags
 
-    best = float(np.min(values)) if len(values) > 0 else float(scalarized_value)
-    flags = ["TRUE" if abs(v - best) <= 1e-12 else "FALSE" for v in values]
-    df[marker_col] = flags
-
-    df.to_csv(OBSERVATIONS_LOG_PATH, sep=";", index=False)
+    write_dataframe_csv(OBSERVATIONS_LOG_PATH, df)
 
 
 def append_metrics_row(iteration, phase, scalarized_value, best_scalarized, coverage, realized_cost, cumulative_cost):
-    write_header = not os.path.exists(METRICS_LOG_PATH) or os.path.getsize(METRICS_LOG_PATH) == 0
-    with open(METRICS_LOG_PATH, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f, delimiter=";")
-        if write_header:
-            w.writerow([
-                "Iteration",
-                "Phase",
-                "ScalarizedObjective",
-                "BestScalarizedObjective",
-                "Coverage",
-                "EvaluationCost",
-                "CumulativeCost",
-            ])
-        w.writerow([
+    append_csv_rows(
+        METRICS_LOG_PATH,
+        [[
             int(iteration),
             phase,
             np.round(float(scalarized_value), 6),
@@ -722,34 +536,39 @@ def append_metrics_row(iteration, phase, scalarized_value, best_scalarized, cove
             np.round(float(coverage), 6),
             np.round(float(realized_cost), 6),
             np.round(float(cumulative_cost), 6),
-        ])
+        ]],
+        header=[
+            "Iteration",
+            "Phase",
+            "ScalarizedObjective",
+            "BestScalarizedObjective",
+            "Coverage",
+            "EvaluationCost",
+            "CumulativeCost",
+        ],
+    )
 
 
 def append_compat_metric(iteration, coverage):
-    write_header = not os.path.exists(COMPAT_METRIC_LOG_PATH) or os.path.getsize(COMPAT_METRIC_LOG_PATH) == 0
-    with open(COMPAT_METRIC_LOG_PATH, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f, delimiter=";")
-        if write_header:
-            if CABOP_MODE == "single":
-                w.writerow(["BestObjective", "Iteration"])
-            else:
-                w.writerow(["Hypervolume", "Iteration"])
-        w.writerow([np.round(float(coverage), 6), int(iteration)])
+    append_csv_rows(
+        COMPAT_METRIC_LOG_PATH,
+        [[np.round(float(coverage), 6), int(iteration)]],
+        header=["BestObjective" if CABOP_MODE == "single" else "Hypervolume", "Iteration"],
+    )
 
 
-def evaluate_design(conn, x_realized):
+def evaluate_design(conn, x_realized, iteration):
+    """Send one realized design to Unity (logged under ``iteration``) and block for its objectives."""
     values = {}
     for i, name in enumerate(parameter_names):
         values[name] = float(x_realized[i])
 
-    payload = {"type": "parameters", "values": values}
+    payload = {"type": "parameters", "values": values, "iteration": int(iteration)}
     send_json_line(conn, payload)
 
-    resp = recv_objectives_blocking(conn)
+    resp = recv_objectives_blocking(conn)  # a dict, or None once Unity disconnected
     if resp is None:
         raise RuntimeError("No objectives received from Unity.")
-    if not isinstance(resp, dict):
-        raise TypeError(f"Unity objectives payload must be a dict, got {type(resp).__name__}")
 
     missing = [k for k in objective_names if k not in resp]
     if missing:
@@ -782,22 +601,39 @@ def evaluate_design(conn, x_realized):
     return float(scalarized), raw_values
 
 
+def coverage_from(best_scalarized):
+    """Unity's coverage: 1 - best scalarized objective (1.0 = best possible)."""
+    return float(np.clip(1.0 - best_scalarized, -1e9, 1.0)) if np.isfinite(best_scalarized) else 0.0
+
+
 def boot_optimizer_with_warm_start(optimizer):
+    """Tell the optimizer the warm-start rows; returns how many there were (0 without warm start).
+
+    The rows are earlier evaluations of the same problem, as in bo.py/DBO: they are not written
+    to ObservationsPerEvaluation.csv, but they occupy Iterations 1..k, so this run's first
+    evaluation is Iteration k + 1, and they compete for IsBest/IsPareto.
+    """
     if not WARM_START:
-        return
+        return 0
 
     x_raw, y_raw = load_warm_start_raw()
     for i in range(x_raw.shape[0]):
         x = x_raw[i]
         y_scalar = scalarize_objectives(y_raw[i].tolist())
         optimizer.tell(x, float(y_scalar), x, update_rule="actual")
+        record_history(y_scalar, y_raw[i].tolist())
+    print(f"Warm start: {x_raw.shape[0]} prior observation(s) loaded as Iterations 1..{x_raw.shape[0]}; "
+          f"skipping the sampling phase.", flush=True)
+    return int(x_raw.shape[0])
 
 
 def run_cabop(conn):
     global PROJECT_PATH, OBSERVATIONS_LOG_PATH, EXECUTION_LOG_PATH, METRICS_LOG_PATH, COMPAT_METRIC_LOG_PATH
-    global SCALARIZED_HISTORY
+    global SCALARIZED_HISTORY, OBJECTIVE_HISTORY, N_WARM_START_ROWS
 
     SCALARIZED_HISTORY = []
+    OBJECTIVE_HISTORY = []
+    N_WARM_START_ROWS = 0
     log_root = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
     base = os.path.join(log_root, USER_LOG_ID, CONDITION_LOG_ID, "CABOP", CABOP_MODE)
     os.makedirs(base, exist_ok=True)
@@ -820,8 +656,11 @@ def run_cabop(conn):
 
     prefab = build_prefab_dict()
 
-    # Seed optimizer from warm-start CSV data.
-    boot_optimizer_with_warm_start(optimizer)
+    # Seed optimizer from warm-start CSV data. Warm start replaces the sampling phase, as in
+    # bo.py/DBO: the model takes over at the first evaluation (n_init = 0), instead of drawing
+    # N_INITIAL - k Sobol points from the optimization budget.
+    N_WARM_START_ROWS = boot_optimizer_with_warm_start(optimizer)
+    n_init = 0 if WARM_START else max(0, int(N_INITIAL))
 
     planned_evaluations = int(N_ITERATIONS if WARM_START else (N_INITIAL + N_ITERATIONS))
     planned_evaluations = max(0, planned_evaluations)
@@ -831,22 +670,30 @@ def run_cabop(conn):
     if not np.isfinite(best_scalarized):
         best_scalarized = np.inf
 
+    if WARM_START:
+        # Baseline over the warm-start rows at the Iteration of the last of them, as bo.py
+        # writes it (CABOPMetricsPerEvaluation.csv keeps one row per evaluation of this run).
+        append_compat_metric(N_WARM_START_ROWS, coverage_from(best_scalarized))
+        send_json_line(conn, {"type": "coverage", "value": coverage_from(best_scalarized)})
+
     iteration = 0
     while iteration < planned_evaluations:
+        # Iteration this design is logged under: warm-start rows occupy 1..k.
+        absolute_iteration = N_WARM_START_ROWS + iteration + 1
         if CABOP_ENABLE_COST_BUDGET and CABOP_MAX_CUMULATIVE_COST > 0 and cumulative_cost >= CABOP_MAX_CUMULATIVE_COST:
             print(
-                f"CABOP cost budget reached before iteration {iteration + 1}: "
+                f"CABOP cost budget reached before iteration {absolute_iteration}: "
                 f"cumulative_cost={cumulative_cost}, limit={CABOP_MAX_CUMULATIVE_COST}",
                 flush=True,
             )
             break
 
         t0 = time.time()
-        x_candidate, _ = optimizer.ask(n_init=max(0, int(N_INITIAL)))
+        x_candidate, _ = optimizer.ask(n_init=n_init)
         elapsed = time.time() - t0
 
         costs, x_realized = optimizer.select_sample(x_candidate, prefab=prefab)
-        scalarized, objective_raw = evaluate_design(conn, x_realized)
+        scalarized, objective_raw = evaluate_design(conn, x_realized, absolute_iteration)
 
         optimizer.tell(x_realized, float(scalarized), x_candidate, update_rule=CABOP_UPDATE_RULE)
 
@@ -855,10 +702,9 @@ def run_cabop(conn):
         best_scalarized = min(best_scalarized, float(scalarized))
 
         # 1.0 means best possible according to scalarized minimization objective.
-        coverage = float(np.clip(1.0 - best_scalarized, -1e9, 1.0)) if np.isfinite(best_scalarized) else 0.0
+        coverage = coverage_from(best_scalarized)
 
-        absolute_iteration = iteration + 1
-        phase = "sampling" if (not WARM_START and absolute_iteration <= N_INITIAL) else "optimization"
+        phase = "sampling" if (not WARM_START and iteration < N_INITIAL) else "optimization"
 
         append_execution_time(absolute_iteration, elapsed)
         append_observation_row(absolute_iteration, phase, scalarized, objective_raw, x_realized)
@@ -870,7 +716,7 @@ def run_cabop(conn):
             conn,
             {
                 "type": "tempCoverage",
-                "value": float(absolute_iteration) / float(max(1, planned_evaluations)),
+                "value": float(iteration + 1) / float(max(1, planned_evaluations)),
             },
         )
 
@@ -927,12 +773,7 @@ def parse_init_and_validate(init_msg, forced_mode):
             f"got '{WARM_START_OBJECTIVE_FORMAT}'"
         )
 
-    user = init_msg.get("user", {}) or {}
-    USER_ID = normalize_user_token(user.get("userId"), default="-1")
-    CONDITION_ID = normalize_user_token(user.get("conditionId"), default="-1")
-    GROUP_ID = normalize_user_token(user.get("groupId"), default="-1")
-    USER_LOG_ID = normalize_log_folder_token(USER_ID, default="-1")
-    CONDITION_LOG_ID = normalize_log_folder_token(CONDITION_ID, default="-1")
+    USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID = parse_user_ids(init_msg)
 
     init_parameter_and_objective_metadata(init_msg)
     init_group_costs(init_msg)
@@ -944,53 +785,12 @@ def parse_init_and_validate(init_msg, forced_mode):
 
 
 def main(forced_mode=None):
-    global SOCKET_RECV_BUF
-
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     configure_listener_socket(s)
     conn = None
     try:
-        if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
-            raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
-        s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
-        try:
-            s.bind((HOST, PORT))
-        except OSError as e:
-            raise OSError(
-                f"Port {PORT} is already in use, most likely by an optimizer backend left over "
-                "from an earlier session. End that python process (Task Manager / Activity "
-                f"Monitor) and start again. ({e})"
-            ) from e
-        s.listen(1)
-        print("Server starts, waiting for connection...", flush=True)
-        try:
-            conn, addr = s.accept()
-        except socket.timeout as e:
-            raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
-        s.close()  # one Unity client per run: accept no further connections
-
-        print("Connected by", addr, flush=True)
-        if SOCKET_TIMEOUT_SEC <= 0:
-            raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
-        conn.settimeout(SOCKET_TIMEOUT_SEC)
-        SOCKET_RECV_BUF = ""
-        SOCKET_RECV_DECODER.reset()
-
-        init_msg = None
-        while True:
-            msg = recv_json_message(conn)
-            if msg is None:
-                break
-            # Skip unrelated messages while waiting (parity with bo.py/mobo.py).
-            if not isinstance(msg, dict):
-                continue
-            if msg.get("type") == "init":
-                init_msg = msg
-                break
-            continue
-
-        if init_msg is None:
-            raise RuntimeError("Did not receive init message.")
+        conn = accept_unity_connection(s, SOCKET_ACCEPT_TIMEOUT_SEC)
+        init_msg = receive_init_message(conn, SOCKET_TIMEOUT_SEC)
 
         parse_init_and_validate(init_msg, forced_mode=forced_mode)
 
@@ -1008,19 +808,21 @@ def main(forced_mode=None):
             ),
             flush=True,
         )
+        # The tolerance is a fraction of each range; show what it means in parameter units.
+        print(
+            "CABOP reuse tolerance (fraction of range = +/- parameter units):",
+            {name: f"{tol:g} = +/-{tol * (hi - lo):g}"
+             for name, (lo, hi, _, tol, _) in zip(parameter_names, parameters_info)},
+            flush=True,
+        )
 
         run_cabop(conn)
+    except StopRequested:
+        pass  # Unity ended the study on purpose; every completed evaluation is logged
     finally:
-        if conn is not None:
-            try:
-                conn.shutdown(socket.SHUT_RDWR)
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
+        close_connection(conn)
         s.close()
+        flush_pending_logs()
 
 
 if __name__ == "__main__":
