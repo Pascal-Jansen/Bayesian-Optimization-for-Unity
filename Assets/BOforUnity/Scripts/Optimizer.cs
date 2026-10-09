@@ -11,10 +11,71 @@ namespace BOforUnity.Scripts
     public class Optimizer : MonoBehaviour
     {
         private BoForUnityManager _bomanager;
+        // Unknown keys are reported once each: a typo would otherwise give a constant design all study long.
+        private readonly HashSet<string> _warnedUnknownKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _warnedMissingManager;
 
         public void Start()
         {
-            _bomanager = gameObject.GetComponent<BoForUnityManager>();
+            _bomanager = ResolveManager();
+        }
+
+        // Looked up on first use, so calls made before Start (e.g. from another script's Awake or Start) work.
+        private BoForUnityManager Manager
+        {
+            get
+            {
+                if (_bomanager == null)
+                    _bomanager = ResolveManager();
+                if (_bomanager == null && !_warnedMissingManager)
+                {
+                    _warnedMissingManager = true;
+                    Debug.LogWarning("Optimizer: no BoForUnityManager found; parameter and objective calls are ignored.");
+                }
+                return _bomanager;
+            }
+        }
+
+        private BoForUnityManager ResolveManager()
+        {
+            // The running (persistent) manager wins over this GameObject's copy: in a reloaded scene that copy is a
+            // duplicate that is being discarded.
+            BoForUnityManager running = BoForUnityManager.Instance;
+            return running != null ? running : GetComponent<BoForUnityManager>();
+        }
+
+        private void WarnUnknownKey(string kind, string name)
+        {
+            string key = (name ?? string.Empty).Trim();
+            if (!_warnedUnknownKeys.Add(kind + "\n" + key))
+                return;
+
+            Debug.LogWarning(
+                kind == "objective value"
+                    ? $"Optimizer: no objective key matches '{key}'; the value is ignored. This warning is shown once per name."
+                    : $"Optimizer: no {kind} with key '{key}' is configured in BoForUnityManager. Check the spelling " +
+                      "(keys are matched case-insensitively). This warning is shown once per key."
+            );
+        }
+
+        private ParameterEntry FindParameter(string name)
+        {
+            var manager = Manager;
+            if (manager == null || manager.parameters == null)
+                return null;
+
+            string targetName = (name ?? string.Empty).Trim();
+            foreach (var pa in manager.parameters)
+            {
+                if (pa == null || pa.value == null)
+                    continue;
+
+                if (string.Equals((pa.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
+                    return pa;
+            }
+
+            WarnUnknownKey("parameter", name);
+            return null;
         }
 
         /// <summary>
@@ -27,92 +88,38 @@ namespace BOforUnity.Scripts
         /// <param name="upperBound"></param>
         public void AddParameter(string name, float lowerBound, float upperBound)
         {
-            if (_bomanager == null || _bomanager.parameters == null)
+            var manager = Manager;
+            if (manager == null || manager.parameters == null)
             {
                 return;
             }
 
-            try
-            {
-                _bomanager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound)));
-            }
-            catch (ArgumentException)
-            {
-                //Debug.LogError($"An element with Key = {name} already exists.", Instance);
-            }
+            manager.parameters.Add(new ParameterEntry(name, new ParameterArgs(lowerBound, upperBound)));
         }
 
         /// <summary>
-        /// This is a public static method that takes a string parameter name and returns a float value. The method first initializes a
-        /// float variable value to zero. It then attempts to retrieve a value associated with the name parameter from a dictionary
-        /// named parameters using the square bracket syntax. If the key is not found in the dictionary, a KeyNotFoundException is thrown,
-        /// and an error message is logged to the console using the Debug.LogError method. Finally, the method returns the value variable.
+        /// Returns the current value of the parameter with the given key (case-insensitive). An unknown key logs a
+        /// warning once and returns 0.
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
         public float GetParameterValue(string name)
         {
-            var value = 0.0f;
-            //Debug.Log("Parameters: " + parameters[name].Value);
-            if (_bomanager == null || _bomanager.parameters == null)
-                return value;
-
-            string targetName = (name ?? string.Empty).Trim();
-
-            try
-            {
-                foreach (var pa in _bomanager.parameters)
-                {
-                    if (pa == null || pa.value == null)
-                        continue;
-
-                    if (string.Equals((pa.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        value = pa.value.Value;
-                    }
-                }
-            }
-            catch (KeyNotFoundException)
-            {
-                //Debug.LogError(String.Format("Key = {0} is not found.", name), Instance);
-            }
-            return value;
+            var entry = FindParameter(name);
+            return entry != null ? entry.value.Value : 0.0f;
         }
 
 
         /// <summary>
-        /// The method getParameter(string name) takes a string parameter name and returns a ParameterArgs object. It retrieves a value
-        /// associated with the name parameter from a dictionary named parameters. If the key is not found in the dictionary, an error message
-        /// is logged to the console, and a default ParameterArgs object is returned.
+        /// Returns the ParameterArgs of the parameter with the given key (case-insensitive). An unknown key logs a
+        /// warning once and returns a new ParameterArgs that is not part of the configuration.
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
         public ParameterArgs GetParameter(string name)
         {
-            ParameterArgs value = new ParameterArgs();
-            if (_bomanager == null || _bomanager.parameters == null)
-                return value;
-
-            string targetName = (name ?? string.Empty).Trim();
-
-            try
-            {
-                foreach (var pa in _bomanager.parameters)
-                {
-                    if (pa == null || pa.value == null)
-                        continue;
-
-                    if (string.Equals((pa.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        value = pa.value;
-                    }
-                }
-            }
-            catch (KeyNotFoundException)
-            {
-                //Debug.LogError(String.Format("Key = {0} is not found.", name), Instance);
-            }
-            return value;
+            var entry = FindParameter(name);
+            return entry != null ? entry.value : new ParameterArgs();
         }
 
 
@@ -125,7 +132,8 @@ namespace BOforUnity.Scripts
         /// <param name="args"></param>
         public void AddObjective(string name, ObjectiveArgs args)
         {
-            if (_bomanager == null || _bomanager.objectives == null)
+            var manager = Manager;
+            if (manager == null || manager.objectives == null)
             {
                 return;
             }
@@ -140,7 +148,7 @@ namespace BOforUnity.Scripts
                 args = new ObjectiveArgs();
             }
 
-            foreach (var ob in _bomanager.objectives)
+            foreach (var ob in manager.objectives)
             {
                 if (ob == null)
                     continue;
@@ -153,12 +161,13 @@ namespace BOforUnity.Scripts
                 }
             }
             // if not found in the list ... add as new entry
-            _bomanager.objectives.Add(new ObjectiveEntry(targetName, args));
+            manager.objectives.Add(new ObjectiveEntry(targetName, args));
         }
 
         public void AddObjectiveValue(string name, float currVal)
         {
-            if (string.IsNullOrWhiteSpace(name) || _bomanager == null || _bomanager.objectives == null)
+            var manager = Manager;
+            if (string.IsNullOrWhiteSpace(name) || manager == null || manager.objectives == null)
             {
                 return;
             }
@@ -167,7 +176,7 @@ namespace BOforUnity.Scripts
 
             ObjectiveEntry bestMatch = null;
             var bestMatchLength = -1;
-            foreach (var ob in _bomanager.objectives)
+            foreach (var ob in manager.objectives)
             {
                 if (ob == null || ob.value == null || string.IsNullOrWhiteSpace(ob.key))
                 {
@@ -182,26 +191,30 @@ namespace BOforUnity.Scripts
                 }
             }
 
-            if (bestMatch != null)
+            if (bestMatch == null)
             {
-                // If multiple objective keys are substrings of the same header, use the most specific (longest) key.
-                if (bestMatch.value.values == null)
-                {
-                    bestMatch.value.values = new List<float>();
-                }
-                bestMatch.value.values.Add(currVal);
+                WarnUnknownKey("objective value", name);
+                return;
             }
+
+            // If multiple objective keys are substrings of the same header, use the most specific (longest) key.
+            if (bestMatch.value.values == null)
+            {
+                bestMatch.value.values = new List<float>();
+            }
+            bestMatch.value.values.Add(currVal);
         }
 
         public bool HasObjectiveMatch(string name)
         {
-            if (string.IsNullOrWhiteSpace(name) || _bomanager == null || _bomanager.objectives == null)
+            var manager = Manager;
+            if (string.IsNullOrWhiteSpace(name) || manager == null || manager.objectives == null)
             {
                 return false;
             }
 
             string targetName = name.Trim();
-            foreach (var ob in _bomanager.objectives)
+            foreach (var ob in manager.objectives)
             {
                 if (ob == null || ob.value == null || string.IsNullOrWhiteSpace(ob.key))
                 {
@@ -274,7 +287,8 @@ namespace BOforUnity.Scripts
         /// <param name="smallerIsBetter"></param>
         public void AddObjective(string name, float lowerBound, float upperBound, int numberOfSubMeasures, bool smallerIsBetter = false)
         {
-            if (_bomanager == null || _bomanager.objectives == null)
+            var manager = Manager;
+            if (manager == null || manager.objectives == null)
             {
                 return;
             }
@@ -285,7 +299,7 @@ namespace BOforUnity.Scripts
                 return;
             }
 
-            foreach (var ob in _bomanager.objectives)
+            foreach (var ob in manager.objectives)
             {
                 if (ob == null || ob.value == null)
                     continue;
@@ -301,36 +315,35 @@ namespace BOforUnity.Scripts
                 }
             }
             // if not found in the list ... add as new entry
-            _bomanager.objectives.Add(new ObjectiveEntry(targetName, new ObjectiveArgs(lowerBound, upperBound, smallerIsBetter,numberOfSubMeasures)));
+            manager.objectives.Add(new ObjectiveEntry(targetName, new ObjectiveArgs(lowerBound, upperBound, smallerIsBetter,numberOfSubMeasures)));
         }
 
 
         /// <summary>
-        /// The method getObjective(string name) takes a string parameter name and returns the ObjectiveArgs object associated with the name key in the
-        /// objective dictionary. If the key is not found in the dictionary, an error message is logged to the console, and a default ObjectiveArgs
-        /// object is returned.
+        /// Returns the ObjectiveArgs of the objective with the given key (case-insensitive). An unknown key logs a
+        /// warning once and returns a new ObjectiveArgs that is not part of the configuration.
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
         public ObjectiveArgs GetObjective(string name)
         {
-            ObjectiveArgs value = new ObjectiveArgs();
-            if (_bomanager == null || _bomanager.objectives == null)
-                return value;
+            var manager = Manager;
+            if (manager == null || manager.objectives == null)
+                return new ObjectiveArgs();
 
             string targetName = (name ?? string.Empty).Trim();
 
-            foreach (var ob in _bomanager.objectives)
+            foreach (var ob in manager.objectives)
             {
                 if (ob == null || ob.value == null)
                     continue;
 
                 if (string.Equals((ob.key ?? string.Empty).Trim(), targetName, StringComparison.OrdinalIgnoreCase))
-                {
-                    value = ob.value;
-                }
+                    return ob.value;
             }
-            return value;
+
+            WarnUnknownKey("objective", name);
+            return new ObjectiveArgs();
         }
     }
 }

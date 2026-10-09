@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using QuestionnaireToolkit.Scripts;
@@ -6,9 +7,10 @@ using UnityEngine.UI;
 
 namespace BOforUnity.Scripts
 {
-    /// Normalized BO interface:
-    ///   param[0] = u_size ∈ [0,1]
-    ///   param[1] = u_ecc  ∈ [0,1]
+    /// Fraction BO interface (the parameter value itself is the fraction, so the configured bounds narrow
+    /// the range, e.g. TargetSize in [0.3, 0.4] keeps sizes within 30-40% of the size range):
+    ///   u_size = value of the parameter named sizeParameterKey (else the first parameter), clamped to [0,1]
+    ///   u_ecc  = value of the parameter named eccentricityParameterKey (else the second parameter), clamped to [0,1]
     /// Runtime mapping (with tighter size range for higher difficulty):
     ///   size = lerp(sizeMinAbs, sizeMaxTight, u_size)
     ///   ecc  = lerp(0, EccMaxForSize(size), u_ecc)
@@ -28,6 +30,14 @@ namespace BOforUnity.Scripts
         [Min(0.01f)] public float size = 1.0f;            // derived from u_size
         [Min(0f)]    public float eccentricity = 100f;    // derived from u_ecc
 
+        [Header("BO Keys")]
+        [Tooltip("Parameter that controls the target size. Empty: the first parameter in the manager's list.")]
+        public string sizeParameterKey = "TargetSize";
+        [Tooltip("Parameter that controls the eccentricity. Empty: the second parameter in the manager's list.")]
+        public string eccentricityParameterKey = "TargetEccentricity";
+        [Tooltip("Objective that receives the click times. Empty: the second objective in the manager's list.")]
+        public string clickTimeObjectiveKey = "AverageClickTimeMS";
+
         [Header("Outputs")]
         public List<float> clickTimes;
 
@@ -46,7 +56,7 @@ namespace BOforUnity.Scripts
             if (targetButton) targetButton.gameObject.SetActive(false);
             if (clickTimes == null) clickTimes = new List<float>();
 
-            boManager = FindObjectOfType<BoForUnityManager>();
+            boManager = BoParameterReader.FindManager();
 
             StartCoroutine(StartGame());
         }
@@ -55,11 +65,11 @@ namespace BOforUnity.Scripts
         {
             // Read normalized params from BO
             float u_size = 0.5f, u_ecc = 0.5f;
-            if (TryGetNormalizedParameterByIndex(0, out var normalizedSize))
+            if (BoParameterReader.TryGetFraction(boManager, sizeParameterKey, 0, out var normalizedSize))
             {
                 u_size = normalizedSize;
             }
-            if (TryGetNormalizedParameterByIndex(1, out var normalizedEccentricity))
+            if (BoParameterReader.TryGetFraction(boManager, eccentricityParameterKey, 1, out var normalizedEccentricity))
             {
                 u_ecc = normalizedEccentricity;
             }
@@ -120,34 +130,26 @@ namespace BOforUnity.Scripts
             if (qtManager) qtManager.StartQuestionnaire();
         }
 
-        private bool TryGetNormalizedParameterByIndex(int validIndex, out float normalizedValue)
-        {
-            normalizedValue = 0.5f;
-            if (boManager == null || boManager.parameters == null || validIndex < 0)
-                return false;
-
-            int seenValid = 0;
-            for (int i = 0; i < boManager.parameters.Count; i++)
-            {
-                var parameter = boManager.parameters[i];
-                if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
-                    continue;
-
-                if (seenValid == validIndex)
-                {
-                    normalizedValue = Mathf.Clamp01(parameter.value.Value);
-                    return true;
-                }
-                seenValid++;
-            }
-
-            return false;
-        }
-
         private bool TrySetSecondObjectiveValues(List<float> values)
         {
             if (boManager == null || boManager.objectives == null)
                 return false;
+
+            if (!string.IsNullOrWhiteSpace(clickTimeObjectiveKey))
+            {
+                string key = clickTimeObjectiveKey.Trim();
+                foreach (var candidate in boManager.objectives)
+                {
+                    if (candidate != null && candidate.value != null &&
+                        string.Equals(candidate.key?.Trim(), key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidate.value.values = values ?? new List<float>();
+                        return true;
+                    }
+                }
+
+                Debug.LogWarning($"TargetClickerEvaluator: objective '{key}' not found; using the second objective.");
+            }
 
             int seenValid = 0;
             for (int i = 0; i < boManager.objectives.Count; i++)
@@ -176,7 +178,7 @@ namespace BOforUnity.Scripts
                 return;
             }
 
-            Vector2 dir = Random.insideUnitCircle.normalized;
+            Vector2 dir = UnityEngine.Random.insideUnitCircle.normalized;
             if (dir.sqrMagnitude < 1e-6f) dir = Vector2.right;
             Vector2 pos = dir * eccPx;
 
@@ -217,6 +219,111 @@ namespace BOforUnity.Scripts
             float x = half.x - 0.5f * w * sizeVal;
             float y = half.y - 0.5f * h * sizeVal;
             return Mathf.Max(0f, Mathf.Min(x, y));
+        }
+    }
+    /// <summary>
+    /// Reads design parameters for the demo scripts: by key when one is configured (falling back to the
+    /// position in the manager's list), normalized to [0,1] with the parameter's configured bounds.
+    /// </summary>
+    public static class BoParameterReader
+    {
+        /// <summary>The persistent manager, or (before its Awake) any manager in the scene.</summary>
+        public static BoForUnityManager FindManager(BoForUnityManager preferred = null)
+        {
+            if (BoForUnityManager.Instance != null)
+                return BoForUnityManager.Instance;
+
+            return preferred != null ? preferred : UnityEngine.Object.FindAnyObjectByType<BoForUnityManager>();
+        }
+
+        public static bool TryGetParameter(
+            BoForUnityManager manager,
+            string key,
+            int fallbackIndex,
+            out ParameterEntry entry)
+        {
+            entry = null;
+            if (manager == null || manager.parameters == null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                string trimmedKey = key.Trim();
+                foreach (StringComparison comparison in new[] { StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase })
+                {
+                    foreach (var candidate in manager.parameters)
+                    {
+                        if (candidate != null && candidate.value != null &&
+                            string.Equals(candidate.key?.Trim(), trimmedKey, comparison))
+                        {
+                            entry = candidate;
+                            return true;
+                        }
+                    }
+                }
+
+                Debug.LogWarning(
+                    $"BoParameterReader: parameter '{trimmedKey}' not found; using parameter #{fallbackIndex + 1} in the list."
+                );
+            }
+
+            if (fallbackIndex < 0)
+                return false;
+
+            int seenValid = 0;
+            foreach (var candidate in manager.parameters)
+            {
+                if (candidate == null || candidate.value == null || string.IsNullOrWhiteSpace(candidate.key))
+                    continue;
+
+                if (seenValid == fallbackIndex)
+                {
+                    entry = candidate;
+                    return true;
+                }
+
+                seenValid++;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// The value mapped to [0,1] by the configured bounds (clamped). Bounds that coincide leave the value
+        /// as it is (clamped to [0,1]).
+        /// </summary>
+        public static float Normalize(ParameterArgs parameter)
+        {
+            if (parameter == null)
+                return 0.5f;
+
+            float lo = Mathf.Min(parameter.lowerBound, parameter.upperBound);
+            float hi = Mathf.Max(parameter.lowerBound, parameter.upperBound);
+            if (!(hi - lo > 1e-12f))
+                return Mathf.Clamp01(parameter.Value);
+
+            return Mathf.Clamp01((parameter.Value - lo) / (hi - lo));
+        }
+
+        /// <summary>The raw value clamped to [0,1], for parameters whose value is itself a fraction.</summary>
+        public static bool TryGetFraction(BoForUnityManager manager, string key, int fallbackIndex, out float fraction)
+        {
+            fraction = 0.5f;
+            if (!TryGetParameter(manager, key, fallbackIndex, out var entry))
+                return false;
+
+            fraction = Mathf.Clamp01(entry.value.Value);
+            return true;
+        }
+
+        public static bool TryGetNormalized(BoForUnityManager manager, string key, int fallbackIndex, out float normalized)
+        {
+            normalized = 0.5f;
+            if (!TryGetParameter(manager, key, fallbackIndex, out var entry))
+                return false;
+
+            normalized = Normalize(entry.value);
+            return true;
         }
     }
 }

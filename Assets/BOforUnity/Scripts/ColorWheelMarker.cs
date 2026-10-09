@@ -135,7 +135,9 @@ public class ColorWheelMarker : MonoBehaviour
                 Destroy(_wheelTex);
 #endif
             }
-            _wheelTex = new Texture2D(wheelSize, wheelSize, TextureFormat.RGBA32, false, true)
+            // sRGB texture (linear: false): Color.HSVToRGB yields sRGB values, like the swatch color. Marking the
+            // texture linear made the wheel look washed out next to the swatch in Linear color space projects.
+            _wheelTex = new Texture2D(wheelSize, wheelSize, TextureFormat.RGBA32, false, false)
             {
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Bilinear

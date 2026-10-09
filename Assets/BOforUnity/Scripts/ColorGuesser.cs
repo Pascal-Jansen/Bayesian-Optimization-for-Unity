@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using BOforUnity;
+using BOforUnity.Scripts;
 using QuestionnaireToolkit.Scripts;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,6 +14,11 @@ public class ColorGuesser : MonoBehaviour
     public BoForUnityManager boManager;
     public QTQuestionnaireManager qtManager;
 
+    [Header("BO Keys (empty: use the list position)")]
+    public string redParameterKey = "Color-Red";
+    public string greenParameterKey = "Color-Green";
+    public string blueParameterKey = "Color-Blue";
+
     public void Awake()
     {
         StartCoroutine(GuessingRoutine());
@@ -20,12 +26,13 @@ public class ColorGuesser : MonoBehaviour
 
     private IEnumerator GuessingRoutine()
     {
-        boManager = FindObjectOfType<BoForUnityManager>();
+        boManager = BoParameterReader.FindManager(boManager);
 
+        // By key (else list position), normalized with each parameter's bounds.
         float r = 0.5f, g = 0.5f, b = 0.5f;
-        if (!TryGetNormalizedParameterByIndex(0, out r) ||
-            !TryGetNormalizedParameterByIndex(1, out g) ||
-            !TryGetNormalizedParameterByIndex(2, out b))
+        if (!BoParameterReader.TryGetNormalized(boManager, redParameterKey, 0, out r) ||
+            !BoParameterReader.TryGetNormalized(boManager, greenParameterKey, 1, out g) ||
+            !BoParameterReader.TryGetNormalized(boManager, blueParameterKey, 2, out b))
         {
             Debug.LogWarning(
                 "ColorGuesser: Could not read three valid BO parameters for RGB. " +
@@ -59,29 +66,4 @@ public class ColorGuesser : MonoBehaviour
         
         yield return null;
     }
-
-    private bool TryGetNormalizedParameterByIndex(int validIndex, out float normalizedValue)
-    {
-        normalizedValue = 0.5f;
-        if (boManager == null || boManager.parameters == null || validIndex < 0)
-            return false;
-
-        int seenValid = 0;
-        for (int i = 0; i < boManager.parameters.Count; i++)
-        {
-            var parameter = boManager.parameters[i];
-            if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
-                continue;
-
-            if (seenValid == validIndex)
-            {
-                normalizedValue = Mathf.Clamp01(parameter.value.Value);
-                return true;
-            }
-            seenValid++;
-        }
-
-        return false;
-    }
-
 }

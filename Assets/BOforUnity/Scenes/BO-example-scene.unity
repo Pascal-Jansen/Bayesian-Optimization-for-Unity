@@ -16861,7 +16861,7 @@ MonoBehaviour:
   batchSize: 1
   numRestarts: 10
   rawSamples: 1024
-  mcSamples: 512
+  mcSamples: 128
   numSamplingIterations: 22
   numOptimizationIterations: 10
   seed: 3

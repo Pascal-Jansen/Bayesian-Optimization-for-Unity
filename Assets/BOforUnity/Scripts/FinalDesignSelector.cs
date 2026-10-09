@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 using BOforUnity;
+using QuestionnaireToolkit.Scripts;
 
 namespace BOforUnity.Scripts
 {
@@ -21,6 +22,12 @@ namespace BOforUnity.Scripts
             public float UtopiaDistance;
             public float Maximin;
             public float Aggression;
+            /// <summary>
+            /// Where the candidate pool came from: "IsPareto"/"IsBest" (the backend's flags), "computed"
+            /// (no row was flagged, so the non-dominated/best rows were computed from the participant's own
+            /// rows), or "all" (the log has no flag column).
+            /// </summary>
+            public string CandidateSource;
         }
 
         private sealed class CsvRow
@@ -73,13 +80,14 @@ namespace BOforUnity.Scripts
                 return false;
             }
 
-            if (!TryGetLatestObservationCsvPath(logRootPath, userId, conditionId, groupId, out selectedCsvPath, out error))
+            if (!TryGetLatestObservationCsvPath(logRootPath, userId, conditionId, groupId, out selectedCsvPath, out string[] lines, out error))
             {
                 return false;
             }
 
             if (!TrySelectFinalDesign(
                     selectedCsvPath,
+                    lines,
                     NormalizeContextToken(userId),
                     NormalizeContextToken(conditionId),
                     NormalizeContextToken(groupId),
@@ -95,6 +103,87 @@ namespace BOforUnity.Scripts
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Tries <paramref name="primaryLogRoot"/> (<see cref="LogDataFolderUtility.LogDataRoot"/> when null — resolve
+        /// it on the main thread) first, then each fallback root in order, and stops at the first root that yields a
+        /// selection. Roots are compared in normalized form, so duplicates and missing folders are skipped without
+        /// scanning. The search itself touches only the file system, so it may run off the main thread when the
+        /// primary root is passed explicitly.
+        /// </summary>
+        public static bool TrySelectFromLogRoots(
+            string primaryLogRoot,
+            IEnumerable<string> fallbackLogRoots,
+            string userId,
+            string conditionId,
+            string groupId,
+            IList<ParameterEntry> parameters,
+            IList<ObjectiveEntry> objectives,
+            float distanceEpsilon,
+            float maximinEpsilon,
+            float aggressionEpsilon,
+            out SelectionResult selection,
+            out string selectedCsvPath,
+            out string selectedLogRoot,
+            out string error
+        )
+        {
+            selection = null;
+            selectedCsvPath = null;
+            selectedLogRoot = null;
+            error = null;
+
+            var roots = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void AddRoot(string root)
+            {
+                if (string.IsNullOrWhiteSpace(root))
+                    return;
+
+                string normalized;
+                try
+                {
+                    normalized = LogDataFolderUtility.NormalizeRoot(root);
+                }
+                catch (Exception)
+                {
+                    return;
+                }
+
+                if (seen.Add(normalized))
+                    roots.Add(normalized);
+            }
+
+            AddRoot(primaryLogRoot ?? LogDataFolderUtility.LogDataRoot);
+            if (fallbackLogRoots != null)
+            {
+                foreach (string root in fallbackLogRoots)
+                    AddRoot(root);
+            }
+
+            var errors = new List<string>();
+            foreach (string root in roots)
+            {
+                if (!Directory.Exists(root))
+                    continue;
+
+                if (TrySelectFromLatestObservationCsv(
+                        root, userId, conditionId, groupId, parameters, objectives,
+                        distanceEpsilon, maximinEpsilon, aggressionEpsilon,
+                        out selection, out selectedCsvPath, out string rootError))
+                {
+                    selectedLogRoot = root;
+                    return true;
+                }
+
+                errors.Add(root + ": " + rootError);
+            }
+
+            error = errors.Count > 0
+                ? "No eligible observation log was found. " + string.Join(" | ", errors)
+                : "None of the log roots exists: " + string.Join(", ", roots);
+            return false;
         }
 
         private static List<ParameterEntry> BuildEffectiveParameterEntries(IList<ParameterEntry> parameters)
@@ -149,10 +238,12 @@ namespace BOforUnity.Scripts
             string conditionId,
             string groupId,
             out string csvPath,
+            out string[] csvLines,
             out string error
         )
         {
             csvPath = null;
+            csvLines = null;
             error = null;
 
             if (!Directory.Exists(logRootPath))
@@ -227,9 +318,22 @@ namespace BOforUnity.Scripts
                 if (!File.Exists(candidate))
                     continue;
 
-                if (CsvContainsContextRows(candidate, expectedUserId, expectedConditionId, expectedGroupId))
+                // Read each candidate once; the selection works on the same lines.
+                string[] lines;
+                try
+                {
+                    lines = ReadAllLinesShared(candidate);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"FinalDesignSelector: could not read '{candidate}': {ex.Message}");
+                    continue;
+                }
+
+                if (CsvContainsContextRows(lines, expectedUserId, expectedConditionId, expectedGroupId))
                 {
                     csvPath = candidate;
+                    csvLines = lines;
                     return true;
                 }
             }
@@ -251,6 +355,7 @@ namespace BOforUnity.Scripts
 
         private static bool TrySelectFinalDesign(
             string csvPath,
+            string[] lines,
             string expectedUserId,
             string expectedConditionId,
             string expectedGroupId,
@@ -266,8 +371,7 @@ namespace BOforUnity.Scripts
             selection = null;
             error = null;
 
-            string[] lines = File.ReadAllLines(csvPath);
-            if (lines.Length < 2)
+            if (lines == null || lines.Length < 2)
             {
                 error = $"Observation CSV has no data rows: {csvPath}";
                 return false;
@@ -426,17 +530,28 @@ namespace BOforUnity.Scripts
 
             NormalizeObjectives(rows, objectives);
 
+            string candidateSource = hasIsPareto ? "IsPareto" : hasIsBest ? "IsBest" : "all";
             List<CsvRow> candidateRows = rows.Where(r => r.IsCandidate).ToList();
             if (candidateRows.Count == 0)
             {
                 if (hasIsPareto || hasIsBest)
                 {
-                    error =
-                        "No candidate rows are marked in the current context. " +
-                        "All rows are non-candidates according to IsPareto/IsBest.";
-                    return false;
+                    // The backend computes the flags over warm-start + live rows but writes only this
+                    // participant's rows, so a warm-start incumbent leaves no flagged row here. Recompute the
+                    // best/non-dominated set over the participant's own rows instead of skipping the round.
+                    candidateRows = ComputeNonDominatedRows(rows, objectives);
+                    candidateSource = "computed";
                 }
-                candidateRows = rows;
+                else
+                {
+                    candidateRows = rows;
+                }
+            }
+
+            if (candidateRows.Count == 0)
+            {
+                error = "No candidate rows could be determined for the current context.";
+                return false;
             }
 
             ComputeMetrics(candidateRows, rows, parameters, objectives);
@@ -460,9 +575,91 @@ namespace BOforUnity.Scripts
                 ParameterRaw = best.ParameterRaw.ToArray(),
                 UtopiaDistance = best.UtopiaDistance,
                 Maximin = best.Maximin,
-                Aggression = best.Aggression
+                Aggression = best.Aggression,
+                CandidateSource = candidateSource
             };
             return true;
+        }
+
+        /// <summary>
+        /// Objective value as the backends compare it: clamped to the configured bounds (the backends normalize
+        /// with clamping) and oriented so that larger is better.
+        /// </summary>
+        private static float DirectedClampedObjective(float raw, ObjectiveArgs objective)
+        {
+            float lo = Mathf.Min(objective.lowerBound, objective.upperBound);
+            float hi = Mathf.Max(objective.lowerBound, objective.upperBound);
+            float value = hi > lo ? Mathf.Clamp(raw, lo, hi) : raw;
+            return objective.smallerIsBetter ? -value : value;
+        }
+
+        /// <summary>
+        /// The rows the backends would flag: for one objective every row with the best value (IsBest ties), for
+        /// several objectives the non-dominated rows, keeping only the first copy of duplicated objective vectors
+        /// (IsPareto semantics).
+        /// </summary>
+        private static List<CsvRow> ComputeNonDominatedRows(List<CsvRow> rows, IList<ObjectiveEntry> objectives)
+        {
+            int nObjs = objectives.Count;
+            var directed = new float[rows.Count][];
+            for (int r = 0; r < rows.Count; r++)
+            {
+                directed[r] = new float[nObjs];
+                for (int j = 0; j < nObjs; j++)
+                    directed[r][j] = DirectedClampedObjective(rows[r].ObjectiveRaw[j], objectives[j].value);
+            }
+
+            var result = new List<CsvRow>();
+            if (nObjs == 1)
+            {
+                float best = float.NegativeInfinity;
+                for (int r = 0; r < rows.Count; r++)
+                    best = Mathf.Max(best, directed[r][0]);
+
+                for (int r = 0; r < rows.Count; r++)
+                {
+                    if (directed[r][0] == best)
+                        result.Add(rows[r]);
+                }
+
+                return result;
+            }
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                bool keep = true;
+                for (int k = 0; k < rows.Count && keep; k++)
+                {
+                    if (k == i)
+                        continue;
+
+                    bool allGreaterOrEqual = true;
+                    bool anyGreater = false;
+                    for (int j = 0; j < nObjs; j++)
+                    {
+                        if (directed[k][j] < directed[i][j])
+                        {
+                            allGreaterOrEqual = false;
+                            break;
+                        }
+
+                        if (directed[k][j] > directed[i][j])
+                            anyGreater = true;
+                    }
+
+                    if (!allGreaterOrEqual)
+                        continue;
+
+                    // Dominated, or an exact duplicate of an earlier row.
+                    if (anyGreater || k < i)
+                        keep = false;
+                }
+
+                if (keep)
+                    result.Add(rows[i]);
+            }
+
+            return result;
         }
 
         private static void NormalizeObjectives(List<CsvRow> allRows, IList<ObjectiveEntry> objectives)
@@ -523,39 +720,18 @@ namespace BOforUnity.Scripts
                 row.Maximin = maximin;
             }
 
+            // Aggression: distance to the middle of the configured design space, every dimension normalized by
+            // its configured bounds. (Normalizing by the observed spread let a dimension the optimizer barely
+            // varied dominate the tie-break.)
             int nParams = parameters.Count;
-            float[] minParam = new float[nParams];
-            float[] maxParam = new float[nParams];
-            for (int j = 0; j < nParams; j++)
-            {
-                minParam[j] = float.PositiveInfinity;
-                maxParam[j] = float.NegativeInfinity;
-            }
-
-            foreach (var row in allRows)
-            {
-                for (int j = 0; j < nParams; j++)
-                {
-                    float v = row.ParameterRaw[j];
-                    if (v < minParam[j]) minParam[j] = v;
-                    if (v > maxParam[j]) maxParam[j] = v;
-                }
-            }
-
-            float[] baselineNormalized = new float[nParams];
-            for (int j = 0; j < nParams; j++)
-            {
-                float baselineRaw = 0.5f * (parameters[j].value.lowerBound + parameters[j].value.upperBound);
-                baselineNormalized[j] = Normalize01(baselineRaw, minParam[j], maxParam[j]);
-            }
-
             foreach (var row in candidates)
             {
                 float sq = 0f;
                 for (int j = 0; j < nParams; j++)
                 {
-                    float rowNorm = Normalize01(row.ParameterRaw[j], minParam[j], maxParam[j]);
-                    float d = rowNorm - baselineNormalized[j];
+                    float lo = Mathf.Min(parameters[j].value.lowerBound, parameters[j].value.upperBound);
+                    float hi = Mathf.Max(parameters[j].value.lowerBound, parameters[j].value.upperBound);
+                    float d = Normalize01(row.ParameterRaw[j], lo, hi) - 0.5f;
                     sq += d * d;
                 }
                 row.Aggression = Mathf.Sqrt(sq);
@@ -608,23 +784,28 @@ namespace BOforUnity.Scripts
             return string.IsNullOrEmpty(token) ? defaultToken : token;
         }
 
+        // File.ReadAllLines denies write sharing, so it fails while Excel holds the log open on Windows (and
+        // while the backend replaces it); share read/write/delete like the Python writers expect.
+        private static string[] ReadAllLinesShared(string path)
+        {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+            {
+                var lines = new List<string>();
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                    lines.Add(line);
+                return lines.ToArray();
+            }
+        }
+
         private static bool CsvContainsContextRows(
-            string csvPath,
+            string[] lines,
             string expectedUserId,
             string expectedConditionId,
             string expectedGroupId)
         {
-            string[] lines;
-            try
-            {
-                lines = File.ReadAllLines(csvPath);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (lines.Length < 2)
+            if (lines == null || lines.Length < 2)
                 return false;
 
             string[] header = SplitCsvLine(lines[0], ';');
@@ -675,29 +856,10 @@ namespace BOforUnity.Scripts
             return false;
         }
 
-        private static string NormalizeLogFolderToken(string value, string defaultToken = "-1")
+        private static string NormalizeLogFolderToken(string value)
         {
-            string token = string.IsNullOrWhiteSpace(value) ? defaultToken : value.Trim();
-            if (string.IsNullOrEmpty(token))
-                token = defaultToken;
-
-            var sb = new StringBuilder(token.Length);
-            for (int i = 0; i < token.Length; i++)
-            {
-                char ch = token[i];
-                bool invalid =
-                    ch < 32 ||
-                    ch == '/' || ch == '\\' ||
-                    ch == ':' || ch == '*' || ch == '?' ||
-                    ch == '"' || ch == '<' || ch == '>' || ch == '|';
-                sb.Append(invalid ? '_' : ch);
-            }
-
-            string cleaned = sb.ToString().Trim().Trim('.');
-            if (string.IsNullOrEmpty(cleaned) || cleaned == "." || cleaned == "..")
-                return defaultToken;
-
-            return cleaned;
+            // Must match the folder names the writers create (control characters 0x00-0x1F and 0x7F-0x9F too).
+            return LogDataFolderUtility.NormalizeLogFolderToken(value);
         }
 
         private static bool IsFinite(float value)

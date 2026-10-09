@@ -8,6 +8,18 @@ namespace BOforUnity.Scripts
     {
         private static readonly Queue<Action> ExecutionQueue = new Queue<Action>();
 
+        // The queue is static: with domain reload disabled ("Enter Play Mode Options"), actions queued by the
+        // previous session's socket thread (e.g. a connection failure during play mode exit) would otherwise run
+        // against the next session's manager.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            lock (ExecutionQueue)
+            {
+                ExecutionQueue.Clear();
+            }
+        }
+
         private void Update()
         {
             // Dequeue outside the lock so background Execute() calls are not

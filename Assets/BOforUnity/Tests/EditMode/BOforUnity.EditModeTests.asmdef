@@ -2,7 +2,9 @@
     "name": "BOforUnity.EditModeTests",
     "rootNamespace": "BOforUnity.Tests.EditMode",
     "references": [
-        "BOforUnity.Runtime"
+        "BOforUnity.Runtime",
+        "BOforUnity.Examples",
+        "QuestionnaireToolkit.Runtime"
     ],
     "includePlatforms": [
         "Editor"

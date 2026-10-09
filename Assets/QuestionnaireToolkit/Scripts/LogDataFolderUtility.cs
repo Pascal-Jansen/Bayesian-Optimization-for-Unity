@@ -15,6 +15,110 @@ namespace QuestionnaireToolkit.Scripts
         public static string StreamingAssetsLogRoot =>
             Path.Combine(Application.streamingAssetsPath, "BOData", "LogData");
 
+        public static string PersistentLogRoot =>
+            Path.Combine(Application.persistentDataPath, "BOData", "LogData");
+
+        private static string _resolvedLogDataRoot;
+
+        /// <summary>
+        /// The log root every writer (Python backends, questionnaires, example telemetry, final-design row)
+        /// uses: <c>StreamingAssets/BOData/LogData</c> in the Editor and in builds where it is writable, otherwise
+        /// <c>persistentDataPath/BOData/LogData</c> (installed or translocated players, where StreamingAssets is
+        /// read-only). Resolved once per session so all writers agree.
+        /// </summary>
+        public static string LogDataRoot
+        {
+            get
+            {
+                if (_resolvedLogDataRoot != null)
+                    return _resolvedLogDataRoot;
+                _resolvedLogDataRoot = ResolveLogDataRoot();
+                return _resolvedLogDataRoot;
+            }
+        }
+
+        private static string ResolveLogDataRoot()
+        {
+            string streamingRoot = StreamingAssetsLogRoot;
+            if (Application.isEditor || IsWritableDirectory(streamingRoot))
+                return streamingRoot;
+
+            string persistentRoot = PersistentLogRoot;
+            Debug.LogWarning(
+                $"LogData folder '{streamingRoot}' is not writable in this build; logging to '{persistentRoot}' instead."
+            );
+            return persistentRoot;
+        }
+
+        private static bool IsWritableDirectory(string directory)
+        {
+            try
+            {
+                Directory.CreateDirectory(directory);
+                string probe = Path.Combine(directory, ".write_probe_" + Guid.NewGuid().ToString("N"));
+                File.WriteAllText(probe, string.Empty);
+                File.Delete(probe);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Static state survives play sessions when "Enter Play Mode Options" disable domain reload; a stale
+        // reservation would hand the next session the previous run's folder without checking the disk.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            lock (UserFolderLock)
+            {
+                ReservedUserFoldersByCondition.Clear();
+            }
+
+            _resolvedLogDataRoot = null;
+        }
+
+        /// <summary>
+        /// Canonical form of a log root (absolute, no trailing separator), so that <c>.../LogData</c> and
+        /// <c>.../LogData/</c> are the same root for folder reservations. Every caller that compares or keys
+        /// log roots must go through this.
+        /// </summary>
+        public static string NormalizeRoot(string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+                return root;
+
+            string fullPath = Path.GetFullPath(root.Trim());
+            string pathRoot = Path.GetPathRoot(fullPath) ?? string.Empty;
+            string trimmed = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            // Keep the separator of a bare drive/file-system root ("/", "C:\").
+            return trimmed.Length < pathRoot.Length ? pathRoot : trimmed;
+        }
+
+        public static bool IsSameRoot(string a, string b)
+        {
+            if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+                return false;
+
+            return string.Equals(NormalizeRoot(a), NormalizeRoot(b), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Maps a directory that resolves to the project's <c>StreamingAssets/BOData/LogData</c> folder to
+        /// <see cref="LogDataRoot"/> (which falls back to persistentDataPath where StreamingAssets is read-only),
+        /// so questionnaires and the optimizer share one root. Other directories are returned normalized.
+        /// </summary>
+        public static string RedirectDefaultLogRoot(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+                return NormalizeRoot(LogDataRoot);
+
+            return IsSameRoot(directory, StreamingAssetsLogRoot)
+                ? NormalizeRoot(LogDataRoot)
+                : NormalizeRoot(directory);
+        }
+
         public static string GetOrCreateUserFolderTokenForCondition(
             string logRoot,
             string requestedUserId,
@@ -22,8 +126,7 @@ namespace QuestionnaireToolkit.Scripts
             bool allowExistingRequestedUserFolder = false,
             bool allowExistingConditionFolder = false)
         {
-            string root = string.IsNullOrWhiteSpace(logRoot) ? StreamingAssetsLogRoot : logRoot;
-            string normalizedRoot = Path.GetFullPath(root);
+            string normalizedRoot = NormalizeRoot(string.IsNullOrWhiteSpace(logRoot) ? LogDataRoot : logRoot);
             string baseToken = NormalizeLogFolderToken(requestedUserId);
             string conditionToken = NormalizeLogFolderToken(conditionId);
             string reservationKey = GetReservationKey(normalizedRoot, baseToken, conditionToken);

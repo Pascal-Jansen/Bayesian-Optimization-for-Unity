@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using BOforUnity.Scripts;
 using QuestionnaireToolkit.Scripts;
 using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.SceneManagement;
 #endif
 using UnityEngine;
 using UnityEngine.Events;
@@ -99,7 +101,13 @@ namespace BOforUnity
         public SocketNetwork socketNetwork;
 
         private static BoForUnityManager _instance;
-        
+
+        /// <summary>
+        /// The persistent manager that runs the study (null before the first manager's Awake). Duplicate managers
+        /// in reloaded scenes are discarded, so scripts should use this instead of searching the scene.
+        /// </summary>
+        public static BoForUnityManager Instance => _instance;
+
         //-----------------------------------------------
         // DESIGN PARAMETERS and DESIGN OBJECTIVES
         public List<ParameterEntry> parameters = new List<ParameterEntry>();
@@ -110,6 +118,18 @@ namespace BOforUnity
         // ITERATION CONTROLLER
         [SerializeField]
         public int currentIteration;  // Current iteration value.
+        /// <summary>
+        /// The Iteration value Python will log the current design under in ObservationsPerEvaluation.csv
+        /// (global index: warm-start rows and sampling included), or -1 when the backend did not send it.
+        /// Use this to join Unity-side logs with the Python logs.
+        /// </summary>
+        public int LastSuggestionLogIteration { get; internal set; } = -1;
+        /// <summary>
+        /// The Iteration value the finaldesign row will be logged under in ObservationsPerEvaluation.csv (one past the
+        /// last Iteration logged for this User/Condition/Group), or -1 until the final design has been selected.
+        /// Use it to log the final round in Unity-side logs.
+        /// </summary>
+        public int FinalDesignLogIteration { get; private set; } = -1;
         public int totalIterations;
         public bool perfectRating;   // Flag indicating perfect rating.
         public bool perfectRatingStart;  // Flag indicating the start of perfect rating.
@@ -122,7 +142,9 @@ namespace BOforUnity
         public int batchSize = 1;
         public int numRestarts = 10;
         public int rawSamples = 1024;
-        public int mcSamples = 512;
+        // 128 QMC samples: 2.4-9x faster multi-objective suggestions than 512 for 2-5 objectives, with
+        // candidates within 3e-3 (unit cube) of the 512-sample ones.
+        public int mcSamples = 128;
         public int numSamplingIterations = 4; // Auto-default is 2(d+1), where d is the number of design parameters.
         public int numOptimizationIterations = 10;
         public int seed = 3;
@@ -219,6 +241,19 @@ namespace BOforUnity
 
         public bool hasNewDesignParameterValues;
         private bool _runtimeUserFolderReserved = false;
+        // User/condition IDs the folder was resolved for (the resolved token is written back to userId), so a
+        // later change by code is noticed and resolved again.
+        private string _resolvedFolderUserId;
+        private string _resolvedFolderConditionId;
+        // Configuration as this manager was created (before folder resolution rewrote userId and before code
+        // reconfigured it); a discarded duplicate from a reloaded scene is compared against it.
+        private bool _configurationCaptured;
+        private List<string> _configuredParameterKeys;
+        private List<string> _configuredObjectiveKeys;
+        private OptimizerBackend _configuredBackend;
+        private string _configuredUserId;
+        private string _configuredConditionId;
+        private string _configuredGroupId;
         private bool _pendingAdvanceRequest = false;
         private bool _loopTerminated = false;
         private Coroutine _automaticAdvanceCoroutine = null;
@@ -232,20 +267,34 @@ namespace BOforUnity
         //-----------------------------------------------
         
         //-----------------------------------------------
+        // Static state survives play sessions when "Enter Play Mode Options" disable domain reload; a stale
+        // instance would make the next session's manager discard itself.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            _instance = null;
+        }
+
         private void Awake()
         {
-            SyncSamplingIterationDefaults();
-
             // If there is already an instance of this object, destroy the new one
-            if (_instance != null)
+            if (_instance != null && _instance != this)
             {
+                WarnIfDiscardedManagerDiffers(_instance);
+                // Destroy is deferred to the end of the frame. Deactivate first so scripts of the reloaded scene
+                // cannot find (and bind to) this doomed copy in their Awake/Start, and its PythonStarter and
+                // SocketNetwork never start.
+                gameObject.SetActive(false);
                 Destroy(gameObject);
                 return;
             }
             // Mark this object as the single instance and make it persistent
             _instance = this;
             DontDestroyOnLoad(gameObject);
-            
+
+            SyncSamplingIterationDefaults();
+            CaptureConfiguration();
+
             pythonStarter = gameObject.GetComponent<PythonStarter>();
             optimizer = gameObject.GetComponent<Optimizer>();
             mainThreadDispatcher = gameObject.GetComponent<MainThreadDispatcher>();
@@ -261,6 +310,66 @@ namespace BOforUnity
 
             currentIteration = 1;
             totalIterations = GetConfiguredTotalIterations(); // set how many iterations the optimizer should run for
+
+            // The log folder is not reserved here: Awake order is undefined, and scripts commonly set the IDs (or
+            // disable this manager for a baseline condition) in their own Awake. Reserving now would create
+            // LogData/<serialized user>/<serialized condition> on disk, which later forces a suffixed user folder
+            // when that participant runs that condition. Start reserves it, and UserId resolves it on first use
+            // (a questionnaire that initializes before Start gets the final token).
+        }
+
+        private void CaptureConfiguration()
+        {
+            if (_configurationCaptured)
+                return;
+            _configurationCaptured = true;
+            _configuredParameterKeys = NormalizedKeys(parameters?.Select(p => p?.key));
+            _configuredObjectiveKeys = NormalizedKeys(objectives?.Select(o => o?.key));
+            _configuredBackend = optimizerBackend;
+            _configuredUserId = userId;
+            _configuredConditionId = conditionId;
+            _configuredGroupId = groupId;
+        }
+
+        private void WarnIfDiscardedManagerDiffers(BoForUnityManager running)
+        {
+            running.CaptureConfiguration();
+            var differences = new List<string>();
+            if (!NormalizedKeys(parameters?.Select(p => p?.key))
+                    .SequenceEqual(running._configuredParameterKeys, StringComparer.OrdinalIgnoreCase))
+                differences.Add("parameter keys");
+            if (!NormalizedKeys(objectives?.Select(o => o?.key))
+                    .SequenceEqual(running._configuredObjectiveKeys, StringComparer.OrdinalIgnoreCase))
+                differences.Add("objective keys");
+            if (optimizerBackend != running._configuredBackend)
+                differences.Add($"backend ({optimizerBackend} vs. {running._configuredBackend})");
+            if (!SameId(userId, running._configuredUserId))
+                differences.Add("User ID");
+            if (!SameId(conditionId, running._configuredConditionId))
+                differences.Add("Condition ID");
+            if (!SameId(groupId, running._configuredGroupId))
+                differences.Add("Group ID");
+
+            if (differences.Count == 0)
+                return;
+
+            Debug.LogWarning(
+                $"BoForUnityManager in scene '{gameObject.scene.name}' was discarded because the manager from scene " +
+                $"'{running.gameObject.scene.name}' persists across scene loads and keeps running. The discarded " +
+                $"manager is configured differently ({string.Join(", ", differences)}), but the running manager's " +
+                "configuration stays in effect. To run another condition, start a new play session/application run, " +
+                "or destroy BoForUnityManager.Instance's GameObject before loading the next condition scene."
+            );
+        }
+
+        private static List<string> NormalizedKeys(IEnumerable<string> keys)
+        {
+            return (keys ?? Enumerable.Empty<string>()).Select(k => (k ?? string.Empty).Trim()).ToList();
+        }
+
+        private static bool SameId(string a, string b)
+        {
+            return string.Equals((a ?? string.Empty).Trim(), (b ?? string.Empty).Trim(), StringComparison.Ordinal);
         }
 
         private void OnValidate()
@@ -271,6 +380,12 @@ namespace BOforUnity
         
         void Start()
         {
+            // A startup error reported before this Start (TerminateWithError, e.g. from the launcher) keeps its
+            // message on screen instead of being replaced by the loading state.
+            if (_loopTerminated)
+                return;
+
+            // Idempotent; resolves again only if code changed the IDs after an earlier resolution (UserId).
             EnsureUniqueRuntimeUserFolder();
             EnsureNextButtonListener();
             SetLoadingVisible(true);
@@ -288,6 +403,7 @@ namespace BOforUnity
             _finalDesignRoundInProgress = false;
             _finalDesignRoundLogged = false;
             _finalDesignObservationCsvPath = null;
+            FinalDesignLogIteration = -1;
             ClearPriorSliderRatingHints();
             ClearPriorLinearScaleRatingHints();
             // Start each run from a clean measurement state so the first objective payload
@@ -316,7 +432,9 @@ namespace BOforUnity
 
         public GameObject welcomePanel;
         public GameObject optimizerStatePanel;
-        
+        [Tooltip("Optional. Shows \"Iteration x / N\" (or \"Final design\") whenever a new design is ready.")]
+        public TMP_Text progressText;
+
         public bool optimizationRunning = false;
         public bool optimizationFinished = false;
 
@@ -397,10 +515,7 @@ namespace BOforUnity
             if (socketNetwork == null)
             {
                 Debug.LogError("OptimizationStart failed because SocketNetwork is not assigned.");
-                SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
-                SetLoadingVisible(false);
-                SetNextButtonVisible(false);
-                SetOutputText("Optimizer connection is not configured.\nCheck the manager setup and logs.");
+                TerminateWithError("Optimizer connection is not configured.\nCheck the manager setup and logs.");
                 return;
             }
 
@@ -419,18 +534,9 @@ namespace BOforUnity
             catch (Exception e)
             {
                 Debug.LogError($"OptimizationStart failed while sending objectives: {e.Message}");
-                SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
-                SetLoadingVisible(false);
-                SetNextButtonVisible(false);
-                SetOutputText("Could not send objective values to the optimizer. Check configuration and logs.");
-                try
-                {
-                    socketNetwork?.SocketQuit();
-                }
-                catch (Exception quitEx)
-                {
-                    Debug.LogWarning($"SocketQuit failed after objective-send error: {quitEx.Message}");
-                }
+                // Ends the loop as well (status panel, pending automatic advance, Python stopped): the evaluation
+                // cannot reach the optimizer, and a second OptimizationStart must not try again.
+                TerminateWithError("Could not send objective values to the optimizer. Check configuration and logs.");
                 return;
             }
             hasNewDesignParameterValues = false; // the current design parameter values are obsolete
@@ -459,15 +565,53 @@ namespace BOforUnity
 
         public void OnOptimizationFinishedFromBackend()
         {
-            if (_loopTerminated)
+            // optimizationFinished is already set when the run ended early (perfect rating) and the final-design
+            // round was prepared; a late message must not select the final design a second time.
+            if (_loopTerminated || optimizationFinished)
                 return;
 
             Debug.Log(">>>>>> Optimization finished!");
             optimizationFinished = true;
+            EnterFinalDesignRoundOrComplete();
+        }
+
+        /// <summary>
+        /// Ends the study with <paramref name="statusText"/> on screen: shows the status panel that holds the output
+        /// text, hides loading and Next, cancels a pending automatic advance, ignores further advance requests and
+        /// stops the optimizer connection and the Python process. Does nothing once the loop has ended.
+        /// </summary>
+        public void TerminateWithError(string statusText)
+        {
+            if (_loopTerminated)
+                return;
+
+            Debug.LogError("BoForUnityManager: the study was stopped. " + statusText);
+            CompleteLoop(
+                string.IsNullOrWhiteSpace(statusText)
+                    ? "Optimizer connection failed.\nCheck parameter/objective configuration and Python logs, then restart."
+                    : statusText
+            );
+        }
+
+        private void EnterFinalDesignRoundOrComplete()
+        {
             if (!enableFinalDesignRound)
             {
                 CompleteLoop();
                 return;
+            }
+
+            // The backend's part is over (it sent optimization_finished or was told to stop); the final round is
+            // evaluated in Unity only. End the session now: SocketQuit lets Python exit by itself (saving logs that
+            // were locked) within its grace period, so the selection below reads finished logs, and Python's exit
+            // cannot be reported as a crash while the participant evaluates the final design.
+            try
+            {
+                socketNetwork?.SocketQuit();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"SocketQuit failed before the final design round: {e.Message}");
             }
 
             if (!TryPrepareFinalDesignRound(out var selectionError))
@@ -502,6 +646,22 @@ namespace BOforUnity
                 Debug.LogError("PythonInitializationDone failed because SocketNetwork is not assigned.");
                 return;
             }
+
+            // Last check before the init message: these settings would otherwise crash the backend at init or,
+            // worse, after the participant finished the sampling phase. Code may have changed the configuration
+            // since Awake, so check it now rather than at startup.
+            EnsureUniqueRuntimeUserFolder();
+            if (!BoConfigValidator.TryValidate(this, out string configError))
+            {
+                TerminateWithError("Invalid optimizer configuration.\n" + configError);
+                return;
+            }
+            if (reloadSceneOnIterationAdvance && !CanReloadScene(SceneManager.GetActiveScene()))
+            {
+                TerminateWithError(GetSceneNotReloadableMessage(SceneManager.GetActiveScene()));
+                return;
+            }
+
             socketNetwork.InitSocket();
         }
 
@@ -513,6 +673,7 @@ namespace BOforUnity
             hasNewDesignParameterValues = true;
             optimizationRunning = false;
             simulationRunning = false;
+            UpdateProgressText();
 
             if (!string.IsNullOrWhiteSpace(nextButtonText))
                 SetNextButtonText(nextButtonText);
@@ -601,27 +762,20 @@ namespace BOforUnity
             // Lock progression until new parameters arrive from the backend.
             hasNewDesignParameterValues = false;
 
-            if (currentIteration == 0)
-            {
-                SetWelcomePanelVisible(false);
-                SetOptimizerStatePanelVisible(false);
-                SetLoadingVisible(false);
-                return;
-            }
-
             if (_finalDesignRoundPrepared)
             {
                 _finalDesignRoundPrepared = false;
                 _finalDesignRoundInProgress = true;
                 ClearObjectiveMeasurements();
 
-                Debug.Log("--------------------------------------Current Iteration (Final Design Round): " + currentIteration);
+                Debug.Log("--------------------------------------Current Iteration (Final Design Round): " +
+                          currentIteration.ToString(CultureInfo.InvariantCulture));
                 simulationRunning = true;
                 SetOptimizerStatePanelVisible(false);
 
                 if (reloadSceneOnIterationAdvance)
                 {
-                    SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                    ReloadActiveScene();
                 }
                 else
                 {
@@ -630,13 +784,19 @@ namespace BOforUnity
                 return;
             }
 
-            bool isPerfect = ShouldStopForPerfectRating();
-            if (isPerfect)
+            if (ShouldStopForPerfectRating())
             {
                 Debug.Log(">>>>> Perfect Rating");
+                // Python already proposed the next design; tell it the run ends here so it exits cleanly
+                // (and logs why) instead of being killed while it waits for objectives. The final-design round
+                // applies after an early stop exactly as after a full run.
+                optimizationFinished = true;
+                socketNetwork?.SendStop("perfect_rating");
+                EnterFinalDesignRoundOrComplete();
+                return;
             }
 
-            if (optimizationFinished || currentIteration > totalIterations || isPerfect)
+            if (optimizationFinished || currentIteration > totalIterations)
             {
                 CompleteLoop();
                 return;
@@ -645,19 +805,70 @@ namespace BOforUnity
             // hide the panel as the next iteration starts after scene transition
             SetOptimizerStatePanelVisible(false);
 
-            Debug.Log("--------------------------------------Current Iteration: " + currentIteration);
+            Debug.Log("--------------------------------------Current Iteration: " +
+                      currentIteration.ToString(CultureInfo.InvariantCulture));
 
             ClearObjectiveMeasurements();
             simulationRunning = true; // waiting for the simulation to finish
 
             if (reloadSceneOnIterationAdvance)
             {
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name); // reload scene
+                ReloadActiveScene(); // reload scene
             }
             else
             {
                 SetLoadingVisible(false);
             }
+        }
+
+        private void ReloadActiveScene()
+        {
+            // Reload by build index: loading by name picks the first Build Settings scene with that name (another
+            // folder's scene of the same name), and a scene missing from Build Settings is never loaded by name,
+            // which left the loading screen up forever.
+            Scene scene = SceneManager.GetActiveScene();
+            if (!CanReloadScene(scene))
+            {
+                TerminateWithError(GetSceneNotReloadableMessage(scene));
+                return;
+            }
+
+            if (scene.buildIndex >= 0)
+            {
+                SceneManager.LoadScene(scene.buildIndex);
+                return;
+            }
+
+#if UNITY_EDITOR
+            // Not in the Build Profiles scene list (the example scenes are not): the Editor reloads it by asset path.
+            EditorSceneManager.LoadSceneInPlayMode(scene.path, new LoadSceneParameters(LoadSceneMode.Single));
+#else
+            // A player scene without build index comes from an AssetBundle; those load by their asset path.
+            SceneManager.LoadScene(scene.path);
+#endif
+        }
+
+        private static bool CanReloadScene(Scene scene)
+        {
+            return scene.buildIndex >= 0 || !string.IsNullOrEmpty(scene.path);
+        }
+
+        private static string GetSceneNotReloadableMessage(Scene scene)
+        {
+            return
+                $"Scene '{scene.name}' has no build index and no asset path, so it cannot be reloaded for the next " +
+                "iteration.\nAdd it under File > Build Profiles (Scene List), or disable Reload Scene On Advance.";
+        }
+
+        private void UpdateProgressText()
+        {
+            if (progressText == null)
+                return;
+
+            progressText.text = _finalDesignRoundPrepared || _finalDesignRoundInProgress
+                ? "Final design"
+                : "Iteration " + currentIteration.ToString(CultureInfo.InvariantCulture) + " / " +
+                  Mathf.Max(currentIteration, totalIterations).ToString(CultureInfo.InvariantCulture);
         }
 
         private void ClearObjectiveMeasurements()
@@ -734,7 +945,8 @@ namespace BOforUnity
         {
             if (automaticAdvanceDelaySec > 0f)
             {
-                yield return new WaitForSeconds(automaticAdvanceDelaySec);
+                // Real time: a scene that pauses with Time.timeScale = 0 must not stall the study forever.
+                yield return new WaitForSecondsRealtime(automaticAdvanceDelaySec);
             }
 
             _automaticAdvanceCoroutine = null;
@@ -759,6 +971,8 @@ namespace BOforUnity
 
             simulationRunning = false;
             optimizationRunning = false;
+            hasNewDesignParameterValues = false;
+            _waitingForPythonProcess = false;
 
             SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
             SetLoadingVisible(false);
@@ -871,12 +1085,6 @@ namespace BOforUnity
                 optimizerStatePanel.SetActive(visible);
         }
 
-        private void SetWelcomePanelVisible(bool visible)
-        {
-            if (welcomePanel != null)
-                welcomePanel.SetActive(visible);
-        }
-
         private void SetOutputText(string value)
         {
             if (outputText != null)
@@ -961,6 +1169,7 @@ namespace BOforUnity
 
         private bool TryPrepareFinalDesignRound(out string error)
         {
+            FinalDesignLogIteration = -1;
             _finalDesignRoundPrepared = false;
             _finalDesignRoundInProgress = false;
             _finalDesignRoundLogged = false;
@@ -974,47 +1183,36 @@ namespace BOforUnity
                 return false;
             }
 
-            FinalDesignSelector.SelectionResult selected = null;
-            string selectedCsvPath = null;
-            string selectionError = null;
-
+            // The first candidate lies below the log root Python writes to (LogDataFolderUtility.LogDataRoot): this
+            // condition's folder, or its CABOP/<mode> folder for CABOP. The rest are fallbacks (the root itself,
+            // StreamingAssets/persistentDataPath roots of builds that fell back, legacy and CABOP layouts).
             string[] logRootCandidates = GetFinalDesignLogRootCandidates();
-            bool selectedFromAnyRoot = false;
-            foreach (string logRoot in logRootCandidates)
+            if (!FinalDesignSelector.TrySelectFromLogRoots(
+                    primaryLogRoot: logRootCandidates[0],
+                    fallbackLogRoots: logRootCandidates.Skip(1),
+                    userId: userId,
+                    conditionId: conditionId,
+                    groupId: groupId,
+                    parameters: effectiveParameters,
+                    objectives: effectiveObjectives,
+                    distanceEpsilon: finalDesignDistanceEpsilon,
+                    maximinEpsilon: finalDesignMaximinEpsilon,
+                    aggressionEpsilon: finalDesignAggressionEpsilon,
+                    selection: out FinalDesignSelector.SelectionResult selected,
+                    selectedCsvPath: out string selectedCsvPath,
+                    selectedLogRoot: out string selectedLogRoot,
+                    error: out string selectionError))
             {
-                if (FinalDesignSelector.TrySelectFromLatestObservationCsv(
-                        logRootPath: logRoot,
-                        userId: userId,
-                        conditionId: conditionId,
-                        groupId: groupId,
-                        parameters: effectiveParameters,
-                        objectives: effectiveObjectives,
-                        distanceEpsilon: finalDesignDistanceEpsilon,
-                        maximinEpsilon: finalDesignMaximinEpsilon,
-                        aggressionEpsilon: finalDesignAggressionEpsilon,
-                        selection: out selected,
-                        selectedCsvPath: out selectedCsvPath,
-                        error: out selectionError))
-                {
-                    selectedFromAnyRoot = true;
-                    if (!string.Equals(logRoot, logRootCandidates[0], StringComparison.Ordinal))
-                    {
-                        Debug.LogWarning(
-                            "Final design selector used fallback log root: " +
-                            $"{logRoot}. Primary path was: {logRootCandidates[0]}"
-                        );
-                    }
-                    break;
-                }
+                error = selectionError;
+                return false;
             }
 
-            if (!selectedFromAnyRoot)
+            string primaryRoot = LogDataFolderUtility.NormalizeRoot(logRootCandidates[0]);
+            if (!string.Equals(selectedLogRoot, primaryRoot, StringComparison.OrdinalIgnoreCase))
             {
-                error =
-                    "No eligible observation log was found in any known log root. " +
-                    "Last error: " + selectionError + ". " +
-                    "Checked roots: " + string.Join(", ", logRootCandidates);
-                return false;
+                Debug.LogWarning(
+                    $"Final design selector used fallback log root: {selectedLogRoot}. Primary path was: {primaryRoot}"
+                );
             }
 
             if (selected == null || selected.ParameterRaw == null)
@@ -1062,57 +1260,68 @@ namespace BOforUnity
             _finalDesignRoundInProgress = false;
             _finalDesignRoundLogged = false;
             _finalDesignObservationCsvPath = selectedCsvPath;
+            // Fixed now so scripts can log the final round under the same Iteration before the row is written.
+            FinalDesignLogIteration = ResolveFinalDesignLogIteration(selectedCsvPath);
 
             Debug.Log(
                 "Selected final design for last evaluation round: " +
-                $"iteration={selected.Iteration}, utopiaDist={selected.UtopiaDistance}, " +
-                $"maximin={selected.Maximin}, aggression={selected.Aggression}, csv={selectedCsvPath}"
+                $"iteration={selected.Iteration}, candidates={selected.CandidateSource}, " +
+                $"utopiaDist={selected.UtopiaDistance}, maximin={selected.Maximin}, " +
+                $"aggression={selected.Aggression}, logIteration={FinalDesignLogIteration}, csv={selectedCsvPath}"
             );
+            if (selected.CandidateSource == "computed" || selected.CandidateSource == "all")
+            {
+                Debug.LogWarning(
+                    $"The observation log has no IsBest/IsPareto flags for this run (candidates={selected.CandidateSource}: " +
+                    "the best/non-dominated rows were computed in Unity, or all rows were used), so the final design " +
+                    $"was not chosen from the backend's flags. Check that the backend finished writing {selectedCsvPath}."
+                );
+            }
 
             error = null;
             return true;
         }
 
+        // Excel keeps an open CSV locked for writing on Windows; retry briefly before using a fallback file.
+        private const int FinalDesignAppendAttempts = 5;
+        private const int FinalDesignAppendRetryDelayMs = 200;
+        private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
+
         private bool TryAppendFinalDesignObservationRow(out string error)
         {
             error = null;
+            string csvPath = _finalDesignObservationCsvPath;
 
-            if (string.IsNullOrWhiteSpace(_finalDesignObservationCsvPath))
+            if (string.IsNullOrWhiteSpace(csvPath))
             {
                 error = "Final-design CSV path is empty.";
                 return false;
             }
-            if (!File.Exists(_finalDesignObservationCsvPath))
+            if (!File.Exists(csvPath))
             {
-                error = $"Final-design CSV does not exist: {_finalDesignObservationCsvPath}";
+                error = $"Final-design CSV does not exist: {csvPath}";
                 return false;
             }
 
-            string headerLine;
+            List<string> lines;
             try
             {
-                headerLine = File.ReadLines(_finalDesignObservationCsvPath).FirstOrDefault();
+                lines = ReadLinesShared(csvPath);
             }
             catch (Exception ex)
             {
-                error = $"Could not read CSV header: {ex.Message}";
+                error = $"Could not read CSV: {ex.Message}";
                 return false;
             }
 
+            string headerLine = lines.Count > 0 ? lines[0].Trim('\uFEFF') : null;
             if (string.IsNullOrWhiteSpace(headerLine))
             {
                 error = "Observation CSV has no header.";
                 return false;
             }
 
-            string[] header = headerLine.Split(';');
-            if (header.Length == 0)
-            {
-                error = "Observation CSV header is empty.";
-                return false;
-            }
-
-            header[0] = header[0].Trim('\uFEFF');
+            string[] header = SplitCsvLine(headerLine);
             var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < header.Length; i++)
             {
@@ -1129,20 +1338,59 @@ namespace BOforUnity
                     row[idx] = value ?? string.Empty;
             }
 
-            SetColumn("UserID", userId);
-            SetColumn("ConditionID", conditionId);
-            SetColumn("GroupID", groupId);
+            SetColumn("UserID", LogIdToken(userId));
+            SetColumn("ConditionID", LogIdToken(conditionId));
+            SetColumn("GroupID", LogIdToken(groupId));
             SetColumn("Timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
-            SetColumn("Iteration", currentIteration.ToString(CultureInfo.InvariantCulture));
+            if (FinalDesignLogIteration < 0)
+                FinalDesignLogIteration = ResolveFinalDesignLogIteration(lines, columnIndex);
+            SetColumn("Iteration", FinalDesignLogIteration.ToString(CultureInfo.InvariantCulture));
             SetColumn("Phase", "finaldesign");
+            if (contextualOptimization)
+                SetColumn(BoConfigValidator.ContextLogColumn, GetCurrentContextKeyForLogging());
             SetColumn("IsPareto", "NULL");
             SetColumn("IsBest", "NULL");
 
             var effectiveObjectives = BuildEffectiveObjectiveEntries(objectives, "finaldesign logging");
             foreach (var objective in effectiveObjectives)
             {
-                float objectiveValue = GetObjectiveAverageForLogging(objective);
-                SetColumn(objective.key, FormatCsvFloat(objectiveValue));
+                // The same reduction SendObjectives uses for the values Python receives.
+                var arg = objective.value;
+                var aggregate = BoObjectiveMath.Aggregate(arg.values, arg.numberOfSubMeasures, arg.lowerBound, arg.upperBound);
+                if (aggregate.UsedMidpointFallback)
+                {
+                    Debug.LogWarning(
+                        $"Objective '{objective.key}' has no numeric values during finaldesign logging. " +
+                        $"Using midpoint fallback {BoObjectiveMath.FormatCsvFloat(aggregate.Value)}."
+                    );
+                }
+                else
+                {
+                    if (aggregate.FiniteCount < aggregate.WindowCount)
+                    {
+                        Debug.LogWarning(
+                            $"Objective '{objective.key}': ignoring {aggregate.WindowCount - aggregate.FiniteCount} " +
+                            $"non-numeric sub-measure(s) during finaldesign logging and averaging the remaining {aggregate.FiniteCount}."
+                        );
+                    }
+                    if (aggregate.Clamped)
+                    {
+                        Debug.LogWarning(
+                            $"Objective '{objective.key}' value {BoObjectiveMath.FormatCsvFloat(aggregate.UnclampedValue)} is " +
+                            "outside its configured bounds during finaldesign logging. " +
+                            $"Clamped to {BoObjectiveMath.FormatCsvFloat(aggregate.Value)}."
+                        );
+                    }
+                }
+                if (aggregate.DroppedCount > 0)
+                {
+                    Debug.LogWarning(
+                        $"Objective '{objective.key}': {aggregate.DroppedCount} older sub-measure(s) beyond Number Of " +
+                        "Sub Measures were not part of the finaldesign value."
+                    );
+                }
+
+                SetColumn(objective.key, BoObjectiveMath.FormatCsvFloat(aggregate.Value));
             }
 
             var effectiveParameters = BuildEffectiveParameterEntries(parameters, "finaldesign logging");
@@ -1152,7 +1400,7 @@ namespace BOforUnity
                     continue;
 
                 float rawValue = parameter.value.Value;
-                if (!IsFinite(rawValue))
+                if (!BoObjectiveMath.IsFinite(rawValue))
                 {
                     float fallback = 0.5f * (parameter.value.lowerBound + parameter.value.upperBound);
                     Debug.LogWarning(
@@ -1174,23 +1422,14 @@ namespace BOforUnity
                     );
                 }
 
-                SetColumn(parameter.key, FormatCsvFloat(rawValue));
+                SetColumn(parameter.key, BoObjectiveMath.FormatCsvFloat(rawValue));
             }
 
             string rowLine = string.Join(";", row.Select(EscapeCsvCell));
-            string prefix = string.Empty;
+            string prefix;
             try
             {
-                using (var fs = new FileStream(_finalDesignObservationCsvPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    if (fs.Length > 0)
-                    {
-                        fs.Seek(-1, SeekOrigin.End);
-                        int last = fs.ReadByte();
-                        if (last != '\n' && last != '\r')
-                            prefix = Environment.NewLine;
-                    }
-                }
+                prefix = EndsWithLineBreak(csvPath) ? string.Empty : Environment.NewLine;
             }
             catch (Exception ex)
             {
@@ -1198,100 +1437,235 @@ namespace BOforUnity
                 return false;
             }
 
+            if (TryAppendWithRetry(csvPath, prefix + rowLine + Environment.NewLine, out string appendError))
+            {
+                Debug.Log(
+                    $"Final design evaluation appended to observations CSV (phase=finaldesign, marker=NULL): {csvPath}"
+                );
+                return true;
+            }
+
+            // Keep the measurement even when the log stays locked: write header + row next to it.
+            string fallbackPath = Path.Combine(
+                Path.GetDirectoryName(csvPath) ?? string.Empty,
+                Path.GetFileNameWithoutExtension(csvPath) + "_finaldesign_" +
+                DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".csv"
+            );
             try
             {
-                File.AppendAllText(_finalDesignObservationCsvPath, prefix + rowLine + Environment.NewLine);
+                File.WriteAllText(fallbackPath, headerLine + Environment.NewLine + rowLine + Environment.NewLine, Utf8NoBom);
             }
             catch (Exception ex)
             {
-                error = $"Could not append finaldesign row: {ex.Message}";
+                error =
+                    $"Could not append finaldesign row ({appendError}) and could not write it to '{fallbackPath}' " +
+                    $"either ({ex.Message}).";
                 return false;
             }
 
-            Debug.Log(
-                $"Final design evaluation appended to observations CSV (phase=finaldesign, marker=NULL): {_finalDesignObservationCsvPath}"
+            Debug.LogError(
+                $"Could not append the finaldesign row to '{csvPath}' ({appendError}); is it open in another " +
+                $"program such as Excel? The row was written to '{fallbackPath}' instead. Append it to " +
+                "ObservationsPerEvaluation.csv before analysis."
             );
             return true;
         }
 
-        private float GetObjectiveAverageForLogging(ObjectiveEntry objective)
+        private int ResolveFinalDesignLogIteration(string csvPath)
         {
-            if (objective == null || objective.value == null)
-                return 0f;
-
-            var arg = objective.value;
-            float lo = Mathf.Min(arg.lowerBound, arg.upperBound);
-            float hi = Mathf.Max(arg.lowerBound, arg.upperBound);
-
-            if (arg.values == null || arg.values.Count == 0)
+            var lines = new List<string>();
+            var columnIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            try
             {
-                float fallback = 0.5f * (lo + hi);
-                Debug.LogWarning(
-                    $"Objective '{objective.key}' has no values during finaldesign logging. " +
-                    $"Using midpoint fallback {fallback}."
-                );
-                return fallback;
-            }
-
-            int n = Mathf.Max(1, arg.numberOfSubMeasures);
-            int start = Mathf.Max(0, arg.values.Count - n);
-            int count = arg.values.Count - start;
-            if (count <= 0)
-            {
-                float fallback = 0.5f * (lo + hi);
-                Debug.LogWarning(
-                    $"Objective '{objective.key}' has no usable sub-measures during finaldesign logging. " +
-                    $"Using midpoint fallback {fallback}."
-                );
-                return fallback;
-            }
-
-            double sum = 0.0;
-            for (int i = start; i < arg.values.Count; i++)
-            {
-                float v = arg.values[i];
-                if (!IsFinite(v))
+                lines = ReadLinesShared(csvPath);
+                string[] header = lines.Count > 0 ? SplitCsvLine(lines[0].Trim('\uFEFF')) : new string[0];
+                for (int i = 0; i < header.Length; i++)
                 {
-                    float fallback = 0.5f * (lo + hi);
-                    Debug.LogWarning(
-                        $"Objective '{objective.key}' contains non-finite value ({v}) during finaldesign logging. " +
-                        $"Using midpoint fallback {fallback}."
-                    );
-                    return fallback;
+                    string key = (header[i] ?? string.Empty).Trim();
+                    if (!string.IsNullOrEmpty(key) && !columnIndex.ContainsKey(key))
+                        columnIndex[key] = i;
                 }
-
-                sum += v;
             }
-
-            float avg = (float)(sum / count);
-            if (!IsFinite(avg))
+            catch (Exception ex)
             {
-                float fallback = 0.5f * (lo + hi);
-                Debug.LogWarning(
-                    $"Objective '{objective.key}' average is non-finite during finaldesign logging. " +
-                    $"Using midpoint fallback {fallback}."
-                );
-                return fallback;
+                Debug.LogWarning($"Could not read '{csvPath}' to number the finaldesign row: {ex.Message}");
             }
 
-            if (avg < lo || avg > hi)
-            {
-                float raw = avg;
-                avg = Mathf.Clamp(avg, lo, hi);
-                Debug.LogWarning(
-                    $"Objective '{objective.key}' value {raw} is outside configured bounds [{lo}, {hi}] " +
-                    $"during finaldesign logging. Clamped to {avg}."
-                );
-            }
-
-            return avg;
+            return ResolveFinalDesignLogIteration(lines, columnIndex);
         }
 
-        private static string FormatCsvFloat(float value)
+        /// <summary>
+        /// The Iteration for the finaldesign row: one past the largest Iteration this context logged in the CSV
+        /// (rows of other IDs only when none match), so the row never repeats a live row's Iteration, also not under
+        /// warm start where live rows continue from the number of warm-start rows.
+        /// </summary>
+        private int ResolveFinalDesignLogIteration(List<string> lines, Dictionary<string, int> columnIndex)
         {
-            if (!IsFinite(value))
-                return string.Empty;
-            return Math.Round(value, 3, MidpointRounding.AwayFromZero).ToString("0.###", CultureInfo.InvariantCulture);
+            if (columnIndex.TryGetValue("Iteration", out int iterationIndex))
+            {
+                columnIndex.TryGetValue("UserID", out int userIndex);
+                columnIndex.TryGetValue("ConditionID", out int conditionIndex);
+                columnIndex.TryGetValue("GroupID", out int groupIndex);
+                bool hasUser = columnIndex.ContainsKey("UserID");
+                bool hasCondition = columnIndex.ContainsKey("ConditionID");
+                bool hasGroup = columnIndex.ContainsKey("GroupID");
+
+                int maxAll = int.MinValue;
+                int maxOwn = int.MinValue;
+                for (int i = 1; i < lines.Count; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(lines[i]))
+                        continue;
+
+                    string[] cells = SplitCsvLine(lines[i]);
+                    if (iterationIndex >= cells.Length ||
+                        !double.TryParse(cells[iterationIndex].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) ||
+                        double.IsNaN(parsed) || double.IsInfinity(parsed) ||
+                        parsed < int.MinValue || parsed >= int.MaxValue)
+                    {
+                        continue;
+                    }
+
+                    int iteration = (int)Math.Round(parsed);
+                    maxAll = Math.Max(maxAll, iteration);
+                    if ((!hasUser || CellEquals(cells, userIndex, userId)) &&
+                        (!hasCondition || CellEquals(cells, conditionIndex, conditionId)) &&
+                        (!hasGroup || CellEquals(cells, groupIndex, groupId)))
+                    {
+                        maxOwn = Math.Max(maxOwn, iteration);
+                    }
+                }
+
+                if (maxOwn != int.MinValue)
+                    return maxOwn + 1;
+                if (maxAll != int.MinValue)
+                    return maxAll + 1;
+            }
+
+            int fallbackIteration = LastSuggestionLogIteration >= 0 ? LastSuggestionLogIteration + 1 : currentIteration;
+            Debug.LogWarning(
+                "Could not read any Iteration from the observation CSV; logging the finaldesign row as Iteration " +
+                fallbackIteration.ToString(CultureInfo.InvariantCulture) + "."
+            );
+            return fallbackIteration;
+        }
+
+        private static bool CellEquals(string[] cells, int index, string expected)
+        {
+            return index < cells.Length &&
+                   string.Equals(LogIdToken(cells[index]), LogIdToken(expected), StringComparison.Ordinal);
+        }
+
+        // An ID as the backends log it (bo_protocol.normalize_user_token): trimmed, "-1" when empty.
+        private static string LogIdToken(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "-1" : value.Trim();
+        }
+
+        // The context key as Python logs it: the configured entry's spelling (Python matches the current key
+        // case-insensitively against the context list).
+        private string GetCurrentContextKeyForLogging()
+        {
+            string key = (currentContextKey ?? string.Empty).Trim();
+            if (contexts != null)
+            {
+                foreach (var entry in contexts)
+                {
+                    if (entry != null && !string.IsNullOrWhiteSpace(entry.key) &&
+                        string.Equals(entry.key.Trim(), key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entry.key.Trim();
+                    }
+                }
+            }
+            return key;
+        }
+
+        // Shared read: File.ReadLines denies other writers, so it fails while Excel has the CSV open.
+        private static List<string> ReadLinesShared(string path)
+        {
+            var lines = new List<string>();
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                    lines.Add(line);
+            }
+            return lines;
+        }
+
+        private static bool EndsWithLineBreak(string path)
+        {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (stream.Length == 0)
+                    return true;
+                stream.Seek(-1, SeekOrigin.End);
+                int last = stream.ReadByte();
+                return last == '\n' || last == '\r';
+            }
+        }
+
+        private static bool TryAppendWithRetry(string path, string text, out string error)
+        {
+            error = null;
+            byte[] bytes = Utf8NoBom.GetBytes(text);
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    using (var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
+                    {
+                        stream.Write(bytes, 0, bytes.Length);
+                    }
+                    return true;
+                }
+                catch (IOException) when (attempt < FinalDesignAppendAttempts)
+                {
+                    System.Threading.Thread.Sleep(FinalDesignAppendRetryDelayMs);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+        }
+
+        // Splits one ';'-separated line, honouring "..." quoting with "" escapes (as Python's csv module writes).
+        private static string[] SplitCsvLine(string line)
+        {
+            var cells = new List<string>();
+            var cell = new StringBuilder();
+            bool inQuotes = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (inQuotes)
+                {
+                    if (c != '"')
+                        cell.Append(c);
+                    else if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        cell.Append('"');
+                        i++;
+                    }
+                    else
+                        inQuotes = false;
+                }
+                else if (c == '"' && cell.Length == 0)
+                    inQuotes = true;
+                else if (c == ';')
+                {
+                    cells.Add(cell.ToString());
+                    cell.Clear();
+                }
+                else
+                    cell.Append(c);
+            }
+            cells.Add(cell.ToString());
+            return cells.ToArray();
         }
 
         private static string EscapeCsvCell(string value)
@@ -1311,30 +1685,44 @@ namespace BOforUnity
             return "\"" + value.Replace("\"", "\"\"") + "\"";
         }
 
-        private static bool IsFinite(float value)
-        {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
-        }
-
+        /// <summary>
+        /// Reserves this run's log folder: <c>userId</c> is kept unless <c>LogData/&lt;userId&gt;/&lt;conditionId&gt;</c>
+        /// already exists, in which case a suffixed user folder (<c>_1</c>, <c>_2</c>, ...) is used and written back to
+        /// <c>userId</c>. Idempotent; resolves again only when code changed the IDs since the last resolution.
+        /// </summary>
         private void EnsureUniqueRuntimeUserFolder()
         {
-            if (_runtimeUserFolderReserved)
+            if (!Application.isPlaying)
                 return;
+            // A questionnaire may ask before Awake ran; remember the configuration before userId is rewritten.
+            CaptureConfiguration();
+            if (_runtimeUserFolderReserved &&
+                string.Equals(userId, _resolvedFolderUserId, StringComparison.Ordinal) &&
+                string.Equals(conditionId, _resolvedFolderConditionId, StringComparison.Ordinal))
+            {
+                return;
+            }
 
             string requestedUserId = userId;
             string normalizedRequestedUserId = LogDataFolderUtility.NormalizeLogFolderToken(requestedUserId);
+            // An existing user folder from another condition is reused (one participant, several condition
+            // folders); only an existing folder for this same condition forces a suffix.
             userId = LogDataFolderUtility.GetOrCreateUserFolderTokenForCondition(
-                LogDataFolderUtility.StreamingAssetsLogRoot,
+                LogDataFolderUtility.LogDataRoot,
                 requestedUserId,
-                conditionId
+                conditionId,
+                allowExistingRequestedUserFolder: true
             );
             _runtimeUserFolderReserved = true;
+            _resolvedFolderUserId = userId;
+            _resolvedFolderConditionId = conditionId;
 
             if (!string.Equals(normalizedRequestedUserId, userId, StringComparison.Ordinal))
             {
                 Debug.Log(
-                    $"BOforUnity: user log folder '{normalizedRequestedUserId}' already exists. " +
-                    $"Using '{userId}' for this run."
+                    $"BOforUnity: log folder '{normalizedRequestedUserId}/" +
+                    $"{LogDataFolderUtility.NormalizeLogFolderToken(conditionId)}' already exists. " +
+                    $"Using user folder '{userId}' for this run."
                 );
             }
         }
@@ -1350,11 +1738,23 @@ namespace BOforUnity
 
         public float PriorRatingHintAlpha => priorSliderRatingHintAlpha;
 
-        public string UserId => userId;
+        // Questionnaires read the IDs through IQuestionnaireOptimizationBridge, possibly before this manager's
+        // Awake (Awake order is undefined), so the log folder is resolved on first use and every reader gets the
+        // final user token. A duplicate in a reloaded scene that is not discarded yet answers for the running manager.
+        public string UserId
+        {
+            get
+            {
+                if (_instance != null && _instance != this)
+                    return _instance.UserId;
+                EnsureUniqueRuntimeUserFolder();
+                return userId;
+            }
+        }
 
-        public string ConditionId => conditionId;
+        public string ConditionId => _instance != null && _instance != this ? _instance.conditionId : conditionId;
 
-        public string GroupId => groupId;
+        public string GroupId => _instance != null && _instance != this ? _instance.groupId : groupId;
 
         public void SubmitQuestionnaireObjectiveValue(string headerName, string rawValue, string sourceName)
         {
@@ -1363,7 +1763,7 @@ namespace BOforUnity
                 return;
             }
 
-            if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            if (!TryParseQuestionnaireNumber(rawValue, out var value))
             {
                 Debug.LogWarning(
                     $"Objective value for '{headerName}' from '{sourceName}' is not numeric ('{rawValue}'). " +
@@ -1376,9 +1776,38 @@ namespace BOforUnity
             optimizer.AddObjectiveValue(headerName, value);
         }
 
+        /// <summary>
+        /// Parses a questionnaire answer: invariant culture first ("3.5"), then the participant's culture ("3,5" on a
+        /// German system), then a single decimal comma ("3,5" on an English system). False when none applies, so
+        /// the caller submits NaN.
+        /// </summary>
+        private static bool TryParseQuestionnaireNumber(string rawValue, out float value)
+        {
+            value = float.NaN;
+            string text = rawValue?.Trim();
+            if (string.IsNullOrEmpty(text))
+                return false;
+
+            if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) ||
+                float.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value))
+            {
+                return true;
+            }
+
+            int comma = text.IndexOf(',');
+            if (comma >= 0 && comma == text.LastIndexOf(',') && text.IndexOf('.') < 0 &&
+                float.TryParse(text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+            {
+                return true;
+            }
+
+            value = float.NaN;
+            return false;
+        }
+
         public void SetPriorSliderRatingHint(string questionKey, float sliderValue)
         {
-            if (string.IsNullOrWhiteSpace(questionKey) || !IsFinite(sliderValue))
+            if (string.IsNullOrWhiteSpace(questionKey) || !BoObjectiveMath.IsFinite(sliderValue))
                 return;
 
             _priorSliderRatingHints[questionKey] = sliderValue;
@@ -1390,7 +1819,7 @@ namespace BOforUnity
             if (string.IsNullOrWhiteSpace(questionKey))
                 return false;
 
-            return _priorSliderRatingHints.TryGetValue(questionKey, out sliderValue) && IsFinite(sliderValue);
+            return _priorSliderRatingHints.TryGetValue(questionKey, out sliderValue) && BoObjectiveMath.IsFinite(sliderValue);
         }
 
         public void RemovePriorSliderRatingHint(string questionKey)
@@ -1440,23 +1869,15 @@ namespace BOforUnity
 
         private string[] GetFinalDesignLogRootCandidates()
         {
-            // Current runtime location used by Python process log environment.
-            string current = Path.Combine(
-                Application.streamingAssetsPath,
-                "BOData",
-                "LogData"
-            );
-
-            string persistentDataPathCurrent = Path.Combine(
-                Application.persistentDataPath,
-                "BOData",
-                "LogData"
-            );
-
-            string userFolder = NormalizeLogFolderToken(userId);
-            string conditionFolder = NormalizeLogFolderToken(conditionId);
-            string currentCondition = Path.Combine(current, userFolder, conditionFolder);
-            string persistentDataPathCondition = Path.Combine(persistentDataPathCurrent, userFolder, conditionFolder);
+            // The resolved log root the Python process writes to comes first; the other roots cover builds that
+            // fell back to persistentDataPath and logs from earlier versions.
+            var roots = new List<string>
+            {
+                LogDataFolderUtility.LogDataRoot,
+                LogDataFolderUtility.StreamingAssetsLogRoot,
+                LogDataFolderUtility.PersistentLogRoot
+            };
+            roots = roots.Distinct().ToList();
 
             // Legacy location from earlier versions / docs.
             string legacy = Path.Combine(
@@ -1467,100 +1888,32 @@ namespace BOforUnity
                 "LogData"
             );
 
+            string userFolder = NormalizeLogFolderToken(userId);
+            string conditionFolder = NormalizeLogFolderToken(conditionId);
+            var conditionRoots = roots.Select(root => Path.Combine(root, userFolder, conditionFolder)).ToList();
+
             // CABOP stores runs under dedicated subfolders to keep metrics/logs separate.
-            string cabopSingle = Path.Combine(
-                Application.streamingAssetsPath,
-                "BOData",
-                "LogData",
-                "CABOP",
-                "single"
-            );
-
-            string cabopMulti = Path.Combine(
-                Application.streamingAssetsPath,
-                "BOData",
-                "LogData",
-                "CABOP",
-                "multi"
-            );
-
-            string persistentDataPathCabopSingle = Path.Combine(
-                Application.persistentDataPath,
-                "BOData",
-                "LogData",
-                "CABOP",
-                "single"
-            );
-
-            string persistentDataPathCabopMulti = Path.Combine(
-                Application.persistentDataPath,
-                "BOData",
-                "LogData",
-                "CABOP",
-                "multi"
-            );
-
-            string cabopLegacySingle = Path.Combine(
-                Application.dataPath,
-                "StreamingAssets",
-                "BOData",
-                "BayesianOptimization",
-                "LogData",
-                "CABOP",
-                "single"
-            );
-
-            string cabopLegacyMulti = Path.Combine(
-                Application.dataPath,
-                "StreamingAssets",
-                "BOData",
-                "BayesianOptimization",
-                "LogData",
-                "CABOP",
-                "multi"
-            );
-
-            string conditionCabopSingle = Path.Combine(currentCondition, "CABOP", "single");
-            string conditionCabopMulti = Path.Combine(currentCondition, "CABOP", "multi");
-            string persistentDataPathConditionCabopSingle = Path.Combine(persistentDataPathCondition, "CABOP", "single");
-            string persistentDataPathConditionCabopMulti = Path.Combine(persistentDataPathCondition, "CABOP", "multi");
+            List<string> CabopFolders(string mode)
+            {
+                var folders = conditionRoots.Select(root => Path.Combine(root, "CABOP", mode)).ToList();
+                folders.AddRange(roots.Select(root => Path.Combine(root, "CABOP", mode)));
+                folders.Add(Path.Combine(legacy, "CABOP", mode));
+                return folders;
+            }
 
             var ordered = new List<string>();
             if (optimizerBackend == OptimizerBackend.CABOP)
             {
-                if (cabopObjectiveMode == CabopObjectiveMode.SingleObjective)
-                {
-                    ordered.Add(conditionCabopSingle);
-                    ordered.Add(persistentDataPathConditionCabopSingle);
-                    ordered.Add(cabopSingle);
-                    ordered.Add(persistentDataPathCabopSingle);
-                    ordered.Add(cabopLegacySingle);
-                }
-                else
-                {
-                    ordered.Add(conditionCabopMulti);
-                    ordered.Add(persistentDataPathConditionCabopMulti);
-                    ordered.Add(cabopMulti);
-                    ordered.Add(persistentDataPathCabopMulti);
-                    ordered.Add(cabopLegacyMulti);
-                }
+                ordered.AddRange(CabopFolders(
+                    cabopObjectiveMode == CabopObjectiveMode.SingleObjective ? "single" : "multi"
+                ));
             }
 
-            ordered.Add(currentCondition);
-            ordered.Add(persistentDataPathCondition);
-            ordered.Add(current);
-            ordered.Add(persistentDataPathCurrent);
+            ordered.AddRange(conditionRoots);
+            ordered.AddRange(roots);
             ordered.Add(legacy);
-            ordered.Add(conditionCabopSingle);
-            ordered.Add(conditionCabopMulti);
-            ordered.Add(persistentDataPathConditionCabopSingle);
-            ordered.Add(persistentDataPathConditionCabopMulti);
-            ordered.Add(cabopSingle);
-            ordered.Add(cabopMulti);
-            ordered.Add(persistentDataPathCabopSingle);
-            ordered.Add(persistentDataPathCabopMulti);
-            ordered.Add(cabopLegacySingle);
-            ordered.Add(cabopLegacyMulti);
+            ordered.AddRange(CabopFolders("single"));
+            ordered.AddRange(CabopFolders("multi"));
 
             return ordered.Distinct().ToArray();
         }
@@ -1591,20 +1944,23 @@ namespace BOforUnity
                 }
 
                 hasValidObjective = true;
-                if (ob.value.values.Count == 0)
+                // Judge the value Python received: the mean of the finite sub-measures in the window (one
+                // unanswered item must not make a perfect rating imperfect), with swapped bounds normalized.
+                var aggregate = BoObjectiveMath.Aggregate(
+                    ob.value.values,
+                    ob.value.numberOfSubMeasures,
+                    ob.value.lowerBound,
+                    ob.value.upperBound
+                );
+                if (aggregate.UsedMidpointFallback)
                 {
                     return false;
                 }
 
-                float avg = (float)ob.value.values.Average();
-                if (!IsFinite(avg))
-                {
-                    return false;
-                }
-
-                if (ob.value.smallerIsBetter ?
-                        avg > ob.value.lowerBound :
-                        avg < ob.value.upperBound)
+                float best = ob.value.smallerIsBetter
+                    ? Mathf.Min(ob.value.lowerBound, ob.value.upperBound)
+                    : Mathf.Max(ob.value.lowerBound, ob.value.upperBound);
+                if (ob.value.smallerIsBetter ? aggregate.Value > best : aggregate.Value < best)
                 {
                     return false; // the rating is imperfect!
                 }
@@ -1822,7 +2178,11 @@ namespace BOforUnity
             public float upperBound = 0.0f;
             public float Value = 0.0f;
             public string cabopGroup = "default";
-            [Min(0f)] public float cabopTolerance = 0.05f;
+            [Range(0f, 1f)]
+            [Tooltip("CABOP reuse tolerance as a fraction of this parameter's range (0.05 = 5% of Upper - Lower). " +
+                     "A proposal this close to an earlier design reuses it (unchanged/swapped cost) instead of " +
+                     "acquiring a new one.")]
+            public float cabopTolerance = 0.05f;
             public List<float> cabopPrefabricatedValues = new List<float>();
 
             /// <summary>

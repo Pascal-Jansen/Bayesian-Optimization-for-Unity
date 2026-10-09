@@ -23,12 +23,23 @@ namespace BOforUnity.Examples
             CustomSequence
         }
 
+        public enum SelectionEvent
+        {
+            [Tooltip("Register the selection when the pointer is pressed (ISO 9241-9).")]
+            PointerDown,
+            [Tooltip("Register the selection on release over the same target (earlier versions).")]
+            PointerClick
+        }
+
         [Serializable]
         public class TrialResult
         {
             public int trialIndex;
             public int targetIndex;
             public Vector2 targetPosition;
+            /// <summary>Center of the previously selected target (start of the movement); unset for the first trial.</summary>
+            public Vector2 fromTargetPosition;
+            public bool hasFromTarget;
             public Vector2 clickPosition;
             public float clickTimeMs;
             public float centerDistancePixels;
@@ -42,7 +53,9 @@ namespace BOforUnity.Examples
         [Min(1)] public int trialCount = 10;
         public bool startOnAwake = true;
         [Min(0f)] public float startDelaySeconds = 0.25f;
-        public bool restartWithKey = true;
+        [Tooltip("Debug aid: restart the running task with the restart key. Ignored once the task is complete " +
+                 "(restarting then would send 0 ms / 0 px to the optimizer). Needs the legacy Input Manager.")]
+        public bool restartWithKey = false;
         public KeyCode restartKey = KeyCode.R;
 
         [Header("Ready-to-run BO Example")]
@@ -131,6 +144,8 @@ namespace BOforUnity.Examples
         public Color targetXColor = Color.white;
 
         [Header("Interaction")]
+        [Tooltip("When a target selection is registered. ISO 9241-9 uses the button press (Pointer Down).")]
+        public SelectionEvent selectionEvent = SelectionEvent.PointerDown;
         public bool countWrongTargetClicks = true;
         public bool countPlayAreaMissClicks = true;
         public bool hideCursorDuringTask = false;
@@ -214,6 +229,30 @@ namespace BOforUnity.Examples
         private string _manualLogGroupId = "-1";
         private string _manualLogDirectory;
         private BoForUnityManager _runtimeDesignParameterSource;
+        private bool _warnedRestartKeyUnavailable;
+        private DesignSnapshot _roundDesign;
+        private float _appliedCircleSizePixels;
+        private float _appliedCircleDistancePixels;
+        private float _appliedRingDiameterPixels;
+        private bool _appliedLayoutAdjusted;
+
+        /// <summary>The design of the current round as suggested (BO), sampled (random) or configured (static).</summary>
+        private struct DesignSnapshot
+        {
+            public float XFontSizePixels;
+            public float ButtonSizePixels;
+            public float ButtonDistancePixels;
+            public float ButtonHue;
+            public float ButtonSaturation;
+        }
+
+        /// <summary>
+        /// Marks a manager this task has already set up, so scene reloads (which re-run Awake against the
+        /// persistent manager) do not overwrite the parameters the optimizer has just applied.
+        /// </summary>
+        private sealed class FittsBoSetupMarker : MonoBehaviour
+        {
+        }
 
         private void Awake()
         {
@@ -238,8 +277,24 @@ namespace BOforUnity.Examples
 
         private void Update()
         {
-            if (restartWithKey && Input.GetKeyDown(restartKey))
+            // Only a running task can be restarted: after completion the questionnaire is open and a restart
+            // would zero the measured time/accuracy that are about to be sent to the optimizer.
+            if (!restartWithKey || !_taskRunning || _taskComplete)
+                return;
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (Input.GetKeyDown(restartKey))
                 RestartTask();
+#else
+            if (!_warnedRestartKeyUnavailable)
+            {
+                _warnedRestartKeyUnavailable = true;
+                Debug.LogWarning(
+                    "FittsLawTask: Restart With Key needs the legacy Input Manager (Project Settings > Player > " +
+                    "Active Input Handling = Input Manager or Both); the restart key is unavailable."
+                );
+            }
+#endif
         }
 
         private void OnDisable()
@@ -301,10 +356,12 @@ namespace BOforUnity.Examples
                     SyncRuntimeDesignParameterSourceWithCurrentDesign();
             }
             highlightedTargetColor = GetOptimizedButtonColor();
+            _roundDesign = CaptureDesign();
 
             EnsureEventSystem();
             CreateCanvas();
             CreateTargets();
+            WarnIfAppliedLayoutDiffersFromDesign();
             BuildTargetSequence();
 
             _currentTrial = 0;
@@ -337,6 +394,14 @@ namespace BOforUnity.Examples
 
         public void RestartTask()
         {
+            if (_taskComplete && !_resultsFinalized)
+            {
+                Debug.LogWarning(
+                    "FittsLawTask: restart ignored because the completed round's results have not been submitted yet."
+                );
+                return;
+            }
+
             RestoreCursor();
             BeginTask();
         }
@@ -399,10 +464,28 @@ namespace BOforUnity.Examples
             EnsureEventSystem();
             EnsureBoControlUi(manager);
 
-            if (configureBoManagerForFittsTask)
-                ConfigureBoManagerForFittsTask(manager);
+            // Awake runs again after every scene reload, against the persistent manager. Its parameters then hold
+            // the design the optimizer has just applied, so the parameter/ID setup runs once per manager only:
+            // repeating it replaced that design with the inspector defaults and reset the user/condition/group
+            // IDs, so every round showed the default design while Python logged its suggestion.
+            if (manager.TryGetComponent(out FittsBoSetupMarker _))
+                return;
 
-            EnsureNoOverlapButtonDistanceParameterBounds(manager);
+            if (manager.initialized || manager.simulationRunning)
+            {
+                Debug.LogWarning(
+                    "FittsLawTask: the BoForUnityManager is already running; its parameters were not reconfigured."
+                );
+            }
+            else
+            {
+                if (configureBoManagerForFittsTask)
+                    ConfigureBoManagerForFittsTask(manager);
+
+                EnsureNoOverlapButtonDistanceParameterBounds(manager);
+            }
+
+            manager.gameObject.AddComponent<FittsBoSetupMarker>();
         }
 
         private void EnsureBoComponents(BoForUnityManager manager)
@@ -410,15 +493,18 @@ namespace BOforUnity.Examples
             if (manager == null)
                 return;
 
+            // TryGetComponent instead of "GetComponent() ?? AddComponent()": Unity's fake-null component is not
+            // C# null, so the null-coalescing form never added a missing component.
             GameObject managerObject = manager.gameObject;
-            manager.mainThreadDispatcher = managerObject.GetComponent<MainThreadDispatcher>() ??
-                                           managerObject.AddComponent<MainThreadDispatcher>();
-            manager.optimizer = managerObject.GetComponent<Optimizer>() ??
-                                managerObject.AddComponent<Optimizer>();
-            manager.pythonStarter = managerObject.GetComponent<PythonStarter>() ??
-                                    managerObject.AddComponent<PythonStarter>();
-            manager.socketNetwork = managerObject.GetComponent<SocketNetwork>() ??
-                                    managerObject.AddComponent<SocketNetwork>();
+            manager.mainThreadDispatcher = GetOrAddComponent<MainThreadDispatcher>(managerObject);
+            manager.optimizer = GetOrAddComponent<Optimizer>(managerObject);
+            manager.pythonStarter = GetOrAddComponent<PythonStarter>(managerObject);
+            manager.socketNetwork = GetOrAddComponent<SocketNetwork>(managerObject);
+        }
+
+        private static T GetOrAddComponent<T>(GameObject target) where T : Component
+        {
+            return target.TryGetComponent(out T existing) ? existing : target.AddComponent<T>();
         }
 
         private void EnsureBoControlUi(BoForUnityManager manager)
@@ -537,7 +623,7 @@ namespace BOforUnity.Examples
                     {
                         Value = Mathf.Clamp(xFontSizePixels, xFontSizeMin, xFontSizeMax),
                         cabopGroup = "x_font_size",
-                        cabopTolerance = 2f
+                        cabopTolerance = CabopToleranceFraction(2f, xFontSizeMin, xFontSizeMax)
                     }),
                 new ParameterEntry(
                     buttonSizeParameterKey,
@@ -545,7 +631,7 @@ namespace BOforUnity.Examples
                     {
                         Value = Mathf.Clamp(circleSizePixels, buttonSizeMin, buttonSizeMax),
                         cabopGroup = "button_size",
-                        cabopTolerance = 2f
+                        cabopTolerance = CabopToleranceFraction(2f, buttonSizeMin, buttonSizeMax)
                     }),
                 new ParameterEntry(
                     buttonDistanceParameterKey,
@@ -553,7 +639,7 @@ namespace BOforUnity.Examples
                     {
                         Value = Mathf.Clamp(circleDistancePixels, buttonDistanceMin, buttonDistanceMax),
                         cabopGroup = "button_distance",
-                        cabopTolerance = 5f
+                        cabopTolerance = CabopToleranceFraction(5f, buttonDistanceMin, buttonDistanceMax)
                     }),
                 new ParameterEntry(
                     buttonHueParameterKey,
@@ -604,6 +690,19 @@ namespace BOforUnity.Examples
             manager.groupId = "-1";
         }
 
+        /// <summary>
+        /// CABOP reads the reuse tolerance as a fraction of the parameter's range ([0, 1]); converts a tolerance
+        /// in parameter units (pixels) to that fraction. A range without width gets 0.
+        /// </summary>
+        private static float CabopToleranceFraction(float toleranceUnits, float min, float max)
+        {
+            float width = max - min;
+            if (!(width > 0f) || float.IsInfinity(width))
+                return 0f;
+
+            return Mathf.Clamp01(toleranceUnits / width);
+        }
+
         private void ApplyRandomDesignParameters()
         {
             System.Random seededRandom = null;
@@ -634,14 +733,15 @@ namespace BOforUnity.Examples
                     seededRandom
                 );
 
+            // Hue is stored as sampled (1.0 stays 1.0); the color wraps it (GetOptimizedButtonColor).
             if (TrySampleRandomParameter(parameterSource, buttonHueParameterKey, seededRandom, out float sampledButtonHue))
             {
-                buttonHue = Mathf.Repeat(sampledButtonHue, 1f);
+                buttonHue = sampledButtonHue;
                 buttonColorChanged = true;
             }
             else if (!useConfiguredParameterList)
             {
-                buttonHue = Mathf.Repeat(SampleRange(buttonHueRange, seededRandom), 1f);
+                buttonHue = SampleRange(buttonHueRange, seededRandom);
                 buttonColorChanged = true;
             }
 
@@ -799,24 +899,27 @@ namespace BOforUnity.Examples
             if (TryFindBoParameter(buttonDistanceParameterKey, out ParameterArgs distanceParameter))
                 circleDistancePixels = MapBoParameterValue(distanceParameter);
 
+            // Stored as suggested; GetOptimizedButtonColor wraps the hue and clamps the saturation. (Wrapping
+            // here turned a suggested hue of 1.0 into 0.)
             bool buttonColorChanged = false;
             if (TryFindBoParameter(buttonHueParameterKey, out ParameterArgs hueParameter))
             {
-                buttonHue = Mathf.Repeat(MapBoParameterValue(hueParameter), 1f);
+                buttonHue = MapBoParameterValue(hueParameter);
                 buttonColorChanged = true;
             }
 
             if (TryFindBoParameter(buttonSaturationParameterKey, out ParameterArgs saturationParameter))
             {
-                buttonSaturation = Mathf.Clamp01(MapBoParameterValue(saturationParameter));
+                buttonSaturation = MapBoParameterValue(saturationParameter);
                 buttonColorChanged = true;
             }
 
             if (buttonColorChanged)
                 highlightedTargetColor = GetOptimizedButtonColor();
 
-            EnforceNoOverlapDistanceForCurrentDesign();
-            SyncRuntimeDesignParameterSourceWithCurrentDesign();
+            // Nothing is written back to the manager: its parameters must keep the design Python suggested
+            // (and logs the observation under). Layout safety adjustments are applied to the rendered layout
+            // only and recorded in the Applied* telemetry columns.
         }
 
         private float MapBoParameterValue(ParameterArgs parameter)
@@ -939,9 +1042,6 @@ namespace BOforUnity.Examples
 
         private void ApplyLayoutSafetyConstraints()
         {
-            float originalSize = circleSizePixels;
-            float originalDistance = circleDistancePixels;
-
             float safeSize = Mathf.Max(1f, circleSizePixels);
             float safeDistance = Mathf.Max(
                 Mathf.Max(1f, circleDistancePixels),
@@ -979,20 +1079,45 @@ namespace BOforUnity.Examples
                 }
             }
 
-            circleSizePixels = safeSize;
-            circleDistancePixels = safeDistance;
+            // The design fields (and the manager's parameters) keep the suggested design; only the rendered
+            // layout uses the safe values.
+            _appliedCircleSizePixels = safeSize;
+            _appliedCircleDistancePixels = safeDistance;
+        }
 
-            if (!Mathf.Approximately(originalSize, circleSizePixels) ||
-                !Mathf.Approximately(originalDistance, circleDistancePixels))
+        private DesignSnapshot CaptureDesign()
+        {
+            return new DesignSnapshot
             {
-                Debug.LogWarning(
-                    "FittsLawTask: adjusted applied target layout to prevent overlap. " +
-                    "button_size=" + circleSizePixels.ToString("0.###", CultureInfo.InvariantCulture) +
-                    ", button_distance=" + circleDistancePixels.ToString("0.###", CultureInfo.InvariantCulture) + "."
-                );
-            }
+                XFontSizePixels = xFontSizePixels,
+                ButtonSizePixels = circleSizePixels,
+                ButtonDistancePixels = circleDistancePixels,
+                ButtonHue = buttonHue,
+                ButtonSaturation = buttonSaturation
+            };
+        }
 
-            SyncRuntimeDesignParameterSourceWithCurrentDesign();
+        private void WarnIfAppliedLayoutDiffersFromDesign()
+        {
+            _appliedLayoutAdjusted =
+                !NearlyEqual(_appliedCircleSizePixels, _roundDesign.ButtonSizePixels) ||
+                !NearlyEqual(_appliedRingDiameterPixels, _roundDesign.ButtonDistancePixels);
+            if (!_appliedLayoutAdjusted)
+                return;
+
+            Debug.LogWarning(
+                "FittsLawTask: the play area cannot show this design as specified, so the rendered layout differs " +
+                "from it: button_size " + FormatCsvFloat(_roundDesign.ButtonSizePixels) + " -> " +
+                FormatCsvFloat(_appliedCircleSizePixels) + " px, button_distance " +
+                FormatCsvFloat(_roundDesign.ButtonDistancePixels) + " -> " + FormatCsvFloat(_appliedRingDiameterPixels) +
+                " px. The optimizer attributes this round to the specified design; the rendered values are logged " +
+                "as AppliedButtonSizePixels/AppliedButtonDistancePixels. Use a larger window or narrower bounds."
+            );
+        }
+
+        private static bool NearlyEqual(float a, float b)
+        {
+            return Mathf.Abs(a - b) <= 1e-3f * Mathf.Max(1f, Mathf.Max(Mathf.Abs(a), Mathf.Abs(b)));
         }
 
         private Color GetOptimizedButtonColor()
@@ -1085,6 +1210,7 @@ namespace BOforUnity.Examples
 
             ApplyLayoutSafetyConstraints();
             float effectiveRadius = GetEffectiveRingRadius();
+            _appliedRingDiameterPixels = effectiveRadius * 2f;
             for (int i = 0; i < targetCount; i++)
             {
                 GameObject targetObject = CreateUiObject("Target " + (i + 1).ToString(CultureInfo.InvariantCulture), _playArea);
@@ -1092,7 +1218,7 @@ namespace BOforUnity.Examples
                 targetRect.anchorMin = new Vector2(0.5f, 0.5f);
                 targetRect.anchorMax = new Vector2(0.5f, 0.5f);
                 targetRect.pivot = new Vector2(0.5f, 0.5f);
-                targetRect.sizeDelta = new Vector2(circleSizePixels, circleSizePixels);
+                targetRect.sizeDelta = new Vector2(_appliedCircleSizePixels, _appliedCircleSizePixels);
 
                 float angle = (movementDirectionDegrees + (360f * i / targetCount)) * Mathf.Deg2Rad;
                 Vector2 position = taskCenter + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * effectiveRadius;
@@ -1199,14 +1325,9 @@ namespace BOforUnity.Examples
 
             if (targetSelectionMode == TargetSelectionMode.AcrossCircle)
             {
-                int halfTargetCount = Mathf.Max(1, targetCount / 2);
-                int pairCount = targetCount % 2 == 0 ? halfTargetCount : targetCount;
-                for (int i = 0; i < trialCount; i++)
-                {
-                    int pairIndex = (i / 2) % pairCount;
-                    int sideOffset = i % 2 == 0 ? 0 : halfTargetCount;
-                    _targetSequence.Add(PositiveModulo(start + pairIndex + sideOffset, targetCount));
-                }
+                // Odd target counts step by (n + 1) / 2 (ISO 9241-9) so every movement has the same amplitude;
+                // the previous pairing alternated, e.g. 0.993 · D and 0.935 · D for n = 13.
+                FittsLawMath.BuildAcrossCircleSequence(targetCount, start, trialCount, _targetSequence);
                 return;
             }
 
@@ -1231,17 +1352,17 @@ namespace BOforUnity.Examples
             UpdateStatusText();
         }
 
-        private void HandleTargetPointerClick(int clickedTargetIndex, PointerEventData eventData)
+        private void HandleTargetPointerEvent(int clickedTargetIndex, PointerEventData eventData, SelectionEvent eventType)
         {
-            if (!_taskRunning || _taskComplete)
+            if (eventType != selectionEvent || !_taskRunning || _taskComplete)
                 return;
-
-            float centerDistancePixels = RecordCenterDistanceFromPointer(eventData);
 
             if (clickedTargetIndex != _currentTargetIndex)
             {
                 if (countWrongTargetClicks)
                 {
+                    // A wrong-target click enters the accuracy objective only when it is counted.
+                    RecordCenterDistanceFromPointer(eventData);
                     _wrongClicksThisTrial++;
                     _wrongTargetClicksThisTrial++;
                     _wrongClicksTotal++;
@@ -1254,13 +1375,14 @@ namespace BOforUnity.Examples
                 return;
             }
 
+            float centerDistancePixels = RecordCenterDistanceFromPointer(eventData);
             _correctClicks++;
             AdvanceAfterHit(clickedTargetIndex, eventData, centerDistancePixels);
         }
 
-        private void HandlePlayAreaPointerClick(PointerEventData eventData)
+        private void HandlePlayAreaPointerEvent(PointerEventData eventData, SelectionEvent eventType)
         {
-            if (!_taskRunning || _taskComplete || !countPlayAreaMissClicks)
+            if (eventType != selectionEvent || !_taskRunning || _taskComplete || !countPlayAreaMissClicks)
                 return;
 
             RecordCenterDistanceFromPointer(eventData);
@@ -1278,11 +1400,23 @@ namespace BOforUnity.Examples
             if (TryGetPlayAreaLocalPoint(eventData, out Vector2 localClickPosition))
                 clickPosition = localClickPosition;
 
+            bool hasFromTarget = _currentTrial > 0 && _currentTrial - 1 < _targetSequence.Count;
+            Vector2 fromTargetPosition = Vector2.zero;
+            if (hasFromTarget)
+            {
+                int fromTargetIndex = _targetSequence[_currentTrial - 1];
+                hasFromTarget = fromTargetIndex >= 0 && fromTargetIndex < _targetRects.Count;
+                if (hasFromTarget)
+                    fromTargetPosition = _targetRects[fromTargetIndex].anchoredPosition;
+            }
+
             TrialResult result = new TrialResult
             {
                 trialIndex = _currentTrial + 1,
                 targetIndex = clickedTargetIndex,
                 targetPosition = targetRect.anchoredPosition,
+                fromTargetPosition = fromTargetPosition,
+                hasFromTarget = hasFromTarget,
                 clickPosition = clickPosition,
                 clickTimeMs = clickTimeMs,
                 centerDistancePixels = float.IsNaN(centerDistancePixels) ? 0f : centerDistancePixels,
@@ -1420,11 +1554,7 @@ namespace BOforUnity.Examples
             if (questionnaireToolkitManager != null)
                 return questionnaireToolkitManager;
 
-            QTQuestionnaireManager[] managers = FindObjectsOfType<QTQuestionnaireManager>();
-            if (managers == null || managers.Length == 0)
-                return null;
-
-            return managers[0];
+            return FindAnyObjectByType<QTQuestionnaireManager>();
         }
 
         private void EnsureQuestionnairePerformanceCsvItems(QTQuestionnaireManager manager = null)
@@ -1597,14 +1727,27 @@ namespace BOforUnity.Examples
 
             if (writeResultsCsv || writeDetailedAppLogCsv)
             {
-                string logRoot = ResolveFittsAppLogDirectory(FindPreferredBoManager());
-                Directory.CreateDirectory(logRoot);
+                // This runs from the questionnaire's onQuestionnaireFinished, before the questionnaire starts the
+                // optimization step: a log error (file open in Excel, read-only folder) must not abort it.
+                try
+                {
+                    string logRoot = ResolveFittsAppLogDirectory(FindPreferredBoManager());
+                    Directory.CreateDirectory(logRoot);
 
-                if (writeResultsCsv)
-                    WriteResultsCsv(logRoot);
+                    if (writeResultsCsv)
+                        WriteResultsCsv(logRoot);
 
-                if (writeDetailedAppLogCsv)
-                    WriteDetailedAppLogs(logRoot);
+                    if (writeDetailedAppLogCsv)
+                        WriteDetailedAppLogs(logRoot);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e, this);
+                    Debug.LogError(
+                        "FittsLawTask: could not write the Fitts law logs for this round (see above). " +
+                        "The objective values were still handed to the optimizer."
+                    );
+                }
             }
 
             if (startOptimization && startBoOptimizationAfterResults)
@@ -1757,6 +1900,9 @@ namespace BOforUnity.Examples
             float minCenterDistancePixels = ComputeMinCorrectCenterDistancePixels();
             float maxCenterDistancePixels = ComputeMaxCorrectCenterDistancePixels();
             int totalClicks = _correctClicks + _wrongClicksTotal;
+            DesignSnapshot design = _roundDesign;
+            List<FittsTrialSample> isoSamples = BuildIsoTrialSamples();
+            FittsBlockMetrics iso = FittsLawMath.ComputeBlockMetrics(isoSamples, _appliedCircleSizePixels);
 
             AppendSemicolonCsvRow(
                 summaryPath,
@@ -1769,7 +1915,11 @@ namespace BOforUnity.Examples
                     "MeanCenterDistancePixels", "MinCorrectCenterDistancePixels", "MaxCorrectCenterDistancePixels",
                     "ButtonSizePixels", "ButtonDistancePixels", "MovementDirectionDegrees", "XFontSizePixels",
                     "ButtonHue", "ButtonSaturation", "ButtonColorBrightness",
-                    "AestheticsObjective", "SpeedObjective", "AccuracyObjective", "UsabilityObjective"
+                    "AestheticsObjective", "SpeedObjective", "AccuracyObjective", "UsabilityObjective",
+                    "AppliedButtonSizePixels", "AppliedButtonDistancePixels", "AppliedLayoutAdjusted",
+                    "SelectionEvent", "IsoTrialCount", "IsoWidthPixels", "IsoAmplitudePixels", "IsoID",
+                    "IsoEffectiveAmplitudePixels", "IsoEffectiveWidthPixels", "IsoIDe", "IsoMovementTimeMs",
+                    "IsoThroughputBitsPerSecond"
                 },
                 new[]
                 {
@@ -1779,12 +1929,20 @@ namespace BOforUnity.Examples
                     FormatInt(_playAreaMissClicksTotal), FormatInt(totalClicks),
                     FormatInt(_centerDistanceSamples), FormatCsvFloat(taskCompletionTimeMs), FormatCsvFloat(meanClickTimeMs),
                     FormatCsvFloat(accuracyDistancePixels), FormatCsvFloat(minCenterDistancePixels),
-                    FormatCsvFloat(maxCenterDistancePixels), FormatCsvFloat(circleSizePixels),
-                    FormatCsvFloat(circleDistancePixels), FormatCsvFloat(movementDirectionDegrees),
-                    FormatCsvFloat(xFontSizePixels), FormatCsvFloat(buttonHue), FormatCsvFloat(buttonSaturation),
+                    FormatCsvFloat(maxCenterDistancePixels), FormatCsvFloat(design.ButtonSizePixels),
+                    FormatCsvFloat(design.ButtonDistancePixels), FormatCsvFloat(movementDirectionDegrees),
+                    FormatCsvFloat(design.XFontSizePixels), FormatCsvFloat(design.ButtonHue),
+                    FormatCsvFloat(design.ButtonSaturation),
                     FormatCsvFloat(buttonColorBrightness), FormatObjectiveAverage(manager, aestheticsObjectiveKey),
                     FormatObjectiveAverage(manager, speedObjectiveKey), FormatObjectiveAverage(manager, accuracyObjectiveKey),
-                    FormatObjectiveAverage(manager, usabilityObjectiveKey)
+                    FormatObjectiveAverage(manager, usabilityObjectiveKey),
+                    FormatCsvFloat(_appliedCircleSizePixels), FormatCsvFloat(_appliedRingDiameterPixels),
+                    _appliedLayoutAdjusted ? "TRUE" : "FALSE",
+                    selectionEvent.ToString(), FormatInt(iso.TrialCount), FormatCsvFloat(iso.WidthPixels),
+                    FormatCsvFloat(iso.AmplitudePixels), FormatCsvFloat(iso.IndexOfDifficulty),
+                    FormatCsvFloat(iso.EffectiveAmplitudePixels), FormatCsvFloat(iso.EffectiveWidthPixels),
+                    FormatCsvFloat(iso.EffectiveIndexOfDifficulty), FormatCsvFloat(iso.MovementTimeMs),
+                    FormatCsvFloat(iso.ThroughputBitsPerSecond)
                 }
             );
 
@@ -1795,15 +1953,22 @@ namespace BOforUnity.Examples
                 "CenterDistancePixels", "WrongClicksBeforeHit", "WrongTargetClicksBeforeHit",
                 "PlayAreaMissClicksBeforeHit", "ButtonSizePixels", "ButtonDistancePixels",
                 "MovementDirectionDegrees", "XFontSizePixels", "ButtonHue", "ButtonSaturation",
-                "ButtonColorBrightness"
+                "ButtonColorBrightness", "AppliedButtonSizePixels", "AppliedButtonDistancePixels",
+                "FromTargetX", "FromTargetY", "AmplitudePixels", "EndpointDeviationPixels",
+                "EffectiveAmplitudePixels", "IncludedInIsoMetrics"
             };
 
+            // One header check and one file open for the whole round (not one per trial row).
+            var trialRows = new List<string[]>(trialResults.Count);
             for (int i = 0; i < trialResults.Count; i++)
             {
                 TrialResult result = trialResults[i];
-                AppendSemicolonCsvRow(
-                    trialPath,
-                    trialHeaders,
+                FittsTrialSample sample = isoSamples[i];
+                float amplitude = sample.HasFrom ? Vector2.Distance(sample.From, sample.To) : float.NaN;
+                float deviation = sample.HasFrom
+                    ? FittsLawMath.EndpointDeviationOnTaskAxis(sample.From, sample.To, sample.Endpoint)
+                    : float.NaN;
+                trialRows.Add(
                     new[]
                     {
                         userId, conditionId, groupId, timestamp, iteration, phase, "trial",
@@ -1812,15 +1977,47 @@ namespace BOforUnity.Examples
                         FormatCsvFloat(result.clickPosition.x), FormatCsvFloat(result.clickPosition.y),
                         FormatCsvFloat(result.clickTimeMs), FormatCsvFloat(result.centerDistancePixels),
                         FormatInt(result.wrongClicksBeforeHit), FormatInt(result.wrongTargetClicksBeforeHit),
-                        FormatInt(result.playAreaMissClicksBeforeHit), FormatCsvFloat(circleSizePixels),
-                        FormatCsvFloat(circleDistancePixels), FormatCsvFloat(movementDirectionDegrees),
-                        FormatCsvFloat(xFontSizePixels), FormatCsvFloat(buttonHue),
-                        FormatCsvFloat(buttonSaturation), FormatCsvFloat(buttonColorBrightness)
+                        FormatInt(result.playAreaMissClicksBeforeHit), FormatCsvFloat(design.ButtonSizePixels),
+                        FormatCsvFloat(design.ButtonDistancePixels), FormatCsvFloat(movementDirectionDegrees),
+                        FormatCsvFloat(design.XFontSizePixels), FormatCsvFloat(design.ButtonHue),
+                        FormatCsvFloat(design.ButtonSaturation), FormatCsvFloat(buttonColorBrightness),
+                        FormatCsvFloat(_appliedCircleSizePixels), FormatCsvFloat(_appliedRingDiameterPixels),
+                        sample.HasFrom ? FormatCsvFloat(sample.From.x) : string.Empty,
+                        sample.HasFrom ? FormatCsvFloat(sample.From.y) : string.Empty,
+                        FormatCsvFloat(amplitude), FormatCsvFloat(deviation),
+                        FormatCsvFloat(amplitude + deviation),
+                        IsFinite(deviation) ? "TRUE" : "FALSE"
                     }
                 );
             }
 
+            if (trialRows.Count > 0)
+                AppendSemicolonCsvRows(trialPath, trialHeaders, trialRows);
+
             Debug.Log("FittsLawTask: wrote detailed app logs to " + logRoot);
+        }
+
+        /// <summary>
+        /// The completed trials as ISO 9241-9 samples: movement from the previously selected target's center to
+        /// this target, ending at the registered selection point. The first trial of the round has no start.
+        /// </summary>
+        private List<FittsTrialSample> BuildIsoTrialSamples()
+        {
+            var samples = new List<FittsTrialSample>(trialResults.Count);
+            for (int i = 0; i < trialResults.Count; i++)
+            {
+                TrialResult result = trialResults[i];
+                samples.Add(new FittsTrialSample
+                {
+                    From = result.fromTargetPosition,
+                    To = result.targetPosition,
+                    Endpoint = result.clickPosition,
+                    MovementTimeMs = result.clickTimeMs,
+                    HasFrom = result.hasFromTarget
+                });
+            }
+
+            return samples;
         }
 
         private string ResolveFittsAppLogDirectory(BoForUnityManager manager)
@@ -1829,7 +2026,8 @@ namespace BOforUnity.Examples
                 return _manualLogDirectory;
 
             ResolveFittsLogContext(manager, out string userId, out string conditionId, out string ignoredGroupId);
-            string logRoot = Path.Combine(Application.streamingAssetsPath, "BOData", "LogData");
+            // Same root as the optimizer and the questionnaires (persistentDataPath where StreamingAssets is read-only).
+            string logRoot = LogDataFolderUtility.LogDataRoot;
             string userLogId = LogDataFolderUtility.GetOrCreateUserFolderTokenForCondition(
                 logRoot,
                 userId,
@@ -1889,7 +2087,25 @@ namespace BOforUnity.Examples
             if (_manualLogContextActive)
                 return _manualLogIteration.ToString(CultureInfo.InvariantCulture);
 
-            return manager != null ? manager.currentIteration.ToString(CultureInfo.InvariantCulture) : "0";
+            if (manager == null)
+                return "0";
+
+            // Python numbers evaluations globally (warm-start rows and sampling included), so use the Iteration
+            // it logs this design under; the rows then join with ObservationsPerEvaluation.csv. The final-design
+            // row is logged by the manager under FinalDesignLogIteration.
+            if (string.Equals(GetBoPhase(manager), "finaldesign", StringComparison.Ordinal))
+            {
+                if (manager.FinalDesignLogIteration >= 0)
+                    return manager.FinalDesignLogIteration.ToString(CultureInfo.InvariantCulture);
+                if (manager.LastSuggestionLogIteration >= 0)
+                    return (manager.LastSuggestionLogIteration + 1).ToString(CultureInfo.InvariantCulture);
+            }
+            else if (manager.LastSuggestionLogIteration >= 0)
+            {
+                return manager.LastSuggestionLogIteration.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return manager.currentIteration.ToString(CultureInfo.InvariantCulture);
         }
 
         private string GetLogPhase(BoForUnityManager manager)
@@ -1907,21 +2123,15 @@ namespace BOforUnity.Examples
                 objective.value.values != null &&
                 objective.value.values.Count > 0)
             {
-                int measureCount = Mathf.Max(1, objective.value.numberOfSubMeasures);
-                int startIndex = Mathf.Max(0, objective.value.values.Count - measureCount);
-                double sum = 0.0;
-                int count = 0;
-                for (int i = startIndex; i < objective.value.values.Count; i++)
-                {
-                    float value = objective.value.values[i];
-                    if (!IsFinite(value))
-                        return string.Empty;
-
-                    sum += value;
-                    count++;
-                }
-
-                return count > 0 ? FormatCsvFloat((float)(sum / count)) : string.Empty;
+                // The same reduction the manager sends to Python (finite sub-measures of the last window,
+                // midpoint when none is finite, clamped to the bounds), so this column matches the observation.
+                ObjectiveAggregate aggregate = BoObjectiveMath.Aggregate(
+                    objective.value.values,
+                    Mathf.Max(1, objective.value.numberOfSubMeasures),
+                    objective.value.lowerBound,
+                    objective.value.upperBound
+                );
+                return FormatCsvFloat(aggregate.Value);
             }
 
             if (string.Equals(objectiveKey, speedObjectiveKey, StringComparison.Ordinal))
@@ -1930,7 +2140,7 @@ namespace BOforUnity.Examples
             if (string.Equals(objectiveKey, accuracyObjectiveKey, StringComparison.Ordinal))
                 return FormatCsvFloat(accuracyDistancePixels);
 
-            FittsLawConditionManager conditionManager = FindObjectOfType<FittsLawConditionManager>();
+            FittsLawConditionManager conditionManager = FindAnyObjectByType<FittsLawConditionManager>();
             if (conditionManager != null && conditionManager.TryGetObjectiveAverage(objectiveKey, out float conditionObjectiveValue))
                 return FormatCsvFloat(conditionObjectiveValue);
 
@@ -2025,14 +2235,58 @@ namespace BOforUnity.Examples
 
         private static void AppendSemicolonCsvRow(string path, string[] headers, string[] values)
         {
+            AppendSemicolonCsvRows(path, headers, new List<string[]> { values });
+        }
+
+        private static void AppendSemicolonCsvRows(string path, string[] headers, List<string[]> rows)
+        {
+            string headerLine = BuildSemicolonCsvLine(headers);
+            path = ResolveCsvPathForHeader(path, headerLine);
             bool writeHeader = !File.Exists(path) || new FileInfo(path).Length == 0;
             using (var writer = new StreamWriter(path, true, Encoding.UTF8))
             {
                 if (writeHeader)
-                    writer.WriteLine(BuildSemicolonCsvLine(headers));
+                    writer.WriteLine(headerLine);
 
-                writer.WriteLine(BuildSemicolonCsvLine(values));
+                for (int i = 0; i < rows.Count; i++)
+                    writer.WriteLine(BuildSemicolonCsvLine(rows[i]));
             }
+        }
+
+        /// <summary>
+        /// A log written by an earlier version has other columns; appending to it would misalign every new row.
+        /// Such a file is left untouched and the rows go to the first "name_N.csv" whose header matches.
+        /// </summary>
+        private static string ResolveCsvPathForHeader(string path, string headerLine)
+        {
+            string directory = Path.GetDirectoryName(path) ?? string.Empty;
+            string stem = Path.GetFileNameWithoutExtension(path);
+            string extension = Path.GetExtension(path);
+            string candidate = path;
+            for (int suffix = 1; suffix < 1000; suffix++)
+            {
+                if (!File.Exists(candidate) || new FileInfo(candidate).Length == 0)
+                    return candidate;
+
+                string existingHeader;
+                using (var reader = new StreamReader(candidate, Encoding.UTF8, true))
+                    existingHeader = reader.ReadLine();
+
+                if (string.Equals(existingHeader, headerLine, StringComparison.Ordinal))
+                    return candidate;
+
+                if (suffix == 1)
+                {
+                    Debug.LogWarning(
+                        "FittsLawTask: '" + path + "' has different columns (written by an earlier version); " +
+                        "new rows go to a separate file next to it."
+                    );
+                }
+
+                candidate = Path.Combine(directory, stem + "_" + suffix.ToString(CultureInfo.InvariantCulture) + extension);
+            }
+
+            return candidate;
         }
 
         private static string BuildSemicolonCsvLine(string[] cells)
@@ -2072,16 +2326,14 @@ namespace BOforUnity.Examples
 
         private static string FormatCsvFloat(float value)
         {
-            if (!IsFinite(value))
-                return string.Empty;
-
-            return Math.Round(value, 3, MidpointRounding.AwayFromZero)
-                .ToString("0.###", CultureInfo.InvariantCulture);
+            // Round-trip, culture-invariant (same as the optimizer logs); the old 3-decimal rounding erased small
+            // values and made the objective columns disagree with ObservationsPerEvaluation.csv.
+            return BoObjectiveMath.FormatCsvFloat(value);
         }
 
         private static bool IsFinite(float value)
         {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
+            return BoObjectiveMath.IsFinite(value);
         }
 
         private void WriteBoObjectiveValues()
@@ -2135,7 +2387,11 @@ namespace BOforUnity.Examples
 
         private static BoForUnityManager FindPreferredBoManager()
         {
-            BoForUnityManager[] managers = FindObjectsOfType<BoForUnityManager>();
+            // The persistent manager that runs the study; scene copies are discarded on reload.
+            if (BoForUnityManager.Instance != null)
+                return BoForUnityManager.Instance;
+
+            BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>(FindObjectsSortMode.None);
             if (managers == null || managers.Length == 0)
                 return null;
 
@@ -2178,15 +2434,15 @@ namespace BOforUnity.Examples
         private float GetEffectiveRingRadius()
         {
             float requestedRadius = Mathf.Max(
-                circleDistancePixels * 0.5f,
-                GetMinimumRingRadiusForNoOverlap(circleSizePixels, targetCount)
+                _appliedCircleDistancePixels * 0.5f,
+                GetMinimumRingRadiusForNoOverlap(_appliedCircleSizePixels, targetCount)
             );
             if (!clampTargetsInsidePlayArea || _playArea == null)
                 return requestedRadius;
 
             Vector2 halfSize = _playArea.rect.size * 0.5f;
-            float maxX = Mathf.Max(0f, halfSize.x - Mathf.Abs(taskCenter.x) - circleSizePixels * 0.5f);
-            float maxY = Mathf.Max(0f, halfSize.y - Mathf.Abs(taskCenter.y) - circleSizePixels * 0.5f);
+            float maxX = Mathf.Max(0f, halfSize.x - Mathf.Abs(taskCenter.x) - _appliedCircleSizePixels * 0.5f);
+            float maxY = Mathf.Max(0f, halfSize.y - Mathf.Abs(taskCenter.y) - _appliedCircleSizePixels * 0.5f);
             return Mathf.Min(requestedRadius, maxX, maxY);
         }
 
@@ -2276,11 +2532,9 @@ namespace BOforUnity.Examples
 
         private static void EnsureEventSystem()
         {
-            if (FindObjectOfType<EventSystem>() != null)
-                return;
-
-            GameObject eventSystemObject = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-            eventSystemObject.hideFlags = HideFlags.None;
+            // Adds StandaloneInputModule only when the legacy Input Manager is active; in Input-System-only
+            // projects it would throw every frame, so the Input System's UI module is used there.
+            QTEventSystemUtility.EnsureEventSystem();
         }
 
         private void ClearGeneratedUi()
@@ -2324,7 +2578,7 @@ namespace BOforUnity.Examples
             }
         }
 
-        private sealed class TargetPointerClickRelay : MonoBehaviour, IPointerClickHandler
+        private sealed class TargetPointerClickRelay : MonoBehaviour, IPointerDownHandler, IPointerClickHandler
         {
             private FittsLawTask _owner;
             private int _targetIndex;
@@ -2335,14 +2589,20 @@ namespace BOforUnity.Examples
                 _targetIndex = targetIndex;
             }
 
+            public void OnPointerDown(PointerEventData eventData)
+            {
+                if (_owner != null)
+                    _owner.HandleTargetPointerEvent(_targetIndex, eventData, SelectionEvent.PointerDown);
+            }
+
             public void OnPointerClick(PointerEventData eventData)
             {
                 if (_owner != null)
-                    _owner.HandleTargetPointerClick(_targetIndex, eventData);
+                    _owner.HandleTargetPointerEvent(_targetIndex, eventData, SelectionEvent.PointerClick);
             }
         }
 
-        private sealed class PlayAreaPointerClickRelay : MonoBehaviour, IPointerClickHandler
+        private sealed class PlayAreaPointerClickRelay : MonoBehaviour, IPointerDownHandler, IPointerClickHandler
         {
             private FittsLawTask _owner;
 
@@ -2351,10 +2611,16 @@ namespace BOforUnity.Examples
                 _owner = owner;
             }
 
+            public void OnPointerDown(PointerEventData eventData)
+            {
+                if (_owner != null)
+                    _owner.HandlePlayAreaPointerEvent(eventData, SelectionEvent.PointerDown);
+            }
+
             public void OnPointerClick(PointerEventData eventData)
             {
                 if (_owner != null)
-                    _owner.HandlePlayAreaPointerClick(eventData);
+                    _owner.HandlePlayAreaPointerEvent(eventData, SelectionEvent.PointerClick);
             }
         }
     }

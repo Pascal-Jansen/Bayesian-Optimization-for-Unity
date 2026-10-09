@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -12,6 +13,7 @@ using System.Text;
 using System.Threading;
 using UnityEngine;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace BOforUnity.Scripts
 {
@@ -114,6 +116,9 @@ namespace BOforUnity.Scripts
     [Serializable] class ParametersMsg : MsgBase
     {
         public Dictionary<string, float> values;
+        // Global log iteration (the Iteration column of ObservationsPerEvaluation.csv) the suggested design
+        // will be logged under; absent from older backends.
+        public int? iteration;
     }
 
     [Serializable] class ObjectivesMsg : MsgBase
@@ -126,6 +131,12 @@ namespace BOforUnity.Scripts
         public float value;
     }
 
+    // Unity -> Python: end the session cleanly (the backend logs the reason and exits).
+    [Serializable] class StopMsg : MsgBase
+    {
+        public string reason;
+    }
+
     // -------------------- SocketNetwork --------------------
     public class SocketNetwork : MonoBehaviour
     {
@@ -134,6 +145,7 @@ namespace BOforUnity.Scripts
         private IPEndPoint _ipEnd;
         private Thread _connectThread;
         private volatile bool _stopRequested;
+        private volatile bool _stopMessageSent;
         private volatile bool _connectionClosedByPeer;
         private volatile bool _optimizationFinished;
 
@@ -144,18 +156,55 @@ namespace BOforUnity.Scripts
 
         // TCP buffer for NDJSON framing
         private readonly byte[] _recvBuf = new byte[4096];
+        private readonly char[] _charBuf = new char[Encoding.UTF8.GetMaxCharCount(4096)];
         private readonly StringBuilder _lineBuf = new StringBuilder(4096);
+        // One decoder per connection: it keeps the bytes of a multi-byte character split across two reads,
+        // which Encoding.UTF8.GetString per read turned into U+FFFD replacement characters (a key such as
+        // "Gr\u00f6\u00dfe" then no longer matched).
+        private Decoder _utf8Decoder;
 
-        // JSON settings
+        // Python's receive limit for one NDJSON line (BO_MAX_RECV_BUF_BYTES, default 64 MiB). A larger init message
+        // would only fail in Python as a "possible framing error".
+        private const long DefaultMaxMessageBytes = 64L * 1024 * 1024;
+        // How long SocketQuit lets Python exit by itself after a stop message or optimization_finished before it is
+        // terminated.
+        private const int StopGracePeriodMs = 1000;
+        private const string ConnectionFailedText =
+            "Optimizer connection failed.\nCheck parameter/objective configuration and Python logs, then restart.";
+
+        // JSON settings. Used through one serializer created from them (JsonSerializer.Create ignores
+        // JsonConvert.DefaultSettings), so a host project's global defaults - e.g. a camelCase resolver that
+        // lowercases the keys Python expects, or MissingMemberHandling.Error, which made every incoming message
+        // throw - cannot change the protocol.
         private static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
+            ContractResolver = new DefaultContractResolver(),
+            MissingMemberHandling = MissingMemberHandling.Ignore,
+            NullValueHandling = NullValueHandling.Include,
+            DefaultValueHandling = DefaultValueHandling.Include,
+            TypeNameHandling = TypeNameHandling.None,
+            PreserveReferencesHandling = PreserveReferencesHandling.None,
+            MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
+            DateParseHandling = DateParseHandling.None,
+            FloatParseHandling = FloatParseHandling.Double,
+            // Floats are always written invariantly with "R" (round-trip): 0.7f is sent as 0.7.
             Culture = CultureInfo.InvariantCulture,
             Formatting = Formatting.None
         };
 
-        private bool _shutdownHandled;
+        private static readonly JsonSerializer Json = JsonSerializer.Create(JsonSettings);
 
         // -------------------- Lifecycle --------------------
+        /// <summary>
+        /// Marks the connection as intentionally closing (play mode exit, application quit, early stop) so the
+        /// receive thread treats Python going away as expected instead of reporting a failure. Call before the
+        /// Python process is terminated.
+        /// </summary>
+        public void RequestStop()
+        {
+            _stopRequested = true;
+        }
+
         public void InitSocket()
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
@@ -163,12 +212,42 @@ namespace BOforUnity.Scripts
             _ipEnd = new IPEndPoint(_ip, 56001);
 
             _stopRequested = false;
+            _stopMessageSent = false;
             _connectionClosedByPeer = false;
             _optimizationFinished = false;
-            _shutdownHandled = false;
             _lineBuf.Length = 0;
+            _utf8Decoder = new UTF8Encoding(false).GetDecoder();
             _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
+        }
+
+        private void OnEnable()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+#endif
+        }
+
+        private void OnDisable()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+#endif
+        }
+
+#if UNITY_EDITOR
+        private void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state)
+        {
+            // PythonStarter kills Python here, before OnDestroy runs; without the flag the receive thread would
+            // report the closed connection as a crash.
+            if (state == UnityEditor.PlayModeStateChange.ExitingPlayMode)
+                RequestStop();
+        }
+#endif
+
+        private void OnApplicationQuit()
+        {
+            RequestStop();
         }
 
         private void OnDestroy()
@@ -182,7 +261,22 @@ namespace BOforUnity.Scripts
             try
             {
                 SocketConnect();
-                SendInitInfo();
+                try
+                {
+                    SendInitInfo();
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // Invalid configuration or an oversized message: nothing was sent yet, so let Python exit
+                    // cleanly instead of failing on a dropped connection, and show the reason on screen.
+                    Debug.LogError("Optimizer start refused: " + ex.Message);
+                    TrySendStop("invalid_configuration");
+                    _stopRequested = true;
+                    string message = ex.Message;
+                    MainThreadDispatcher.Execute(() => OnSocketConnectionFailed(message));
+                    CloseSocket();
+                    return;
+                }
 
                 while (!_stopRequested)
                 {
@@ -202,21 +296,20 @@ namespace BOforUnity.Scripts
                         else
                         {
                             Debug.LogError("Socket closed by Python unexpectedly before optimization completed.");
-                            MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                            MainThreadDispatcher.Execute(() => OnSocketConnectionFailed());
                         }
 
                         _stopRequested = true;
-                        try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
-                        try { _serverSocket?.Close(); } catch { }
+                        CloseSocket();
                         break;
                     }
 
-                    var chunk = Encoding.UTF8.GetString(_recvBuf, 0, recvLen);
-                    _lineBuf.Append(chunk);
+                    int charCount = _utf8Decoder.GetChars(_recvBuf, 0, recvLen, _charBuf, 0, false);
+                    _lineBuf.Append(_charBuf, 0, charCount);
 
                     int newlineIndex;
                     bool protocolError = false;
-                    while ((newlineIndex = IndexOfChar(_lineBuf, '\n')) >= 0)
+                    while (!_stopRequested && (newlineIndex = IndexOfChar(_lineBuf, '\n')) >= 0)
                     {
                         string line = _lineBuf.ToString(0, newlineIndex).TrimEnd('\r');
                         _lineBuf.Remove(0, newlineIndex + 1);
@@ -231,9 +324,8 @@ namespace BOforUnity.Scripts
                             Debug.LogError($"Error in ParseJsonMessage: {ex.Message}\n{ex.StackTrace}\nPayload: {line}");
                             protocolError = true;
                             _stopRequested = true;
-                            MainThreadDispatcher.Execute(OnSocketConnectionFailed);
-                            try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
-                            try { _serverSocket?.Close(); } catch { }
+                            MainThreadDispatcher.Execute(() => OnSocketConnectionFailed());
+                            CloseSocket();
                             break;
                         }
                     }
@@ -253,12 +345,11 @@ namespace BOforUnity.Scripts
                 else
                 {
                     Debug.LogError($"SocketReceive SocketException: {ex.SocketErrorCode} {ex.Message}");
-                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                    MainThreadDispatcher.Execute(() => OnSocketConnectionFailed());
                 }
 
                 _stopRequested = true;
-                try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
-                try { _serverSocket?.Close(); } catch { }
+                CloseSocket();
             }
             catch (Exception ex)
             {
@@ -273,13 +364,18 @@ namespace BOforUnity.Scripts
                 else
                 {
                     Debug.LogError($"Error in SocketReceive: {ex.Message}\n{ex.StackTrace}");
-                    MainThreadDispatcher.Execute(OnSocketConnectionFailed);
+                    MainThreadDispatcher.Execute(() => OnSocketConnectionFailed());
                 }
 
                 _stopRequested = true;
-                try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
-                try { _serverSocket?.Close(); } catch { }
+                CloseSocket();
             }
+        }
+
+        private void CloseSocket()
+        {
+            try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
+            try { _serverSocket?.Close(); } catch { }
         }
 
         private static int IndexOfChar(StringBuilder buffer, char value)
@@ -301,40 +397,51 @@ namespace BOforUnity.Scripts
             _serverSocket.Connect(_ipEnd);
         }
 
-        private void OnSocketConnectionFailed()
+        // Main thread. Ends the study with the message on screen (status panel shown, loop terminated,
+        // automatic advance cancelled, Python stopped) instead of leaving the participant on a blank screen.
+        private void OnSocketConnectionFailed(string detail = null)
         {
-            _bomanager = _bomanager ?? gameObject.GetComponent<BoForUnityManager>();
+            _bomanager = _bomanager != null ? _bomanager : gameObject.GetComponent<BoForUnityManager>();
             if (_bomanager == null)
+            {
+                Debug.LogError("Optimizer connection failed, but BoForUnityManager is missing.");
+                SocketQuit();
                 return;
-
-            _bomanager.optimizationRunning = false;
-            _bomanager.simulationRunning = false;
-            _bomanager.hasNewDesignParameterValues = false;
-
-            if (_bomanager.loadingObj != null)
-                _bomanager.loadingObj.SetActive(false);
-            if (_bomanager.nextButton != null)
-                _bomanager.nextButton.SetActive(false);
-            if (_bomanager.outputText != null)
-            {
-                _bomanager.outputText.text =
-                    "Optimizer connection failed.\nCheck parameter/objective configuration and Python logs, then restart.";
             }
 
-            try
+            _bomanager.TerminateWithError(
+                string.IsNullOrWhiteSpace(detail)
+                    ? ConnectionFailedText
+                    : "The optimizer could not be started.\n" + detail
+            );
+            // TerminateWithError does nothing once the loop has ended; make sure the session is closed anyway.
+            SocketQuit();
+        }
+
+        private static string SerializeJson(object value)
+        {
+            var builder = new StringBuilder(256);
+            using (var stringWriter = new StringWriter(builder, CultureInfo.InvariantCulture))
+            using (var jsonWriter = new JsonTextWriter(stringWriter) { Formatting = Formatting.None })
             {
-                _bomanager.pythonStarter?.StopPythonProcess();
+                Json.Serialize(jsonWriter, value);
             }
-            catch (Exception ex)
+            return builder.ToString();
+        }
+
+        private static T DeserializeJson<T>(string json)
+        {
+            using (var stringReader = new StringReader(json))
+            using (var jsonReader = new JsonTextReader(stringReader))
             {
-                Debug.LogWarning($"Failed to stop Python process after socket connection failure: {ex.Message}");
+                return Json.Deserialize<T>(jsonReader);
             }
         }
 
         // -------------------- Protocol: incoming --------------------
         private void ParseJsonMessage(string json)
         {
-            var peek = JsonConvert.DeserializeObject<MsgBase>(json);
+            var peek = DeserializeJson<MsgBase>(json);
             if (peek == null || string.IsNullOrEmpty(peek.type))
             {
                 throw new InvalidOperationException("Received protocol message without a valid 'type' field.");
@@ -344,7 +451,7 @@ namespace BOforUnity.Scripts
             {
                 case "parameters":
                 {
-                    var msg = JsonConvert.DeserializeObject<ParametersMsg>(json);
+                    var msg = DeserializeJson<ParametersMsg>(json);
                     if (msg?.values == null)
                     {
                         throw new InvalidOperationException("Received 'parameters' message without a valid 'values' payload.");
@@ -352,6 +459,9 @@ namespace BOforUnity.Scripts
 
                     MainThreadDispatcher.Execute(() =>
                     {
+                        if (_stopRequested)
+                            return; // the session was closed while this message was queued
+
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
                         if (_bomanager == null || _bomanager.parameters == null)
                         {
@@ -360,7 +470,6 @@ namespace BOforUnity.Scripts
                                 "Terminating optimizer session to avoid backend deadlock."
                             );
                             OnSocketConnectionFailed();
-                            SocketQuit();
                             return;
                         }
 
@@ -389,7 +498,6 @@ namespace BOforUnity.Scripts
                                 string.Join(", ", nonFiniteKeys)
                             );
                             OnSocketConnectionFailed();
-                            SocketQuit();
                             return;
                         }
 
@@ -426,7 +534,6 @@ namespace BOforUnity.Scripts
                                 string.Join(", ", missingKeys)
                             );
                             OnSocketConnectionFailed();
-                            SocketQuit();
                             return;
                         }
 
@@ -441,7 +548,6 @@ namespace BOforUnity.Scripts
                                 string.Join(", ", unexpectedKeys)
                             );
                             OnSocketConnectionFailed();
-                            SocketQuit();
                             return;
                         }
 
@@ -451,6 +557,7 @@ namespace BOforUnity.Scripts
                             string expectedKey = pa.key.Trim();
                             pa.value.Value = incomingValues[expectedKey];
                         }
+                        _bomanager.LastSuggestionLogIteration = msg.iteration ?? -1;
 
                         // Notify lifecycle: triggers measurement and later SendObjectives()
                         if (_bomanager.initialized)
@@ -463,6 +570,9 @@ namespace BOforUnity.Scripts
 
                 case "optimization_finished":
                 {
+                    // Set before dispatching: the handler may end the session (SocketQuit) before this thread
+                    // continues, and SocketQuit grants the finished backend its grace period only with the flag set.
+                    _optimizationFinished = true;
                     MainThreadDispatcher.Execute(() =>
                     {
                         _bomanager = gameObject.GetComponent<BoForUnityManager>();
@@ -473,17 +583,16 @@ namespace BOforUnity.Scripts
                         }
                         _bomanager.OnOptimizationFinishedFromBackend();
                     });
-                    _optimizationFinished = true;
                     break;
                 }
 
                 case "coverage":
                 {
-                    var msg = JsonConvert.DeserializeObject<CoverageMsg>(json);
+                    var msg = DeserializeJson<CoverageMsg>(json);
                     if (msg != null)
                     {
                         coverage = msg.value;
-                        Debug.Log($"coverage {coverage}");
+                        Debug.Log("coverage " + coverage.ToString("R", CultureInfo.InvariantCulture));
                     }
                     else
                     {
@@ -494,11 +603,11 @@ namespace BOforUnity.Scripts
 
                 case "tempCoverage":
                 {
-                    var msg = JsonConvert.DeserializeObject<CoverageMsg>(json);
+                    var msg = DeserializeJson<CoverageMsg>(json);
                     if (msg != null)
                     {
                         tempCoverage = msg.value;
-                        Debug.Log($"tempCoverage {tempCoverage}");
+                        Debug.Log("tempCoverage " + tempCoverage.ToString("R", CultureInfo.InvariantCulture));
                     }
                     else
                     {
@@ -571,7 +680,9 @@ namespace BOforUnity.Scripts
                         },
                         optSeqOrder = parameter.value.optSeqOrder,
                         group = cabopGroup,
-                        tolerance = NormalizeCabopTolerance(parameter.value.cabopTolerance),
+                        // Sent unchanged: BoConfigValidator and the CABOP backend reject a tolerance outside
+                        // [0, 1] instead of it being rewritten to "never reuse".
+                        tolerance = parameter.value.cabopTolerance,
                         prefabValues = NormalizeCabopPrefabricatedValues(parameter.value.cabopPrefabricatedValues)
                     });
                 }
@@ -743,8 +854,32 @@ namespace BOforUnity.Scripts
                 }
             };
 
-            string json = JsonConvert.SerializeObject(init, JsonSettings);
+            string json = SerializeJson(init);
+            long maxBytes = GetMaxMessageBytes();
+            long jsonBytes = Encoding.UTF8.GetByteCount(json) + 1L; // + NDJSON newline
+            if (jsonBytes > maxBytes)
+            {
+                throw new InvalidOperationException(
+                    $"The init message is {FormatMiB(jsonBytes)} MiB, more than the backend accepts " +
+                    $"({FormatMiB(maxBytes)} MiB, environment variable BO_MAX_RECV_BUF_BYTES). " +
+                    "Reduce the context embeddings or prefabricated values, or raise BO_MAX_RECV_BUF_BYTES."
+                );
+            }
             SocketSendLine(json);
+        }
+
+        // Mirrors the backend's limit: Python inherits Unity's environment.
+        private static long GetMaxMessageBytes()
+        {
+            string configured = Environment.GetEnvironmentVariable("BO_MAX_RECV_BUF_BYTES");
+            return long.TryParse(configured, NumberStyles.Integer, CultureInfo.InvariantCulture, out long value) && value > 0
+                ? value
+                : DefaultMaxMessageBytes;
+        }
+
+        private static string FormatMiB(long bytes)
+        {
+            return (bytes / (1024.0 * 1024.0)).ToString("0.#", CultureInfo.InvariantCulture);
         }
 
         /// <summary>
@@ -979,13 +1114,6 @@ namespace BOforUnity.Scripts
             return string.IsNullOrEmpty(group) ? "default" : group;
         }
 
-        private static float NormalizeCabopTolerance(float value)
-        {
-            if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
-                return 0f;
-            return value;
-        }
-
         private static float NormalizeCabopObjectiveWeight(float value)
         {
             if (float.IsNaN(value) || float.IsInfinity(value) || value <= 0f)
@@ -1139,7 +1267,7 @@ namespace BOforUnity.Scripts
                 }
 
                 var value = ob.value;
-                var tmpList = value.values ?? (value.values = new List<float>());
+                var subMeasures = value.values ?? (value.values = new List<float>());
 
                 int subMeasureWindow = value.numberOfSubMeasures;
                 if (subMeasureWindow <= 0)
@@ -1151,65 +1279,52 @@ namespace BOforUnity.Scripts
                     subMeasureWindow = 1;
                 }
 
-                // keep the last N submeasures
-                int removeCount = Math.Max(0, tmpList.Count - subMeasureWindow);
-                if (removeCount > 0)
-                {
-                    tmpList.RemoveRange(0, removeCount);
-                }
-
+                // Mean of the finite sub-measures among the last N: one unanswered item (submitted as NaN)
+                // must not discard the answered ones of a multi-item objective. The same reduction feeds the
+                // perfect-rating check and the finaldesign row.
+                var aggregate = BoObjectiveMath.Aggregate(subMeasures, subMeasureWindow, value.lowerBound, value.upperBound);
                 float lo = Mathf.Min(value.lowerBound, value.upperBound);
                 float hi = Mathf.Max(value.lowerBound, value.upperBound);
 
-                // Average the finite sub-measures only: one unanswered item (submitted as NaN)
-                // must not discard the answered ones of a multi-item objective.
-                int finiteCount = 0;
-                double finiteSum = 0.0;
-                foreach (float subMeasure in tmpList)
+                if (aggregate.DroppedCount > 0)
                 {
-                    if (float.IsNaN(subMeasure) || float.IsInfinity(subMeasure))
-                        continue;
-                    finiteSum += subMeasure;
-                    finiteCount++;
+                    Debug.LogWarning(
+                        $"Objective '{ob.key}' received {subMeasures.Count} sub-measures but Number Of Sub Measures is " +
+                        $"{subMeasureWindow}: the first {aggregate.DroppedCount} are ignored and only the last " +
+                        $"{subMeasureWindow} are averaged. Raise Number Of Sub Measures if every value should count " +
+                        "(e.g. more questionnaire items match this objective key than configured)."
+                    );
                 }
 
-                float val;
-                if (finiteCount == 0)
+                if (aggregate.UsedMidpointFallback)
                 {
-                    float fallback = 0.5f * (lo + hi);
                     Debug.LogWarning(
-                        (tmpList.Count == 0
+                        (aggregate.WindowCount == 0
                             ? $"Objective '{ob.key}' has no values for this iteration. "
                             : $"Objective '{ob.key}' has only non-numeric values for this iteration. ") +
-                        $"Using fallback midpoint {fallback} in [{lo}, {hi}]."
+                        $"Using fallback midpoint {aggregate.Value} in [{lo}, {hi}]."
                     );
-                    val = fallback;
                     hadAdjustedObjective = true;
                 }
-                else
+                else if (aggregate.FiniteCount < aggregate.WindowCount)
                 {
-                    if (finiteCount < tmpList.Count)
-                    {
-                        Debug.LogWarning(
-                            $"Objective '{ob.key}': ignoring {tmpList.Count - finiteCount} non-numeric " +
-                            $"sub-measure(s) and averaging the remaining {finiteCount}."
-                        );
-                        hadAdjustedObjective = true;
-                    }
-                    val = (float)(finiteSum / finiteCount);
-                }
-
-                if (val < lo || val > hi)
-                {
-                    float rawVal = val;
-                    val = Mathf.Clamp(val, lo, hi);
                     Debug.LogWarning(
-                        $"Objective '{ob.key}' value {rawVal} is outside configured bounds [{lo}, {hi}]. " +
-                        $"Clamping to {val} before sending to Python."
+                        $"Objective '{ob.key}': ignoring {aggregate.WindowCount - aggregate.FiniteCount} non-numeric " +
+                        $"sub-measure(s) and averaging the remaining {aggregate.FiniteCount}."
                     );
                     hadAdjustedObjective = true;
                 }
 
+                if (aggregate.Clamped)
+                {
+                    Debug.LogWarning(
+                        $"Objective '{ob.key}' value {aggregate.UnclampedValue} is outside configured bounds [{lo}, {hi}]. " +
+                        $"Clamping to {aggregate.Value} before sending to Python."
+                    );
+                    hadAdjustedObjective = true;
+                }
+
+                float val = aggregate.Value;
                 finalObjectives[key] = val;
             }
 
@@ -1249,8 +1364,35 @@ namespace BOforUnity.Scripts
                 values = finalObjectives
             };
 
-            string json = JsonConvert.SerializeObject(msg, JsonSettings);
+            string json = SerializeJson(msg);
             SocketSendLine(json);
+        }
+
+        /// <summary>
+        /// Asks Python to end the session cleanly (it logs <paramref name="reason"/> and exits) and marks the
+        /// connection as intentionally closing. Best effort: failures are ignored, the process is still stopped
+        /// by SocketQuit. Main thread.
+        /// </summary>
+        public void SendStop(string reason)
+        {
+            TrySendStop(reason);
+            _stopRequested = true;
+        }
+
+        private void TrySendStop(string reason)
+        {
+            if (_stopMessageSent || _optimizationFinished || _serverSocket == null || !_serverSocket.Connected)
+                return;
+
+            try
+            {
+                SocketSendLine(SerializeJson(new StopMsg { type = "stop", reason = reason ?? string.Empty }));
+                _stopMessageSent = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Could not send stop message to Python ({reason}): {ex.Message}");
+            }
         }
 
         // -------------------- Low-level send/quit --------------------
@@ -1283,7 +1425,33 @@ namespace BOforUnity.Scripts
         {
             _stopRequested = true;
 
-            try { _bomanager?.pythonStarter?.StopPythonProcess(); } catch { }
+            // The manager is known only once InitSocket ran; a study ended before that (e.g. an invalid
+            // configuration found after Python started) must still stop the process. Not for a duplicate manager
+            // discarded in Awake (OnDestroy): it never started anything.
+            PythonStarter pythonStarter = _bomanager != null ? _bomanager.pythonStarter : null;
+            if (pythonStarter == null)
+            {
+                var manager = GetComponent<BoForUnityManager>();
+                if (manager != null && manager == BoForUnityManager.Instance)
+                    pythonStarter = manager.pythonStarter;
+            }
+
+            // After a stop message or optimization_finished Python exits by itself: it closes the connection (which
+            // ends the receive thread), then saves logs that were locked and exits. Give it a moment before the
+            // process is terminated.
+            if ((_stopMessageSent || _optimizationFinished) && _connectThread != null &&
+                _connectThread != Thread.CurrentThread)
+            {
+                var grace = System.Diagnostics.Stopwatch.StartNew();
+                try { _connectThread.Join(StopGracePeriodMs); } catch { }
+                while (pythonStarter != null && Volatile.Read(ref pythonStarter.isPythonProcessRunning) &&
+                       grace.ElapsedMilliseconds < StopGracePeriodMs)
+                {
+                    Thread.Sleep(10);
+                }
+            }
+
+            try { pythonStarter?.StopPythonProcess(); } catch { }
 
             try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
             try { _serverSocket?.Close(); } catch { }
@@ -1298,31 +1466,6 @@ namespace BOforUnity.Scripts
                 _connectThread = null;
             }
 
-        }
-
-        private void HandlePeerInitiatedShutdown(SocketException socketException = null)
-        {
-            if (_shutdownHandled)
-                return;
-
-            _shutdownHandled = true;
-
-            if (_optimizationFinished)
-            {
-                Debug.Log("Python optimization process closed the connection. Optimization iterations have finished successfully.");
-            }
-            else
-            {
-                if (socketException != null)
-                {
-                    Debug.LogError($"Socket closed by Python unexpectedly before optimization completed. Error: {socketException.SocketErrorCode} {socketException.Message}");
-                }
-                else
-                {
-                    Debug.LogError("Socket closed by Python unexpectedly before optimization completed.");
-                }
-                MainThreadDispatcher.Execute(OnSocketConnectionFailed);
-            }
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using BOforUnity.Scripts;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -26,6 +27,7 @@ namespace BOforUnity.Editor
         //private SerializedProperty endSimProp;
         private SerializedProperty welcomePanelProp;
         private SerializedProperty optimizerStatePanelProp;
+        private SerializedProperty progressTextProp;
         private SerializedProperty localPythonProp;
         private SerializedProperty pythonPathProp;
         
@@ -121,6 +123,7 @@ namespace BOforUnity.Editor
             nextButtonProp = serializedObject.FindProperty("nextButton");
             welcomePanelProp = serializedObject.FindProperty("welcomePanel");
             optimizerStatePanelProp = serializedObject.FindProperty("optimizerStatePanel");
+            progressTextProp = serializedObject.FindProperty("progressText");
             localPythonProp = serializedObject.FindProperty("localPython");
             pythonPathProp = serializedObject.FindProperty("pythonPath");
             //endSimProp = serializedObject.FindProperty("endOfSimulation");
@@ -200,10 +203,22 @@ namespace BOforUnity.Editor
             parameterList.DoLayoutList();
             EditorGUILayout.Space();
             objectiveList.DoLayoutList();
+            DrawConfigurationErrors();
 
             DrawSettingsConfiguration();
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        // Errors the launcher refuses to start with (BoConfigValidator), shown where keys and bounds are edited.
+        private void DrawConfigurationErrors()
+        {
+            var manager = target as BoForUnityManager;
+            if (manager == null)
+                return;
+
+            foreach (string error in BoConfigValidator.GetErrors(manager))
+                EditorGUILayout.HelpBox(error, MessageType.Error);
         }
 
         private void DrawSettingsConfiguration()
@@ -270,8 +285,8 @@ namespace BOforUnity.Editor
             EditorGUILayout.Space();
             GUILayout.Box(GUIContent.none, GUILayout.ExpandWidth(true), GUILayout.Height(3));
             EditorGUILayout.LabelField("Problem Setup", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("Design Parameters (d)", parameterList.count.ToString(), EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("Design Objectives (m)", objectiveList.count.ToString(), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Design Parameters (d)", parameterList.count.ToString(CultureInfo.InvariantCulture), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Design Objectives (m)", objectiveList.count.ToString(CultureInfo.InvariantCulture), EditorStyles.boldLabel);
 
             // ── Optimizer Backend / CABOP ──────────────────────────────────────────
             EditorGUILayout.Space();
@@ -633,7 +648,7 @@ namespace BOforUnity.Editor
             int total = sampling + optimization;
             totalIterationsProp.intValue = total;
 
-            EditorGUILayout.LabelField("Total Iterations", total.ToString(), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Total Iterations", total.ToString(CultureInfo.InvariantCulture), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(
                 "Total = effective Sampling Iterations + Optimization Iterations. Warm start uses 0 sampling iterations without changing the saved sampling setting.",
                 EditorStyles.helpBox
@@ -704,11 +719,12 @@ namespace BOforUnity.Editor
             EditorGUILayout.PropertyField(numRestartsProp,   new GUIContent("Optimizer Restarts",
                 "LBFGS restarts for acquisition optimization."));
             EditorGUILayout.PropertyField(rawSamplesProp,    new GUIContent("Raw Samples",
-                "Sobol samples for starting points."));
+                "Sobol samples for starting points; must be at least Optimizer Restarts."));
             EditorGUILayout.PropertyField(mcSamplesProp,     new GUIContent("MC Samples",
-                "Samples for Monte Carlo acquisition estimates."));
+                "Samples for Monte Carlo acquisition estimates. Default 128: multi-objective suggestions are " +
+                "2.6-4.2x faster (2-5 objectives) than with 512, at nearly the same candidates."));
             EditorGUILayout.PropertyField(seedProp,          new GUIContent("Random Seed",
-                "Seed for reproducibility."));
+                "Seed for reproducibility. The MetaTAF backend requires 0 or more."));
 
             // ── GameObject References ───────────────────────────────────────────────
             EditorGUILayout.Space();
@@ -727,6 +743,13 @@ namespace BOforUnity.Editor
             }
             EditorGUILayout.PropertyField(welcomePanelProp);
             EditorGUILayout.PropertyField(optimizerStatePanelProp);
+            if (progressTextProp != null)
+            {
+                EditorGUILayout.PropertyField(
+                    progressTextProp,
+                    new GUIContent("Progress Text (Optional)", "Shows \"Iteration x / N\" whenever a new design is ready.")
+                );
+            }
         }
 
         private void DrawContextualOptimizationSettings(bool nonBoTorchBackend)
@@ -781,9 +804,10 @@ namespace BOforUnity.Editor
                 EditorGUILayout.PropertyField(
                     normalizeContextEmbeddingsProp,
                     new GUIContent(
-                        "L2-Normalize Embeddings",
-                        "Recommended: normalizes provided embedding vectors so distances stay in a range the " +
-                        "task kernel handles well (important for raw CLIP/ViT features)."
+                        "Normalize Embeddings",
+                        "Recommended: keeps distances between context embeddings in a range the task kernel handles " +
+                        "well. Image embeddings are L2-normalized (CLIP convention); Manual embeddings are " +
+                        "standardized per feature across contexts, so magnitudes (e.g. ages 25 vs 60) still count."
                     )
                 );
             }

@@ -354,8 +354,7 @@ namespace QuestionnaireToolkit.Scripts
 
 #if !UNITY_EDITOR
                 metaDataStr = LoadMetaData();
-                currentResponseId = int.Parse(metaDataStr.Split(';')[0]);
-                currentRun = int.Parse(metaDataStr.Split(';')[1]);
+                ParseMetaData(metaDataStr, out currentResponseId, out currentRun);
 #endif
 #if UNITY_EDITOR
                 if (HasMetaDataAsset())
@@ -477,7 +476,7 @@ namespace QuestionnaireToolkit.Scripts
                     }
                     Debug.Log("Questionnaire: " + resultsFileName + (newFileEachStart ? "_" + (currentResponseId + 1) : "") + 
                               (runsPerUser > 1 ? " run: " + (currentRun + 1) : "") + " started!");
-                    startedTimestamp = DateTime.UtcNow + "";
+                    startedTimestamp = FormatUtcTimestamp(DateTime.UtcNow);
                 }
                 else
                 {
@@ -501,7 +500,9 @@ namespace QuestionnaireToolkit.Scripts
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                // Console.WriteLine never reached the Unity console, so a failed start was silent.
+                Debug.LogException(e, this);
+                Debug.LogError($"{nameof(QTQuestionnaireManager)}: questionnaire '{resultsFileName}' could not be started (see the exception above).", this);
                 questionnaireInitialized = false;
                 return false;
             }
@@ -550,21 +551,13 @@ namespace QuestionnaireToolkit.Scripts
                     // ignored
                 }
                 // add a new EventSystem if needed
-                if (FindObjectOfType<EventSystem>() == null)
-                {
-                    var o = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-                }
+                QTEventSystemUtility.EnsureEventSystem();
                 return;
             }
             
-#pragma warning disable 618
-            EditorApplication.playmodeStateChanged += () =>
-#pragma warning restore 618
-            {
-                // show the last selected page before playmode was entered.
-                if (!EditorApplication.isPlayingOrWillChangePlaymode && EditorApplication.isPlaying) 
-                    ShowPage(_currentPage);
-            };
+            // Subscribe once per instance (Start runs again after every scene load) and unsubscribe in OnDestroy.
+            EditorApplication.playModeStateChanged -= OnEditorPlayModeStateChanged;
+            EditorApplication.playModeStateChanged += OnEditorPlayModeStateChanged;
 #endif
             if (!running)
             {
@@ -577,6 +570,23 @@ namespace QuestionnaireToolkit.Scripts
             }
         }
 #if UNITY_EDITOR
+        private void OnEditorPlayModeStateChanged(PlayModeStateChange state)
+        {
+            if (this == null)
+            {
+                EditorApplication.playModeStateChanged -= OnEditorPlayModeStateChanged;
+                return;
+            }
+
+            // show the last selected page before playmode was entered.
+            if (!EditorApplication.isPlayingOrWillChangePlaymode && EditorApplication.isPlaying)
+                ShowPage(_currentPage);
+        }
+
+        private void OnDestroy()
+        {
+            EditorApplication.playModeStateChanged -= OnEditorPlayModeStateChanged;
+        }
         
         public void OnValidate()
         {
@@ -1005,7 +1015,7 @@ namespace QuestionnaireToolkit.Scripts
                                 {
                                     currentImportedItem.transform.GetChild(0).GetComponent<Image>().sprite = Resources.Load<Sprite>("QuestionnaireToolkitCustomResources/" + qItems[j]["image_name"].Value);
                                 }
-                                catch (Exception) { Console.WriteLine("Could not import image content from json! for image name: " + qItems[j]["image_name"].Value); }
+                                catch (Exception) { Debug.LogWarning("Could not import image content from json! for image name: " + qItems[j]["image_name"].Value); }
                                 break;
                             case "button":
                                 currentImportedPage.GetComponent<QTQuestionPageManager>().AddItem(true, this,QTQuestionPageManager.QuestionItemsEnum.Button, question, headerName);
@@ -1020,7 +1030,7 @@ namespace QuestionnaireToolkit.Scripts
                                 {
                                     currentImportedItem.transform.GetChild(0).GetComponent<VideoPlayer>().clip = Resources.Load<VideoClip>("QuestionnaireToolkitCustomResources/" + qItems[j]["video_name"].Value);
                                 }
-                                catch (Exception) { Console.WriteLine("Could not import video content from json! for video name: " + qItems[j]["video_name"].Value); }
+                                catch (Exception) { Debug.LogWarning("Could not import video content from json! for video name: " + qItems[j]["video_name"].Value); }
                                 break;
                         }
                     }
@@ -1437,7 +1447,7 @@ namespace QuestionnaireToolkit.Scripts
 
                     if (generateResultsFile || shouldCollectForBo)
                     {
-                        finishedTimestamp = DateTime.UtcNow + "";
+                        finishedTimestamp = FormatUtcTimestamp(DateTime.UtcNow);
                         if (!WriteResults())
                         {
                             currentResponseId = previousResponseId;
@@ -1457,7 +1467,19 @@ namespace QuestionnaireToolkit.Scripts
                     ResetQuestionnaire();
                     HideQuestionnaire();
                     running = false;
-                    onQuestionnaireFinished?.Invoke();
+                    try
+                    {
+                        onQuestionnaireFinished?.Invoke();
+                    }
+                    catch (Exception e)
+                    {
+                        // A failing listener (e.g. a log file locked by Excel) must not keep the optimizer from
+                        // receiving this evaluation; otherwise the study waits forever.
+                        Debug.LogException(e, this);
+                        Debug.LogError(
+                            $"{nameof(QTQuestionnaireManager)}: an onQuestionnaireFinished listener threw (see above); " +
+                            "continuing with the optimization step.", this);
+                    }
 
                     // check for BO Manager and start optimization as the questionnaire has finished
                     if (optimizationBridge != null)
@@ -1709,7 +1731,7 @@ namespace QuestionnaireToolkit.Scripts
             }
 
             _cachedOptimizationBridge = null;
-            foreach (var behaviour in FindObjectsOfType<MonoBehaviour>())
+            foreach (var behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.InstanceID))
             {
                 if (IsActiveSceneBridge(behaviour) && behaviour is IQuestionnaireOptimizationBridge bridge)
                 {
@@ -1725,7 +1747,7 @@ namespace QuestionnaireToolkit.Scripts
         {
             if (readBoContextFromManager && TryGetBoContextFromManager(out resolvedUserId, out resolvedConditionId, out resolvedGroupId))
             {
-                resolvedUserId = ResolveReservedContextUserId(resolvedUserId);
+                // The bridge owns (and has reserved) the user folder; its id is authoritative.
                 return;
             }
 
@@ -2481,7 +2503,7 @@ namespace QuestionnaireToolkit.Scripts
 
                     if (aci.itemValue != null && aci.itemValue.isAssigned)
                     {
-                        currVal = aci.itemValue.Get() + "";
+                        currVal = FormatInvariantCsvValue(aci.itemValue.Get());
                         rowCells.Add(currVal);
                     }
                     else
@@ -2553,6 +2575,9 @@ namespace QuestionnaireToolkit.Scripts
 
         private string ResolveBoContextResultsDirectory(string baseDirectory)
         {
+            baseDirectory = LogDataFolderUtility.NormalizeRoot(baseDirectory);
+            // Ask the bridge now, at reservation time: its owner resolves (and reserves) its user folder lazily, so
+            // an id read earlier could still be the unreserved request.
             string resolvedUserId = null;
             string resolvedConditionId = null;
             string resolvedGroupId = null;
@@ -2590,7 +2615,7 @@ namespace QuestionnaireToolkit.Scripts
             string conditionId,
             bool allowExistingRequestedUserFolder)
         {
-            string normalizedRoot = Path.GetFullPath(baseDirectory);
+            string normalizedRoot = LogDataFolderUtility.NormalizeRoot(baseDirectory);
             string normalizedRequestedUserId = NormalizeLogFolderToken(requestedUserId);
             string normalizedConditionId = NormalizeLogFolderToken(conditionId);
 
@@ -2641,6 +2666,14 @@ namespace QuestionnaireToolkit.Scripts
         }
 
         private static string ResolveResultsDirectory(string configuredPath)
+        {
+            // The default (StreamingAssets/BOData/LogData) maps to the shared LogDataRoot, which falls back to
+            // persistentDataPath where StreamingAssets is read-only, so questionnaires and the optimizer always
+            // share one normalized root (and therefore one user-folder reservation).
+            return LogDataFolderUtility.RedirectDefaultLogRoot(ResolveConfiguredResultsDirectory(configuredPath));
+        }
+
+        private static string ResolveConfiguredResultsDirectory(string configuredPath)
         {
             string path = string.IsNullOrWhiteSpace(configuredPath)
                 ? "Assets/StreamingAssets/BOData/LogData/"
@@ -3409,20 +3442,101 @@ namespace QuestionnaireToolkit.Scripts
 #endif
         }
         
+        private static string MetaDataPath => Path.Combine(Application.persistentDataPath, "QTMetaData.txt");
+
         private static string LoadMetaData()
         {
-            if (File.Exists(Application.persistentDataPath + "/QTMetaData.txt"))
+            try
             {
-                return File.ReadAllText(Application.persistentDataPath + "/QTMetaData.txt", Encoding.UTF8);
+                if (File.Exists(MetaDataPath))
+                    return File.ReadAllText(MetaDataPath, Encoding.UTF8);
+
+                SaveMetaData(0, 0);
             }
-            
-            SaveMetaData(0, 0);
+            catch (Exception e)
+            {
+                Debug.LogWarning($"{nameof(QTQuestionnaireManager)}: could not read '{MetaDataPath}' ({e.Message}); starting the response counter at 0.");
+            }
+
             return "0;0";
+        }
+
+        /// <summary>Parses "response_id;run", falling back to 0 for a missing, empty or corrupt value.</summary>
+        internal static void ParseMetaData(string text, out int responseId, out int run)
+        {
+            responseId = 0;
+            run = 0;
+            string[] parts = string.IsNullOrWhiteSpace(text) ? Array.Empty<string>() : text.Split(';');
+            bool responseOk = parts.Length > 0 &&
+                              int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out responseId) &&
+                              responseId >= 0;
+            bool runOk = parts.Length > 1 &&
+                         int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out run) &&
+                         run >= 0;
+            if (!responseOk) responseId = 0;
+            if (!runOk) run = 0;
+            if (!responseOk || !runOk)
+            {
+                Debug.LogWarning(
+                    $"{nameof(QTQuestionnaireManager)}: questionnaire metadata '{text}' is incomplete or corrupt; " +
+                    $"using response_id={responseId}, run={run}.");
+            }
         }
 
         private static void SaveMetaData(int r_id, int run)
         {
-            File.WriteAllText(Application.persistentDataPath + "/QTMetaData.txt", r_id + ";" + run, Encoding.UTF8);
+            // Write a temporary file and swap it in, so a crash mid-write cannot leave a truncated counter file.
+            string path = MetaDataPath;
+            string tempPath = path + ".tmp";
+            File.WriteAllText(
+                tempPath,
+                r_id.ToString(CultureInfo.InvariantCulture) + ";" + run.ToString(CultureInfo.InvariantCulture),
+                Encoding.UTF8);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    File.Replace(tempPath, path, null);
+                    return;
+                }
+                catch (Exception e) when (e is PlatformNotSupportedException || e is IOException)
+                {
+                    File.Delete(path);
+                }
+            }
+
+            File.Move(tempPath, path);
+        }
+
+        private static string FormatUtcTimestamp(DateTime utc)
+        {
+            // ISO 8601, culture-invariant (DateTime + "" produced e.g. "09.10.2026 14:03:04" on de-DE).
+            return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Culture-invariant text for an Additional CSV Item value: floats use the shortest round-trip form
+        /// ("0.5", not "0,5" on de-DE), matching the optimizer logs; non-finite numbers are left empty.
+        /// </summary>
+        internal static string FormatInvariantCsvValue(object value)
+        {
+            switch (value)
+            {
+                case null:
+                    return string.Empty;
+                case string text:
+                    return text;
+                case float f:
+                    return float.IsNaN(f) || float.IsInfinity(f) ? string.Empty : f.ToString("R", CultureInfo.InvariantCulture);
+                case double d:
+                    return double.IsNaN(d) || double.IsInfinity(d) ? string.Empty : d.ToString("R", CultureInfo.InvariantCulture);
+                case DateTime dateTime:
+                    return dateTime.ToString("o", CultureInfo.InvariantCulture);
+                case IFormattable formattable:
+                    return formattable.ToString(null, CultureInfo.InvariantCulture);
+                default:
+                    return value.ToString();
+            }
         }
         
         private static bool IsApproximate(Quaternion q1, Quaternion q2, float precision)

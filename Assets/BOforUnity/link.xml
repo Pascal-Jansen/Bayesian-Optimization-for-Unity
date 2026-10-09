@@ -1,0 +1,7 @@
+<!-- QTEventSystemUtility creates InputSystemUIInputModule by reflection in Input-System-only projects;
+     keep it from being stripped by IL2CPP managed code stripping. Ignored when the Input System package is absent. -->
+<linker>
+  <assembly fullname="Unity.InputSystem" ignoreIfMissing="1">
+    <type fullname="UnityEngine.InputSystem.UI.InputSystemUIInputModule" preserve="all"/>
+  </assembly>
+</linker>

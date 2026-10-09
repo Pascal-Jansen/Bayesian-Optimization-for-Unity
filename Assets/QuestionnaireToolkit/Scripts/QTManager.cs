@@ -130,10 +130,7 @@ namespace QuestionnaireToolkit.Scripts
                 }
                 
                 // add a new EventSystem if needed
-                if (FindObjectOfType<EventSystem>() == null)
-                {
-                    var o = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-                }
+                QTEventSystemUtility.EnsureEventSystem();
             }
 #endif
 
@@ -518,6 +515,50 @@ namespace QuestionnaireToolkit.Scripts
                 t = t.parent.transform;
             }
             return null; // Could not find a parent with given tag.
+        }
+    }
+    /// <summary>
+    /// Creates the EventSystem the questionnaires and examples need, with an input module that works for the
+    /// project's active input handling: <see cref="StandaloneInputModule"/> needs the legacy Input Manager and
+    /// throws every frame in Input-System-only projects (the Unity 6 default), where the Input System's own UI
+    /// module is added instead (looked up by name, so no package reference is required).
+    /// </summary>
+    public static class QTEventSystemUtility
+    {
+        private const string InputSystemUiModuleTypeName =
+            "UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem";
+
+        public static EventSystem EnsureEventSystem()
+        {
+            EventSystem existing = UnityEngine.Object.FindAnyObjectByType<EventSystem>();
+            if (existing != null)
+                return existing;
+
+            var eventSystemObject = new GameObject("EventSystem", typeof(EventSystem));
+            AddCompatibleInputModule(eventSystemObject);
+            return eventSystemObject.GetComponent<EventSystem>();
+        }
+
+        public static BaseInputModule AddCompatibleInputModule(GameObject eventSystemObject)
+        {
+            if (eventSystemObject == null)
+                return null;
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+            return eventSystemObject.AddComponent<StandaloneInputModule>();
+#else
+            Type moduleType = Type.GetType(InputSystemUiModuleTypeName, false);
+            if (moduleType != null && typeof(BaseInputModule).IsAssignableFrom(moduleType))
+                return (BaseInputModule)eventSystemObject.AddComponent(moduleType);
+
+            Debug.LogWarning(
+                "QuestionnaireToolkit: the legacy Input Manager is disabled and the Input System package's " +
+                "InputSystemUIInputModule was not found, so the created EventSystem has no input module and UI " +
+                "clicks will not register. Install the Input System package or enable 'Both' in " +
+                "Project Settings > Player > Active Input Handling."
+            );
+            return null;
+#endif
         }
     }
 }

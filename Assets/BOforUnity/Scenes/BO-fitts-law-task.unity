@@ -259,7 +259,7 @@ MonoBehaviour:
   trialCount: 5
   startOnAwake: 1
   startDelaySeconds: 0.25
-  restartWithKey: 1
+  restartWithKey: 0
   restartKey: 114
   ensureBoManagerInScene: 1
   configureBoManagerForFittsTask: 0
@@ -405,7 +405,7 @@ MonoBehaviour:
       upperBound: 64
       Value: 42
       cabopGroup: x_font_size
-      cabopTolerance: 2
+      cabopTolerance: 0.04347826
       cabopPrefabricatedValues: []
   - key: button_size
     value:
@@ -414,7 +414,7 @@ MonoBehaviour:
       upperBound: 120
       Value: 72
       cabopGroup: button_size
-      cabopTolerance: 2
+      cabopTolerance: 0.025
       cabopPrefabricatedValues: []
   - key: button_distance
     value:
@@ -423,7 +423,7 @@ MonoBehaviour:
       upperBound: 760
       Value: 520
       cabopGroup: button_distance
-      cabopTolerance: 5
+      cabopTolerance: 0.016891891
       cabopPrefabricatedValues: []
   - key: button_hue
     value:
@@ -490,7 +490,7 @@ MonoBehaviour:
   batchSize: 1
   numRestarts: 10
   rawSamples: 1024
-  mcSamples: 512
+  mcSamples: 128
   numSamplingIterations: 3
   numOptimizationIterations: 2
   seed: 3

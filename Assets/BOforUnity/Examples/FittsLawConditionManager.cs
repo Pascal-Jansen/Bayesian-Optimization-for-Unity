@@ -304,6 +304,11 @@ namespace BOforUnity.Examples
 
         private static BoForUnityManager FindPreferredIterationSettingsSource()
         {
+            // The persistent manager that runs the study. In the baseline conditions this component may
+            // deactivate the scene's manager before its Awake runs, so fall back to scoring every manager.
+            if (BoForUnityManager.Instance != null)
+                return BoForUnityManager.Instance;
+
             BoForUnityManager best = null;
             int bestScore = int.MinValue;
             foreach (BoForUnityManager candidate in Resources.FindObjectsOfTypeAll<BoForUnityManager>())
@@ -504,7 +509,7 @@ namespace BOforUnity.Examples
             string requestedUserId = ResolveContextValue(userId);
             string normalizedRequestedUserId = LogDataFolderUtility.NormalizeLogFolderToken(requestedUserId);
             userId = LogDataFolderUtility.GetOrCreateUserFolderTokenForCondition(
-                LogDataFolderUtility.StreamingAssetsLogRoot,
+                LogDataFolderUtility.LogDataRoot,
                 requestedUserId,
                 conditionId,
                 allowExistingRequestedUserFolder: true,
