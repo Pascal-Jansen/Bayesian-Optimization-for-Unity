@@ -371,13 +371,21 @@ class BayesOpt:
         self.space = space
         self.ifCost = ifCost
         self.rng = np.random.default_rng(random_state)
+        # One Sobol engine per optimizer, created on first use: drawing each point from
+        # a freshly scrambled engine makes the initial design i.i.d. uniform.
+        self._sobol_engine: Optional[Sobol] = None
 
         logger.info(f"[BayesOpt] Cost-aware mode = {self.ifCost}")
 
         # Initialize GP with Matern kernel (good for optimization)
         kernel = C(1.0) * Matern(length_scale=0.15, nu=1.5) + WhiteKernel(noise_level=1e-1)
+        # The hyperparameter restarts draw from random_state; left unset they come from
+        # numpy's global RNG, so a fixed seed would not reproduce a run.
         self.gp = GaussianProcessRegressor(
-            kernel=kernel, normalize_y=True, n_restarts_optimizer=15
+            kernel=kernel,
+            normalize_y=True,
+            n_restarts_optimizer=15,
+            random_state=None if random_state is None else np.random.RandomState(random_state),
         )
 
         self.cost_model = CostModel(space)
@@ -535,13 +543,14 @@ class BayesOpt:
     # -------------------------------------------------------------------------
 
     def _sobol_sample(self, n: int) -> np.ndarray:
-        """Generate n quasi-random samples in unit hypercube using Sobol sequence."""
-        sampler = Sobol(
-            d=self.space.bounds.shape[0],
-            scramble=True,
-            seed=int(self.rng.integers(1_000_000_000)),
-        )
-        return sampler.random(n)
+        """Generate the next n points of this optimizer's Sobol sequence in the unit hypercube."""
+        if self._sobol_engine is None:
+            self._sobol_engine = Sobol(
+                d=self.space.bounds.shape[0],
+                scramble=True,
+                seed=int(self.rng.integers(1_000_000_000)),
+            )
+        return self._sobol_engine.random(n)
 
     def _optimize_acquisition(
         self,
@@ -758,8 +767,14 @@ class BayesOpt:
         elif update_rule == "both":
             if self.X_sample_intended is None:
                 raise ValueError("Cannot use 'both' rule without intended samples")
-            self.X_fit = np.vstack([self.X_sample_intended, self.X_sample])
-            self.Y_fit = np.append(self.Y_sample_intended, self.Y_sample)
+            X_intended, Y_intended = self.X_sample_intended, self.Y_sample_intended
+            if X_intended.shape == self.X_sample.shape:
+                # An intended design that was realized unchanged is the same observation;
+                # entering it twice would make the GP treat every rating as near noise-free.
+                moved = ~np.all(np.isclose(X_intended, self.X_sample), axis=1)
+                X_intended, Y_intended = X_intended[moved], Y_intended[moved]
+            self.X_fit = np.vstack([X_intended, self.X_sample])
+            self.Y_fit = np.append(Y_intended, self.Y_sample)
         else:
             raise ValueError(f"Invalid update rule: {update_rule}")
 

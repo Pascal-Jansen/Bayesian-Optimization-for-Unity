@@ -22,8 +22,10 @@ from _stubs import (  # noqa: E402
     FakeConn as _FakeConn,
     FakeServerSocket as _FakeServerSocket,
     FakeTensor,
+    assert_hardened_listener,
     install_stub_modules,
     json_line as _json_line,
+    run_main_recording_listener,
 )
 
 
@@ -457,8 +459,9 @@ class BoTests(unittest.TestCase):
                 bo.SobolQMCNormalSampler = lambda sample_shape, seed: {
                     "shape": sample_shape, "seed": seed
                 }
+                # Initial samples (n=2, q=1, d=1): x=0.2 then x=0.8
                 bo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor(
-                    [[[0.2], [0.8]]]
+                    [[[0.2]], [[0.8]]]
                 )
                 bo.optimize_candidates = lambda model, sampler, X_baseline: FakeTensor([[0.4]])
 
@@ -487,6 +490,113 @@ class BoTests(unittest.TestCase):
 
         self.assertEqual(len(metric_values), 3)
         self.assertEqual([row[1] for row in rows[1:]], ["1", "2", "3"])
+
+    def _run_bo_execute(self, bo, tmp, iterations, user_ids=("u", "c", "g")):
+        """bo_execute against stubs: Sobol draws x=0.2, 0.8; candidates x=0.4."""
+        sobol_calls = []
+        bo.USER_ID, bo.CONDITION_ID, bo.GROUP_ID = user_ids
+        bo.USER_LOG_ID = bo.CONDITION_LOG_ID = "ids"
+        bo.WARM_START = False
+        bo.SEED = 3
+        bo.PROBLEM_DIM = 1
+        bo.NUM_OBJS = 1
+        bo.BATCH_SIZE = 1
+        bo.NUM_RESTARTS = 2
+        bo.RAW_SAMPLES = 16
+        bo.MC_SAMPLES = 8
+        bo.parameter_names = ["p0"]
+        bo.objective_names = ["o0"]
+        bo.parameters_info = [(0.0, 1.0)]
+        bo.objectives_info = [(0.0, 1.0, 0)]
+        bo.problem_bounds = FakeTensor([[0.0], [1.0]])
+        bo.SobolQMCNormalSampler = lambda sample_shape, seed: {"shape": sample_shape, "seed": seed}
+
+        def sobol(bounds, n, q, seed):
+            sobol_calls.append((n, q))
+            return FakeTensor([[[0.2]], [[0.8]]])
+
+        bo.draw_sobol_samples = sobol
+        bo.optimize_candidates = lambda model, sampler, X_baseline: FakeTensor([[0.4]])
+        values = [0.2, 0.8] + [0.5] * iterations
+        conn = _FakeConn([_json_line({"type": "objectives", "values": {"o0": v}}) for v in values])
+        prev_cwd = os.getcwd()
+        original_send = bo.send_json_line
+        try:
+            os.chdir(tmp)
+            bo.send_json_line = lambda c, payload: None
+            bo.bo_execute(conn=conn, seed=3, iterations=iterations, initial_samples=2)
+        finally:
+            bo.send_json_line = original_send
+            os.chdir(prev_cwd)
+        return sobol_calls
+
+    def test_initial_design_is_n_points_of_one_sobol_sequence(self):
+        bo = load_bo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = self._run_bo_execute(bo, tmp, iterations=1)
+        # n=N, q=1: N points of a d-dimensional sequence, not one point of an N*d one.
+        self.assertEqual(calls, [(2, 1)])
+
+    def test_rewritten_log_keeps_ids_as_sent(self):
+        bo = load_bo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            self._run_bo_execute(bo, tmp, iterations=2, user_ids=("007", "01", "NA"))
+            obs = pathlib.Path(tmp) / "LogData" / "ids" / "ids" / "run" / "ObservationsPerEvaluation.csv"
+            with open(obs, newline="", encoding="utf-8") as f:
+                rows = list(csv.reader(f, delimiter=";"))[1:]
+        self.assertEqual(len(rows), 4)
+        self.assertTrue(all(r[:3] == ["007", "01", "NA"] for r in rows), rows)
+
+    def test_recv_json_message_decodes_utf8_split_across_chunks(self):
+        bo = load_bo_module()
+        bo.SOCKET_RECV_BUF = ""
+        payload = '{"type":"objectives","values":{"Größe":1.0}}\n'.encode("utf-8")
+        cut = payload.index("ö".encode("utf-8")) + 1  # inside the two-byte character
+        conn = _FakeConn([payload[:cut], payload[cut:]])
+        msg = bo.recv_json_message(conn)
+        self.assertEqual(list(msg["values"]), ["Größe"])
+
+    def test_main_pins_torch_threads_from_environment(self):
+        bo = load_bo_module()
+        calls = []
+        bo.torch.set_num_threads = calls.append
+        self.assertEqual(bo.TORCH_THREADS, 1)  # single-threaded unless BO_TORCH_THREADS says otherwise
+        bo.TORCH_THREADS = 3
+        self._run_main_with_init(bo, self._base_init(), execute_stub=lambda *args, **kwargs: None)
+        self.assertEqual(calls, [3])
+
+        bo.TORCH_THREADS = 0
+        with self.assertRaisesRegex(ValueError, "BO_TORCH_THREADS"):
+            self._run_main_with_init(bo, self._base_init(), execute_stub=lambda *args, **kwargs: None)
+
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        bo = load_bo_module()
+        server, listening = run_main_recording_listener(bo, self._base_init(), "bo_execute")
+        assert_hardened_listener(self, bo.socket, server, listening)
+
+    def test_main_explains_a_taken_port(self):
+        bo = load_bo_module()
+
+        class _TakenPortServer(_FakeServerSocket):
+            def bind(self, addr):
+                raise OSError(10048, "Only one usage of each socket address is normally permitted")
+
+        server = _TakenPortServer(_FakeConn([]))
+        original_socket_ctor = bo.socket.socket
+        try:
+            bo.socket.socket = lambda *args, **kwargs: server
+            with self.assertRaisesRegex(OSError, "already in use.*left over"):
+                bo.main()
+        finally:
+            bo.socket.socket = original_socket_ctor
+        self.assertTrue(server.closed)
+
+    def test_main_rejects_keys_colliding_with_log_columns(self):
+        bo = load_bo_module()
+        init_msg = self._base_init()
+        init_msg["parameters"][0]["key"] = "Phase"
+        with self.assertRaisesRegex(ValueError, "collide with log columns"):
+            self._run_main_with_init(bo, init_msg, execute_stub=lambda *args, **kwargs: None)
 
     def test_create_and_write_csv_helpers_propagate_errors(self):
         bo = load_bo_module()

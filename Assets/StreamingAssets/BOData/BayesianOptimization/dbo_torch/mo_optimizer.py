@@ -21,11 +21,9 @@ Basic use::
 
 from __future__ import annotations
 
-import json
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from pathlib import Path
 
 import torch
 from botorch.acquisition.multi_objective.logei import (
@@ -33,7 +31,6 @@ from botorch.acquisition.multi_objective.logei import (
 )
 from botorch.acquisition.multi_objective.objective import WeightedMCMultiOutputObjective
 from botorch.models import ModelListGP
-from botorch.optim import optimize_acqf
 from botorch.sampling.normal import SobolQMCNormalSampler
 from botorch.utils.multi_objective.box_decompositions.dominated import (
     DominatedPartitioning,
@@ -41,7 +38,8 @@ from botorch.utils.multi_objective.box_decompositions.dominated import (
 from botorch.utils.multi_objective.pareto import is_non_dominated
 from torch import Tensor
 
-from .model import DBOModelConfig, build_model, fit_model, get_alpha, posterior_mean_std
+from ._base import DynamicOptimizerBase, _z_score
+from .model import DBOModelConfig, get_alpha, posterior_mean_std
 
 __all__ = ["MODBOConfig", "DynamicMOBO", "MOObservation", "as_stationary_mo"]
 
@@ -56,7 +54,7 @@ class MOObservation:
     time: float
     is_validation: bool = False
     #: Per-objective costs the model predicted before the point was evaluated,
-    #: when known.
+    #: when known, at the time the measurement was taken.
     predicted_y: list[float] | None = None
     predicted_sd: list[float] | None = None
 
@@ -97,10 +95,17 @@ class MODBOConfig:
     #: directly.
     validation_every: int | None = None
 
+    #: Tail probability for the per-objective upper bound used to score
+    #: validation candidates, as in the single-objective optimiser: 0.01
+    #: gives a multiplier of ~2.33 on each posterior standard deviation, and
+    #: 0.5 scores by posterior mean alone.
+    validation_confidence: float = 0.01
+
     #: Time value at which the acquisition function is evaluated, relative to
     #: the most recent observation. Same semantics as the single-objective
     #: optimiser: ``0`` scores candidates at the current time, ``1`` at the
-    #: time they will actually be evaluated.
+    #: time they will actually be evaluated. Recorded predictions are always
+    #: made at the time of evaluation.
     acquisition_time_offset: float = 0.0
 
     #: Restarts and raw samples for acquisition optimisation.
@@ -113,12 +118,16 @@ class MODBOConfig:
     #: Refit hyperparameters every N iterations. 1 refits every iteration.
     refit_every: int = 1
 
+    #: Start each refit from the previous fit's hyperparameters. See
+    #: :attr:`DBOConfig.warm_start <dbo_torch.optimizer.DBOConfig.warm_start>`.
+    warm_start: bool = False
+
     seed: int | None = None
     dtype: torch.dtype = torch.float64
     device: str = "cpu"
 
 
-class DynamicMOBO:
+class DynamicMOBO(DynamicOptimizerBase):
     """Dynamic multi-objective Bayesian optimiser for drifting cost functions.
 
     The optimiser MINIMISES every objective, consistent with
@@ -131,7 +140,12 @@ class DynamicMOBO:
     the WORST acceptable value per objective. Hypervolume is measured against
     it, so observations worse than the reference point in any objective
     contribute nothing.
+
+    A run can be saved with :meth:`save` and resumed with :meth:`load`.
     """
+
+    _observation_type = MOObservation
+    _config_type = MODBOConfig
 
     def __init__(
         self,
@@ -139,17 +153,7 @@ class DynamicMOBO:
         ref_point: Sequence[float],
         config: MODBOConfig | None = None,
     ) -> None:
-        self.config = config or MODBOConfig()
-        self._tkwargs = {"dtype": self.config.dtype, "device": self.config.device}
-
-        bounds_t = torch.tensor(
-            [[lo for lo, _ in bounds], [hi for _, hi in bounds]], **self._tkwargs
-        )
-        if not torch.all(bounds_t[1] > bounds_t[0]):
-            raise ValueError(f"Each bound must have hi > lo; got {list(bounds)}")
-
-        self.bounds = bounds_t
-        self.dim = bounds_t.size(-1)
+        super().__init__(bounds, config or MODBOConfig())
 
         ref_point = [float(r) for r in ref_point]
         if len(ref_point) < 2:
@@ -168,32 +172,10 @@ class DynamicMOBO:
         # maximisation frame BoTorch expects.
         self._neg_ref = -torch.tensor(ref_point, **self._tkwargs)
 
-        if self.config.seed_points is not None:
-            for p in self.config.seed_points:
-                if len(p) != self.dim:
-                    raise ValueError(
-                        f"Each seed point needs {self.dim} values, got {len(p)}: {p}"
-                    )
-
-        if self.config.seed is not None:
-            torch.manual_seed(self.config.seed)
-
-        self.observations: list[MOObservation] = []
         self._models: list | None = None
         self._model_list: ModelListGP | None = None
-        self._model_stale = True
-        self._pending: dict | None = None
 
     # -- state ----------------------------------------------------------
-
-    @property
-    def num_observations(self) -> int:
-        return len(self.observations)
-
-    @property
-    def next_iteration(self) -> int:
-        """1-based index of the iteration that :meth:`suggest` will produce."""
-        return self.num_observations + 1
 
     @property
     def alphas(self) -> list[float] | None:
@@ -202,25 +184,9 @@ class DynamicMOBO:
             return None
         return [get_alpha(m) for m in self._models]
 
-    def is_validation_iteration(self, iteration: int | None = None) -> bool:
-        every = self.config.validation_every
-        if every is None:
-            return False
-        it = self.next_iteration if iteration is None else iteration
-        return it % every == 0
-
     def _train_data(self) -> tuple[Tensor, Tensor]:
-        X = torch.tensor(
-            [obs.x + [obs.time] for obs in self.observations], **self._tkwargs
-        )
         Y = torch.tensor([obs.y for obs in self.observations], **self._tkwargs)
-        return X, Y
-
-    def _current_time(self) -> float:
-        return float(self.observations[-1].time) if self.observations else 0.0
-
-    def _acquisition_time(self) -> float:
-        return self._current_time() + self.config.acquisition_time_offset
+        return self._train_X(), Y
 
     def _ensure_models(self) -> ModelListGP | None:
         """Fit or refresh the per-objective GPs. Returns None if data is insufficient.
@@ -232,23 +198,14 @@ class DynamicMOBO:
         if self.num_observations < 2:
             return None
 
-        refit_every = max(1, self.config.refit_every)
-        needs_refit = (
-            self._model_list is None
-            or self._model_stale
-            and (self.num_observations % refit_every == 0 or self._model_list is None)
-        )
-
         if self._model_list is None or self._model_stale:
             X, Y = self._train_data()
-            models = []
-            for i in range(self.num_objectives):
-                model = build_model(X, Y[:, i : i + 1], self.config.model)
-                if needs_refit:
-                    model = fit_model(model)
-                models.append(model)
-            self._models = models
-            self._model_list = ModelListGP(*models)
+            previous = self._models or [None] * self.num_objectives
+            self._models = [
+                self._refresh_model(X, Y[:, i : i + 1], prev)
+                for i, prev in enumerate(previous)
+            ]
+            self._model_list = ModelListGP(*self._models)
             self._model_stale = False
 
         return self._model_list
@@ -262,55 +219,30 @@ class DynamicMOBO:
         scheduled validation iteration, and a hypervolume-improvement
         candidate otherwise.
         """
-        iteration = self.next_iteration
+        with self._isolated_rng():
+            return self._suggest()
 
-        if self.is_validation_iteration(iteration):
-            x = self.suggest_validation()
-            pending = {"is_validation": True}
+    def _suggest(self) -> list[float]:
+        if self.is_validation_iteration():
+            return self._suggest_validation()
 
-            # Capture what the model expects to measure here, per objective,
-            # before it is measured — same rationale as the single-objective
-            # optimiser: the prediction/measurement gap isolates model quality
-            # from exploration luck.
-            model = self._ensure_models()
-            if model is not None:
-                mu, sd = self._predict_at(model, x)
-                pending["predicted_y"] = mu
-                pending["predicted_sd"] = sd
-
-            self._pending = pending
-            return x
-
-        seeds = self.config.seed_points
-        n_seed = len(seeds) if seeds is not None else self.config.num_seed_points
-
-        if self.num_observations < n_seed:
-            if seeds is not None:
-                x = list(seeds[self.num_observations])
-            else:
-                lo, hi = self.bounds[0], self.bounds[1]
-                x = (lo + (hi - lo) * torch.rand(self.dim, **self._tkwargs)).tolist()
-            self._pending = {"is_validation": False}
+        x = self._next_seed_point()
+        if x is not None:
+            self._set_pending(x, is_validation=False)
             return x
 
         model = self._ensure_models()
         if model is None:
-            lo, hi = self.bounds[0], self.bounds[1]
-            x = (lo + (hi - lo) * torch.rand(self.dim, **self._tkwargs)).tolist()
-            self._pending = {"is_validation": False}
+            x = self._random_point()
+            self._set_pending(x, is_validation=False)
             return x
 
         x = self._optimize_acquisition(model)
-        mu, sd = self._predict_at(model, x)
-        self._pending = {"is_validation": False, "predicted_y": mu, "predicted_sd": sd}
+        self._set_pending(x, is_validation=False, prediction=self._predict_at(model, x))
         return x
 
     def _optimize_acquisition(self, model: ModelListGP) -> list[float]:
         """Maximise noisy expected hypervolume improvement at a fixed point in time.
-
-        The candidate space is the control parameters only; the time
-        coordinate is pinned, since we are choosing what to try *now*, not
-        when to try it.
 
         This is the scientific heart of the dynamic multi-objective step.
         qLogNEHVI improves on the hypervolume of the model posterior at
@@ -325,12 +257,14 @@ class DynamicMOBO:
         the single-objective optimiser computing its incumbent from the
         posterior at t = now instead of from stale measured values, and it
         falls out of the baseline choice with no extra machinery.
+
+        Once their times are overwritten, re-tested inputs (every validation
+        iteration re-tests one) are exact duplicates. They are removed: they
+        add nothing to the front and make the joint baseline covariance
+        singular.
         """
         t_acq = self._acquisition_time()
-        X, _ = self._train_data()
-
-        baseline = X.clone()
-        baseline[:, -1] = t_acq
+        baseline = self._visited_at(t_acq, unique=True)
 
         # BoTorch maximises hypervolume; the objective negates every outcome
         # to map our minimisation problem into that frame, and the reference
@@ -348,44 +282,42 @@ class DynamicMOBO:
             ),
             prune_baseline=True,
         )
-
-        full_bounds = torch.cat(
-            [self.bounds, torch.tensor([[t_acq], [t_acq]], **self._tkwargs)], dim=-1
-        )
-
-        candidate, _ = optimize_acqf(
-            acq_function=acqf,
-            bounds=full_bounds,
-            q=1,
-            num_restarts=self.config.num_restarts,
-            raw_samples=self.config.raw_samples,
-            fixed_features={self.dim: t_acq},
-            options={"batch_limit": 5, "maxiter": 200},
-        )
-        return candidate.squeeze(0)[: self.dim].tolist()
+        x, _ = self._maximize(acqf, t_acq)
+        return x
 
     def suggest_validation(self) -> list[float]:
         """Return the optimiser's current best single estimate on the front.
 
-        Restricted to already-evaluated inputs. Every visited input is
-        re-scored by the posterior mean of each objective at the current time,
-        the non-dominated subset of those predictions is taken, and the point
-        whose removal would cost the most hypervolume is returned. That is the
-        design the model currently considers most indispensable to its
-        drift-adjusted Pareto front — the natural multi-objective reading of
-        "best current estimate".
+        Restricted to already-evaluated inputs. Every visited input is scored
+        at the acquisition time by a per-objective upper confidence bound
+        ``mu_i + k * sd_i`` — risk-averse, as in the single-objective
+        optimiser; see ``validation_confidence`` — the non-dominated subset of
+        those scores is taken, and the point whose removal would cost the most
+        hypervolume is returned. That is the design the model is most
+        confident is indispensable to its drift-adjusted Pareto front.
+
+        Records the per-objective prediction at the chosen point, at the time
+        it will be measured, so the validation flag and prediction reach the
+        observation whether this is called directly or by :meth:`suggest`.
         """
+        with self._isolated_rng():
+            return self._suggest_validation()
+
+    def _suggest_validation(self) -> list[float]:
         model = self._ensure_models()
         if model is None:
-            return self._fallback_point()
+            x = self._fallback_point()
+            self._set_pending(x, is_validation=True)
+            return x
 
-        X, _ = self._train_data()
-        probe = X.clone()
-        probe[:, -1] = self._acquisition_time()
-        means = self._posterior_means(model, probe)
+        probe = self._visited_at(self._acquisition_time())
+        k = _z_score(1.0 - self.config.validation_confidence)
+        means, sds = self._posterior_moments(model, probe)
 
-        best = self._best_contributor(-means)
-        return X[best, : self.dim].tolist()
+        best = self._best_contributor(-(means + k * sds))
+        x = probe[best, : self.dim].tolist()
+        self._set_pending(x, is_validation=True, prediction=self._predict_at(model, x))
+        return x
 
     def _best_contributor(self, neg_scores: Tensor) -> int:
         """Row index with the largest drop-one hypervolume contribution.
@@ -418,22 +350,25 @@ class DynamicMOBO:
 
     # -- posterior helpers ----------------------------------------------
 
+    def _posterior_moments(self, model: ModelListGP, X: Tensor) -> tuple[Tensor, Tensor]:
+        """Per-objective posterior means and sds at ``X``, each ``(n, m)``."""
+        moments = [posterior_mean_std(sub, X) for sub in model.models]
+        means = torch.stack([mu.reshape(-1) for mu, _ in moments], dim=-1)
+        sds = torch.stack([sd.reshape(-1) for _, sd in moments], dim=-1)
+        return means, sds
+
     def _posterior_means(self, model: ModelListGP, X: Tensor) -> Tensor:
         """Per-objective posterior means at ``X``, shape ``(n, m)``, minimisation units."""
-        cols = [posterior_mean_std(sub, X)[0].reshape(-1) for sub in model.models]
-        return torch.stack(cols, dim=-1)
+        return self._posterior_moments(model, X)[0]
 
     def _predict_at(
         self, model: ModelListGP, x: Sequence[float], t: float | None = None
     ) -> tuple[list[float], list[float]]:
-        t = self._acquisition_time() if t is None else t
+        """Per-objective mean and sd at ``x``, by default when it will be measured."""
+        t = self._evaluation_time() if t is None else t
         point = torch.tensor([list(x) + [t]], **self._tkwargs)
-        mus, sds = [], []
-        for sub in model.models:
-            mu, sd = posterior_mean_std(sub, point)
-            mus.append(float(mu.reshape(-1)[0]))
-            sds.append(float(sd.reshape(-1)[0]))
-        return mus, sds
+        means, sds = self._posterior_moments(model, point)
+        return means[0].tolist(), sds[0].tolist()
 
     def _hypervolume(self, neg_Y: Tensor) -> float:
         """Hypervolume of ``neg_Y`` (maximisation frame) over the negated ref point."""
@@ -451,10 +386,13 @@ class DynamicMOBO:
         is_validation: bool | None = None,
         time: float | None = None,
     ) -> MOObservation:
-        """Record one measured cost per objective for an input."""
-        x = list(map(float, x))
-        if len(x) != self.dim:
-            raise ValueError(f"Expected {self.dim} input values, got {len(x)}: {x}")
+        """Record one measured cost per objective for an input.
+
+        The validation flag and prediction recorded for the last suggestion
+        are attached only if ``x`` is that suggestion (to within a float32
+        round trip).
+        """
+        x = self._check_x(x)
 
         y = [float(v) for v in y]
         if len(y) != self.num_objectives:
@@ -464,44 +402,7 @@ class DynamicMOBO:
         if not all(math.isfinite(v) for v in y):
             raise ValueError(f"Costs must be finite, got {y}")
 
-        pending = self._pending or {}
-        if is_validation is None:
-            is_validation = bool(pending.get("is_validation", False))
-
-        iteration = self.next_iteration
-        obs = MOObservation(
-            iteration=iteration,
-            x=x,
-            y=y,
-            time=float(iteration) if time is None else float(time),
-            is_validation=is_validation,
-            predicted_y=pending.get("predicted_y"),
-            predicted_sd=pending.get("predicted_sd"),
-        )
-        self.observations.append(obs)
-        self._pending = None
-        self._model_stale = True
-        return obs
-
-    # -- closed loop ----------------------------------------------------
-
-    def run(
-        self,
-        objective: Callable[[list[float]], Sequence[float]],
-        num_iterations: int,
-        callback: Callable[[MOObservation], None] | None = None,
-    ) -> list[MOObservation]:
-        """Run a full closed loop against a callable vector objective.
-
-        Convenience for simulation and testing. In a real study the ask/tell
-        methods are driven by the experiment instead.
-        """
-        for _ in range(num_iterations):
-            x = self.suggest()
-            obs = self.observe(x, objective(x))
-            if callback is not None:
-                callback(obs)
-        return self.observations
+        return self._record(x, y, is_validation, time)
 
     # -- reporting ------------------------------------------------------
 
@@ -527,14 +428,13 @@ class DynamicMOBO:
         if not self.observations:
             return []
 
-        X, Y = self._train_data()
+        _, Y = self._train_data()
         scores = Y
         if at_current_time:
-            model = self._ensure_models()
+            with self._isolated_rng():
+                model = self._ensure_models()
             if model is not None:
-                probe = X.clone()
-                probe[:, -1] = self._acquisition_time()
-                scores = self._posterior_means(model, probe)
+                scores = self._posterior_means(model, self._visited_at(self._acquisition_time()))
 
         mask = is_non_dominated(-scores)
         return [
@@ -562,9 +462,6 @@ class DynamicMOBO:
         neg = -Y
         return [self._hypervolume(neg[: i + 1]) for i in range(neg.size(0))]
 
-    def history(self) -> list[dict]:
-        return [o.as_dict() for o in self.observations]
-
     def prediction_error(self) -> list[dict]:
         """Per-objective gap between predicted and measured cost, per validation step."""
         return [
@@ -578,23 +475,16 @@ class DynamicMOBO:
             if o.is_validation and o.predicted_y is not None
         ]
 
-    def save(self, path: str | Path) -> Path:
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "bounds": self.bounds.T.tolist(),
+    def _summary(self) -> dict:
+        return {
             "ref_point": self.ref_point,
             "alphas": self.alphas,
-            "config": {
-                "validation_every": self.config.validation_every,
-                "acquisition_time_offset": self.config.acquisition_time_offset,
-                "stationary": self.config.model.stationary,
-            },
             "hypervolume_trace": self.hypervolume_trace(),
-            "observations": self.history(),
         }
-        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return path
+
+    @classmethod
+    def _from_payload(cls, payload: dict, config):
+        return cls(bounds=payload["bounds"], ref_point=payload["ref_point"], config=config)
 
     def __repr__(self) -> str:
         alphas = self.alphas
@@ -615,4 +505,5 @@ def as_stationary_mo(config: MODBOConfig) -> MODBOConfig:
     Pins ``alpha = 1`` for every objective, giving the qNEHVI baseline the
     dynamic optimiser is compared against.
     """
-    return replace(config, model=replace(config.model, stationary=True))
+    seeds = None if config.seed_points is None else [list(p) for p in config.seed_points]
+    return replace(config, model=replace(config.model, stationary=True), seed_points=seeds)

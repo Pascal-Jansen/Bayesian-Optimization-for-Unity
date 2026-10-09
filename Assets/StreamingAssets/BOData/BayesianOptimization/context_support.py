@@ -410,6 +410,32 @@ def strip_task_column(x):
 
 
 # -------------------- model construction (botorch, lazy) --------------------
+_LCEMGP_CLASS = None
+
+
+def _lcemgp_class():
+    """LCEMGP that can be evaluated while a configured context has no observations.
+
+    MultiTaskGP.eval() initialises the IndexKernel factors of unobserved tasks from the
+    observed ones. LCEMGP has no IndexKernel -- task similarity comes from the context
+    embeddings -- so in BoTorch 0.18.1 that step raises AttributeError whenever a context
+    has no rows yet (a new participant with warm-start data from others, or several
+    contexts without warm start). Skipping it is exact for LCEMGP: posteriors are
+    unchanged when every context is observed.
+    """
+    global _LCEMGP_CLASS
+    if _LCEMGP_CLASS is None:
+        from botorch.models.contextual_multioutput import LCEMGP
+        from botorch.models.multitask import MultiTaskGP
+
+        class _UnobservedContextLCEMGP(LCEMGP):
+            def eval(self):
+                return super(MultiTaskGP, self).eval()
+
+        _LCEMGP_CLASS = _UnobservedContextLCEMGP
+    return _LCEMGP_CLASS
+
+
 def build_contextual_model(train_x_with_task, train_y, setup):
     """Build an LCE-M GP model (one LCEMGP per objective) and its MLL.
 
@@ -420,7 +446,6 @@ def build_contextual_model(train_x_with_task, train_y, setup):
     """
     import torch
     from botorch.models import ModelListGP
-    from botorch.models.contextual_multioutput import LCEMGP
     from gpytorch.constraints import Interval
     from gpytorch.kernels.rbf_kernel import RBFKernel
     from gpytorch.mlls import ExactMarginalLogLikelihood
@@ -440,9 +465,10 @@ def build_contextual_model(train_x_with_task, train_y, setup):
     task_feature = train_x_with_task.shape[-1] - 1
     embs_dim_list = [1]  # one learned embedding dim for the single categorical feature
 
+    lcemgp = _lcemgp_class()
     models = []
     for j in range(train_y.shape[-1]):
-        model_j = LCEMGP(
+        model_j = lcemgp(
             train_X=train_x_with_task,
             train_Y=train_y[:, j: j + 1],
             task_feature=task_feature,

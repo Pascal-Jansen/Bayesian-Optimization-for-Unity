@@ -7,6 +7,7 @@
 import json
 import socket
 import time
+import codecs
 import csv
 import os
 import numpy as np
@@ -78,12 +79,20 @@ tkwargs = {"dtype": torch.double, "device": torch.device("cpu")}
 device = torch.device("cpu")
 
 # -------------------- TCP server helpers --------------------
-HOST = ''
+# Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
+HOST = '127.0.0.1'
 PORT = 56001
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
+# Single-objective GPs at study sizes are too small for intra-op parallelism: one torch
+# thread was 1.4-1.6x faster per suggestion with identical candidates (d=2..8, n=12..80),
+# and leaves the remaining cores to Unity. BO_TORCH_THREADS overrides it.
+TORCH_THREADS = int(os.environ.get("BO_TORCH_THREADS", "1"))
 SOCKET_RECV_BUF = ""
+# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
+# must not become replacement characters (a key "Größe" would no longer match).
+SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
 
 def normalize_user_token(value, default="-1"):
@@ -113,6 +122,21 @@ def send_json_line(conn, obj):
         t = obj.get("type") if isinstance(obj, dict) else "unknown"
         raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
 
+
+def configure_listener_socket(s):
+    """Socket options for the backend's single listening socket.
+
+    On Windows, SO_REUSEADDR lets a second process bind a port that is still being listened
+    on, so a stale backend could receive Unity's connection; SO_EXCLUSIVEADDRUSE refuses that
+    and still allows an immediate restart. On POSIX, SO_REUSEADDR only permits rebinding
+    while an earlier connection lingers in TIME_WAIT, which a quick restart needs.
+    """
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
 def recv_json_message(conn):
     """Receive one NDJSON message while preserving unread bytes across calls."""
     global SOCKET_RECV_BUF
@@ -138,15 +162,16 @@ def recv_json_message(conn):
         except socket.timeout as e:
             raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
         if not chunk:
-            trailing = SOCKET_RECV_BUF.strip()
+            trailing = (SOCKET_RECV_BUF + SOCKET_RECV_DECODER.decode(b"", final=True)).strip()
             SOCKET_RECV_BUF = ""
             if trailing:
                 print("Warning: discarding trailing unterminated socket data:", trailing, flush=True)
             return None
-        SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
+        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
         if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
             preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
             SOCKET_RECV_BUF = ""
+            SOCKET_RECV_DECODER.reset()
             raise RuntimeError(
                 f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
                 f"possible framing error or oversized message. Tail preview: {preview}"
@@ -184,20 +209,20 @@ def get_unique_folder(parent, folder_name):
 def create_csv_file(csv_file_path, fieldnames):
     os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
     write_header = not os.path.exists(csv_file_path)
-    with open(csv_file_path, 'a+', newline='') as f:
+    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         if write_header:
             w.writeheader()
 
 def write_data_to_csv(csv_file_path, fieldnames, rows):
-    with open(csv_file_path, 'a+', newline='') as f:
+    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         w.writerows(rows)
 
 # Frame transforms live in bo_normalize so that this backend, mobo.py and the offline
 # Meta-TAF source generators cannot drift apart. Thin wrappers keep the call sites
 # (and the test suite) unchanged.
-def denormalize_to_original_param(val01, lo, hi, decimals=3):
+def denormalize_to_original_param(val01, lo, hi, decimals="log"):
     return bo_normalize.denormalize_to_original_param(val01, lo, hi, decimals)
 
 def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
@@ -217,11 +242,25 @@ def normalize_obj_column(col, lo, hi, minflag):
     )
 
 
-def expected_observation_columns():
+def fixed_observation_columns():
     cols = ['UserID','ConditionID','GroupID','Timestamp','Iteration','Phase']
     if CONTEXT_SETUP is not None:
         cols.append(context_support.CONTEXT_CSV_COLUMN)
-    return cols + ['IsBest'] + objective_names + parameter_names
+    return cols + ['IsBest']
+
+
+def expected_observation_columns():
+    return fixed_observation_columns() + objective_names + parameter_names
+
+
+def read_observation_log(path):
+    """Read ObservationsPerEvaluation.csv back without re-typing any cell.
+
+    The log is rewritten after every evaluation; type inference would turn IDs such as
+    "007" or "NA" into 7 or an empty cell in every earlier row, while FinalDesignSelector
+    and the questionnaire logs match IDs as exact strings.
+    """
+    return pd.read_csv(path, delimiter=';', dtype=str, keep_default_na=False, encoding='utf-8')
 
 
 def observation_context_cells():
@@ -342,10 +381,13 @@ def generate_initial_data(conn, n_samples, metric_values=None):
     if not os.path.exists(obs_csv):
         # NOTE: 'IsBest' replaces 'IsPareto'
         header = expected_observation_columns()
-        with open(obs_csv, 'w', newline='') as f:
+        with open(obs_csv, 'w', newline='', encoding='utf-8') as f:
             csv.writer(f, delimiter=';').writerow(header)
 
-    train_x = draw_sobol_samples(bounds=problem_bounds, n=1, q=n_samples, seed=SEED).squeeze(0)
+    # n_samples points of a d-dimensional Sobol sequence (n=N, q=1). The former n=1, q=N
+    # drew ONE point of an N*d-dimensional sequence, which spreads no better than
+    # independent uniform draws.
+    train_x = draw_sobol_samples(bounds=problem_bounds, n=n_samples, q=1, seed=SEED).squeeze(1)
     print("Initial Sobol X in [0,1]:", train_x, flush=True)
 
     train_obj = []
@@ -370,7 +412,7 @@ def generate_initial_data(conn, n_samples, metric_values=None):
                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                i+1, 'sampling', *observation_context_cells(),
                'TRUE' if is_best else 'FALSE', y_den, *x_den]
-        with open(obs_csv, 'a', newline='') as f:
+        with open(obs_csv, 'a', newline='', encoding='utf-8') as f:
             csv.writer(f, delimiter=';').writerow(row)
 
         if metric_values is not None:
@@ -384,11 +426,8 @@ def generate_initial_data(conn, n_samples, metric_values=None):
         vals_norm = [float(t.item()) for t in train_obj]
         best_norm = max(vals_norm)
         flags = ['TRUE' if abs(v - best_norm) < 1e-12 else 'FALSE' for v in vals_norm]
-        df = pd.read_csv(obs_csv, delimiter=';')
+        df = read_observation_log(obs_csv)
         if len(df) >= len(flags):
-            # Cast first: pandas parses TRUE/FALSE as bool and would otherwise
-            # reject/upcast the string flag assignment.
-            df['IsBest'] = df['IsBest'].astype(str)
             df.loc[df.index[:len(flags)], 'IsBest'] = flags
             df.to_csv(obs_csv, sep=';', index=False)
 
@@ -410,8 +449,9 @@ def load_data():
     if not os.path.exists(y_path):
         raise FileNotFoundError(f"Warm-start objective CSV not found: {y_path}")
 
-    x_df = pd.read_csv(x_path, delimiter=';')
-    y_df = pd.read_csv(y_path, delimiter=';')
+    x_df = pd.read_csv(x_path, delimiter=';', encoding='utf-8',
+                       dtype={context_support.CONTEXT_CSV_COLUMN: str})
+    y_df = pd.read_csv(y_path, delimiter=';', encoding='utf-8')
 
     missing_param_cols = [k for k in parameter_names if k not in x_df.columns]
     missing_obj_cols = [k for k in objective_names if k not in y_df.columns]
@@ -479,7 +519,9 @@ def optimize_candidates(model, sampler, X_baseline):
         q=BATCH_SIZE,
         num_restarts=NUM_RESTARTS,
         raw_samples=RAW_SAMPLES,
-        options={"batch_limit": 5, "maxiter": 200},
+        # init_batch_limit scores the raw samples 128 at a time instead of batch_limit's 5:
+        # same candidates, a fraction of the wait.
+        options={"batch_limit": 5, "init_batch_limit": 128, "maxiter": 200},
         sequential=True,
     )
     return candidates.detach()  # in [0,1]
@@ -532,7 +574,7 @@ def save_xy(x_sample, y_sample, iteration):
     y_np[-1][0] = denormalize_to_original_obj(y_np[-1][0], objectives_info[0][0], objectives_info[0][1], objectives_info[0][2])
 
     if os.path.exists(obs_csv):
-        df = pd.read_csv(obs_csv, delimiter=';')
+        df = read_observation_log(obs_csv)
         expected_cols = expected_observation_columns()
         if list(df.columns) != expected_cols:
             raise ValueError(
@@ -571,6 +613,7 @@ def save_xy(x_sample, y_sample, iteration):
         df.loc[tail, 'IsBest'] = flags
 
     df.to_csv(obs_csv, sep=';', index=False)
+    return iteration_index
 
 def save_metric_to_file(metric_values, iteration):
     os.makedirs(PROJECT_PATH, exist_ok=True)
@@ -578,7 +621,7 @@ def save_metric_to_file(metric_values, iteration):
     legacy_csv = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
 
     write_best_header = not os.path.exists(best_csv) or os.path.getsize(best_csv) == 0
-    with open(best_csv, 'a', newline='') as f:
+    with open(best_csv, 'a', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         if write_best_header:
             w.writerow(["BestObjective", "Iteration"])
@@ -586,7 +629,7 @@ def save_metric_to_file(metric_values, iteration):
 
     # Legacy mirror for older analysis scripts that still read this file.
     write_legacy_header = not os.path.exists(legacy_csv) or os.path.getsize(legacy_csv) == 0
-    with open(legacy_csv, 'a', newline='') as f:
+    with open(legacy_csv, 'a', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         if write_legacy_header:
             w.writerow(["Hypervolume", "Iteration"])
@@ -619,6 +662,11 @@ def bo_execute(conn, seed, iterations, initial_samples):
     mll, model = initialize_model(train_x, train_y)
 
     best = best_current_context_objective(train_x, train_y)
+    if WARM_START:
+        # Baseline over the warm-start data, at the Iteration of the last current-context
+        # warm-start row: the axis ObservationsPerEvaluation.csv uses (0 if none).
+        metric_values.append(best)
+        save_metric_to_file(metric_values, int(np.sum(current_context_mask(train_x))))
     send_json_line(conn, {"type": "coverage", "value": float(best)})
 
     for it in range(1, iterations + 1):
@@ -637,10 +685,8 @@ def bo_execute(conn, seed, iterations, initial_samples):
 
         best = best_current_context_objective(train_x, train_y)
         metric_values.append(best)
-        save_xy(train_x, train_y, it)
-        save_metric_to_file(
-            metric_values, it if WARM_START else initial_samples + it
-        )
+        # The metric row carries the same Iteration as the evaluation's observation row.
+        save_metric_to_file(metric_values, save_xy(train_x, train_y, it))
         send_json_line(conn, {"type": "coverage", "value": float(best)})
 
         mll, model = initialize_model(train_x, train_y)
@@ -660,24 +706,36 @@ def main():
     global SOCKET_RECV_BUF
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    configure_listener_socket(s)
     conn = None
     try:
         if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
             raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
+        if TORCH_THREADS < 1:
+            raise ValueError(f"BO_TORCH_THREADS must be >= 1, got {TORCH_THREADS}")
+        torch.set_num_threads(TORCH_THREADS)
         s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
-        s.bind((HOST, PORT))
+        try:
+            s.bind((HOST, PORT))
+        except OSError as e:
+            raise OSError(
+                f"Port {PORT} is already in use, most likely by an optimizer backend left over "
+                "from an earlier session. End that python process (Task Manager / Activity "
+                f"Monitor) and start again. ({e})"
+            ) from e
         s.listen(1)
         print('Server starts, waiting for connection...', flush=True)
         try:
             conn, addr = s.accept()
         except socket.timeout as e:
             raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
+        s.close()  # one Unity client per run: accept no further connections
         print('Connected by', addr, flush=True)
         if SOCKET_TIMEOUT_SEC <= 0:
             raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
         conn.settimeout(SOCKET_TIMEOUT_SEC)
         SOCKET_RECV_BUF = ""
+        SOCKET_RECV_DECODER.reset()
 
         # receive init
         init_msg = None
@@ -790,6 +848,12 @@ def main():
             init_root = os.environ.get("BO_INIT_ROOT") or os.path.join(os.getcwd(), "InitData")
             context_support.resolve_embeddings(CONTEXT_SETUP, init_root=init_root)
             print("Contextual optimization:", context_support.describe(CONTEXT_SETUP), flush=True)
+
+        # Keys become CSV columns next to the fixed ones; a key such as "Phase" would
+        # duplicate a column and break the log rewrite after the sampling phase.
+        reserved = sorted(set(parameter_names + objective_names).intersection(fixed_observation_columns()))
+        if reserved:
+            raise ValueError(f"Parameter/objective keys collide with log columns: {reserved}. Rename them.")
 
         # normalized search box [0,1]^d
         problem_bounds = torch.stack(

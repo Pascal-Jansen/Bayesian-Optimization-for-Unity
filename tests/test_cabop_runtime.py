@@ -26,7 +26,12 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in sys.path:
     sys.path.insert(0, _TESTS_DIR)
 
-from _stubs import FakeConn, json_line  # noqa: E402
+from _stubs import (  # noqa: E402
+    FakeConn,
+    assert_hardened_listener,
+    json_line,
+    run_main_recording_listener,
+)
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
@@ -172,6 +177,82 @@ class BayesOptOrderingTests(unittest.TestCase):
         )
         self.assertTrue(np.all(np.isfinite(values)))
 
+    @staticmethod
+    def _one_param_space():
+        from cabop.bayesopt import BOSpace
+
+        return BOSpace(parameters={
+            "groups": ["g"],
+            "cost": {"g": {"unchanged": 1.0, "swapped": 5.0, "acquired": 20.0}},
+            "actual_cost": {"g": {"unchanged": 1.0, "swapped": 5.0, "acquired": 20.0}},
+            "parameters": {
+                "p0": {"bound": np.asarray([0.0, 1.0]), "tolerance": 0.01, "group": "g"},
+                "p1": {"bound": np.asarray([0.0, 1.0]), "tolerance": 0.01, "group": "g"},
+            },
+        })
+
+    def test_initial_design_is_one_sobol_sequence(self):
+        from cabop.bayesopt import BayesOpt
+
+        one_at_a_time = BayesOpt(self._one_param_space(), ifCost=False, random_state=3)
+        all_at_once = BayesOpt(self._one_param_space(), ifCost=False, random_state=3)
+        drawn = np.vstack([one_at_a_time._sobol_sample(1) for _ in range(4)])
+        np.testing.assert_allclose(drawn, all_at_once._sobol_sample(4))
+
+    def test_fixed_seed_reproduces_suggestions_whatever_the_global_rng(self):
+        from cabop.bayesopt import BayesOpt
+
+        def run(global_seed):
+            np.random.seed(global_seed)  # the GP restarts must not draw from here
+            optimizer = BayesOpt(self._one_param_space(), ifCost=False, random_state=3)
+            suggestions = []
+            for _ in range(6):
+                x, _ = optimizer.ask(n_init=3)
+                y = float((x[0] - 0.3) ** 2 + (x[1] - 0.7) ** 2)
+                optimizer.tell(x, y, x, update_rule="actual")
+                suggestions.append(np.asarray(x, dtype=float))
+            return np.vstack(suggestions)
+
+        np.testing.assert_array_equal(run(1), run(2))
+
+    def test_both_rule_enters_an_unmoved_design_once(self):
+        from cabop.bayesopt import BayesOpt
+
+        optimizer = BayesOpt(self._one_param_space(), ifCost=False, random_state=3)
+        optimizer.tell(np.array([0.2, 0.2]), 1.0, np.array([0.2, 0.2]), update_rule="both")
+        optimizer.tell(np.array([0.5, 0.5]), 2.0, np.array([0.45, 0.5]), update_rule="both")
+        # Two realized rows plus the one intended design that snapping actually moved.
+        self.assertEqual(optimizer.X_fit.shape[0], 3)
+        self.assertEqual(optimizer.Y_fit.shape[0], 3)
+
+
+@unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
+class CabopInitTests(unittest.TestCase):
+    def test_group_costs_match_parameter_groups_case_insensitively(self):
+        msg = interleaved_group_init_msg()
+        msg["parameters"][1]["group"] = "GB"  # Unity treats "GB" and "gB" as one group
+        runtime = load_cabop_runtime()
+        runtime.parse_init_and_validate(msg, forced_mode="single")
+        msg["cabopGroupCosts"][1]["cost"] = {"unchanged": 2, "swapped": 3, "acquired": 4}
+        runtime.init_group_costs(msg)
+        space = runtime.build_cabop_space_dict()
+        self.assertEqual(space["parameters"]["p1"]["group"], "GB")
+        self.assertEqual(space["cost"]["GB"], {"unchanged": 2.0, "swapped": 3.0, "acquired": 4.0})
+
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        runtime = load_cabop_runtime()
+        server, listening = run_main_recording_listener(
+            runtime, interleaved_group_init_msg(), "run_cabop", main_args=("single",)
+        )
+        assert_hardened_listener(self, runtime.socket, server, listening)
+
+    def test_degenerate_parameter_range_is_rejected_at_init(self):
+        msg = interleaved_group_init_msg()
+        msg["parameters"][0]["init"] = {"low": 0.5, "high": 0.5}
+        runtime = load_cabop_runtime()
+        with self.assertRaisesRegex(ValueError, "degenerate range"):
+            runtime.parse_init_and_validate(msg, forced_mode="single")
+
 
 @unittest.skipUnless(HAS_CABOP_DEPS, "scipy/scikit-learn/loguru not installed")
 class CabopRuntimeLoopTests(unittest.TestCase):
@@ -235,6 +316,32 @@ class CabopRuntimeLoopTests(unittest.TestCase):
                 if prev_log_root is not None:
                     os.environ["BO_LOG_ROOT"] = prev_log_root
                 os.chdir(prev_cwd)
+
+    def test_rewritten_log_keeps_ids_as_sent(self):
+        msg = interleaved_group_init_msg()
+        msg["user"] = {"userId": "007", "conditionId": "01", "groupId": "NA"}
+        runtime = load_cabop_runtime()
+        runtime.parse_init_and_validate(msg, forced_mode="single")
+        conn = FakeConn([
+            json_line({"type": "objectives", "values": {"o0": 4.0}}),
+            json_line({"type": "objectives", "values": {"o0": 7.0}}),
+            json_line({"type": "objectives", "values": {"o0": 5.0}}),
+        ])
+        with tempfile.TemporaryDirectory() as tmp:
+            prev_log_root = os.environ.get("BO_LOG_ROOT")
+            os.environ["BO_LOG_ROOT"] = tmp
+            try:
+                runtime.run_cabop(conn)
+                obs_csv = pathlib.Path(runtime.PROJECT_PATH) / "ObservationsPerEvaluation.csv"
+                with open(obs_csv, newline="", encoding="utf-8") as f:
+                    rows = [line.rstrip("\r\n").split(";") for line in f][1:]
+            finally:
+                if prev_log_root is None:
+                    os.environ.pop("BO_LOG_ROOT", None)
+                else:
+                    os.environ["BO_LOG_ROOT"] = prev_log_root
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(r[:3] == ["007", "01", "NA"] for r in rows), rows)
 
 
 if __name__ == "__main__":

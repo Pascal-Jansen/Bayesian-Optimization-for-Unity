@@ -103,6 +103,8 @@ def install_torch_stub():
     torch_mod.stack = lambda seq, dim=0: FakeTensor(np.stack([_to_array(x) for x in seq], axis=dim))
     torch_mod.cat = lambda seq, dim=0: FakeTensor(np.concatenate([_to_array(x) for x in seq], axis=dim))
     torch_mod.manual_seed = lambda seed: None
+    torch_mod.set_num_threads = lambda n: None
+    torch_mod.get_num_threads = lambda: 1
     torch_mod.zeros = lambda n, dtype=None: FakeTensor(np.zeros(n, dtype=np.float64))
     torch_mod.ones = lambda n, dtype=None: FakeTensor(np.ones(n, dtype=np.float64))
     torch_mod.full = lambda shape, fill_value, dtype=None: FakeTensor(
@@ -203,9 +205,14 @@ def install_openbo_stub():
     Lets test_meta_mobo_runtime exercise the full NDJSON protocol and CSV contract of the
     Meta-TAF backend in the numpy+pandas-only CI environment. The stub optimizer is
     deterministic: suggest() walks a fixed sequence of unit-cube points, observe() only
-    records, and the source list is derived from the staged gp_states directory exactly
-    like the real loader would.
+    records, and the source list is derived from the staged gp_states directory with the
+    real loader's warn-and-skip contract (same "MO TAF source '<name>': ..." warnings) for
+    unreadable trajectories and fronts that never dominate the reference point.
     """
+    import dataclasses
+    import os
+    import warnings
+
     openbo_mod = types.ModuleType("openbo")
     optimizers_mod = types.ModuleType("openbo.optimizers")
     mobo_taf_mod = types.ModuleType("openbo.optimizers.mobo_taf")
@@ -217,11 +224,32 @@ def install_openbo_stub():
         def __init__(self, name):
             self.name = name
 
+    @dataclasses.dataclass
     class MOTAFConfig:
-        def __init__(self, **kwargs):
-            self.kwargs = dict(kwargs)
-            for key, value in kwargs.items():
-                setattr(self, key, value)
+        """Field-for-field mirror of openbo's MOTAFConfig (MOBoTorchConfig + transfer
+        settings, same defaults): a misspelled field fails like the real one, and the
+        runtime's dataclasses.asdict() record is exercised."""
+
+        bounds: list
+        ref_point: list
+        n_init: int = 5
+        num_restarts: int = 5
+        raw_samples: int = 64
+        mc_samples: int = 128
+        seed: object = 0
+        taf_run_dir: object = ""
+        n_iter: int = 25
+        rho: float = 1.0
+        taf_weight_mode: str = "taf_r"
+        target_weight: float = 1.0
+        source_meta_features: object = None
+        target_meta_features: object = None
+        source_reference_mode: str = "front"
+        source_reference_quantile: float = 0.9
+        source_only_warmup_iters: int = 0
+        min_informative_pairs: int = 1
+        decay_start_iter: int = 0
+        decay_rate: float = 0.0
 
     class MOTAFSequentialOptimizer:
         instances = []
@@ -232,14 +260,37 @@ def install_openbo_stub():
             self.n_suggestions = 0
             self.observed_x = []
             self.observed_y = []
-            import os as _os
-            gp_dir = _os.path.join(str(config.taf_run_dir), "gp_states")
+            gp_dir = os.path.join(str(config.taf_run_dir), "gp_states")
+            traj_dir = os.path.join(str(config.taf_run_dir), "trajectories")
             names = []
-            if _os.path.isdir(gp_dir):
+            if os.path.isdir(gp_dir):
                 names = sorted(
-                    f[:-5] for f in _os.listdir(gp_dir) if f.endswith(".json")
+                    f[:-5] for f in os.listdir(gp_dir) if f.endswith(".json")
                 )
-            self.source_surrogates = [_StubSource(n) for n in names]
+            ref = np.asarray(config.ref_point, dtype=np.float64)
+            self.source_surrogates = []
+            for name in names:
+                try:
+                    with open(os.path.join(traj_dir, f"{name}.json"), encoding="utf-8") as f:
+                        trajectory = json.load(f)
+                    front = np.asarray(
+                        trajectory.get("pareto_front", trajectory["y_values"]), dtype=np.float64
+                    )
+                except (OSError, KeyError, ValueError, TypeError, AttributeError) as exc:
+                    warnings.warn(
+                        f"MO TAF source '{name}': malformed artifacts ({exc!r}); "
+                        "skipping this source."
+                    )
+                    continue
+                if (front.ndim != 2 or front.shape[1] != ref.shape[0]
+                        or not np.any(np.all(front > ref, axis=1))):
+                    warnings.warn(
+                        f"MO TAF source '{name}': cannot build its hypervolume term (source "
+                        f"'{name}' has no front point dominating the reference point.); "
+                        "skipping this source."
+                    )
+                    continue
+                self.source_surrogates.append(_StubSource(name))
             n = len(self.source_surrogates)
             self.last_source_weights = (
                 np.ones(n, dtype=np.float64) / n if n else np.zeros(0, dtype=np.float64)
@@ -364,3 +415,36 @@ class FakeServerSocket:
 
 def json_line(obj):
     return (json.dumps(obj) + "\n").encode("utf-8")
+
+
+def run_main_recording_listener(module, init_msg, execute_attr, main_args=()):
+    """Run a backend's main() against a fake server; return (server, listening_during_run).
+
+    The backend's execute function is replaced by a stub that records whether the listening
+    socket was still open once the session started.
+    """
+    conn = FakeConn([json_line(init_msg)])
+    server = FakeServerSocket(conn)
+    listening = []
+    original_ctor = module.socket.socket
+    original_execute = getattr(module, execute_attr)
+    try:
+        module.socket.socket = lambda *args, **kwargs: server
+        setattr(module, execute_attr, lambda *args, **kwargs: listening.append(not server.closed))
+        module.main(*main_args)
+    finally:
+        module.socket.socket = original_ctor
+        setattr(module, execute_attr, original_execute)
+    return server, listening
+
+
+def assert_hardened_listener(testcase, socket_module, server, listening_during_run):
+    """Loopback only, exclusive port where the OS supports it, no listening once connected."""
+    testcase.assertEqual(server.bound, ("127.0.0.1", 56001))
+    testcase.assertEqual(listening_during_run, [False])
+    options = {optname for _, optname, _ in server.sockopt_calls}
+    if hasattr(socket_module, "SO_EXCLUSIVEADDRUSE"):
+        # Windows: SO_REUSEADDR would let a second backend share the listening port.
+        testcase.assertEqual(options, {socket_module.SO_EXCLUSIVEADDRUSE})
+    else:
+        testcase.assertEqual(options, {socket_module.SO_REUSEADDR})

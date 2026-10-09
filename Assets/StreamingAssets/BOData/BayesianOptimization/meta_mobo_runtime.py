@@ -5,11 +5,13 @@
 # coverage / optimization_finished updates) and writes the same CSV family, but the
 # optimizer is openbo's MOTAFSequentialOptimizer: BoTorch qLogNEHVI blended with
 # hypervolume-improvement terms from "source" models built offline from PRIOR runs
-# (population models in the sense of Liao et al., CHI '24). With zero valid sources the
-# acquisition would degenerate exactly to plain qLogNEHVI, i.e. behave like a
-# (uniform-sampled) mobo.py run -- which would silently turn a MetaTAF study condition
-# into the no-transfer control. The backend therefore refuses to start when no source
-# survives validation, unless 'Meta Require Sources' is explicitly disabled in Unity.
+# (population models in the sense of Liao et al., CHI '24). With zero usable sources the
+# acquisition would degenerate exactly to plain qLogNEHVI, i.e. behave like a mobo.py
+# run -- which would silently turn a MetaTAF study condition into the no-transfer control.
+# The backend therefore refuses to start when no source is actually LOADED by openbo (not
+# merely staged: openbo warns and skips artifacts it cannot use), unless 'Meta Require
+# Sources' is explicitly disabled in Unity. Every run records what it used, with library
+# versions and the exact optimizer configuration, in MetaRunState.json.
 #
 # Deliberate scope limits (validated, not silently ignored):
 #   - multi-objective only (nObjectives >= 2),
@@ -19,13 +21,22 @@
 # openbo (https://github.com/M-Colley/openbo) is imported lazily inside the run so this
 # module can be imported -- and its protocol/CSV logic tested -- without the heavy stack.
 
+import codecs
 import csv
+import dataclasses
+import datetime
+import hashlib
+import importlib.metadata
 import json
 import os
+import platform
+import re
 import shutil
 import socket
 import sys
+import tempfile
 import time
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -77,16 +88,41 @@ objective_names = []
 parameters_info = []   # [(lo, hi)]
 objectives_info = []   # [(lo, hi, minimizeFlag)]
 FRAME = None           # canonical frame of THIS study (meta_fingerprint.canonical_frame)
+INIT_CONFIG = {}       # the init message's 'config' block as received (MetaRunState.json)
 
 REF_POINT_VALUE = -1.0  # objectives live in [-1, 1] maximization; ref point is [-1]^M
 
+# Leading columns of ObservationsPerEvaluation.csv. Parameter/objective keys must not reuse
+# them: pandas would mangle the duplicated header ("Phase.1") and the run would abort with
+# a column mismatch right after the sampling phase, i.e. after the participant's first trials.
+LOG_FIXED_COLUMNS = ('UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsPareto')
+
+RUN_STATE_FILENAME = "MetaRunState.json"
+# Distributions whose versions decide the numbers a run produces (MetaRunState.json).
+RUN_STATE_DISTRIBUTIONS = (
+    "torch", "botorch", "gpytorch", "linear_operator", "open-bo",
+    "numpy", "scipy", "pandas", "moocore",
+)
+# openbo modules on the optimization path; their source hashes pin the exact code even for
+# an editable install (open-bo keeps version 0.1.0 across behaviour changes).
+OPENBO_MODULES = (
+    "openbo.optimizers.mobo_taf",
+    "openbo.optimizers.mobo_botorch",
+    "openbo.acquisition.taf_mo_ehvi",
+    "openbo.acquisition.taf",
+)
+
 # -------------------- TCP server helpers (same contract as bo.py/mobo.py) ------------
-HOST = ''
+# Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
+HOST = '127.0.0.1'
 PORT = 56001
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 SOCKET_MAX_RECV_BUF_BYTES = int(os.environ.get("BO_MAX_RECV_BUF_BYTES", "1048576"))
 SOCKET_RECV_BUF = ""
+# Decodes across recv() calls: a multi-byte UTF-8 character split between two reads
+# must not become replacement characters (a key "Größe" would no longer match).
+SOCKET_RECV_DECODER = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
 
 def normalize_user_token(value, default="-1"):
@@ -118,6 +154,20 @@ def send_json_line(conn, obj):
         raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
 
 
+def configure_listener_socket(s):
+    """Socket options for the backend's single listening socket.
+
+    On Windows, SO_REUSEADDR lets a second process bind a port that is still being listened
+    on, so a stale backend could receive Unity's connection; SO_EXCLUSIVEADDRUSE refuses that
+    and still allows an immediate restart. On POSIX, SO_REUSEADDR only permits rebinding
+    while an earlier connection lingers in TIME_WAIT, which a quick restart needs.
+    """
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
 def recv_json_message(conn):
     """Receive one NDJSON message while preserving unread bytes across calls."""
     global SOCKET_RECV_BUF
@@ -142,15 +192,16 @@ def recv_json_message(conn):
         except socket.timeout as e:
             raise TimeoutError(f"Socket receive timed out after {SOCKET_TIMEOUT_SEC} seconds.") from e
         if not chunk:
-            trailing = SOCKET_RECV_BUF.strip()
+            trailing = (SOCKET_RECV_BUF + SOCKET_RECV_DECODER.decode(b"", final=True)).strip()
             SOCKET_RECV_BUF = ""
             if trailing:
                 print("Warning: discarding trailing unterminated socket data:", trailing, flush=True)
             return None
-        SOCKET_RECV_BUF += chunk.decode("utf-8", errors="replace")
+        SOCKET_RECV_BUF += SOCKET_RECV_DECODER.decode(chunk)
         if len(SOCKET_RECV_BUF) > SOCKET_MAX_RECV_BUF_BYTES:
             preview = SOCKET_RECV_BUF[-200:].replace("\n", "\\n")
             SOCKET_RECV_BUF = ""
+            SOCKET_RECV_DECODER.reset()
             raise RuntimeError(
                 f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes without a newline; "
                 f"possible framing error or oversized message. Tail preview: {preview}"
@@ -178,35 +229,63 @@ def get_unique_folder(parent, folder_name):
         k += 1
 
 
+# All CSV/JSON logs are UTF-8 explicitly: the locale default on Windows is cp1252, and a
+# non-ASCII key ("Größe") written that way made the UTF-8 read-back in rewrite_pareto_flags
+# abort the run right after the sampling phase.
 def create_csv_file(csv_file_path, fieldnames):
     os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
     write_header = not os.path.exists(csv_file_path)
-    with open(csv_file_path, 'a+', newline='') as f:
+    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         if write_header:
             w.writeheader()
 
 
 def write_data_to_csv(csv_file_path, fieldnames, rows):
-    with open(csv_file_path, 'a+', newline='') as f:
+    with open(csv_file_path, 'a+', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
         w.writerows(rows)
 
 
+def write_json_atomic(path, payload):
+    """Write JSON through a temp file in the same folder + os.replace (never a torn file)."""
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=os.path.dirname(path) or ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=1, ensure_ascii=False, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def is_non_dominated_mask(values):
-    """Boolean mask of Pareto-optimal rows (maximization). Small-n numpy, no deps."""
+    """Boolean mask of Pareto-optimal rows (maximization) with mobo.py's IsPareto semantics.
+
+    Of several IDENTICAL objective vectors only the first is flagged, exactly as in mobo.py
+    (which combines moocore keep_weakly=True with a first-duplicate mask; keep_weakly=False
+    is the same thing in one call). Flagging every duplicate instead inflated Pareto counts
+    -- and FinalDesignSelector's candidate pool -- in the MetaTAF condition whenever ratings
+    tie (Likert scales), biasing a comparison against the BoTorch backend. Non-finite rows
+    are never Pareto-optimal.
+    """
+    import moocore  # lazy: the module stays importable with numpy + pandas only
+
     arr = np.asarray(values, dtype=np.float64)
-    n = arr.shape[0]
-    mask = np.ones(n, dtype=bool)
-    for i in range(n):
-        if not mask[i]:
-            continue
-        for j in range(n):
-            if i == j:
-                continue
-            if np.all(arr[j] >= arr[i]) and np.any(arr[j] > arr[i]):
-                mask[i] = False
-                break
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    mask = np.zeros(arr.shape[0], dtype=bool)
+    finite_rows = np.all(np.isfinite(arr), axis=1)
+    if np.any(finite_rows):
+        mask[finite_rows] = np.asarray(
+            moocore.is_nondominated(arr[finite_rows], maximise=True, keep_weakly=False),
+            dtype=bool,
+        )
     return mask
 
 # -------------------- protocol parsing --------------------
@@ -285,7 +364,6 @@ def _import_openbo():
     # (the compile is a ~3x-speedup nicety, not a requirement). Users who really compile
     # kernels can pre-set TORCH_EXTENSIONS_DIR themselves; we only fill it when unset.
     if "TORCH_EXTENSIONS_DIR" not in os.environ:
-        import tempfile
         os.environ["TORCH_EXTENSIONS_DIR"] = tempfile.mkdtemp(prefix="bo_torch_ext_")
     try:
         from openbo.optimizers.mobo_botorch import compute_hypervolume
@@ -333,9 +411,12 @@ def resolve_meta_source_dir():
 def validate_and_stage_sources(source_dir, staging_dir):
     """Copy frame-compatible artifact pairs into ``staging_dir``.
 
-    Returns ``(kept_names, rejected_reasons)``; ``rejected_reasons`` holds one
+    Returns ``(staged_names, rejected_reasons)``; ``rejected_reasons`` holds one
     human-readable line per skipped candidate, which meta_execute folds into the
-    fail-fast error when metaRequireSources is set and nothing survives.
+    fail-fast error when metaRequireSources is set and nothing is loaded. Staged is not
+    loaded: openbo still warns and skips artifacts it cannot use (unreadable trajectory,
+    malformed hyperparameters, a front that never dominates the reference point), so
+    meta_execute reconciles this list with the optimizer's (reconcile_loaded_sources).
 
     Every source artifact must carry the canonical frame it was generated from
     (parameter names + bounds, objective names + bounds + minimize flags). Artifacts are
@@ -410,6 +491,137 @@ def validate_and_stage_sources(source_dir, staging_dir):
 
     return kept, rejected
 
+
+_OPENBO_SOURCE_WARNING = re.compile(r"MO TAF source '([^']+)'")
+
+
+def reconcile_loaded_sources(staged, loaded, caught_warnings, staging_dir):
+    """Drop staged sources that openbo did not load; return ``[(name, reason), ...]``.
+
+    openbo's loader and optimizer constructor warn-and-skip sources they cannot use, and
+    those warnings name the source ("MO TAF source '<name>': ..."), which supplies the
+    reason. Dropped pairs are removed from MetaSourcesUsed/ so the audit trail holds exactly
+    the population models the optimizer used. Warnings that concern no dropped source are
+    re-emitted unchanged.
+    """
+    loaded_set = set(loaded)
+    reasons = {}
+    for w in caught_warnings:
+        match = _OPENBO_SOURCE_WARNING.search(str(w.message))
+        name = match.group(1) if match else None
+        if name is not None and name not in loaded_set:
+            reasons.setdefault(name, []).append(str(w.message))
+        else:
+            warnings.showwarning(w.message, w.category, w.filename, w.lineno)
+
+    dropped = []
+    for name in staged:
+        if name in loaded_set:
+            continue
+        reason = " | ".join(reasons.get(name, [])) or "not loaded by openbo (no reason reported)"
+        print(
+            f"Meta-TAF: source '{name}' passed frame validation but openbo did not load it; "
+            f"removing it from MetaSourcesUsed: {reason}",
+            flush=True,
+        )
+        for sub in ("gp_states", "trajectories"):
+            try:
+                os.remove(os.path.join(staging_dir, sub, f"{name}.json"))
+            except FileNotFoundError:
+                pass
+        dropped.append((name, reason))
+    return dropped
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def library_versions():
+    """Installed versions of the distributions that decide a run's numbers (None = absent)."""
+    versions = {}
+    for dist in RUN_STATE_DISTRIBUTIONS:
+        try:
+            versions[dist] = importlib.metadata.version(dist)
+        except importlib.metadata.PackageNotFoundError:
+            versions[dist] = None
+    return versions
+
+
+def openbo_install_record():
+    """How openbo is installed (PEP 610 direct_url.json: VCS commit or editable path) plus
+    SHA-256 hashes of the openbo modules this process actually imported."""
+    record = {"direct_url": None, "module_sha256": {}}
+    try:
+        text = importlib.metadata.distribution("open-bo").read_text("direct_url.json")
+        if text:
+            record["direct_url"] = json.loads(text)
+    except (importlib.metadata.PackageNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    for module_name in OPENBO_MODULES:
+        module_file = getattr(sys.modules.get(module_name), "__file__", None)
+        if module_file and os.path.isfile(module_file):
+            record["module_sha256"][module_name] = _sha256_file(module_file)
+    return record
+
+
+def config_record(config):
+    """The optimizer configuration exactly as passed (dataclasses.asdict on openbo's config)."""
+    if dataclasses.is_dataclass(config):
+        return dataclasses.asdict(config)
+    return dict(vars(config))
+
+
+def source_record(staging_dir, name):
+    """Identity and provenance of one loaded source, read from its staged copy."""
+    gp_path = os.path.join(staging_dir, "gp_states", f"{name}.json")
+    traj_path = os.path.join(staging_dir, "trajectories", f"{name}.json")
+    record = {"name": name, "gp_state_sha256": None, "trajectory_sha256": None,
+              "frame_digest": None, "provenance": None}
+    if os.path.isfile(gp_path):
+        record["gp_state_sha256"] = _sha256_file(gp_path)
+        try:
+            with open(gp_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            if isinstance(payload.get("frame"), dict):
+                record["frame_digest"] = meta_fingerprint.frame_digest(payload["frame"])
+            record["provenance"] = payload.get("provenance")
+        except (OSError, ValueError, AttributeError):
+            pass
+    if os.path.isfile(traj_path):
+        record["trajectory_sha256"] = _sha256_file(traj_path)
+    return record
+
+
+def build_run_state(config, seed, source_dir, staging_dir, loaded, dropped, rejected, abort_reason=None):
+    """Everything needed to say later exactly what produced this run (MetaRunState.json)."""
+    return {
+        "schema_version": 1,
+        "generator": "Assets/StreamingAssets/BOData/BayesianOptimization/meta_mobo_runtime.py",
+        "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "abort_reason": abort_reason,
+        "seed": seed,
+        "user": {"userId": USER_ID, "conditionId": CONDITION_ID, "groupId": GROUP_ID},
+        "init_config": INIT_CONFIG,
+        "frame": FRAME,
+        "frame_digest": meta_fingerprint.frame_digest(FRAME),
+        "motaf_config": config_record(config),
+        "library_versions": library_versions(),
+        "openbo_install": openbo_install_record(),
+        "python": sys.version,
+        "platform": platform.platform(),
+        "sources": {
+            "source_dir": source_dir,
+            "loaded": [source_record(staging_dir, name) for name in loaded],
+            "dropped": [{"name": name, "reason": reason} for name, reason in dropped],
+            "rejected": list(rejected),
+        },
+    }
+
 # -------------------- objective evaluation over the socket --------------------
 def recv_objectives_blocking(conn):
     while True:
@@ -458,14 +670,13 @@ def objective_function(conn, x_unit):
 
 # -------------------- logging --------------------
 def expected_observation_columns():
-    return (['UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration', 'Phase', 'IsPareto']
-            + objective_names + parameter_names)
+    return list(LOG_FIXED_COLUMNS) + objective_names + parameter_names
 
 
 def append_observation_row(iteration, phase, y_norm_row, x_unit_row):
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     if not os.path.exists(obs_csv):
-        with open(obs_csv, 'w', newline='') as f:
+        with open(obs_csv, 'w', newline='', encoding='utf-8') as f:
             csv.writer(f, delimiter=';').writerow(expected_observation_columns())
 
     x_den = [
@@ -481,17 +692,23 @@ def append_observation_row(iteration, phase, y_norm_row, x_unit_row):
     row = [USER_ID, CONDITION_ID, GROUP_ID,
            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
            iteration, phase, 'FALSE', *y_den, *x_den]
-    with open(obs_csv, 'a', newline='') as f:
+    with open(obs_csv, 'a', newline='', encoding='utf-8') as f:
         csv.writer(f, delimiter=';').writerow(row)
 
 
 def rewrite_pareto_flags(y_all_norm):
-    """Recompute IsPareto over every logged row of this run (max sense)."""
+    """Recompute IsPareto over every logged row of this run (max sense).
+
+    The log is read back as plain strings (dtype=str, keep_default_na=False) so only the
+    IsPareto column changes: with pandas' type inference every rewrite turned ID tokens into
+    numbers or NaN ("007" -> "7", "01" -> "1", "NA" -> ""), after which FinalDesignSelector's
+    exact ID match found no rows for the participant.
+    """
     obs_csv = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
     if not os.path.exists(obs_csv):
         return
     flags = ['TRUE' if b else 'FALSE' for b in is_non_dominated_mask(y_all_norm).tolist()]
-    df = pd.read_csv(obs_csv, delimiter=';')
+    df = pd.read_csv(obs_csv, delimiter=';', dtype=str, keep_default_na=False, encoding='utf-8')
     expected_cols = expected_observation_columns()
     if list(df.columns) != expected_cols:
         raise ValueError(
@@ -503,16 +720,15 @@ def rewrite_pareto_flags(y_all_norm):
             f"ObservationsPerEvaluation.csv row count {len(df)} does not match "
             f"observation count {len(flags)}"
         )
-    df['IsPareto'] = df['IsPareto'].astype(str)
     df['IsPareto'] = flags
-    df.to_csv(obs_csv, sep=';', index=False)
+    df.to_csv(obs_csv, sep=';', index=False, encoding='utf-8')
 
 
 def save_hypervolume_to_file(hvs, iteration, ref_point):
     hv_csv = os.path.join(PROJECT_PATH, "HypervolumePerEvaluation.csv")
     os.makedirs(os.path.dirname(hv_csv), exist_ok=True)
     write_header = not os.path.exists(hv_csv) or os.path.getsize(hv_csv) == 0
-    with open(hv_csv, 'a', newline='') as f:
+    with open(hv_csv, 'a', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         if write_header:
             w.writerow(["Hypervolume", "Iteration", "Scale", "ReferencePoint"])
@@ -525,27 +741,38 @@ def save_hypervolume_to_file(hvs, iteration, ref_point):
 
 
 def append_meta_weights_row(weights_csv, iteration, optimizer, source_names):
-    target_w = float(getattr(optimizer, "last_target_weight", 1.0))
-    weights = np.asarray(getattr(optimizer, "last_source_weights", np.zeros(0)), dtype=np.float64)
-    decay = 1.0
-    decay_fn = getattr(optimizer, "_decay_factor", None)
-    if callable(decay_fn):
-        decay = float(decay_fn())
-    padded = list(weights) + [0.0] * (len(source_names) - len(weights))
-    with open(weights_csv, 'a', newline='') as f:
+    # Direct attribute access on purpose (present in every openbo passing the TAF-R probe):
+    # defaults here would silently log TargetWeight 1.0 / zero weights / no decay if openbo
+    # ever renamed them, i.e. a weights file that contradicts what the optimizer did.
+    target_w = float(optimizer.last_target_weight)
+    weights = np.asarray(optimizer.last_source_weights, dtype=np.float64).reshape(-1)
+    decay = float(optimizer._decay_factor())
+    if weights.size not in (0, len(source_names)):
+        raise ValueError(
+            f"openbo reported {weights.size} source weights for {len(source_names)} loaded sources."
+        )
+    padded = list(weights) + [0.0] * (len(source_names) - weights.size)
+    with open(weights_csv, 'a', newline='', encoding='utf-8') as f:
         w = csv.writer(f, delimiter=';')
         w.writerow([iteration, target_w, decay, *[float(v) for v in padded]])
 
 # -------------------- sampling --------------------
 def draw_initial_unit_samples(n_samples, d, seed):
-    """Sobol samples in [0,1]^d (uniform fallback when scipy is unavailable)."""
-    try:
-        from scipy.stats import qmc
-        engine = qmc.Sobol(d=d, scramble=True, seed=seed)
-        return np.asarray(engine.random(n_samples), dtype=np.float64)
-    except ImportError:
-        rng = np.random.default_rng(seed)
-        return rng.random((n_samples, d)).astype(np.float64)
+    """Scrambled Sobol design in [0,1]^d -- the exact call the BoTorch backends make.
+
+    bo.py, mobo.py and the DBO backend draw their initial design with this same call, so for
+    the same Unity seed every backend starts from identical points and a MetaTAF-vs-BoTorch
+    comparison differs in the optimizer only, not in where it started. (scipy's Sobol, used
+    before, gave a different design for the same seed: a systematic per-condition offset
+    under the shared default seed.) n=n_samples, q=1 draws n points of the d-dimensional
+    sequence; n=1, q=n_samples would draw ONE point of an (n*d)-dimensional sequence instead.
+    """
+    import torch
+    from botorch.utils.sampling import draw_sobol_samples
+
+    unit_bounds = torch.tensor([[0.0] * d, [1.0] * d], dtype=torch.double)
+    x = draw_sobol_samples(bounds=unit_bounds, n=n_samples, q=1, seed=seed).squeeze(1)
+    return np.asarray(x.detach().cpu().numpy(), dtype=np.float64)
 
 # -------------------- main loop --------------------
 def meta_execute(conn, seed, iterations, initial_samples):
@@ -563,36 +790,15 @@ def meta_execute(conn, seed, iterations, initial_samples):
     # Stage frame-validated sources into the run folder (also the audit trail).
     source_dir = resolve_meta_source_dir()
     staging_dir = os.path.join(PROJECT_PATH, "MetaSourcesUsed")
-    kept, rejected = validate_and_stage_sources(source_dir, staging_dir)
-    if kept:
-        print(f"Meta-TAF: using {len(kept)} population model(s): {kept}", flush=True)
-    elif META_REQUIRE_SOURCES:
-        detail = ""
-        if rejected:
-            detail = "\nRejected candidate(s):\n" + "\n".join(f"    - {r}" for r in rejected)
-        raise RuntimeError(
-            f"Meta-TAF: no valid population model found under '{source_dir}' and this run "
-            "requires sources (metaRequireSources). Without sources the run would silently "
-            "degrade to plain qLogNEHVI, turning a MetaTAF study condition into the "
-            "no-transfer control. Fix 'Meta Source Dir' or regenerate the sources with "
-            "meta_train.py against the CURRENT study frame; only if a source-less run is "
-            "genuinely intended, disable 'Meta Require Sources' in the BoForUnityManager "
-            "Inspector." + detail
-        )
-    else:
-        print(
-            "Meta-TAF: no valid population models found; running plain multi-objective "
-            "BO (qLogNEHVI) because 'Meta Require Sources' is disabled.",
-            flush=True,
-        )
+    staged, rejected = validate_and_stage_sources(source_dir, staging_dir)
 
     ref_point = [REF_POINT_VALUE] * NUM_OBJS
-    optimizer = MOTAFSequentialOptimizer(MOTAFConfig(
+    config = MOTAFConfig(
         bounds=[(0.0, 1.0)] * PROBLEM_DIM,
         ref_point=ref_point,
         taf_run_dir=staging_dir,
         n_init=0,
-        n_iter=iterations + 2,  # headroom: the sampling observe() consumes one slot
+        n_iter=iterations,  # informational only: the ask/tell loop below drives the iterations
         num_restarts=NUM_RESTARTS,
         raw_samples=RAW_SAMPLES,
         mc_samples=MC_SAMPLES,
@@ -603,11 +809,58 @@ def meta_execute(conn, seed, iterations, initial_samples):
         source_only_warmup_iters=META_WARMUP_ITERS,
         decay_start_iter=META_DECAY_START_ITER,
         decay_rate=META_DECAY_RATE,
+        # Pinned to openbo's current defaults (identical in every openbo that passes the
+        # TAF-R probe in _import_openbo), so an upstream default change -- e.g. to the newer
+        # source_reference_mode "target_incumbent" -- cannot silently alter a running study.
+        source_reference_mode="front",
+        source_reference_quantile=0.9,
+        min_informative_pairs=1,
+        source_meta_features=None,
+        target_meta_features=None,
+    )
+    # openbo warns and SKIPS sources it cannot use (unreadable trajectory, malformed
+    # hyperparameters, a front that never dominates the reference point). The staged list
+    # is therefore only a candidate list: the fail-fast below, the reported count and the
+    # MetaSourcesUsed audit trail must follow what the optimizer actually LOADED.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        optimizer = MOTAFSequentialOptimizer(config)
+    source_names = [s.name for s in optimizer.source_surrogates]
+    dropped = reconcile_loaded_sources(staged, source_names, caught, staging_dir)
+
+    run_state_path = os.path.join(PROJECT_PATH, RUN_STATE_FILENAME)
+    if source_names:
+        print(f"Meta-TAF: using {len(source_names)} population model(s): {source_names}", flush=True)
+    elif META_REQUIRE_SOURCES:
+        reasons = list(rejected) + [f"'{name}': not loaded by openbo ({reason})" for name, reason in dropped]
+        detail = ""
+        if reasons:
+            detail = "\nRejected candidate(s):\n" + "\n".join(f"    - {r}" for r in reasons)
+        message = (
+            f"Meta-TAF: no valid population model found under '{source_dir}' and this run "
+            "requires sources (metaRequireSources). Without sources the run would silently "
+            "degrade to plain qLogNEHVI, turning a MetaTAF study condition into the "
+            "no-transfer control. Fix 'Meta Source Dir' or regenerate the sources with "
+            "meta_train.py against the CURRENT study frame; only if a source-less run is "
+            "genuinely intended, disable 'Meta Require Sources' in the BoForUnityManager "
+            "Inspector." + detail
+        )
+        write_json_atomic(run_state_path, build_run_state(
+            config, seed, source_dir, staging_dir, source_names, dropped, rejected, abort_reason=message
+        ))
+        raise RuntimeError(message)
+    else:
+        print(
+            "Meta-TAF: no valid population models found; running plain multi-objective "
+            "BO (qLogNEHVI) because 'Meta Require Sources' is disabled.",
+            flush=True,
+        )
+    write_json_atomic(run_state_path, build_run_state(
+        config, seed, source_dir, staging_dir, source_names, dropped, rejected
     ))
 
-    source_names = [s.name for s in getattr(optimizer, "source_surrogates", [])]
     weights_csv = os.path.join(PROJECT_PATH, "MetaWeightsPerEvaluation.csv")
-    with open(weights_csv, 'w', newline='') as f:
+    with open(weights_csv, 'w', newline='', encoding='utf-8') as f:
         csv.writer(f, delimiter=';').writerow(
             ["Iteration", "TargetWeight", "DecayFactor", *source_names]
         )
@@ -666,28 +919,37 @@ def main():
     global META_SOURCE_DIR, META_REQUIRE_SOURCES, META_WEIGHT_MODE, META_RHO, META_TARGET_WEIGHT
     global META_WARMUP_ITERS, META_DECAY_START_ITER, META_DECAY_RATE
     global USER_ID, CONDITION_ID, GROUP_ID, USER_LOG_ID, CONDITION_LOG_ID
-    global parameter_names, objective_names, parameters_info, objectives_info, FRAME
+    global parameter_names, objective_names, parameters_info, objectives_info, FRAME, INIT_CONFIG
     global SOCKET_RECV_BUF
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    configure_listener_socket(s)
     conn = None
     try:
         if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
             raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {SOCKET_ACCEPT_TIMEOUT_SEC}")
         s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
-        s.bind((HOST, PORT))
+        try:
+            s.bind((HOST, PORT))
+        except OSError as e:
+            raise OSError(
+                f"Port {PORT} is already in use, most likely by an optimizer backend left over "
+                "from an earlier session. End that python process (Task Manager / Activity "
+                f"Monitor) and start again. ({e})"
+            ) from e
         s.listen(1)
         print('Server starts, waiting for connection...', flush=True)
         try:
             conn, addr = s.accept()
         except socket.timeout as e:
             raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
+        s.close()  # one Unity client per run: accept no further connections
         print('Connected by', addr, flush=True)
         if SOCKET_TIMEOUT_SEC <= 0:
             raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")
         conn.settimeout(SOCKET_TIMEOUT_SEC)
         SOCKET_RECV_BUF = ""
+        SOCKET_RECV_DECODER.reset()
 
         init_msg = None
         while True:
@@ -704,6 +966,7 @@ def main():
             raise RuntimeError("Did not receive init message.")
 
         cfg = init_msg.get("config", {}) or {}
+        INIT_CONFIG = dict(cfg)
 
         backend = str(cfg.get("optimizerBackend") or "").strip().lower()
         if backend and backend != "meta-taf":
@@ -791,6 +1054,13 @@ def main():
         overlap = sorted(set(parameter_names).intersection(set(objective_names)))
         if overlap:
             raise ValueError(f"Parameter and objective keys must be distinct. Overlap: {overlap}")
+        reserved = sorted(set(LOG_FIXED_COLUMNS).intersection(parameter_names + objective_names))
+        if reserved:
+            raise ValueError(
+                f"Parameter/objective key(s) {reserved} collide with the fixed columns of "
+                f"ObservationsPerEvaluation.csv {list(LOG_FIXED_COLUMNS)}; rename them "
+                "(the duplicated column would abort the run after the sampling phase)."
+            )
         if len(parameter_names) != PROBLEM_DIM:
             raise ValueError(f"parameter_names len {len(parameter_names)} != nParameters {PROBLEM_DIM}")
         if len(objective_names) != NUM_OBJS:

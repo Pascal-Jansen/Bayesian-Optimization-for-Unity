@@ -20,21 +20,44 @@ VALID_OBJECTIVE_FORMATS = ("auto", "raw", "normalized_max", "normalized_native")
 _PARAM_EPS = 1e-8
 _COL_EPS = 1e-8
 _VALUE_EPS = 1e-9
+# A raw warm-start parameter this close outside its bounds (as a fraction of the range) is a
+# rounding artifact -- logs used to be written at 3 decimals -- not evidence that the whole
+# column was already normalized.
+_PARAM_RAW_TOL_FRACTION = 5e-4
 
 
 # -------------------- denormalization (frame -> original units) --------------------
-def denormalize_to_original_param(val01, lo, hi, decimals=3):
-    """Map a [0,1] parameter back to its original range. decimals=None keeps full precision."""
+# Values written to the CSV logs keep 10 significant digits: every bit of the float32 values
+# Unity exchanges (~7 digits) survives, while float64 round-trip noise (5.999999999999999) is
+# hidden. The former fixed 3 decimals erased small ranges (0.000274 on [0, 0.004] -> 0.0), so
+# the logs could not reproduce the evaluated design, and FinalDesignSelector, warm starts and
+# Meta-TAF sources then worked from different values than the participant experienced.
+LOG_SIGNIFICANT_DIGITS = 10
+
+
+def round_for_log(v):
+    """Round to LOG_SIGNIFICANT_DIGITS significant digits for the CSV logs."""
+    return float(f"{float(v):.{LOG_SIGNIFICANT_DIGITS}g}")
+
+
+def denormalize_to_original_param(val01, lo, hi, decimals="log"):
+    """Map a [0,1] parameter back to its original range.
+
+    decimals="log" (default) rounds for the CSV logs (see round_for_log), None keeps full
+    precision (the value sent to Unity), and an int rounds to that many decimals.
+    """
     v = lo + val01 * (hi - lo)
     if decimals is None:
         return float(v)
+    if decimals == "log":
+        return round_for_log(v)
     return np.round(v, decimals)
 
 
 def denormalize_to_original_obj(v_m1p1, lo, hi, smaller_is_better):
     """Map a [-1,1] maximization objective back to original units (undoing the sign flip)."""
     v = -v_m1p1 if int(smaller_is_better) == 1 else v_m1p1
-    return np.round(lo + (v + 1) * 0.5 * (hi - lo), 3)
+    return round_for_log(lo + (v + 1) * 0.5 * (hi - lo))
 
 
 # -------------------- the live scalar transform --------------------
@@ -69,10 +92,21 @@ def normalize_objective_value(val, lo, hi, minflag, name=None):
 
 
 # -------------------- column transforms (warm start / offline generators) --------------------
-def normalize_param_column(col, lo, hi):
-    """Normalize a raw (or already-normalized) parameter column into [0,1]."""
+def normalize_param_column(col, lo, hi, warn=None):
+    """Normalize a raw (or already-normalized) parameter column into [0,1].
+
+    The scale is inferred: values within the raw bounds are read as raw, otherwise values
+    within [0,1] as already normalized. Both choices are announced through ``warn``
+    (default: print) whenever the other reading would also have fit, because the two
+    differ silently by up to the whole range.
+    """
+    if warn is None:
+        def warn(msg):
+            print(msg, flush=True)
+
     col = np.asarray(col, dtype=np.float64)
-    in_raw_range = np.all((lo - _PARAM_EPS <= col) & (col <= hi + _PARAM_EPS))
+    raw_tol = max(_PARAM_EPS, _PARAM_RAW_TOL_FRACTION * (hi - lo))
+    in_raw_range = np.all((lo - raw_tol <= col) & (col <= hi + raw_tol))
     in_norm_range = np.all((-_PARAM_EPS <= col) & (col <= 1.0 + _PARAM_EPS))
 
     if hi == lo:
@@ -85,9 +119,18 @@ def normalize_param_column(col, lo, hi):
         )
 
     if in_raw_range:
+        if in_norm_range and (lo, hi) != (0.0, 1.0):
+            warn(
+                f"Warning: warm-start parameter values [{np.min(col)}, {np.max(col)}] fit both the raw "
+                f"bounds [{lo}, {hi}] and [0,1]; assuming raw values."
+            )
         return np.clip((col - lo) / (hi - lo), 0.0, 1.0)
     if in_norm_range:
         # Fallback for previously normalized warm-start files.
+        warn(
+            f"Warning: warm-start parameter values [{np.min(col)}, {np.max(col)}] fall outside the raw "
+            f"bounds [{lo}, {hi}] but inside [0,1]; treating the column as already normalized."
+        )
         return np.clip(col, 0.0, 1.0)
     raise ValueError(
         f"Warm-start parameter values must be within raw bounds [{lo}, {hi}] or normalized [0,1], "
