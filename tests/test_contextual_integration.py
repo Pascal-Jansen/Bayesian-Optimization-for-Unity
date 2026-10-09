@@ -146,7 +146,15 @@ def _context_init_msg():
     }
 
 
-def _configure_common(module, num_objs):
+def _new_participant_context_init_msg():
+    """README 8.13's main case: warm start from user_A/user_B, current user_C has no data."""
+    msg = _context_init_msg()
+    msg["context"]["currentContext"] = "user_C"
+    msg["context"]["contexts"].append({"key": "user_C", "embedding": [0.8, 0.2, 0.3]})
+    return msg
+
+
+def _configure_common(module, num_objs, context_msg=None):
     import torch
 
     module.USER_ID = "u"
@@ -173,7 +181,7 @@ def _configure_common(module, num_objs):
         [torch.zeros(2, dtype=torch.double), torch.ones(2, dtype=torch.double)], dim=0
     )
     module.ref_point = torch.full((num_objs,), -1.0, dtype=torch.double)
-    setup = module.context_support.parse_context_config(_context_init_msg())
+    setup = module.context_support.parse_context_config(context_msg or _context_init_msg())
     module.context_support.resolve_embeddings(setup)
     module.CONTEXT_SETUP = setup
     return setup
@@ -299,7 +307,7 @@ class ContextualLoopIntegrationTests(unittest.TestCase):
     def setUp(self):
         restore_real_modules()
 
-    def _run_in_tmp(self, module_file, num_objs, objective_payloads):
+    def _run_in_tmp(self, module_file, num_objs, objective_payloads, new_participant=False):
         module = load_backend_module(module_file)
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = pathlib.Path(tmp)
@@ -310,8 +318,11 @@ class ContextualLoopIntegrationTests(unittest.TestCase):
             prev_cwd = os.getcwd()
             os.chdir(tmp)
             try:
-                setup = _configure_common(module, num_objs)
-                self.assertEqual(setup.current_index, 1)
+                setup = _configure_common(
+                    module, num_objs,
+                    _new_participant_context_init_msg() if new_participant else None,
+                )
+                self.assertEqual(setup.current_index, 2 if new_participant else 1)
 
                 conn = _FakeConn(objective_payloads)
                 if module_file == "bo.py":
@@ -326,8 +337,8 @@ class ContextualLoopIntegrationTests(unittest.TestCase):
                 # 6 warm-start rows + 1 optimization evaluation, task column appended
                 self.assertEqual(tuple(train_x.shape), (7, 3))
                 self.assertEqual(tuple(train_y.shape), (7, num_objs))
-                # The new observation belongs to the current context (index 1).
-                self.assertEqual(float(train_x[-1, -1].item()), 1.0)
+                # The new observation belongs to the current context.
+                self.assertEqual(float(train_x[-1, -1].item()), float(setup.current_index))
                 self.assertEqual(len(metrics), 2)
 
                 sent = conn.sent_messages()
@@ -346,10 +357,20 @@ class ContextualLoopIntegrationTests(unittest.TestCase):
                 self.assertTrue(obs_csv.exists())
                 df = pd.read_csv(obs_csv, delimiter=";")
                 self.assertIn("Context", df.columns)
-                self.assertEqual(df["Context"].tolist(), ["user_B"])
-                # Iteration counts current-context evaluations only:
-                # 3 warm-start rows for user_B + 1 new optimization evaluation.
-                self.assertEqual(df["Iteration"].tolist(), [4])
+                self.assertEqual(df["Context"].tolist(), [setup.current_key])
+                # Iteration counts current-context evaluations only: 3 warm-start rows for
+                # user_B (none for a new participant) + 1 new optimization evaluation.
+                warm_rows = 0 if new_participant else 3
+                self.assertEqual(df["Iteration"].tolist(), [warm_rows + 1])
+
+                # The metric log uses the same axis: the warm-start baseline at the last
+                # current-context warm-start row, then the evaluation's own Iteration.
+                metric_csv = pathlib.Path(module.PROJECT_PATH) / (
+                    "BestObjectivePerEvaluation.csv" if module_file == "bo.py"
+                    else "HypervolumePerEvaluation.csv"
+                )
+                metric_df = pd.read_csv(metric_csv, delimiter=";")
+                self.assertEqual(metric_df["Iteration"].tolist(), [warm_rows, warm_rows + 1])
             finally:
                 os.chdir(prev_cwd)
 
@@ -358,6 +379,24 @@ class ContextualLoopIntegrationTests(unittest.TestCase):
 
     def test_contextual_mobo_loop_with_warm_start(self):
         self._run_in_tmp("mobo.py", num_objs=2, objective_payloads=[{"o0": 6.5, "o1": 6.0}])
+
+    def test_contextual_bo_loop_for_a_context_without_data(self):
+        # LCEMGP inherited MultiTaskGP.eval(), which crashed for unobserved contexts.
+        self._run_in_tmp("bo.py", num_objs=1, objective_payloads=[{"o0": 6.5}],
+                         new_participant=True)
+
+    def test_contextual_mobo_loop_for_a_context_without_data(self):
+        self._run_in_tmp("mobo.py", num_objs=2, objective_payloads=[{"o0": 6.5, "o1": 6.0}],
+                         new_participant=True)
+
+    def test_mobo_pareto_mask_of_a_single_numpy_row(self):
+        # NumPy 2 arrays have .device too; the mask must stay numpy for numpy input,
+        # otherwise a one-element torch bool mask indexes as the integer 1.
+        mobo = load_backend_module("mobo.py")
+        y = np.array([[0.1, 0.2]])
+        mask = mobo.is_non_dominated(y)
+        self.assertIsInstance(mask, np.ndarray)
+        self.assertEqual(y[mask].shape, (1, 2))
 
 
 if __name__ == "__main__":

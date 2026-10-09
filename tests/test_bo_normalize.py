@@ -142,6 +142,43 @@ class ObjectiveColumnTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.n.normalize_param_column([-5.0, 99.0], 4.0, 8.0)
 
+    def test_param_column_rounding_artifact_stays_raw(self):
+        # 0.1235 logged as 0.124 at 3 decimals sits just outside [0.1, 0.1235]; it must not
+        # flip the whole column to the "already normalized" reading.
+        seen = []
+        got = self.n.normalize_param_column([0.1, 0.11, 0.1235000001], 0.1, 0.1235, warn=seen.append)
+        np.testing.assert_allclose(got, [0.0, 0.01 / 0.0235, 1.0])
+        self.assertTrue(any("assuming raw" in m for m in seen))
+
+    def test_param_column_normalized_fallback_is_announced(self):
+        seen = []
+        got = self.n.normalize_param_column([0.0, 0.5, 1.0], 4.0, 8.0, warn=seen.append)
+        np.testing.assert_allclose(got, [0.0, 0.5, 1.0])
+        self.assertTrue(any("already normalized" in m for m in seen))
+
+    def test_param_column_unit_bounds_are_not_ambiguous(self):
+        seen = []
+        self.n.normalize_param_column([0.2, 0.9], 0.0, 1.0, warn=seen.append)
+        self.assertEqual(seen, [])
+
+
+class LogPrecisionTests(unittest.TestCase):
+    def setUp(self):
+        self.n = load_normalize()
+
+    def test_small_ranges_survive_logging(self):
+        # 3 fixed decimals logged 0.000274 on [0, 0.004] as 0.0.
+        self.assertAlmostEqual(self.n.denormalize_to_original_param(0.0685, 0.0, 0.004), 0.000274)
+        self.assertNotEqual(
+            self.n.denormalize_to_original_obj(0.0, 0.0, 0.00824, 0),
+            self.n.denormalize_to_original_obj(0.0, 0.0, 0.00700, 0),
+        )
+
+    def test_float64_round_trip_noise_is_hidden(self):
+        f = self.n.normalize_objective_value(6.0, 0.0, 10.0, 1)
+        self.assertEqual(self.n.denormalize_to_original_obj(f, 0.0, 10.0, 1), 6.0)
+        self.assertEqual(self.n.denormalize_to_original_param(0.3, 0.0, 1.0), 0.3)
+
 
 class MoboFrameParityTests(unittest.TestCase):
     """bo_normalize must reproduce mobo.py's frame exactly."""

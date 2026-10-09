@@ -674,8 +674,8 @@ class MoboTests(unittest.TestCase):
                 mobo.ref_point = FakeTensor([-1.0, -1.0])
                 mobo.SobolQMCNormalSampler = lambda sample_shape, seed: {"shape": sample_shape, "seed": seed}
 
-                # Initial samples (n=1, q=2, d=1): x=0.2 then x=0.8
-                mobo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor([[[0.2], [0.8]]])
+                # Initial samples (n=2, q=1, d=1): x=0.2 then x=0.8
+                mobo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor([[[0.2]], [[0.8]]])
                 # Optimization candidate: x=0.4
                 mobo.optimize_qnehvi = lambda model, sampler, X_baseline: FakeTensor([[0.4]])
 
@@ -715,6 +715,79 @@ class MoboTests(unittest.TestCase):
         self.assertEqual(len(hvs), 3)
         # Ensure loop sent completion signal.
         self.assertTrue(any(m.get("type") == "optimization_finished" for m in out_msgs))
+
+    def test_initial_design_ids_and_one_iteration_axis(self):
+        mobo = load_mobo_module()
+        sobol_calls = []
+        with tempfile.TemporaryDirectory() as tmp:
+            prev_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                mobo.USER_ID, mobo.CONDITION_ID, mobo.GROUP_ID = "007", "01", "NA"
+                mobo.USER_LOG_ID = mobo.CONDITION_LOG_ID = "ids"
+                mobo.WARM_START = False
+                mobo.SEED = 3
+                mobo.PROBLEM_DIM = 1
+                mobo.NUM_OBJS = 2
+                mobo.BATCH_SIZE = 1
+                mobo.NUM_RESTARTS = 2
+                mobo.RAW_SAMPLES = 16
+                mobo.MC_SAMPLES = 8
+                mobo.parameter_names = ["p0"]
+                mobo.objective_names = ["o_min", "o_max"]
+                mobo.parameters_info = [(0.0, 10.0)]
+                mobo.objectives_info = [(0.0, 10.0, 1), (0.0, 10.0, 0)]
+                mobo.problem_bounds = FakeTensor([[0.0], [1.0]])
+                mobo.ref_point = FakeTensor([-1.0, -1.0])
+                mobo.SobolQMCNormalSampler = lambda sample_shape, seed: {"shape": sample_shape, "seed": seed}
+
+                def sobol(bounds, n, q, seed):
+                    sobol_calls.append((n, q))
+                    return FakeTensor([[[0.2]], [[0.8]]])
+
+                mobo.draw_sobol_samples = sobol
+                mobo.optimize_qnehvi = lambda model, sampler, X_baseline: FakeTensor([[0.4]])
+                conn = _FakeConn([
+                    _json_line({"type": "objectives", "values": {"o_min": 2.0, "o_max": 8.0}}),
+                    _json_line({"type": "objectives", "values": {"o_min": 8.0, "o_max": 2.0}}),
+                    _json_line({"type": "objectives", "values": {"o_min": 5.0, "o_max": 5.0}}),
+                    _json_line({"type": "objectives", "values": {"o_min": 4.0, "o_max": 6.0}}),
+                ])
+                original_send = mobo.send_json_line
+                mobo.send_json_line = lambda c, payload: None
+                try:
+                    mobo.mobo_execute(conn=conn, seed=3, iterations=2, initial_samples=2)
+                finally:
+                    mobo.send_json_line = original_send
+                run_dir = pathlib.Path(tmp) / "LogData" / "ids" / "ids" / "run"
+                with open(run_dir / "ObservationsPerEvaluation.csv", newline="", encoding="utf-8") as f:
+                    obs_rows = list(csv.reader(f, delimiter=";"))[1:]
+                with open(run_dir / "HypervolumePerEvaluation.csv", newline="", encoding="utf-8") as f:
+                    hv_rows = list(csv.reader(f, delimiter=";"))[1:]
+            finally:
+                os.chdir(prev_cwd)
+
+        self.assertEqual(sobol_calls, [(2, 1)])
+        self.assertTrue(all(r[:3] == ["007", "01", "NA"] for r in obs_rows), obs_rows)
+        # Every metric row carries the Iteration of its evaluation's observation row.
+        self.assertEqual([r[4] for r in obs_rows], ["1", "2", "3", "4"])
+        self.assertEqual([r[1] for r in hv_rows], ["1", "2", "3", "4"])
+
+    def test_recv_json_message_decodes_utf8_split_across_chunks(self):
+        mobo = load_mobo_module()
+        mobo.SOCKET_RECV_BUF = ""
+        payload = '{"type":"objectives","values":{"Übersicht":1.0}}\n'.encode("utf-8")
+        cut = payload.index("Ü".encode("utf-8")) + 1  # inside the two-byte character
+        conn = _FakeConn([payload[:cut], payload[cut:]])
+        msg = mobo.recv_json_message(conn)
+        self.assertEqual(list(msg["values"]), ["Übersicht"])
+
+    def test_main_rejects_keys_colliding_with_log_columns(self):
+        mobo = load_mobo_module()
+        init_msg = self._base_init_message()
+        init_msg["objectives"][1]["key"] = "IsPareto"
+        with self.assertRaisesRegex(ValueError, "collide with log columns"):
+            self._run_main_with_init(mobo, init_msg)
 
     def test_main_parses_unity_init_stream_and_calls_execute(self):
         mobo = load_mobo_module()
