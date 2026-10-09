@@ -50,8 +50,11 @@ namespace BOforUnity.Scripts
         public float explorationRatio;
     }
 
-    [Serializable] class ParamInit { public double low; public double high; }
-    [Serializable] class ObjInit   { public double low; public double high; public int minimize; }
+    // Bounds stay float, like the inspector fields and the objective values sent later:
+    // widening 0.7f to double serializes it as 0.699999988079071 while the value clamped to
+    // that bound is sent as 0.7, which the backends then reject as out of bounds.
+    [Serializable] class ParamInit { public float low; public float high; }
+    [Serializable] class ObjInit   { public float low; public float high; public int minimize; }
 
     [Serializable] class CabopCostTripletInfo
     {
@@ -1157,12 +1160,27 @@ namespace BOforUnity.Scripts
 
                 float lo = Mathf.Min(value.lowerBound, value.upperBound);
                 float hi = Mathf.Max(value.lowerBound, value.upperBound);
+
+                // Average the finite sub-measures only: one unanswered item (submitted as NaN)
+                // must not discard the answered ones of a multi-item objective.
+                int finiteCount = 0;
+                double finiteSum = 0.0;
+                foreach (float subMeasure in tmpList)
+                {
+                    if (float.IsNaN(subMeasure) || float.IsInfinity(subMeasure))
+                        continue;
+                    finiteSum += subMeasure;
+                    finiteCount++;
+                }
+
                 float val;
-                if (tmpList.Count == 0)
+                if (finiteCount == 0)
                 {
                     float fallback = 0.5f * (lo + hi);
                     Debug.LogWarning(
-                        $"Objective '{ob.key}' has no values for this iteration. " +
+                        (tmpList.Count == 0
+                            ? $"Objective '{ob.key}' has no values for this iteration. "
+                            : $"Objective '{ob.key}' has only non-numeric values for this iteration. ") +
                         $"Using fallback midpoint {fallback} in [{lo}, {hi}]."
                     );
                     val = fallback;
@@ -1170,20 +1188,18 @@ namespace BOforUnity.Scripts
                 }
                 else
                 {
-                    val = (float)tmpList.Average();
+                    if (finiteCount < tmpList.Count)
+                    {
+                        Debug.LogWarning(
+                            $"Objective '{ob.key}': ignoring {tmpList.Count - finiteCount} non-numeric " +
+                            $"sub-measure(s) and averaging the remaining {finiteCount}."
+                        );
+                        hadAdjustedObjective = true;
+                    }
+                    val = (float)(finiteSum / finiteCount);
                 }
 
-                if (float.IsNaN(val) || float.IsInfinity(val))
-                {
-                    float fallback = 0.5f * (lo + hi);
-                    Debug.LogWarning(
-                        $"Objective '{ob.key}' produced a non-finite value ({val}). " +
-                        $"Using fallback midpoint {fallback} in [{lo}, {hi}]."
-                    );
-                    val = fallback;
-                    hadAdjustedObjective = true;
-                }
-                else if (val < lo || val > hi)
+                if (val < lo || val > hi)
                 {
                     float rawVal = val;
                     val = Mathf.Clamp(val, lo, hi);

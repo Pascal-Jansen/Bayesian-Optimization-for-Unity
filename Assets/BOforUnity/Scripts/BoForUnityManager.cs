@@ -167,7 +167,9 @@ namespace BOforUnity
         // drift and plain BoTorch BO would have done the same job.
         public DboSpatialKernel dboSpatialKernel = DboSpatialKernel.Rbf;
         public DboAlphaParameterization dboAlphaParameterization = DboAlphaParameterization.Decay;
-        [Range(0.01f, 1f)] public float dboInitialAlpha = 0.99f;
+        // Strictly below 1: alpha cannot be fitted away from exactly 1. To pin alpha = 1,
+        // use dboStationaryBaseline instead.
+        [Range(0.01f, 0.999f)] public float dboInitialAlpha = 0.99f;
         // 0 scores acquisition candidates at the current time (reference behaviour);
         // 1 scores them at the time they will actually be evaluated.
         [Min(0f)] public float dboAcquisitionTimeOffset = 0f;
@@ -377,6 +379,19 @@ namespace BOforUnity
             if (optimizationRunning)
             {
                 Debug.LogWarning("OptimizationStart ignored because optimization is already running.");
+                return;
+            }
+            if (!initialized || hasNewDesignParameterValues || !simulationRunning)
+            {
+                // Only an evaluation in progress can be reported. Before the optimizer is ready, or
+                // after new parameters arrived but before the next evaluation started (e.g. a second
+                // questionnaire finishing, or a pre-study questionnaire in the scene), the
+                // measurements would be recorded against a design the participant never saw.
+                Debug.LogWarning(
+                    "OptimizationStart ignored because no design is currently being evaluated " +
+                    $"(initialized={initialized}, newParametersPending={hasNewDesignParameterValues}, " +
+                    $"evaluationRunning={simulationRunning})."
+                );
                 return;
             }
             if (socketNetwork == null)
@@ -664,7 +679,8 @@ namespace BOforUnity
             if (!perfectRatingActive)
                 return false;
             int initialRounds = GetEffectiveSamplingIterations();
-            if (!perfectRatingInInitialRounds && currentIteration <= initialRounds)
+            // currentIteration was already advanced past the evaluation being judged.
+            if (!perfectRatingInInitialRounds && currentIteration - 1 <= initialRounds)
                 return false;
             return IsPerfectRating();
         }
@@ -1614,8 +1630,11 @@ namespace BOforUnity
                     perfectRating = true; // the rating was perfect after two consecutive iterations
                     return true;
                 default:
-                    perfectRatingStart = false; // the perfect rating was more than one iteration ago
+                    // The previous perfect rating was more than one iteration ago, so this one
+                    // starts a new streak.
+                    perfectRatingStart = true;
                     perfectRating = false;
+                    perfectRatingIteration = currentIteration;
                     break;
             }
             return false;

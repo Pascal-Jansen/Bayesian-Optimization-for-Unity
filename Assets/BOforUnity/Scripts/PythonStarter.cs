@@ -29,6 +29,8 @@ namespace BOforUnity.Scripts
 
         private string outputFilePath;
         private StreamWriter outputFileWriter;
+        // stdout and stderr callbacks run on different worker threads.
+        private readonly object _outputFileLock = new object();
 
         private BoForUnityManager _bomanager;
 
@@ -317,7 +319,10 @@ namespace BOforUnity.Scripts
 
             outputFilePath = GetPythonOutputFilePath();
             Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
-            outputFileWriter = new StreamWriter(outputFilePath, false);
+            lock (_outputFileLock)
+            {
+                outputFileWriter = new StreamWriter(outputFilePath, false);
+            }
 
             // Start Python process only after pip finished
             CreateProcess(fullPath);
@@ -531,6 +536,16 @@ namespace BOforUnity.Scripts
                     return false;
                 }
 
+                if (!manager.dboStationaryBaseline &&
+                    !(manager.dboInitialAlpha > 0f && manager.dboInitialAlpha < 1f))
+                {
+                    error =
+                        $"DBO Initial Alpha must lie strictly between 0 and 1 (got {manager.dboInitialAlpha}): " +
+                        "fitting can never move alpha away from exactly 1, so the run would be stationary " +
+                        "BO labelled as DBO. Use 0.99, or enable DBO Stationary Baseline for a stationary control.";
+                    return false;
+                }
+
                 scriptName = "dbo.py";
                 return true;
             }
@@ -578,6 +593,9 @@ namespace BOforUnity.Scripts
             pythonProcess.StartInfo.CreateNoWindow = true;
             pythonProcess.StartInfo.RedirectStandardOutput = true;
             pythonProcess.StartInfo.RedirectStandardError = true;
+            // Python writes UTF-8 (PYTHONIOENCODING); decode it as such, not as the console code page.
+            pythonProcess.StartInfo.StandardOutputEncoding = System.Text.Encoding.UTF8;
+            pythonProcess.StartInfo.StandardErrorEncoding = System.Text.Encoding.UTF8;
             ConfigurePythonRuntimeEnvironment(pythonProcess.StartInfo);
             pythonProcess.EnableRaisingEvents = true;
 
@@ -585,11 +603,7 @@ namespace BOforUnity.Scripts
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    if (outputFileWriter != null)
-                    {
-                        outputFileWriter.WriteLine(e.Data);
-                        outputFileWriter.Flush();
-                    }
+                    AppendToOutputFile(e.Data);
                     Debug.LogWarning("Python Output: " + e.Data);
 
                     if (e.Data.IndexOf("Server starts, waiting for connection...", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -602,6 +616,8 @@ namespace BOforUnity.Scripts
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
+                    // Keep tracebacks in output.txt too, next to the stdout they belong to.
+                    AppendToOutputFile("[stderr] " + e.Data);
                     Debug.LogError("Python Error: " + e.Data);
                 }
             };
@@ -609,7 +625,19 @@ namespace BOforUnity.Scripts
             {
                 isPythonProcessRunning = false;
                 isSystemStarted = false;
-                Debug.LogWarning("Python process exited with code: " + pythonProcess.ExitCode);
+                // Read the code from the sender: StopPythonProcess may already have disposed
+                // and cleared pythonProcess by the time this runs on a worker thread.
+                string exitCode = "unknown";
+                try
+                {
+                    if (sender is Process exitedProcess)
+                        exitCode = exitedProcess.ExitCode.ToString();
+                }
+                catch (Exception)
+                {
+                    // Disposed during shutdown; the code is no longer available.
+                }
+                Debug.LogWarning("Python process exited with code: " + exitCode);
             };
 
             try
@@ -653,13 +681,30 @@ namespace BOforUnity.Scripts
             isSystemStarted = false;
         }
 
+        private void AppendToOutputFile(string line)
+        {
+            lock (_outputFileLock)
+            {
+                if (outputFileWriter == null)
+                    return;
+                outputFileWriter.WriteLine(line);
+                outputFileWriter.Flush();
+            }
+        }
+
+        private void CloseOutputFile()
+        {
+            lock (_outputFileLock)
+            {
+                outputFileWriter?.Close();
+                outputFileWriter = null;
+            }
+        }
+
         private void OnDestroy()
         {
             StopPythonProcess();
-            if (outputFileWriter != null)
-            {
-                outputFileWriter.Close();
-            }
+            CloseOutputFile();
 
 #if UNITY_EDITOR
             // Unsubscribe from the play mode state change event
@@ -670,10 +715,7 @@ namespace BOforUnity.Scripts
         private void OnApplicationQuit()
         {
             StopPythonProcess();
-            if (outputFileWriter != null)
-            {
-                outputFileWriter.Close();
-            }
+            CloseOutputFile();
         }
 
 #if UNITY_EDITOR
@@ -719,6 +761,10 @@ namespace BOforUnity.Scripts
             startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
             startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
             startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+            // UTF-8 mode makes open() default to UTF-8 instead of the Windows code page, so the
+            // CSV logs are written in the encoding pandas and FinalDesignSelector read them with
+            // (otherwise a key or ID such as "Größe" aborts the run when the CSV is read back).
+            startInfo.Environment["PYTHONUTF8"] = "1";
             // Keep StreamingAssets clean: without this, importing backend helper
             // modules would create __pycache__ folders inside the Unity project.
             startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
@@ -1038,9 +1084,10 @@ namespace BOforUnity.Scripts
 
                 using (var p = Process.Start(psi))
                 {
+                    Task<string> stderrTask = p.StandardError.ReadToEndAsync();
                     string stdout = p.StandardOutput.ReadToEnd();
-                    string stderr = p.StandardError.ReadToEnd();
                     p.WaitForExit();
+                    string stderr = stderrTask.Result;
 
                     rawOutput = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
                     if (string.IsNullOrWhiteSpace(rawOutput))
@@ -1405,12 +1452,17 @@ namespace BOforUnity.Scripts
                 };
                 psi.Environment["PIP_NO_INPUT"] = "1";
                 psi.Environment["PYTHONIOENCODING"] = "utf-8";
+                psi.StandardOutputEncoding = System.Text.Encoding.UTF8;
+                psi.StandardErrorEncoding = System.Text.Encoding.UTF8;
 
                 using (var p = Process.Start(psi))
                 {
+                    // Drain stderr concurrently: reading the pipes one after the other deadlocks
+                    // once the child fills the stderr pipe buffer (e.g. pip's warnings).
+                    Task<string> stderrTask = p.StandardError.ReadToEndAsync();
                     string stdout = p.StandardOutput.ReadToEnd();
-                    string stderr = p.StandardError.ReadToEnd();
                     p.WaitForExit();
+                    string stderr = stderrTask.Result;
 
                     if (!string.IsNullOrEmpty(stdout))
                         Debug.Log(TrimMultiline($"[{Path.GetFileName(fileName)} {arguments}] {stdout}"));

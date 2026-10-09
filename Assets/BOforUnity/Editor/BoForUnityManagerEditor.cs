@@ -454,10 +454,19 @@ namespace BOforUnity.Editor
                     dboInitialAlphaProp,
                     new GUIContent(
                         "DBO Initial Alpha",
-                        "Starting decay rate before fitting. 0.99 matches the reference; the fitted " +
-                        "value per iteration is logged to DboDiagnosticsPerEvaluation.csv."
+                        "Starting decay rate before fitting, strictly below 1. 0.99 matches the " +
+                        "reference; the fitted value per iteration is logged to " +
+                        "DboDiagnosticsPerEvaluation.csv."
                     )
                 );
+                if (!dboStationaryBaselineProp.boolValue && dboInitialAlphaProp.floatValue >= 1f)
+                {
+                    EditorGUILayout.HelpBox(
+                        "DBO Initial Alpha must be below 1: alpha can never be fitted away from exactly 1, " +
+                        "so the run would be stationary BO. Use 0.99, or enable DBO Stationary Baseline.",
+                        MessageType.Error
+                    );
+                }
                 EditorGUILayout.PropertyField(
                     dboExplorationRatioProp,
                     new GUIContent(
