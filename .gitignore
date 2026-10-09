@@ -33,8 +33,17 @@ sysinfo.txt
 !release/*.unitypackage
 
 # BO runtime output
+# (the backend console log, output.txt, lives in persistentDataPath/BOData/BayesianOptimization since 1.8;
+# the entries below keep copies written by older versions out of the repository)
 Assets/StreamingAssets/BOData/LogData/
+Assets/StreamingAssets/BOData/output.txt
+Assets/StreamingAssets/BOData/output.txt.meta
 Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
+Assets/StreamingAssets/BOData/BayesianOptimization/output.txt.meta
+
+# Offline wheel cache for the dependency install (README 8.5): local, can be several GB
+Assets/StreamingAssets/BOData/Installation/wheels/
+Assets/StreamingAssets/BOData/Installation/wheels.meta
 Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache/
 Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache.meta
 

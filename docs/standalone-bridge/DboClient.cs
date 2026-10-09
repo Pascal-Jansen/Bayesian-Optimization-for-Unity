@@ -1,18 +1,19 @@
-// DboClient.cs — Unity client for the dbo-torch optimiser server.
+// DboClient.cs — Unity client for the standalone dbo-torch bridge (unity_bridge.py).
 //
-// Start the Python side first:
-//     dbo-serve --host 127.0.0.1 --port 8756
+// Start the Python side first, from the folder that holds unity_bridge.py:
+//     python unity_bridge.py --host 127.0.0.1 --port 8756 --save-dir runs
 //
-// The protocol is newline-delimited JSON over TCP. Every call blocks on a
-// background thread and returns to the Unity main thread via a callback, so
-// nothing here stalls the render loop.
+// The protocol is newline-delimited JSON over TCP. Calls are queued and sent by
+// one background thread, strictly in the order they were made, and each result
+// returns to the Unity main thread via a callback, so nothing here stalls the
+// render loop and a queued call never overtakes an earlier one.
 //
 // Typical use in a study scene:
 //
 //     var dbo = GetComponent<DboClient>();
 //     dbo.Reset(new[] { new[] { -5f, 9f } }, seedPoints: new[] {
 //         new[] { 5f }, new[] { 7f }, new[] { 3f } });
-//     dbo.Suggest(x => StartCoroutine(RunTrial(x)));
+//     dbo.Suggest(x => StartCoroutine(RunTrial(x)));   // runs after Reset
 //     // ... after measuring the participant's response:
 //     dbo.Observe(x, cost, () => dbo.Suggest(...));
 
@@ -62,6 +63,21 @@ namespace DboTorch
         private StreamWriter _writer;
         private readonly object _ioLock = new object();
 
+        // Requests are sent by ONE worker thread in FIFO order. (A thread per call
+        // contending for a lock gives no ordering guarantee: `Reset(); Suggest();`
+        // could reach the server as suggest-then-reset.)
+        private readonly object _queueLock = new object();
+        private readonly Queue<PendingRequest> _queue = new Queue<PendingRequest>();
+        private Thread _worker;
+        private bool _shuttingDown;
+
+        private sealed class PendingRequest
+        {
+            public string Payload;
+            public Action<string> OnResult;
+            public Action<string> OnError;
+        }
+
         // Work queued back onto the Unity main thread.
         private readonly ConcurrentQueue<Action> _mainThread = new ConcurrentQueue<Action>();
 
@@ -79,8 +95,8 @@ namespace DboTorch
             }
         }
 
-        private void OnDestroy() => Disconnect();
-        private void OnApplicationQuit() => Disconnect();
+        private void OnDestroy() => Shutdown();
+        private void OnApplicationQuit() => Shutdown();
 
         public void Connect()
         {
@@ -101,6 +117,9 @@ namespace DboTorch
             }
         }
 
+        /// <summary>
+        /// Closes the connection; the next call reconnects. Queued calls are kept.
+        /// </summary>
         public void Disconnect()
         {
             lock (_ioLock)
@@ -179,7 +198,10 @@ namespace DboTorch
                  onError);
         }
 
-        /// <summary>Write the full run history to a JSON file on the server.</summary>
+        /// <summary>
+        /// Write the full run history to a JSON file on the server. <paramref name="path"/>
+        /// is relative to the server's --save-dir; absolute paths and ".." are refused.
+        /// </summary>
         public void Save(string path, Action onDone = null, Action<string> onError = null)
         {
             Send("{\"cmd\":\"save\",\"path\":\"" + Escape(path) + "\"}",
@@ -192,44 +214,92 @@ namespace DboTorch
 
         private void Send(string payload, Action<string> onResult, Action<string> onError)
         {
-            var worker = new Thread(() =>
+            lock (_queueLock)
             {
-                string reply;
-                try
+                if (_shuttingDown)
                 {
-                    lock (_ioLock)
-                    {
-                        if (!IsConnected) Connect();
-                        if (LogTraffic) Debug.Log("[DBO] -> " + payload);
-                        _writer.Write(payload);
-                        _writer.Write('\n');
-                        reply = _reader.ReadLine();
-                    }
-
-                    if (reply == null)
-                        throw new IOException("Server closed the connection.");
-                    if (LogTraffic) Debug.Log("[DBO] <- " + reply);
-
-                    if (!FieldB(reply, "ok"))
-                    {
-                        var msg = FieldS(reply, "error") ?? "unknown server error";
-                        _mainThread.Enqueue(() => Fail(onError, msg));
-                        return;
-                    }
-                }
-                catch (Exception e)
-                {
-                    var msg = e.Message;
-                    Disconnect();   // force a clean reconnect on the next call
-                    _mainThread.Enqueue(() => Fail(onError, msg));
+                    _mainThread.Enqueue(() => Fail(onError, "DboClient is shutting down."));
                     return;
                 }
 
-                _mainThread.Enqueue(() => onResult?.Invoke(reply));
-            })
-            { IsBackground = true };
+                _queue.Enqueue(new PendingRequest { Payload = payload, OnResult = onResult, OnError = onError });
+                if (_worker == null || !_worker.IsAlive)
+                {
+                    _worker = new Thread(ProcessQueue) { IsBackground = true, Name = "DboClient" };
+                    _worker.Start();
+                }
+                Monitor.Pulse(_queueLock);
+            }
+        }
 
-            worker.Start();
+        private void ProcessQueue()
+        {
+            while (true)
+            {
+                PendingRequest request;
+                lock (_queueLock)
+                {
+                    while (_queue.Count == 0 && !_shuttingDown)
+                        Monitor.Wait(_queueLock);
+                    if (_shuttingDown)
+                        return;
+                    request = _queue.Dequeue();
+                }
+
+                Execute(request);
+            }
+        }
+
+        private void Execute(PendingRequest request)
+        {
+            string reply;
+            try
+            {
+                lock (_ioLock)
+                {
+                    if (!IsConnected) Connect();
+                    if (LogTraffic) Debug.Log("[DBO] -> " + request.Payload);
+                    _writer.Write(request.Payload);
+                    _writer.Write('\n');
+                    reply = _reader.ReadLine();
+                }
+
+                if (reply == null)
+                    throw new IOException("Server closed the connection.");
+                if (LogTraffic) Debug.Log("[DBO] <- " + reply);
+
+                if (!FieldB(reply, "ok"))
+                {
+                    var msg = FieldS(reply, "error") ?? "unknown server error";
+                    _mainThread.Enqueue(() => Fail(request.OnError, msg));
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                var msg = e.Message;
+                Disconnect();   // force a clean reconnect on the next call
+                _mainThread.Enqueue(() => Fail(request.OnError, msg));
+                return;
+            }
+
+            _mainThread.Enqueue(() => request.OnResult?.Invoke(reply));
+        }
+
+        // Stops the worker and drops queued calls. Closing the socket without taking
+        // _ioLock unblocks a worker waiting for a reply, so quitting never stalls on
+        // the request timeout.
+        private void Shutdown()
+        {
+            lock (_queueLock)
+            {
+                _shuttingDown = true;
+                _queue.Clear();
+                Monitor.PulseAll(_queueLock);
+            }
+
+            try { _client?.Close(); } catch { /* closing anyway */ }
+            Disconnect();
         }
 
         private static void Fail(Action<string> onError, string message)

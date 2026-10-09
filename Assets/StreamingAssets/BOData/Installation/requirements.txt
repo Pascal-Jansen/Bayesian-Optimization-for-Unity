@@ -1,3 +1,9 @@
+# Python packages of the optimizer backends. Unity installs them on the first Play into a private virtual
+# environment (persistentDataPath/BOData/python-venv), or into the environment configured as "Manually Installed
+# Python" when that already is a venv/conda environment (README 8.5). The "==" pins below are checked on every
+# start (installed versions are listed in output.txt) and reinstalled when they differ.
+# Linux installs add https://download.pytorch.org/whl/cpu as an extra index (CPU build of torch instead of PyPI's
+# multi-GB CUDA build). Offline labs: put the wheels into Installation/wheels; pip then uses them (--find-links).
 torch==2.14.1
 botorch==0.18.1
 moocore==0.3.2
@@ -8,6 +14,10 @@ pandas==3.0.6
 gpytorch==1.15.2
 scikit-learn==1.9.1
 loguru==0.7.3
+# Optional packages are installed manually, with the interpreter the backends run with ("python" below):
+# the Console logs it at startup ("Optimizer Python: ..."), by default
+# <persistentDataPath>/BOData/python-venv/bin/python3 (Windows: ...\python-venv\Scripts\python.exe).
+#
 # Optional: image-based context embeddings (contextual optimization, README 8.13).
 # Install manually to keep the default setup slim:
 #   python -m pip install open_clip_torch pillow

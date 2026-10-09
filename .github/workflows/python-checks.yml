@@ -49,7 +49,7 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy pandas
+          python -m pip install numpy pandas pytest
 
       - name: Check patch whitespace
         shell: bash
@@ -77,6 +77,9 @@ jobs:
 
       - name: Run Python unit tests
         run: python -m unittest discover tests
+
+      - name: Run standalone bridge tests (transport only; optimiser tests need torch)
+        run: python -m pytest docs/standalone-bridge -p no:cacheprovider -v
 
       - name: Check tests did not create Python caches
         shell: bash
@@ -111,12 +114,41 @@ jobs:
           cache: pip
 
       - name: Install pinned dependency stack (CPU torch)
+        shell: bash
+        env:
+          REQUIREMENTS: Assets/StreamingAssets/BOData/Installation/requirements.txt
+          CPU_INDEX: https://download.pytorch.org/whl/cpu
         run: |
           python -m pip install --upgrade pip
-          # Install the CPU wheel first so the pinned torch requirement is
-          # satisfied without pulling the multi-GB CUDA distribution.
-          python -m pip install "torch==2.13.0" --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -r Assets/StreamingAssets/BOData/Installation/requirements.txt
+          # Take the torch pin from requirements.txt, so a pin bump can never fall back to PyPI's
+          # multi-GB CUDA build. The CPU index serves e.g. 2.14.1+cpu, which satisfies ==2.14.1.
+          # (Inline comments stripped; "|| true" so a missing pin reaches the error below under bash -e -o pipefail.)
+          torch_pin="$(sed -E 's/#.*$//' "$REQUIREMENTS" | grep -E '^[[:space:]]*torch[[:space:]]*==' | head -n 1 | tr -d '[:space:]' || true)"
+          if [[ -z "$torch_pin" ]]; then
+            echo "::error::No 'torch==<version>' pin found in $REQUIREMENTS."
+            exit 1
+          fi
+          echo "Installing $torch_pin from the CPU index"
+          python -m pip install "$torch_pin" --index-url "$CPU_INDEX"
+          # Same options as PythonStarter on Linux: the CPU index stays available for torch.
+          python -m pip install -r "$REQUIREMENTS" --extra-index-url "$CPU_INDEX"
+          python -m pip install pytest
+          python -m pip check
+          python - "$torch_pin" <<'PY'
+          import sys
+          import torch
+          pinned = sys.argv[1].split("==", 1)[1]
+          installed = torch.__version__.split("+", 1)[0]
+          assert installed == pinned, f"torch {torch.__version__} installed, requirements.txt pins {pinned}"
+          assert torch.version.cuda is None, f"CUDA build of torch installed ({torch.__version__})"
+          print(f"torch {torch.__version__} (CPU build) matches the pin {pinned}")
+          PY
 
       - name: Run full test suite (integration + CABOP included)
         run: python -m unittest discover tests -v
+
+      - name: Run DBO protocol check (real dbo.py over a socket)
+        run: python tests/dbo_protocol_check.py
+
+      - name: Run standalone bridge tests (real dbo_torch)
+        run: python -m pytest docs/standalone-bridge -p no:cacheprovider -v

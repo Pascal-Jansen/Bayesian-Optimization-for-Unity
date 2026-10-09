@@ -17,18 +17,30 @@ If you are inside this repository, you want the BOforUnity backend — see
 [docs/dbo-backend.md](../dbo-backend.md). Use this bridge only for a bare Unity
 project where adopting BOforUnity is not an option.
 
-Run the server (needs `dbo-torch` and its dependencies on the Python side):
+Run the server (needs `dbo_torch` importable: a dbo-torch checkout or installation, or this
+repository's vendored copy on `PYTHONPATH`):
 
 ```bash
-python unity_bridge.py --host 127.0.0.1 --port 8756
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=Assets/StreamingAssets/BOData/BayesianOptimization \
+    python docs/standalone-bridge/unity_bridge.py --host 127.0.0.1 --port 8756 --save-dir runs
 ```
 
-`test_unity_bridge.py` is its pytest suite (11 tests over a real socket); run it
-with `dbo_torch` importable, e.g. from a dbo-torch checkout:
+(`PYTHONDONTWRITEBYTECODE=1` keeps `__pycache__` folders out of the Unity project.)
+
+`save` requests write only inside `--save-dir` (default: the server's working directory);
+absolute paths and `..` are refused, because the bridge has no authentication.
+
+`test_unity_bridge.py` is its pytest suite (26 tests over a real socket). The optimiser
+tests use an installed `dbo_torch`, or else the vendored copy, and are skipped without
+torch; the transport tests (framing, port policy, save-path checks) always run:
 
 ```bash
-pytest docs/standalone-bridge/test_unity_bridge.py
+pytest docs/standalone-bridge -p no:cacheprovider
 ```
 
 The server binds to loopback and has no authentication; `--allow-remote` is
-required to bind anywhere else, so it cannot happen by accident.
+required to bind anywhere else, so it cannot happen by accident. Like the
+BOforUnity backends it never shares its port (`SO_EXCLUSIVEADDRUSE` on Windows).
+
+`DboClient.cs` sends calls in the order they are made (one worker thread, FIFO
+queue), so `Reset(); Suggest();` is safe without waiting for the first callback.

@@ -3,15 +3,13 @@
 Unity cannot host PyTorch, so the optimiser runs as a small local server and
 the Unity scene talks to it over a socket. The protocol is newline-delimited
 JSON: one request object per line, one response object per line. The matching
-C# client is in ``unity/DboClient.cs``.
+C# client is ``DboClient.cs`` in this folder.
 
-Run it with::
+Run it from this folder, with ``dbo_torch`` importable (a dbo-torch checkout or
+installation, or BOforUnity's vendored copy: add
+``Assets/StreamingAssets/BOData/BayesianOptimization`` to ``PYTHONPATH``)::
 
-    dbo-serve --host 127.0.0.1 --port 8756
-
-or::
-
-    python -m dbo_torch.unity_bridge --port 8756
+    python unity_bridge.py --host 127.0.0.1 --port 8756 --save-dir runs
 
 Requests
 --------
@@ -29,7 +27,10 @@ Requests
 ``{"cmd": "state"}``
     Full run history and fitted ``alpha``.
 ``{"cmd": "save", "path": "run.json"}``
-    Write the history to disk.
+    Write the history to ``path`` inside the server's save directory
+    (``--save-dir``, default: the working directory the server was started
+    in). Absolute paths and ``..`` components are refused, so a client cannot
+    write anywhere else on the machine.
 ``{"cmd": "ping"}``
     Liveness check.
 
@@ -37,9 +38,14 @@ Every response carries ``ok``. On failure it carries ``ok: false`` and
 ``error``. The server keeps running after a failed request: a study should not
 die because one iteration hit a numerical problem.
 
-The server binds to localhost by default and performs no authentication. It is
+The server binds to 127.0.0.1 by default and performs no authentication. It is
 intended for a lab machine, not a shared network. Binding to a non-loopback
-address requires ``--allow-remote``, so it cannot happen by accident.
+address requires ``--allow-remote``, so it cannot happen by accident. Like
+BOforUnity's backends it never shares its port: on Windows it binds with
+``SO_EXCLUSIVEADDRUSE`` (``SO_REUSEADDR`` there would let a second server bind
+the same port and receive the client's connections), elsewhere with
+``SO_REUSEADDR``, which only permits an immediate restart while the previous
+server's connections linger in ``TIME_WAIT``.
 """
 
 from __future__ import annotations
@@ -47,16 +53,70 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import socket
 import socketserver
 import threading
-from typing import Any
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import TYPE_CHECKING, Any
 
-from dbo_torch.model import DBOModelConfig
-from dbo_torch.optimizer import DBOConfig, DynamicBO
+if TYPE_CHECKING:  # imported lazily at runtime, see _load_dbo()
+    from dbo_torch.optimizer import DynamicBO
 
-__all__ = ["DBOServer", "serve", "main"]
+__all__ = ["DBOServer", "configure_listener_socket", "resolve_save_path", "serve", "main"]
 
 log = logging.getLogger("dbo_torch.bridge")
+
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8756
+
+
+def _load_dbo():
+    """Import dbo_torch on first use, so the transport works (and is testable) without torch."""
+    from dbo_torch.model import DBOModelConfig
+    from dbo_torch.optimizer import DBOConfig, DynamicBO
+
+    return DBOModelConfig, DBOConfig, DynamicBO
+
+
+def configure_listener_socket(sock: socket.socket) -> None:
+    """Socket options for the listening socket (same policy as BOforUnity's backends).
+
+    On Windows, SO_REUSEADDR lets a second process bind a port that is still being
+    listened on, so a stale server could receive the client's connection;
+    SO_EXCLUSIVEADDRUSE refuses that and still allows an immediate restart. On POSIX,
+    SO_REUSEADDR only permits rebinding while an earlier connection lingers in TIME_WAIT.
+    """
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
+def resolve_save_path(save_dir: Path, requested: Any) -> Path:
+    """Map a client-supplied ``save`` path to a file inside ``save_dir``.
+
+    The bridge is unauthenticated, so the client must not choose where on the machine
+    the server writes: absolute paths, drive-qualified paths and ``..`` components are
+    refused, and the resolved target (after following symlinks) must stay inside
+    ``save_dir``.
+    """
+    if not isinstance(requested, str) or not requested.strip():
+        raise ValueError("'save' requires 'path', a file name relative to the server's save directory")
+    text = requested.strip()
+    windows = PureWindowsPath(text)
+    if PurePosixPath(text).is_absolute() or windows.drive or windows.root:
+        raise ValueError(
+            f"'save' path must be relative to the server's save directory, got {requested!r}"
+        )
+    parts = windows.parts  # splits on both '/' and '\\'
+    if any(part == ".." for part in parts):
+        raise ValueError(f"'save' path must not contain '..', got {requested!r}")
+
+    root = Path(save_dir).resolve()
+    target = root.joinpath(*parts).resolve()
+    if target == root or root not in target.parents:
+        raise ValueError(f"'save' path {requested!r} does not name a file inside the save directory")
+    return target
 
 
 class _Session:
@@ -66,15 +126,17 @@ class _Session:
     between multiple clients, which all share the single run. One client per
     run is the intended deployment."""
 
-    def __init__(self) -> None:
+    def __init__(self, save_dir: Path | str | None = None) -> None:
         self.lock = threading.Lock()
         self.optimizer: DynamicBO | None = None
+        self.save_dir = Path(save_dir) if save_dir is not None else Path.cwd()
 
     def reset(self, req: dict[str, Any]) -> dict[str, Any]:
         bounds = req.get("bounds")
         if not bounds:
             raise ValueError("'reset' requires 'bounds', e.g. [[-5, 9]]")
 
+        DBOModelConfig, DBOConfig, DynamicBO = _load_dbo()
         parsed = [(float(lo), float(hi)) for lo, hi in bounds]
 
         model_cfg = DBOModelConfig(
@@ -164,11 +226,10 @@ def _handle(session: _Session, req: dict[str, Any]) -> dict[str, Any]:
         }
 
     if cmd == "save":
+        # Validate the path first: a refused path is reported even before 'reset'.
+        target = resolve_save_path(session.save_dir, req.get("path"))
         opt = session.require()
-        path = req.get("path")
-        if not path:
-            raise ValueError("'save' requires 'path'")
-        return {"path": str(opt.save(path))}
+        return {"path": str(opt.save(target))}
 
     raise ValueError(f"Unknown command: {cmd!r}")
 
@@ -179,7 +240,11 @@ class _Handler(socketserver.StreamRequestHandler):
         log.info("client connected: %s", peer)
 
         for raw in self.rfile:
-            line = raw.decode("utf-8").strip()
+            try:
+                line = raw.decode("utf-8").strip()
+            except UnicodeDecodeError as exc:
+                self._reply({"ok": False, "error": f"Bad request: {exc}"})
+                continue
             if not line:
                 continue
 
@@ -207,17 +272,31 @@ class _Handler(socketserver.StreamRequestHandler):
 
 
 class DBOServer(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True
+    # Socket options are set in server_bind (configure_listener_socket); the stock
+    # allow_reuse_address would set SO_REUSEADDR, which shares the port on Windows.
+    allow_reuse_address = False
     daemon_threads = True
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(
+        self,
+        host: str = DEFAULT_HOST,
+        port: int = DEFAULT_PORT,
+        save_dir: Path | str | None = None,
+    ) -> None:
+        self.address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
+        self.session = _Session(save_dir)
         super().__init__((host, port), _Handler)
-        self.session = _Session()
+
+    def server_bind(self) -> None:
+        configure_listener_socket(self.socket)
+        super().server_bind()
 
 
-def serve(host: str = "127.0.0.1", port: int = 8756) -> None:
-    server = DBOServer(host, port)
-    log.info("listening on %s:%d", host, port)
+def serve(
+    host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, save_dir: Path | str | None = None
+) -> None:
+    server = DBOServer(host, port, save_dir)
+    log.info("listening on %s:%d, saving runs under %s", host, port, server.session.save_dir.resolve())
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -228,10 +307,16 @@ def serve(host: str = "127.0.0.1", port: int = 8756) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="dbo-serve", description="Serve a Dynamic Bayesian optimiser to Unity."
+        prog="unity_bridge.py", description="Serve a Dynamic Bayesian optimiser to Unity."
     )
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8756)
+    parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument(
+        "--save-dir",
+        default=None,
+        help="Directory 'save' requests write into (relative paths only). "
+        "Default: the current working directory.",
+    )
     parser.add_argument(
         "--allow-remote",
         action="store_true",
@@ -252,7 +337,24 @@ def main(argv: list[str] | None = None) -> int:
             "is unauthenticated."
         )
 
-    serve(args.host, args.port)
+    try:
+        _load_dbo()
+    except ImportError as exc:
+        parser.error(
+            f"dbo_torch is not importable ({exc}). Install dbo-torch, or add BOforUnity's "
+            "Assets/StreamingAssets/BOData/BayesianOptimization folder to PYTHONPATH."
+        )
+
+    try:
+        serve(args.host, args.port, args.save_dir)
+    except OSError as exc:
+        log.error(
+            "Cannot listen on %s:%d (%s). Is another unity_bridge.py still running?",
+            args.host,
+            args.port,
+            exc,
+        )
+        return 1
     return 0
 
 
