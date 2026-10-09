@@ -79,7 +79,8 @@ tkwargs = {"dtype": torch.double, "device": torch.device("cpu")}
 device = torch.device("cpu")
 
 # -------------------- TCP server helpers --------------------
-HOST = ''
+# Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
+HOST = '127.0.0.1'
 PORT = 56001
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
@@ -120,6 +121,21 @@ def send_json_line(conn, obj):
     except (BrokenPipeError, ConnectionResetError, OSError) as e:
         t = obj.get("type") if isinstance(obj, dict) else "unknown"
         raise ConnectionError(f"Failed to send message to Unity (type={t}): {e}") from e
+
+
+def configure_listener_socket(s):
+    """Socket options for the backend's single listening socket.
+
+    On Windows, SO_REUSEADDR lets a second process bind a port that is still being listened
+    on, so a stale backend could receive Unity's connection; SO_EXCLUSIVEADDRUSE refuses that
+    and still allows an immediate restart. On POSIX, SO_REUSEADDR only permits rebinding
+    while an earlier connection lingers in TIME_WAIT, which a quick restart needs.
+    """
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
 
 def recv_json_message(conn):
     """Receive one NDJSON message while preserving unread bytes across calls."""
@@ -690,7 +706,7 @@ def main():
     global SOCKET_RECV_BUF
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    configure_listener_socket(s)
     conn = None
     try:
         if SOCKET_ACCEPT_TIMEOUT_SEC <= 0:
@@ -699,13 +715,21 @@ def main():
             raise ValueError(f"BO_TORCH_THREADS must be >= 1, got {TORCH_THREADS}")
         torch.set_num_threads(TORCH_THREADS)
         s.settimeout(SOCKET_ACCEPT_TIMEOUT_SEC)
-        s.bind((HOST, PORT))
+        try:
+            s.bind((HOST, PORT))
+        except OSError as e:
+            raise OSError(
+                f"Port {PORT} is already in use, most likely by an optimizer backend left over "
+                "from an earlier session. End that python process (Task Manager / Activity "
+                f"Monitor) and start again. ({e})"
+            ) from e
         s.listen(1)
         print('Server starts, waiting for connection...', flush=True)
         try:
             conn, addr = s.accept()
         except socket.timeout as e:
             raise TimeoutError(f"Socket accept timed out after {SOCKET_ACCEPT_TIMEOUT_SEC} seconds.") from e
+        s.close()  # one Unity client per run: accept no further connections
         print('Connected by', addr, flush=True)
         if SOCKET_TIMEOUT_SEC <= 0:
             raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {SOCKET_TIMEOUT_SEC}")

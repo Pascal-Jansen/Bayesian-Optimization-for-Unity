@@ -29,7 +29,12 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in sys.path:
     sys.path.insert(0, _TESTS_DIR)
 
-from _stubs import FakeServerSocket, json_line  # noqa: E402
+from _stubs import (  # noqa: E402
+    FakeServerSocket,
+    assert_hardened_listener,
+    json_line,
+    run_main_recording_listener,
+)
 
 _REAL_MODULE_ROOTS = ("torch", "botorch", "gpytorch", "linear_operator", "pandas")
 
@@ -177,6 +182,15 @@ class DboRuntimeTests(unittest.TestCase):
                 self._run_main(module, init_message(dboInitialAlpha=1.0), tmp,
                                execute=lambda *a: calls.append(a))
         self.assertEqual(calls, [], "the study must not start with an unfittable alpha")
+
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        module = load_dbo_runtime()
+        threads = torch.get_num_threads()
+        try:
+            server, listening = run_main_recording_listener(module, init_message(), "dbo_execute")
+        finally:
+            torch.set_num_threads(threads)  # main() pins it for the whole process
+        assert_hardened_listener(self, module.socket, server, listening)
 
     def test_initial_alpha_of_one_is_accepted_for_the_stationary_baseline(self):
         module = load_dbo_runtime()

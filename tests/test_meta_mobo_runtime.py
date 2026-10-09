@@ -33,9 +33,11 @@ from _stubs import (  # noqa: E402
     FakeConn as _FakeConn,
     FakeServerSocket as _FakeServerSocket,
     FakeTensor as _FakeTensor,
+    assert_hardened_listener,
     install_openbo_stub,
     install_stub_modules,
     json_line as _json_line,
+    run_main_recording_listener,
 )
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -262,6 +264,11 @@ class _RunMainMixin:
 
 
 class MetaRuntimeProtocolTests(_RunMainMixin, unittest.TestCase):
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        runtime = load_runtime()
+        server, listening = run_main_recording_listener(runtime, base_init_message(), "meta_execute")
+        assert_hardened_listener(self, runtime.socket, server, listening)
+
     def test_full_protocol_run_with_sources(self):
         runtime = load_runtime()
         fp = load_fingerprint()

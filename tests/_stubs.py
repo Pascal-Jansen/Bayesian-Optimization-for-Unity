@@ -415,3 +415,36 @@ class FakeServerSocket:
 
 def json_line(obj):
     return (json.dumps(obj) + "\n").encode("utf-8")
+
+
+def run_main_recording_listener(module, init_msg, execute_attr, main_args=()):
+    """Run a backend's main() against a fake server; return (server, listening_during_run).
+
+    The backend's execute function is replaced by a stub that records whether the listening
+    socket was still open once the session started.
+    """
+    conn = FakeConn([json_line(init_msg)])
+    server = FakeServerSocket(conn)
+    listening = []
+    original_ctor = module.socket.socket
+    original_execute = getattr(module, execute_attr)
+    try:
+        module.socket.socket = lambda *args, **kwargs: server
+        setattr(module, execute_attr, lambda *args, **kwargs: listening.append(not server.closed))
+        module.main(*main_args)
+    finally:
+        module.socket.socket = original_ctor
+        setattr(module, execute_attr, original_execute)
+    return server, listening
+
+
+def assert_hardened_listener(testcase, socket_module, server, listening_during_run):
+    """Loopback only, exclusive port where the OS supports it, no listening once connected."""
+    testcase.assertEqual(server.bound, ("127.0.0.1", 56001))
+    testcase.assertEqual(listening_during_run, [False])
+    options = {optname for _, optname, _ in server.sockopt_calls}
+    if hasattr(socket_module, "SO_EXCLUSIVEADDRUSE"):
+        # Windows: SO_REUSEADDR would let a second backend share the listening port.
+        testcase.assertEqual(options, {socket_module.SO_EXCLUSIVEADDRUSE})
+    else:
+        testcase.assertEqual(options, {socket_module.SO_REUSEADDR})

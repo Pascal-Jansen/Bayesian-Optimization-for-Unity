@@ -22,8 +22,10 @@ from _stubs import (  # noqa: E402
     FakeConn as _FakeConn,
     FakeServerSocket as _FakeServerSocket,
     FakeTensor,
+    assert_hardened_listener,
     install_stub_modules,
     json_line as _json_line,
+    run_main_recording_listener,
 )
 
 
@@ -781,6 +783,11 @@ class MoboTests(unittest.TestCase):
         conn = _FakeConn([payload[:cut], payload[cut:]])
         msg = mobo.recv_json_message(conn)
         self.assertEqual(list(msg["values"]), ["Übersicht"])
+
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        mobo = load_mobo_module()
+        server, listening = run_main_recording_listener(mobo, self._base_init_message(), "mobo_execute")
+        assert_hardened_listener(self, mobo.socket, server, listening)
 
     def test_main_rejects_keys_colliding_with_log_columns(self):
         mobo = load_mobo_module()

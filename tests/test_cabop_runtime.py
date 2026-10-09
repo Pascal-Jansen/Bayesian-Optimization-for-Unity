@@ -26,7 +26,12 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in sys.path:
     sys.path.insert(0, _TESTS_DIR)
 
-from _stubs import FakeConn, json_line  # noqa: E402
+from _stubs import (  # noqa: E402
+    FakeConn,
+    assert_hardened_listener,
+    json_line,
+    run_main_recording_listener,
+)
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
@@ -233,6 +238,13 @@ class CabopInitTests(unittest.TestCase):
         space = runtime.build_cabop_space_dict()
         self.assertEqual(space["parameters"]["p1"]["group"], "GB")
         self.assertEqual(space["cost"]["GB"], {"unchanged": 2.0, "swapped": 3.0, "acquired": 4.0})
+
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        runtime = load_cabop_runtime()
+        server, listening = run_main_recording_listener(
+            runtime, interleaved_group_init_msg(), "run_cabop", main_args=("single",)
+        )
+        assert_hardened_listener(self, runtime.socket, server, listening)
 
     def test_degenerate_parameter_range_is_rejected_at_init(self):
         msg = interleaved_group_init_msg()

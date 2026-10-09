@@ -22,8 +22,10 @@ from _stubs import (  # noqa: E402
     FakeConn as _FakeConn,
     FakeServerSocket as _FakeServerSocket,
     FakeTensor,
+    assert_hardened_listener,
     install_stub_modules,
     json_line as _json_line,
+    run_main_recording_listener,
 )
 
 
@@ -566,6 +568,28 @@ class BoTests(unittest.TestCase):
         bo.TORCH_THREADS = 0
         with self.assertRaisesRegex(ValueError, "BO_TORCH_THREADS"):
             self._run_main_with_init(bo, self._base_init(), execute_stub=lambda *args, **kwargs: None)
+
+    def test_main_listens_on_loopback_only_and_stops_after_connect(self):
+        bo = load_bo_module()
+        server, listening = run_main_recording_listener(bo, self._base_init(), "bo_execute")
+        assert_hardened_listener(self, bo.socket, server, listening)
+
+    def test_main_explains_a_taken_port(self):
+        bo = load_bo_module()
+
+        class _TakenPortServer(_FakeServerSocket):
+            def bind(self, addr):
+                raise OSError(10048, "Only one usage of each socket address is normally permitted")
+
+        server = _TakenPortServer(_FakeConn([]))
+        original_socket_ctor = bo.socket.socket
+        try:
+            bo.socket.socket = lambda *args, **kwargs: server
+            with self.assertRaisesRegex(OSError, "already in use.*left over"):
+                bo.main()
+        finally:
+            bo.socket.socket = original_socket_ctor
+        self.assertTrue(server.closed)
 
     def test_main_rejects_keys_colliding_with_log_columns(self):
         bo = load_bo_module()
