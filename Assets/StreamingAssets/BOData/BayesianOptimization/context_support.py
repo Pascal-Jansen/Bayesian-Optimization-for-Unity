@@ -2,7 +2,7 @@
 #
 # Implements the optional "context" section of the Unity init protocol and the
 # LCE-M GP (latent context embedding multi-task GP, Feng et al., NeurIPS 2020)
-# model construction on top of BoTorch's ``LCEMGP``.
+# model construction on top of BoTorch's ``LCEMGP`` (or botorch-rust's, see bo_library.py).
 #
 # Context embeddings are definable in three ways ("embeddingSource"):
 #   * "learned": a low-dimensional embedding per context is learned from data
@@ -601,7 +601,7 @@ def _provided_embedding_lcemgp_class():
     return _PROVIDED_LCEMGP_CLASS
 
 
-def build_contextual_model(train_x_with_task, train_y, setup):
+def build_contextual_model(train_x_with_task, train_y, setup, library="botorch"):
     """Build an LCE-M GP model (one LCEMGP per objective) and its MLL.
 
     The task feature is the last column of ``train_x_with_task``. Each LCEMGP is
@@ -612,11 +612,11 @@ def build_contextual_model(train_x_with_task, train_y, setup):
     Learned embeddings: one learned embedding dimension per context (LCEMGP default).
     Manual/image embeddings: the task kernel uses the provided embeddings only (plus a learned
     context-specific share, see _provided_embedding_lcemgp_class).
+
+    ``library`` is the run's model library (bo_library): 'botorch', or 'botorch_rs' for
+    botorch-rust's LCEMGP (_build_botorch_rs_contextual_model).
     """
     import torch
-    from botorch.models import ModelListGP
-    from gpytorch.mlls import ExactMarginalLogLikelihood
-    from gpytorch.mlls import SumMarginalLogLikelihood
 
     if not setup.embeddings_resolved:
         raise RuntimeError("resolve_embeddings() must be called before building the contextual model.")
@@ -626,6 +626,15 @@ def build_contextual_model(train_x_with_task, train_y, setup):
     context_cat_feature = torch.arange(setup.num_contexts, dtype=torch.double).unsqueeze(-1)
     all_tasks = list(range(setup.num_contexts))
     task_feature = train_x_with_task.shape[-1] - 1
+
+    if library == "botorch_rs":
+        return _build_botorch_rs_contextual_model(
+            train_x_with_task, train_y, setup, context_cat_feature, all_tasks, task_feature
+        )
+
+    from botorch.models import ModelListGP
+    from gpytorch.mlls import ExactMarginalLogLikelihood
+    from gpytorch.mlls import SumMarginalLogLikelihood
 
     if setup.embeddings is not None:
         lcemgp = _provided_embedding_lcemgp_class()
@@ -657,6 +666,44 @@ def build_contextual_model(train_x_with_task, train_y, setup):
         model = ModelListGP(*models)
         mll = SumMarginalLogLikelihood(model.likelihood, model)
     return mll, model
+
+
+def _build_botorch_rs_contextual_model(train_x_with_task, train_y, setup, context_cat_feature,
+                                       all_tasks, task_feature):
+    """The LCE-M GP of build_contextual_model on botorch-rust's LCEMGP (BoTorch's signature).
+
+    botorch-rust implements the intended LCEMGP directly, so the BoTorch-only workarounds
+    (_UnobservedContextLCEMGP's eval(), the resized task kernel) are not needed here.
+    bo_library.resolve keeps runs with provided (manual/image) embeddings on BoTorch, whose
+    _ProvidedEmbeddingLCEMGP variant has no counterpart in LCEMGP's signature; the
+    ``context_emb_feature`` argument below serves a botorch-rust that adds one.
+    """
+    import torch
+
+    import bo_library
+
+    names = bo_library.namespace(bo_library.BOTORCH_RS)
+    context_emb_feature = None
+    if setup.embeddings is not None:
+        context_emb_feature = torch.tensor(setup.embeddings, dtype=torch.double)
+    models = [
+        names.LCEMGP(
+            train_X=train_x_with_task,
+            train_Y=train_y[:, j: j + 1],
+            task_feature=task_feature,
+            context_cat_feature=context_cat_feature,
+            context_emb_feature=context_emb_feature,
+            embs_dim_list=[1],  # one learned embedding dim for the single categorical feature
+            output_tasks=[setup.current_index],
+            all_tasks=all_tasks,
+        )
+        for j in range(train_y.shape[-1])
+    ]
+    if len(models) == 1:
+        model = models[0]
+        return names.ExactMarginalLogLikelihood(model.likelihood, model), model
+    model = names.ModelListGP(*models)
+    return names.SumMarginalLogLikelihood(model.likelihood, model), model
 
 
 def describe(setup):
