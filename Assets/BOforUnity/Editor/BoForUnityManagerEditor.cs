@@ -46,6 +46,7 @@ namespace BOforUnity.Editor
         private SerializedProperty initialObjectivesDataPathProp;
         private SerializedProperty warmStartObjectiveFormatProp;
         private SerializedProperty optimizerBackendProp;
+        private SerializedProperty modelLibraryProp;
         private SerializedProperty cabopObjectiveModeProp;
         private SerializedProperty cabopUseCostAwareAcquisitionProp;
         private SerializedProperty cabopUpdateRuleProp;
@@ -143,6 +144,7 @@ namespace BOforUnity.Editor
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
             warmStartObjectiveFormatProp = serializedObject.FindProperty("warmStartObjectiveFormat");
             optimizerBackendProp = serializedObject.FindProperty("optimizerBackend");
+            modelLibraryProp = serializedObject.FindProperty("modelLibrary");
             cabopObjectiveModeProp = serializedObject.FindProperty("cabopObjectiveMode");
             cabopUseCostAwareAcquisitionProp = serializedObject.FindProperty("cabopUseCostAwareAcquisition");
             cabopUpdateRuleProp = serializedObject.FindProperty("cabopUpdateRule");
@@ -308,6 +310,31 @@ namespace BOforUnity.Editor
                               BoForUnityManager.OptimizerBackend.MetaTAF;
             bool useDbo = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
                           BoForUnityManager.OptimizerBackend.DBO;
+            if (!useCabop && !useDbo)
+            {
+                // CABOP and DBO always run on BoTorch.
+                EditorGUILayout.PropertyField(
+                    modelLibraryProp,
+                    new GUIContent(
+                        "Model Library",
+                        "BoTorch (default), BotorchRust (botorch-rust: BoTorch's API in Rust, several times " +
+                        "faster per suggestion; install it into the optimizer's Python first) or Auto (botorch-rust " +
+                        "when installed, otherwise BoTorch). Keep it fixed within a study."
+                    )
+                );
+                if ((BoForUnityManager.ModelLibrary)modelLibraryProp.enumValueIndex !=
+                    BoForUnityManager.ModelLibrary.BoTorch)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Runs that botorch-rust cannot handle yet fall back to BoTorch with a console message: " +
+                        "contextual optimization with Manual or Image embeddings, and modes its installed version " +
+                        "lacks. Every run records the library it used (RunInfo.json / MetaRunState.json). " +
+                        "See README 8.16.",
+                        MessageType.Info
+                    );
+                }
+            }
+
             if (useCabop)
             {
                 EditorGUILayout.PropertyField(
