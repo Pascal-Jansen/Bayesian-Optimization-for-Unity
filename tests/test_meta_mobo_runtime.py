@@ -17,6 +17,7 @@ import os
 import pathlib
 import sys
 import tempfile
+import types
 import unittest
 import uuid
 from unittest import mock
@@ -1334,6 +1335,113 @@ class DuplicateAndManifestTests(_RunMainMixin, unittest.TestCase):
             with self.assertRaises(RuntimeError) as ctx, contextlib.redirect_stdout(io.StringIO()):
                 self._run_main(runtime, base_init_message(metaRequireSources=False), RESPONSES, self._env(tmp))
             self.assertIn("'srcA' is listed but was not loaded: not loaded by openbo", str(ctx.exception))
+
+
+class ModelLibraryTests(_RunMainMixin, unittest.TestCase):
+    """BO_MODEL_LIBRARY for MetaTAF: resolved like bo.py, passed to openbo, confirmed, recorded."""
+
+    def _env(self, tmp, library=None):
+        # An empty value is the default (BoTorch), whatever the calling shell sets.
+        return {"BO_LOG_ROOT": str(tmp / "LogData"), "BO_META_ROOT": str(tmp),
+                "BO_MODEL_LIBRARY": library or ""}
+
+    def _run(self, runtime, library=None, modules=None, openbo_library=None, expect_abort=False):
+        """A full run with two sources; returns (MetaRunState, console, BO_MODEL_LIBRARY openbo saw)."""
+        from test_bo_library import NOT_INSTALLED
+
+        fp = load_fingerprint()
+        seen = []
+        original_import = runtime._import_openbo
+
+        def recording_import():
+            seen.append(os.environ.get("BO_MODEL_LIBRARY"))
+            imported = original_import()
+            mobo_botorch = sys.modules["openbo.optimizers.mobo_botorch"]
+            if openbo_library == "botorch":  # an openbo binding BoTorch at module level
+                mobo_botorch.optimize_acqf = types.SimpleNamespace(__module__="botorch.optim.optimize")
+            elif openbo_library is not None:  # an openbo declaring its library
+                mobo_botorch.MODEL_LIBRARY = openbo_library
+            return imported
+
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(sys.modules, modules if modules is not None else NOT_INSTALLED), \
+                mock.patch.object(runtime, "_import_openbo", recording_import), \
+                contextlib.redirect_stdout(out):
+            tmp = pathlib.Path(tmp)
+            write_source(tmp / "MetaSources", "srcA", frame=make_frame(fp))
+            write_source(tmp / "MetaSources", "srcB", frame=make_frame(fp))
+            if expect_abort:
+                with self.assertRaises(RuntimeError):
+                    self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp, library))
+            else:
+                self._run_main(runtime, base_init_message(), RESPONSES, self._env(tmp, library))
+            state = json.loads((_run_dir(tmp) / "MetaRunState.json").read_text(encoding="utf-8"))
+        return state, out.getvalue(), seen
+
+    def test_default_run_records_botorch(self):
+        state, out, seen = self._run(load_runtime())
+        self.assertEqual(state["schema_version"], 3)
+        self.assertEqual(seen, ["botorch"])
+        info = state["model_library"]
+        self.assertEqual((info["requested"], info["library"], info["fallback"]), ("botorch", "botorch", False))
+        self.assertIsNone(info["openbo_library"])  # the stub binds no BoTorch names
+        self.assertIn("botorch-rust", state["library_versions"])
+        self.assertIn("'MODEL_LIBRARY': 'botorch", out)
+        self.assertEqual(state["finish_reason"], "completed")
+
+    def test_auto_without_botorch_rs_runs_botorch(self):
+        state, out, seen = self._run(load_runtime(), library="auto")
+        self.assertEqual(seen, ["botorch"])
+        self.assertEqual((state["model_library"]["library"], state["model_library"]["fallback"]), ("botorch", True))
+        self.assertNotIn("Warning: the model library", out)
+
+    def test_botorch_rs_without_metataf_support_falls_back(self):
+        from test_bo_library import fake_botorch_rs
+
+        modules, _ = fake_botorch_rs(posterior_mean=False)
+        state, out, seen = self._run(load_runtime(), library="botorch_rs", modules=modules)
+        self.assertEqual(seen, ["botorch"])
+        info = state["model_library"]
+        self.assertEqual((info["requested"], info["library"], info["fallback"]), ("botorch_rs", "botorch", True))
+        self.assertIn("PosteriorMeanModel", info["reason"])
+        self.assertIn("Warning: the model library falls back to BoTorch", out)
+        self.assertEqual(state["finish_reason"], "completed")
+
+    def test_openbo_without_the_switch_falls_back_to_botorch(self):
+        from test_bo_library import fake_botorch_rs
+
+        modules, _ = fake_botorch_rs(posterior_mean=True)
+        state, out, seen = self._run(load_runtime(), library="botorch_rs", modules=modules, openbo_library="botorch")
+        self.assertEqual(seen, ["botorch_rs"])  # openbo was asked for botorch_rs ...
+        info = state["model_library"]          # ... but bound BoTorch, which is what is recorded
+        self.assertEqual((info["library"], info["openbo_library"], info["fallback"]), ("botorch", "botorch", True))
+        self.assertIn("openbo ignores BO_MODEL_LIBRARY", info["reason"])
+        self.assertEqual(state["finish_reason"], "completed")
+
+    def test_openbo_on_botorch_rs_keeps_botorchs_design(self):
+        from test_bo_library import fake_botorch_rs
+
+        import bo_library
+
+        designs = []
+
+        def design(bounds, n, q, seed=None):
+            designs.append((n, q, seed))
+            return _FakeTensor(np.full((n, q, 2), 0.5))
+
+        modules, _ = fake_botorch_rs(posterior_mean=True)
+        with mock.patch.object(bo_library, "draw_sobol_samples", design):
+            state, _, seen = self._run(load_runtime(), library="botorch_rs", modules=modules,
+                                       openbo_library="botorch_rs")
+        self.assertEqual(seen, ["botorch_rs"])
+        info = state["model_library"]
+        self.assertEqual((info["library"], info["openbo_library"], info["fallback"]), ("botorch_rs", "botorch_rs", False))
+        self.assertEqual(designs, [(2, 1, 7)])  # bo_library's BoTorch-identical design, not botorch_rs's
+
+    def test_openbo_on_another_library_than_resolved_aborts(self):
+        state, _, _ = self._run(load_runtime(), openbo_library="botorch_rs", expect_abort=True)
+        self.assertIn("openbo runs on botorch_rs although BO_MODEL_LIBRARY resolved to botorch", state["abort_reason"])
 
 
 if __name__ == "__main__":

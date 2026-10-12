@@ -23,6 +23,8 @@
 #
 # openbo (https://github.com/M-Colley/openbo) is imported lazily inside the run so this
 # module can be imported -- and its protocol/CSV logic tested -- without the heavy stack.
+# BO_MODEL_LIBRARY (bo_library.py) may run openbo on botorch-rust instead of BoTorch; the
+# library openbo actually bound is recorded in MetaRunState.json ("model_library").
 
 import dataclasses
 import datetime
@@ -48,6 +50,9 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 import bo_normalize
+# BoTorch or botorch-rust (BO_MODEL_LIBRARY), shared with bo.py and mobo.py; openbo reads the
+# same environment variable.
+import bo_library
 import meta_fingerprint
 # Socket, NDJSON, init parsing and log-writing plumbing shared by every backend.
 from bo_protocol import (
@@ -117,14 +122,20 @@ LOG_FIXED_COLUMNS = ('UserID', 'ConditionID', 'GroupID', 'Timestamp', 'Iteration
 WEIGHTS_LOG_COLUMNS = ("Iteration", "OptimizationStep", "TargetWeight", "DecayFactor")
 
 RUN_STATE_FILENAME = "MetaRunState.json"
-RUN_STATE_SCHEMA_VERSION = 2
+# 3: adds model_library (BoTorch or botorch-rust, see bo_library.py).
+RUN_STATE_SCHEMA_VERSION = 3
 # Written by meta_train.py next to gp_states/ and trajectories/: the frozen population.
 MANIFEST_FILENAME = "population.json"
 # Distributions whose versions decide the numbers a run produces (MetaRunState.json).
 RUN_STATE_DISTRIBUTIONS = (
-    "torch", "botorch", "gpytorch", "linear_operator", "open-bo",
+    "torch", "botorch", "gpytorch", "linear_operator", "botorch-rust", "open-bo",
     "numpy", "scipy", "pandas", "moocore",
 )
+
+# The model library openbo runs on (bo_library: BoTorch unless BO_MODEL_LIBRARY selects
+# botorch-rust and both botorch-rust and openbo support MetaTAF), and its MetaRunState.json record.
+MODEL_LIBRARY = bo_library.BOTORCH
+MODEL_LIBRARY_INFO = None
 # openbo modules on the optimization path; their source hashes pin the exact code even for
 # an editable install (open-bo keeps version 0.1.0 across behaviour changes).
 OPENBO_MODULES = (
@@ -223,6 +234,65 @@ def _import_openbo():
             "See docs/meta-taf-student-guide.md for details."
         ) from e
     return MOTAFConfig, MOTAFSequentialOptimizer
+
+# -------------------- model library --------------------
+def select_model_library(requested=None):
+    """Resolve BO_MODEL_LIBRARY for MetaTAF (bo_library.resolve with meta=True); returns it.
+
+    MetaTAF runs on botorch_rs only when botorch_rs has what openbo's MetaTAF needs; otherwise
+    it falls back to BoTorch with a console message. meta_execute passes the result to openbo
+    through BO_MODEL_LIBRARY and confirms that openbo bound it (confirm_openbo_library).
+    """
+    global MODEL_LIBRARY, MODEL_LIBRARY_INFO
+    requested = bo_library.requested_library() if requested is None else requested
+    library, reason = bo_library.resolve(requested, meta=True)
+    warning = bo_library.fallback_message(requested, library, reason)
+    if warning:
+        print(warning, flush=True)
+    threads = None
+    if library == bo_library.BOTORCH_RS:
+        threads = bo_library.configure_rs_threads(library, bo_library.threads_from_env())
+    MODEL_LIBRARY = library
+    MODEL_LIBRARY_INFO = bo_library.library_record(requested, library, reason, threads)
+    MODEL_LIBRARY_INFO["openbo_library"] = None  # filled in by confirm_openbo_library()
+    print(f"Model library: {bo_library.describe(MODEL_LIBRARY_INFO)} ({reason})", flush=True)
+    return library
+
+
+def confirm_openbo_library():
+    """Check which library the imported openbo bound; record it and keep the run truthful.
+
+    An openbo without the BO_MODEL_LIBRARY switch keeps importing BoTorch: a run resolved to
+    botorch_rs then falls back to BoTorch (and says so) rather than recording a library that
+    did not run. openbo on botorch_rs although BoTorch was resolved is a StartupAbort. When
+    openbo's library cannot be determined, the resolved one is kept with a warning.
+    """
+    global MODEL_LIBRARY, MODEL_LIBRARY_INFO
+    if MODEL_LIBRARY_INFO is None:  # meta_execute called without main(): BoTorch, as before
+        MODEL_LIBRARY_INFO = bo_library.library_record(MODEL_LIBRARY, MODEL_LIBRARY, "bound without select_model_library()")
+    used = bo_library.openbo_library()
+    MODEL_LIBRARY_INFO["openbo_library"] = used
+    if used == MODEL_LIBRARY:
+        return MODEL_LIBRARY
+    if used is None:
+        if MODEL_LIBRARY == bo_library.BOTORCH_RS:
+            print("Warning: could not confirm that openbo runs on botorch_rs (it exposes neither "
+                  "MODEL_LIBRARY nor module-level BoTorch names); recording botorch_rs as resolved.",
+                  flush=True)
+        return MODEL_LIBRARY
+    if used == bo_library.BOTORCH:
+        reason = (f"{MODEL_LIBRARY_INFO['reason']}, but the installed openbo ignores "
+                  f"{bo_library.ENV_VAR} and runs on BoTorch; falling back to BoTorch")
+        print(f"Warning: the model library falls back to BoTorch: {reason}", flush=True)
+        requested = MODEL_LIBRARY_INFO["requested"]
+        MODEL_LIBRARY = bo_library.BOTORCH
+        MODEL_LIBRARY_INFO = bo_library.library_record(requested, MODEL_LIBRARY, reason)
+        MODEL_LIBRARY_INFO["openbo_library"] = used
+        return MODEL_LIBRARY
+    raise StartupAbort(
+        f"openbo runs on {used} although {bo_library.ENV_VAR} resolved to {MODEL_LIBRARY} "
+        "for this run; the run would record the wrong model library."
+    )
 
 # -------------------- source artifact validation --------------------
 def resolve_meta_source_dir():
@@ -589,6 +659,7 @@ def build_run_state(config, seed, source_dir, records, dropped, rejected, abort_
         "frame_digest": meta_fingerprint.frame_digest(FRAME) if FRAME is not None else None,
         "hypervolume_reference_point": [REF_POINT_VALUE] * len(objective_names),
         "motaf_config": config_record(config),
+        "model_library": MODEL_LIBRARY_INFO,
         "library_versions": library_versions(),
         "openbo_install": openbo_install_record(),
         "python": sys.version,
@@ -856,10 +927,12 @@ def draw_initial_unit_samples(n_samples, d, seed):
     before, gave a different design for the same seed: a systematic per-condition offset
     under the shared default seed.) n=n_samples, q=1 draws n points of the d-dimensional
     sequence; n=1, q=n_samples would draw ONE point of an (n*d)-dimensional sequence instead.
+    On botorch_rs the design comes from bo_library.draw_sobol_samples, bit-identical to
+    BoTorch's (botorch_rs's own draw_sobol_samples uses another Sobol sequence).
     """
     import torch
-    from botorch.utils.sampling import draw_sobol_samples
 
+    draw_sobol_samples = bo_library.namespace(MODEL_LIBRARY).draw_sobol_samples
     unit_bounds = torch.tensor([[0.0] * d, [1.0] * d], dtype=torch.double)
     x = draw_sobol_samples(bounds=unit_bounds, n=n_samples, q=1, seed=seed).squeeze(1)
     return np.asarray(x.detach().cpu().numpy(), dtype=np.float64)
@@ -867,6 +940,8 @@ def draw_initial_unit_samples(n_samples, d, seed):
 # -------------------- main loop --------------------
 def meta_execute(conn, seed, iterations, initial_samples):
     global PROJECT_PATH
+    # openbo binds its model library when it is imported: tell it which one this run uses.
+    os.environ[bo_library.ENV_VAR] = MODEL_LIBRARY
     MOTAFConfig, MOTAFSequentialOptimizer = _import_openbo()
 
     PROJECT_PATH = create_run_folder()
@@ -883,6 +958,8 @@ def meta_execute(conn, seed, iterations, initial_samples):
     # Startup, up to the first trial. Any failure here is recorded as the run's abort reason
     # in MetaRunState.json (not only the missing-sources abort) before it propagates.
     try:
+        # The library openbo really bound decides the run's model library (and its record).
+        confirm_openbo_library()
         if seed < 0:  # main() refuses this at init; kept for direct callers
             raise StartupAbort(negative_seed_message(seed))
         if initial_samples < 1:
@@ -1168,6 +1245,8 @@ def main():
             # would otherwise crash the start after staging, without an abort record.
             reject_at_startup(negative_seed_message(SEED), SEED)
 
+        select_model_library()
+
         print("Init OK:", dict(
             BATCH_SIZE=BATCH_SIZE, NUM_RESTARTS=NUM_RESTARTS, RAW_SAMPLES=RAW_SAMPLES,
             N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
@@ -1177,6 +1256,7 @@ def main():
             META_WARMUP_ITERS=META_WARMUP_ITERS,
             META_DECAY=(META_DECAY_START_ITER, META_DECAY_RATE),
             FRAME_DIGEST=meta_fingerprint.frame_digest(FRAME),
+            MODEL_LIBRARY=bo_library.describe(MODEL_LIBRARY_INFO),
         ), flush=True)
 
         meta_execute(conn, SEED, N_ITERATIONS, N_INITIAL)
