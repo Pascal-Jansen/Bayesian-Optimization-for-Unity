@@ -104,6 +104,7 @@ Several scientific publications have built upon **Bayesian Optimization for Unit
   * [8.13 Contextual Optimization and Context Embeddings (LCE-M GP)](#813-contextual-optimization-and-context-embeddings-lce-m-gp)
   * [8.14 Meta-BO (MetaTAF): Transfer from Prior Participants](#814-meta-bo-metataf-transfer-from-prior-participants)
   * [8.15 Dynamic BO (DBO): Optimizing a Drifting Objective](#815-dynamic-bo-dbo-optimizing-a-drifting-objective)
+  * [8.16 Model Library: BoTorch or botorch-rust](#816-model-library-botorch-or-botorch-rust)
 * [9. Troubleshooting](#9-troubleshooting)
 * [10. System Architecture](#10-system-architecture)
 * [11. Portability to Your Own Project](#11-portability-to-your-own-project)
@@ -665,6 +666,7 @@ CABOP inspector settings:
 
 API equivalents are available directly on `BoForUnityManager` fields:
 * `optimizerBackend`
+* `modelLibrary` (BoTorch or botorch-rust for the BoTorch and MetaTAF backends, see [8.16](#816-model-library-botorch-or-botorch-rust))
 * `cabopObjectiveMode`
 * `cabopUseCostAwareAcquisition`
 * `cabopUpdateRule`
@@ -901,7 +903,7 @@ The hyperparameters affect how efficiently the optimizer searches the space. The
 
 > **Note:** The DBO backend uses analytic (log) Expected Improvement, so **MC Samples** has no effect there; `Num Restarts`, `Raw Samples`, and `Seed` apply as usual.
 
-> **Note:** The single-objective backends (BoTorch `bo.py`, DBO) run PyTorch on one thread, which measured 1.4–1.6× faster per suggestion than all cores with identical suggestions at study sizes, and leaves the other cores to Unity. Set the environment variable `BO_TORCH_THREADS` to override. The multi-objective backends keep PyTorch's default, since their hypervolume computations do benefit from several threads.
+> **Note:** The single-objective backends (BoTorch `bo.py`, DBO) run PyTorch on one thread, which measured 1.4–1.6× faster per suggestion than all cores with identical suggestions at study sizes, and leaves the other cores to Unity. Set the environment variable `BO_TORCH_THREADS` to override. The multi-objective backends keep PyTorch's default, since their hypervolume computations do benefit from several threads. For the threads of botorch-rust see [8.16](#816-model-library-botorch-or-botorch-rust).
 <a id="BO_hyper_settings"></a>
 
 ![Hyperparameter Settings](./images/BO_hyperparameter_settings.png)
@@ -923,6 +925,7 @@ LogData/
         ObservationsPerEvaluation.csv
         ExecutionTimes.csv
         HypervolumePerEvaluation.csv or BestObjectivePerEvaluation.csv
+        RunInfo.json                      (bo.py / mobo.py: model library, versions, seed)
         DboDiagnosticsPerEvaluation.csv   (DBO backend only)
         DboRunState.json                  (DBO backend only)
         MetaRunState.json                 (MetaTAF backend only)
@@ -947,6 +950,7 @@ The backend's console output is written live to `<persistentDataPath>/BOData/Bay
 Common files:
 * `ObservationsPerEvaluation.csv`: denormalized parameter/objective observations per evaluation.
 * `ExecutionTimes.csv`: optimization-step runtimes.
+* `RunInfo.json` (`bo.py`, `mobo.py`): what produced the run: the model library requested and used, with the reason, version and threads (see [8.16](#816-model-library-botorch-or-botorch-rust)), the versions of torch, BoTorch, GPyTorch, botorch-rust, NumPy, SciPy, pandas and moocore, the Seed, Python and the platform.
 * QuestionnaireToolkit raw result CSVs default to *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/* and include `UserID`, `ConditionID`, and `GroupID`.
 * The Fitts law scene additionally writes `FittsLawAppLog.csv` and `FittsLawTrialLog.csv` (incl. ISO 9241-9 throughput metrics, see [6.2.5](#625-logging)) to the same condition folder. Its questionnaire CSV also includes measured `speed` and `accuracy` columns.
 * Questionnaire `started`/`finished` timestamps are ISO 8601 UTC (`yyyy-MM-ddTHH:mm:ss.fffZ`); Additional CSV Item values are written culture-invariantly (`0.5`, never `0,5`).
@@ -963,7 +967,7 @@ MOBO (`mobo.py`, `m >= 2`):
 MetaTAF (`meta_mobo.py`, `m >= 2`):
 * Writes the MOBO files (`IsPareto`, `HypervolumePerEvaluation.csv` with the same reference point), plus:
 * `MetaWeightsPerEvaluation.csv`: one row per optimization iteration, `Iteration;OptimizationStep;TargetWeight;DecayFactor;<one column per population model>`. `Iteration` is the global evaluation index, as in the other logs (files written up to version 1.8.0 logged the optimization step as `Iteration` and have no `OptimizationStep` column).
-* `MetaRunState.json`: the run's provenance (library versions, openbo install and module hashes, optimizer configuration, frame, sources, population manifest), rewritten after every evaluation with its progress; `finished`/`finish_reason` say how the run ended (`completed`, `stop_requested`, `error`, `startup_abort`).
+* `MetaRunState.json`: the run's provenance (library versions, the model library openbo ran on, openbo install and module hashes, optimizer configuration, frame, sources, population manifest), rewritten after every evaluation with its progress; `finished`/`finish_reason` say how the run ended (`completed`, `stop_requested`, `error`, `startup_abort`).
 * `MetaSourcesUsed/`: copies of the population models the optimizer loaded.
 
 Single-objective BO (`bo.py`, `m = 1`):
@@ -1153,6 +1157,78 @@ package (validated against the reference MATLAB implementation to ~1e-14), vendo
 and [IEEE RA-L 2026](https://doi.org/10.1109/LRA.2026.3665072). Backend details, protocol
 check, and vendor-update instructions: [docs/dbo-backend.md](docs/dbo-backend.md).
 
+### 8.16 Model Library: BoTorch or botorch-rust
+
+The BoTorch and MetaTAF backends can run their Gaussian processes, acquisition functions and
+acquisition optimization on [botorch-rust](https://github.com/M-Colley/botorch-rust), a Rust
+implementation of BoTorch with the same API, instead of BoTorch. botorch-rust is validated
+against BoTorch: at the candidates it proposes for `bo.py` and `mobo.py`, BoTorch's own
+acquisition value is within 2e-6 (qLogNEI) and 3e-6 (qLogNEHVI) of the value at BoTorch's own
+candidate.
+
+**Selecting it.** In the `BoForUnityManager` inspector, section **Optimizer Backend**, set
+**Model Library** (field `modelLibrary`; shown for the BoTorch and MetaTAF backends):
+
+* `BoTorch` (default): BoTorch, exactly as without this option.
+* `BotorchRust`: botorch-rust. The backend refuses to start when it is not installed.
+* `Auto`: botorch-rust when it is installed, otherwise BoTorch.
+
+Unity passes the choice to Python as the environment variable `BO_MODEL_LIBRARY`
+(`botorch`, `botorch_rs` or `auto`), which you can also set yourself when you run a backend
+or `meta_train.py` outside Unity. At startup the backend prints the library it uses
+(`Model library: …` and `MODEL_LIBRARY` in `Init OK`).
+
+**What runs on botorch-rust:**
+
+* `bo.py` and `mobo.py`: the GP (`SingleTaskGP`), its fitting, qLogNEI / qLogNEHVI and the
+  acquisition optimization. Pareto flags and hypervolumes still come from moocore.
+* Contextual optimization ([8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp))
+  with `Learned` embeddings, once botorch-rust provides LCE-M (`LCEMGP`).
+* MetaTAF ([8.14](#814-meta-bo-metataf-transfer-from-prior-participants)) and `meta_train.py`,
+  once botorch-rust provides what openbo's MetaTAF needs (`PosteriorMeanModel`) and the
+  installed openbo supports `BO_MODEL_LIBRARY`.
+* CABOP and DBO always use BoTorch.
+
+**Fallbacks.** A run that asks for botorch-rust (`BotorchRust` or `Auto`) but cannot use it
+runs on BoTorch and prints `Warning: the model library falls back to BoTorch: <reason>`:
+contextual optimization with `Manual` or `Image` embeddings (their LCE-M variant exists only
+in BoTorch), and modes the installed botorch-rust or openbo does not support yet. `Auto`
+without botorch-rust installed runs BoTorch without a warning.
+
+**What stays the same, what changes.** For the same Seed, the initial Sobol design is
+bit-identical to BoTorch's (botorch-rust's own Sobol sequence is not used for it), so the
+sampling phase is the same in every condition. From the first optimization iteration on,
+suggestions differ from BoTorch's: botorch-rust draws its random numbers (raw samples, Monte
+Carlo samples) from its own generators. A botorch-rust run is reproducible from the Seed (the
+acquisition optimization is seeded with Seed + iteration), but it is not the BoTorch run.
+
+**The library is a study factor.** Never switch it within a study: participants of one
+condition must all run on the same library, like the same MC Samples. Every run records the
+library it used: `RunInfo.json` in the run folder (`bo.py`, `mobo.py`) and `model_library`
+in `MetaRunState.json` (MetaTAF), each with the requested and used library, the reason, the
+version, the thread count and, for botorch-rust, the SHA-256 of its compiled extension (its
+version number does not change between source builds).
+
+**Speed.** Per suggestion (model fitting plus acquisition optimization), botorch-rust measured
+10–14× faster than BoTorch for `bo.py` and 3.5–17× faster for `mobo.py`, both on one thread
+(d = 2–8, 12–40 observations, 512 MC samples). Threads: `bo.py` runs botorch-rust on
+`BO_TORCH_THREADS` threads, by default 1 like PyTorch (a suggestion then takes 20–60 ms).
+`mobo.py` and MetaTAF use `BO_TORCH_THREADS` threads when it is set, otherwise half the
+logical CPUs, at most 4, so Unity keeps cores for rendering while a suggestion is computed;
+4 threads were 2.7–3.4× faster than one for `mobo.py`.
+
+**Installing botorch-rust.** botorch-rust is not on PyPI yet. Build it from source with the
+interpreter the backends run with (the Console logs it at startup as `Optimizer Python: …`,
+see [8.5](#85-python-settings)); this needs a Rust toolchain ([rustup.rs](https://rustup.rs)):
+
+```text
+"<that path>" -m pip install "botorch-rust @ git+https://github.com/M-Colley/botorch-rust#subdirectory=botorch_pyo3"
+```
+
+or, from a local clone, `"<that path>" -m pip install <clone>/botorch_pyo3`. Once wheels are
+released, `"<that path>" -m pip install botorch-rust` is enough. It is not part of
+`requirements.txt`; the BoTorch packages stay installed and remain the fallback.
+
 <br>
 
 ## 9. Troubleshooting
@@ -1217,7 +1293,7 @@ This section explains the architecture to help you extend the asset. The diagram
 
 At the top is *BoForUnityManagerEditor.cs*, which edits the *BoForUnityManager.prefab* (what can be set and how it is described). The prefab’s settings are configured in the Unity Inspector as explained in [Configuration](#8-configuration).\
 *BoForUnityManager.cs* manages the process and first starts the Python server via *PythonStarter.cs*.\
-Once the server is running, *BoForUnityManager.cs* communicates with the selected backend script (*bo.py*/*mobo.py* or *cabop_bo.py*/*cabop_mobo.py*) using *SocketNetwork.cs*. On the Python side, all backends share the socket protocol, the init-message checks and the log writers in *bo_protocol.py*.\
+Once the server is running, *BoForUnityManager.cs* communicates with the selected backend script (*bo.py*/*mobo.py* or *cabop_bo.py*/*cabop_mobo.py*) using *SocketNetwork.cs*. On the Python side, all backends share the socket protocol, the init-message checks and the log writers in *bo_protocol.py*; *bo_library.py* chooses BoTorch or botorch-rust for *bo.py*, *mobo.py* and MetaTAF ([8.16](#816-model-library-botorch-or-botorch-rust)).\
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
