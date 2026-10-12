@@ -769,6 +769,37 @@ class BotorchRsLoopTests(_LoopHarness, unittest.TestCase):
                 self.assertEqual(result["module"].MODEL_LIBRARY, expected)
                 self.assertEqual(result["run_info"]["model_library"]["library"], expected)
 
+    def test_meta_train_fit_on_botorch_rs(self):
+        # meta_train.py scores restarts with mll() on botorch_rs (its models are not callable)
+        # and sets a 0-dim outputscale; the hyperparameters match BoTorch's fit.
+        from botorch_rs.fit import fit_gpytorch_mll as rs_fit
+        from botorch_rs.kernels import MaternKernel as RsMatern, ScaleKernel as RsScale
+        from botorch_rs.mlls import ExactMarginalLogLikelihood as RsMLL
+        from botorch_rs.models import SingleTaskGP as RsGP
+        from botorch_rs.models.transforms.outcome import Standardize as RsStandardize
+        from botorch.fit import fit_gpytorch_mll
+        from botorch.models import SingleTaskGP
+        from botorch.models.transforms.outcome import Standardize
+        from gpytorch.kernels import MaternKernel, ScaleKernel
+        from gpytorch.mlls import ExactMarginalLogLikelihood
+
+        rng = np.random.default_rng(0)
+        x = rng.uniform(size=(14, 3))
+        y = np.clip(np.stack([np.sin(4 * x).sum(1) / 3, np.cos(3 * x).sum(1) / 3], 1), -1, 1)
+        entries = {}
+        for library, stack in (
+            ("botorch", (torch, fit_gpytorch_mll, SingleTaskGP, Standardize, MaternKernel, ScaleKernel,
+                         ExactMarginalLogLikelihood, None, None)),
+            ("botorch_rs", (torch, rs_fit, RsGP, RsStandardize, RsMatern, RsScale, RsMLL, None, None)),
+        ):
+            mt = load_backend_module("meta_train.py")
+            mt.MODEL_LIBRARY = library
+            entries[library] = mt.fit_per_objective_hyperparameters(x, y, stack)
+        for bt, rs in zip(entries["botorch"], entries["botorch_rs"]):
+            for key in ("variance", "noise", "mean_constant"):
+                self.assertAlmostEqual(rs[key], bt[key], delta=1e-3 * max(1.0, abs(bt[key])))
+            np.testing.assert_allclose(rs["lengthscale"], bt["lengthscale"], rtol=1e-3)
+
 
 if __name__ == "__main__":
     unittest.main()

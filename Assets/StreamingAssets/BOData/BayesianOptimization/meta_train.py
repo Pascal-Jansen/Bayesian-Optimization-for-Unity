@@ -38,6 +38,8 @@
 #   }
 #
 # Requires the full stack (openbo + botorch); see docs/meta-taf-student-guide.md.
+# BO_MODEL_LIBRARY selects the model library like for the MetaTAF backend (bo_library.py);
+# build a population with the library its study runs on (recorded in each provenance).
 
 import argparse
 import datetime
@@ -58,8 +60,14 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
+import bo_library
 import bo_normalize
 import meta_fingerprint
+
+# The model library the GPs are fitted with (_select_model_library; BoTorch by default) and its
+# record, stamped into every artifact's provenance.
+MODEL_LIBRARY = bo_library.BOTORCH
+MODEL_LIBRARY_INFO = None
 
 # GP mean vs data sanity threshold (normalized objective units, range is [-1, 1]).
 FIT_RESIDUAL_WARN = 0.3
@@ -91,14 +99,36 @@ def _pip_command():
     return (f'"{exe}"' if " " in exe else exe) + " -m pip"
 
 
+def _select_model_library():
+    """The model library the population models are fitted with (BO_MODEL_LIBRARY, MetaTAF rules).
+
+    Resolved like the MetaTAF runtime does (bo_library.resolve with meta=True), and passed to
+    openbo through BO_MODEL_LIBRARY before openbo is imported, so the self-check replays each
+    artifact with the library the live runs use.
+    """
+    global MODEL_LIBRARY, MODEL_LIBRARY_INFO
+    try:
+        requested = bo_library.requested_library()
+        library, reason = bo_library.resolve(requested, meta=True)
+    except bo_library.ModelLibraryError as e:
+        raise SystemExit(str(e))
+    warning = bo_library.fallback_message(requested, library, reason)
+    if warning:
+        print(warning)
+    threads = None
+    if library == bo_library.BOTORCH_RS:
+        threads = bo_library.configure_rs_threads(library, bo_library.threads_from_env())
+    os.environ[bo_library.ENV_VAR] = library
+    MODEL_LIBRARY = library
+    MODEL_LIBRARY_INFO = bo_library.library_record(requested, library, reason, threads)
+    return library
+
+
 def _import_stack():
+    global MODEL_LIBRARY, MODEL_LIBRARY_INFO
+    library = _select_model_library()
     try:
         import torch
-        from botorch.fit import fit_gpytorch_mll
-        from botorch.models import SingleTaskGP
-        from botorch.models.transforms.outcome import Standardize
-        from gpytorch.kernels import MaternKernel, ScaleKernel
-        from gpytorch.mlls import ExactMarginalLogLikelihood
 
         from openbo.optimizers.mobo_botorch import pareto_front
         from openbo.optimizers.mobo_taf import _load_mo_source_surrogates
@@ -109,6 +139,32 @@ def _import_stack():
             f"    {_pip_command()} install \"open-bo @ git+https://github.com/M-Colley/openbo@main\"\n"
             f"or, from a local clone:  {_pip_command()} install -e path/to/openbo"
         )
+    used = bo_library.openbo_library()
+    if library == bo_library.BOTORCH_RS and used == bo_library.BOTORCH:
+        # An openbo without the BO_MODEL_LIBRARY switch: its loader (the self-check) runs on
+        # BoTorch, so the fit does too.
+        reason = (f"{MODEL_LIBRARY_INFO['reason']}, but the installed openbo ignores "
+                  f"{bo_library.ENV_VAR}; falling back to BoTorch")
+        print(f"Warning: the model library falls back to BoTorch: {reason}")
+        library = MODEL_LIBRARY = bo_library.BOTORCH
+        MODEL_LIBRARY_INFO = bo_library.library_record(MODEL_LIBRARY_INFO["requested"], library, reason)
+    MODEL_LIBRARY_INFO["openbo_library"] = used
+    print(f"Model library: {bo_library.describe(MODEL_LIBRARY_INFO)} ({MODEL_LIBRARY_INFO['reason']})")
+    try:
+        if library == bo_library.BOTORCH_RS:
+            from botorch_rs.fit import fit_gpytorch_mll
+            from botorch_rs.kernels import MaternKernel, ScaleKernel
+            from botorch_rs.mlls import ExactMarginalLogLikelihood
+            from botorch_rs.models import SingleTaskGP
+            from botorch_rs.models.transforms.outcome import Standardize
+        else:
+            from botorch.fit import fit_gpytorch_mll
+            from botorch.models import SingleTaskGP
+            from botorch.models.transforms.outcome import Standardize
+            from gpytorch.kernels import MaternKernel, ScaleKernel
+            from gpytorch.mlls import ExactMarginalLogLikelihood
+    except ImportError as e:
+        raise SystemExit(f"meta_train.py needs torch/botorch/gpytorch installed ({e}).")
     return (torch, fit_gpytorch_mll, SingleTaskGP, Standardize, MaternKernel,
             ScaleKernel, ExactMarginalLogLikelihood, pareto_front, _load_mo_source_surrogates)
 
@@ -466,9 +522,11 @@ def fit_per_objective_hyperparameters(x_unit, y_norm, stack):
                     gp.covar_module.base_kernel.lengthscale = torch.exp(
                         torch.randn(d, generator=gen, dtype=torch.double)
                     )
+                    # 0-dim like the parameter: botorch_rs refuses a shape-[1] value, GPyTorch
+                    # takes either (same draw, same value).
                     gp.covar_module.outputscale = torch.exp(
                         torch.randn(1, generator=gen, dtype=torch.double) * 0.5
-                    )
+                    ).reshape(())
                     gp.likelihood.noise = torch.exp(
                         torch.randn(1, generator=gen, dtype=torch.double) - 2.0
                     )
@@ -480,13 +538,18 @@ def fit_per_objective_hyperparameters(x_unit, y_norm, stack):
                 failures.append(f"restart {restart}: {e}")
                 continue
 
-            # fit_gpytorch_mll() leaves the model in eval mode, where gp(x_t) is the
-            # posterior conditioned on the training data -- not the training marginal
-            # the fit maximized. Score in train mode against gp.train_targets.
-            gp.train()
-            mll.train()
-            with torch.no_grad():
-                score = float(mll(gp(x_t), gp.train_targets).sum())
+            if MODEL_LIBRARY == bo_library.BOTORCH_RS:
+                # botorch_rs models are not callable; mll() is the same training-data marginal
+                # log likelihood (GPyTorch's mll(gp(x), gp.train_targets) to ~1e-15).
+                score = float(mll().sum())
+            else:
+                # fit_gpytorch_mll() leaves the model in eval mode, where gp(x_t) is the
+                # posterior conditioned on the training data -- not the training marginal
+                # the fit maximized. Score in train mode against gp.train_targets.
+                gp.train()
+                mll.train()
+                with torch.no_grad():
+                    score = float(mll(gp(x_t), gp.train_targets).sum())
             entry = {
                 "kernel_type": "matern52",
                 "lengthscale": [float(v) for v in
@@ -558,6 +621,8 @@ def write_artifact(out_dir, name, x_unit, y_norm, gp_entries, frame, run_path,
             "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "run_path": os.path.abspath(str(run_path)),
             "n_observations": int(x_unit.shape[0]),
+            # BoTorch or botorch-rust: the hyperparameters come from that library's fit.
+            "model_library": MODEL_LIBRARY_INFO,
         },
     }
     # Self-check BEFORE publishing. The pair is written into a private scratch folder inside
