@@ -15,6 +15,7 @@ import time
 
 import numpy as np
 
+import bo_library
 import bo_normalize
 import context_support
 from bo_protocol import log_exists, read_observation_log, write_dataframe_csv
@@ -60,15 +61,16 @@ def acquisition_baseline(train_x, context_setup):
 
 
 # -------------------- model --------------------
-def initialize_model(train_x, train_obj, context_setup):
-    """(mll, model): an LCE-M GP in contextual mode, otherwise a SingleTaskGP."""
-    if context_setup is not None:
-        return context_support.build_contextual_model(train_x, train_obj, context_setup)
-    from botorch.models import SingleTaskGP
-    from gpytorch.mlls import ExactMarginalLogLikelihood
+def initialize_model(train_x, train_obj, context_setup, library=bo_library.BOTORCH):
+    """(mll, model): an LCE-M GP in contextual mode, otherwise a SingleTaskGP.
 
-    model = SingleTaskGP(train_x, train_obj)
-    mll = ExactMarginalLogLikelihood(model.likelihood, model)
+    ``library`` is the model library of the run (bo_library: 'botorch' or 'botorch_rs').
+    """
+    if context_setup is not None:
+        return context_support.build_contextual_model(train_x, train_obj, context_setup, library=library)
+    names = bo_library.namespace(library)
+    model = names.SingleTaskGP(train_x, train_obj)
+    mll = names.ExactMarginalLogLikelihood(model.likelihood, model)
     return mll, model
 
 
