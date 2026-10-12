@@ -573,7 +573,8 @@ namespace BOforUnity.Scripts
                 // Python writes UTF-8 (PYTHONIOENCODING); decode it as such, not as the console code page.
                 startInfo.StandardOutputEncoding = Encoding.UTF8;
                 startInfo.StandardErrorEncoding = Encoding.UTF8;
-                ConfigurePythonRuntimeEnvironment(startInfo, logRoot, _environment.UserSite);
+                ConfigurePythonRuntimeEnvironment(startInfo, logRoot, _environment.UserSite,
+                    ModelLibraryToken(_bomanager.modelLibrary));
 
                 process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
                 process.OutputDataReceived += OnBackendStdout;
@@ -899,10 +900,29 @@ namespace BOforUnity.Scripts
             return Path.Combine(Application.streamingAssetsPath, "BOData", "InitData");
         }
 
-        private static void ConfigurePythonRuntimeEnvironment(ProcessStartInfo startInfo, string logRootPath, bool userSite)
+        // BO_MODEL_LIBRARY value of the inspector's Model Library (read by bo_library.py).
+        private static string ModelLibraryToken(BoForUnityManager.ModelLibrary library)
+        {
+            switch (library)
+            {
+                case BoForUnityManager.ModelLibrary.BotorchRust:
+                    return "botorch_rs";
+                case BoForUnityManager.ModelLibrary.Auto:
+                    return "auto";
+                case BoForUnityManager.ModelLibrary.BoTorch:
+                default:
+                    return "botorch";
+            }
+        }
+
+        private static void ConfigurePythonRuntimeEnvironment(ProcessStartInfo startInfo, string logRootPath, bool userSite,
+            string modelLibrary)
         {
             startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
             startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
+            // BoTorch, botorch-rust or auto for bo.py, mobo.py and MetaTAF (CABOP and DBO ignore it). Always set, so
+            // a BO_MODEL_LIBRARY in Unity's own environment cannot override the inspector.
+            startInfo.Environment["BO_MODEL_LIBRARY"] = modelLibrary;
             startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
             // UTF-8 mode makes open() default to UTF-8 instead of the Windows code page, so the
             // CSV logs are written in the encoding pandas and FinalDesignSelector read them with
@@ -915,6 +935,7 @@ namespace BOforUnity.Scripts
             startInfo.Environment["KMP_DUPLICATE_LIB_OK"] = "TRUE";
             ApplySitePolicy(startInfo, userSite);
             Debug.Log("BO log root: " + logRootPath);
+            Debug.Log("BO model library: " + modelLibrary);
         }
 
         // Packages in another project's `pip install --user` would shadow the environment's own pinned versions;

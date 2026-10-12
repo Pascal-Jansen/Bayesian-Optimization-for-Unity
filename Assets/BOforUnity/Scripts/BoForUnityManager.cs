@@ -42,6 +42,17 @@ namespace BOforUnity
             DBO = 3
         }
 
+        public enum ModelLibrary
+        {
+            // BoTorch (PyTorch), the reference implementation.
+            BoTorch = 0,
+            // botorch-rust: BoTorch's API implemented in Rust, several times faster per suggestion.
+            // Must be installed into the optimizer's Python; the backend refuses to start without it.
+            BotorchRust = 1,
+            // botorch-rust when it is installed, otherwise BoTorch.
+            Auto = 2
+        }
+
         public enum MetaWeightMode
         {
             // Weights from objective-wise pairwise ranking agreement with the current
@@ -160,6 +171,11 @@ namespace BOforUnity
 
         public OptimizerBackend optimizerBackend = OptimizerBackend.BoTorch;
 
+        // Model library of the BoTorch and MetaTAF backends, passed to Python as BO_MODEL_LIBRARY. CABOP and DBO
+        // always use BoTorch, and modes botorch-rust cannot run yet fall back to BoTorch (the console says so).
+        // A study factor: keep it fixed within a study. Each run records the library it used.
+        public ModelLibrary modelLibrary = ModelLibrary.BoTorch;
+
         public CabopObjectiveMode cabopObjectiveMode = CabopObjectiveMode.SingleObjective;
         public bool cabopUseCostAwareAcquisition = true;
         public CabopUpdateRule cabopUpdateRule = CabopUpdateRule.Actual;
@@ -251,6 +267,7 @@ namespace BOforUnity
         private List<string> _configuredParameterKeys;
         private List<string> _configuredObjectiveKeys;
         private OptimizerBackend _configuredBackend;
+        private ModelLibrary _configuredModelLibrary;
         private string _configuredUserId;
         private string _configuredConditionId;
         private string _configuredGroupId;
@@ -326,6 +343,7 @@ namespace BOforUnity
             _configuredParameterKeys = NormalizedKeys(parameters?.Select(p => p?.key));
             _configuredObjectiveKeys = NormalizedKeys(objectives?.Select(o => o?.key));
             _configuredBackend = optimizerBackend;
+            _configuredModelLibrary = modelLibrary;
             _configuredUserId = userId;
             _configuredConditionId = conditionId;
             _configuredGroupId = groupId;
@@ -343,6 +361,8 @@ namespace BOforUnity
                 differences.Add("objective keys");
             if (optimizerBackend != running._configuredBackend)
                 differences.Add($"backend ({optimizerBackend} vs. {running._configuredBackend})");
+            if (modelLibrary != running._configuredModelLibrary)
+                differences.Add($"model library ({modelLibrary} vs. {running._configuredModelLibrary})");
             if (!SameId(userId, running._configuredUserId))
                 differences.Add("User ID");
             if (!SameId(conditionId, running._configuredConditionId))
