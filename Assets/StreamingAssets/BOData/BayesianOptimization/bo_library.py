@@ -10,11 +10,11 @@
 #   botorch      BoTorch (default): exactly the behaviour of the backends without this module.
 #   botorch_rs   botorch-rust; an error at startup when it is not installed.
 #   auto         botorch-rust when installed, otherwise BoTorch.
-# A mode botorch-rust cannot run yet (contextual optimization without its LCEMGP, MetaTAF
-# without its PosteriorMeanModel) falls back to BoTorch with a console message, whatever was
-# requested. The library actually used is printed in "Init OK" and recorded in the run folder
-# (RunInfo.json, or MetaRunState.json for MetaTAF). It is a study factor: never switch it
-# within a study.
+# A mode the installed botorch-rust cannot run (contextual optimization without its LCEMGP or
+# ProvidedEmbeddingLCEMGP, MetaTAF without its PosteriorMeanModel) falls back to BoTorch with a
+# console message, whatever was requested. The library actually used is printed in "Init OK"
+# and recorded in the run folder (RunInfo.json, or MetaRunState.json for MetaTAF). It is a
+# study factor: never switch it within a study.
 #
 # Kept identical across libraries on purpose:
 #   * the initial Sobol design: botorch-rust's own draw_sobol_samples uses another scrambled
@@ -51,15 +51,18 @@ RS_DISTRIBUTION = "botorch-rust"
 # Capabilities botorch-rust gains over time; a mode runs on botorch_rs only when its
 # capability is importable. (module, attribute) pairs, BoTorch's API paths.
 CONTEXTUAL_CAPABILITY = ("botorch_rs.models.contextual_multioutput", "LCEMGP")
+CONTEXTUAL_PROVIDED_CAPABILITY = ("botorch_rs.models.contextual_multioutput", "ProvidedEmbeddingLCEMGP")
 META_CAPABILITY = ("botorch_rs.models.deterministic", "PosteriorMeanModel")
 
 # Contextual mode with provided (manual/image) embeddings uses this project's own LCE-M
 # variant (context_support._provided_embedding_lcemgp_class: no learned embedding, a learned
-# context-specific share), which BoTorch's LCEMGP signature cannot express. botorch_rs's
-# LCEMGP would therefore fit a different model than the BoTorch path; such runs stay on BoTorch.
+# context-specific share), which BoTorch's LCEMGP signature cannot express. botorch_rs has it
+# as ProvidedEmbeddingLCEMGP; a botorch_rs without it would fit a different model than the
+# BoTorch path, so such runs then stay on BoTorch.
 PROVIDED_EMBEDDINGS_REASON = (
     "contextual optimization with Manual or Image embeddings uses this project's "
-    "provided-embedding LCE-M variant, which only the BoTorch path implements"
+    "provided-embedding LCE-M variant, which needs botorch_rs.models.contextual_multioutput."
+    "ProvidedEmbeddingLCEMGP, which this botorch_rs lacks"
 )
 
 # botorch_rs's threads when BO_TORCH_THREADS is not set (bo.py sets that variable's default,
@@ -115,7 +118,7 @@ def has_capability(capability):
 
 def contextual_capability(embedding_source):
     """(supported, reason): can botorch_rs run contextual mode with this embedding source?"""
-    if embedding_source in ("manual", "image"):
+    if embedding_source in ("manual", "image") and not has_capability(CONTEXTUAL_PROVIDED_CAPABILITY):
         return False, PROVIDED_EMBEDDINGS_REASON
     if not has_capability(CONTEXTUAL_CAPABILITY):
         module_name, attribute = CONTEXTUAL_CAPABILITY
@@ -196,6 +199,8 @@ _NAME_MODULES = {
     "SingleTaskGP": ("botorch.models", "botorch_rs.models"),
     "ModelListGP": ("botorch.models", "botorch_rs.models"),
     "LCEMGP": ("botorch.models.contextual_multioutput", "botorch_rs.models.contextual_multioutput"),
+    # BoTorch: context_support._provided_embedding_lcemgp_class(), this project's own subclass
+    "ProvidedEmbeddingLCEMGP": (None, "botorch_rs.models.contextual_multioutput"),
     "ExactMarginalLogLikelihood": ("gpytorch.mlls", "botorch_rs.mlls"),
     "SumMarginalLogLikelihood": ("gpytorch.mlls", "botorch_rs.mlls"),
 }
@@ -218,6 +223,8 @@ class _Namespace:
             value = _rs_sobol_sampler_factory()
         else:
             module_name = _NAME_MODULES[name][0 if self.library == BOTORCH else 1]
+            if module_name is None:
+                raise AttributeError(f"{name!r} has no {self.library} counterpart in this namespace")
             value = getattr(importlib.import_module(module_name), name)
         setattr(self, name, value)  # cache: __getattr__ only runs for missing attributes
         return value
