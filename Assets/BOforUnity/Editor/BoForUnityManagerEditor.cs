@@ -326,9 +326,9 @@ namespace BOforUnity.Editor
                     BoForUnityManager.ModelLibrary.BoTorch)
                 {
                     EditorGUILayout.HelpBox(
-                        "Runs that botorch-rust cannot handle yet fall back to BoTorch with a console message: " +
-                        "contextual optimization with Manual or Image embeddings, and modes its installed version " +
-                        "lacks. Every run records the library it used (RunInfo.json / MetaRunState.json). " +
+                        "Runs that the installed botorch-rust (or openbo, for MetaTAF) cannot handle yet fall " +
+                        "back to BoTorch with a console message. Every run records the library it used " +
+                        "(RunInfo.json / MetaRunState.json). " +
                         "See README 8.16.",
                         MessageType.Info
                     );

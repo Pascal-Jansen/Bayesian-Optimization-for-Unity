@@ -14,7 +14,9 @@ stubs. The real module objects are captured here at import time (before any
 test runs) and restored around each test.
 """
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -748,14 +750,78 @@ class BotorchRsLoopTests(_LoopHarness, unittest.TestCase):
         sampler = bo.SobolQMCNormalSampler(sample_shape=torch.Size([8]), seed=bo.SEED)
         self.assertEqual(sampler.seed, 2**64 - 7)
 
-    def test_contextual_run_with_provided_embeddings_stays_on_botorch(self):
-        # Manual embeddings use this project's provided-embedding LCE-M variant, which only
-        # the BoTorch path implements: the run falls back, whatever botorch_rs offers.
-        result = self._run_in_tmp("bo.py", 1, [{"o0": 6.5}], new_participant=True, library="botorch_rs")
-        info = result["run_info"]["model_library"]
-        self.assertEqual(result["module"].MODEL_LIBRARY, "botorch")
-        self.assertEqual((info["requested"], info["library"], info["fallback"]), ("botorch_rs", "botorch", True))
-        self.assertIn("provided-embedding", info["reason"])
+    def test_contextual_run_with_provided_embeddings_on_botorch_rs_or_fallback(self):
+        # Manual embeddings use this project's provided-embedding LCE-M variant: on botorch_rs's
+        # ProvidedEmbeddingLCEMGP once botorch_rs has it, else the run falls back to BoTorch.
+        bo_library = import_bo_library()
+        provided = bo_library.has_capability(bo_library.CONTEXTUAL_PROVIDED_CAPABILITY)
+        for module_file, num_objs, payload in (("bo.py", 1, {"o0": 6.5}), ("mobo.py", 2, {"o0": 6.5, "o1": 6.0})):
+            with self.subTest(module_file=module_file):
+                result = self._run_in_tmp(module_file, num_objs, [payload], new_participant=True,
+                                          library="botorch_rs")
+                info = result["run_info"]["model_library"]
+                expected = "botorch_rs" if provided else "botorch"
+                self.assertEqual(result["module"].MODEL_LIBRARY, expected)
+                self.assertEqual((info["requested"], info["library"], info["fallback"]),
+                                 ("botorch_rs", expected, not provided))
+                if not provided:
+                    self.assertIn("provided-embedding", info["reason"])
+
+    def _contextual_models(self, embedding_source, seed=0):
+        """build_contextual_model on BoTorch and on botorch_rs for the same data and contexts."""
+        cs = load_backend_module("context_support.py")
+        msg = _context_init_msg()
+        msg["context"]["embeddingSource"] = embedding_source
+        setup = cs.parse_context_config(msg)
+        with contextlib.redirect_stdout(io.StringIO()):
+            cs.resolve_embeddings(setup)
+        g = torch.Generator().manual_seed(seed)
+        x = torch.rand(12, 2, generator=g, dtype=torch.double)
+        tasks = np.array([0] * 7 + [1] * 5)
+        y = torch.stack([-((x - 0.4) ** 2).sum(-1), torch.sin(3 * x).sum(-1)], -1)
+        y = y + 0.3 * torch.tensor(tasks, dtype=torch.double)[:, None]
+        xt = cs.append_task_column(x, tasks)
+        return setup, {library: cs.build_contextual_model(xt, y, setup, library=library)
+                       for library in ("botorch", "botorch_rs")}
+
+    def test_provided_embedding_model_matches_botorchs(self):
+        # botorch_rs's ProvidedEmbeddingLCEMGP is this project's _ProvidedEmbeddingLCEMGP: same
+        # initial hyperparameters, so the same MLL and posterior before fitting.
+        bo_library = import_bo_library()
+        if not bo_library.has_capability(bo_library.CONTEXTUAL_PROVIDED_CAPABILITY):
+            self.skipTest("this botorch_rs has no ProvidedEmbeddingLCEMGP")
+        setup, built = self._contextual_models("manual")
+        self.assertIsNotNone(setup.embeddings)
+        (_, model_b), (_, model_r) = built["botorch"], built["botorch_rs"]
+        from botorch_rs.mlls import ExactMarginalLogLikelihood as RsMLL
+        from gpytorch.mlls import ExactMarginalLogLikelihood
+
+        self.assertEqual(len(model_r.models), 2)
+        for sub_b, sub_r in zip(model_b.models, model_r.models):
+            self.assertEqual(type(sub_r).__name__, "ProvidedEmbeddingLCEMGP")
+            sub_b.train()
+            value_b = ExactMarginalLogLikelihood(sub_b.likelihood, sub_b)(
+                sub_b(*sub_b.train_inputs), sub_b.train_targets, *sub_b.train_inputs).item()
+            value_r = float(RsMLL(sub_r.likelihood, sub_r)())
+            self.assertAlmostEqual(value_r, value_b, delta=1e-9 * max(1.0, abs(value_b)))
+        x_test = torch.rand(5, 2, generator=torch.Generator().manual_seed(9), dtype=torch.double)
+        with torch.no_grad():
+            post_b = model_b.posterior(x_test)
+        post_r = model_r.posterior(x_test)
+        torch.testing.assert_close(post_r.mean, post_b.mean, rtol=1e-9, atol=1e-11)
+        torch.testing.assert_close(post_r.variance, post_b.variance, rtol=1e-9, atol=1e-11)
+
+    def test_learned_embedding_models_are_seeded_by_torch(self):
+        # botorch_rs ignores torch.manual_seed; its LCEMGP embedding initialisation is seeded
+        # from torch's generator, so the run's torch seed fixes the model.
+        x_test = torch.rand(4, 2, generator=torch.Generator().manual_seed(3), dtype=torch.double)
+        means = []
+        for torch_seed in (11, 11, 12):
+            torch.manual_seed(torch_seed)
+            _, built = self._contextual_models("learned")
+            means.append(built["botorch_rs"][1].posterior(x_test).mean)
+        self.assertTrue(torch.equal(means[0], means[1]))
+        self.assertFalse(torch.equal(means[0], means[2]))
 
     def test_contextual_learned_run_on_botorch_rs_or_fallback(self):
         # Learned embeddings run on botorch_rs's LCEMGP once botorch_rs has it, else on BoTorch.

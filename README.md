@@ -1183,7 +1183,10 @@ or `meta_train.py` outside Unity. At startup the backend prints the library it u
 * `bo.py` and `mobo.py`: the GP (`SingleTaskGP`), its fitting, qLogNEI / qLogNEHVI and the
   acquisition optimization. Pareto flags and hypervolumes still come from moocore.
 * Contextual optimization ([8.13](#813-contextual-optimization-and-context-embeddings-lce-m-gp))
-  with `Learned` embeddings, once botorch-rust provides LCE-M (`LCEMGP`).
+  with every embedding source: `Learned` embeddings on botorch-rust's `LCEMGP`, `Manual` and
+  `Image` embeddings on its `ProvidedEmbeddingLCEMGP`, the same two LCE-M models as on BoTorch
+  (same MLL and posterior to rounding error; contextual suggestions measured 37–78× faster).
+  An older botorch-rust without them falls back to BoTorch.
 * MetaTAF ([8.14](#814-meta-bo-metataf-transfer-from-prior-participants)) and `meta_train.py`,
   once botorch-rust provides what openbo's MetaTAF needs (`PosteriorMeanModel`) and the
   installed openbo supports `BO_MODEL_LIBRARY`.
@@ -1191,9 +1194,9 @@ or `meta_train.py` outside Unity. At startup the backend prints the library it u
 
 **Fallbacks.** A run that asks for botorch-rust (`BotorchRust` or `Auto`) but cannot use it
 runs on BoTorch and prints `Warning: the model library falls back to BoTorch: <reason>`:
-contextual optimization with `Manual` or `Image` embeddings (their LCE-M variant exists only
-in BoTorch), and modes the installed botorch-rust or openbo does not support yet. `Auto`
-without botorch-rust installed runs BoTorch without a warning.
+modes the installed botorch-rust or openbo does not support yet (e.g. a botorch-rust without
+`LCEMGP` or `ProvidedEmbeddingLCEMGP` for contextual optimization). `Auto` without
+botorch-rust installed runs BoTorch without a warning.
 
 **What stays the same, what changes.** For the same Seed, the initial Sobol design is
 bit-identical to BoTorch's (botorch-rust's own Sobol sequence is not used for it), so the

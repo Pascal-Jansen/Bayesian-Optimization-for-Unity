@@ -49,8 +49,13 @@ def _named(name, module):
     return function
 
 
-def fake_botorch_rs(version="9.9.9", lcemgp=False, posterior_mean=False, extension_path=None):
-    """sys.modules entries of a stand-in botorch_rs package and a record of the calls it got."""
+def fake_botorch_rs(version="9.9.9", lcemgp=False, provided_embeddings=False, posterior_mean=False,
+                    extension_path=None):
+    """sys.modules entries of a stand-in botorch_rs package and a record of the calls it got.
+
+    Every other botorch_rs.* module maps to None, so a real botorch_rs imported by an earlier
+    test (test_contextual_integration) cannot leak into the stand-in.
+    """
     calls = {"set_num_threads": [], "samplers": []}
     threads = {"n": 22}
     modules = {}
@@ -92,12 +97,19 @@ def fake_botorch_rs(version="9.9.9", lcemgp=False, posterior_mean=False, extensi
     models = add("botorch_rs.models", SingleTaskGP=_named("SingleTaskGP", "botorch_rs.models"),
                  ModelListGP=_named("ModelListGP", "botorch_rs.models"))
     if lcemgp:
-        add("botorch_rs.models.contextual_multioutput",
-            LCEMGP=_named("LCEMGP", "botorch_rs.models.contextual_multioutput"))
+        contextual = add("botorch_rs.models.contextual_multioutput",
+                         LCEMGP=_named("LCEMGP", "botorch_rs.models.contextual_multioutput"))
+        if provided_embeddings:
+            contextual.ProvidedEmbeddingLCEMGP = _named(
+                "ProvidedEmbeddingLCEMGP", "botorch_rs.models.contextual_multioutput")
     if posterior_mean:
         add("botorch_rs.models.deterministic",
             PosteriorMeanModel=_named("PosteriorMeanModel", "botorch_rs.models.deterministic"))
     root.models = models
+    optional = ("botorch_rs.models.contextual_multioutput", "botorch_rs.models.deterministic")
+    for name in (*optional, *sys.modules):
+        if (name == "botorch_rs" or name.startswith("botorch_rs.")) and name not in modules:
+            modules[name] = None
     return modules, calls
 
 
@@ -173,13 +185,21 @@ class ResolveTests(unittest.TestCase):
                         message = bo_library.fallback_message("auto", library, reason)
                         self.assertTrue(message.startswith("Warning: the model library falls back to BoTorch"))
 
-    def test_provided_embeddings_stay_on_botorch(self):
-        modules, _ = fake_botorch_rs(lcemgp=True)
-        with mock.patch.dict(sys.modules, modules):
-            for source in ("manual", "image"):
-                library, reason = bo_library.resolve("botorch_rs", contextual=source)
-                self.assertEqual(library, "botorch")
-                self.assertIn(bo_library.PROVIDED_EMBEDDINGS_REASON, reason)
+    def test_provided_embeddings_need_botorch_rs_provided_embedding_lcemgp(self):
+        for provided, expected in ((False, "botorch"), (True, "botorch_rs")):
+            modules, _ = fake_botorch_rs(lcemgp=True, provided_embeddings=provided)
+            with mock.patch.dict(sys.modules, modules):
+                for source in ("manual", "image"):
+                    library, reason = bo_library.resolve("botorch_rs", contextual=source)
+                    self.assertEqual(library, expected, (provided, source))
+                    if not provided:
+                        self.assertIn(bo_library.PROVIDED_EMBEDDINGS_REASON, reason)
+                # learned embeddings only need LCEMGP
+                self.assertEqual(bo_library.resolve("botorch_rs", contextual="learned")[0], "botorch_rs")
+
+    def test_provided_embedding_model_has_no_botorch_name(self):
+        with self.assertRaisesRegex(AttributeError, "no botorch counterpart"):
+            bo_library.namespace("botorch").ProvidedEmbeddingLCEMGP
 
     def test_metataf_needs_botorch_rs_posterior_mean_model(self):
         for posterior_mean, expected in ((False, "botorch"), (True, "botorch_rs")):

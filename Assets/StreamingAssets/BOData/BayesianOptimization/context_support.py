@@ -670,35 +670,36 @@ def build_contextual_model(train_x_with_task, train_y, setup, library="botorch")
 
 def _build_botorch_rs_contextual_model(train_x_with_task, train_y, setup, context_cat_feature,
                                        all_tasks, task_feature):
-    """The LCE-M GP of build_contextual_model on botorch-rust's LCEMGP (BoTorch's signature).
+    """The LCE-M GP of build_contextual_model on botorch-rust (same models as the BoTorch path).
 
-    botorch-rust implements the intended LCEMGP directly, so the BoTorch-only workarounds
-    (_UnobservedContextLCEMGP's eval(), the resized task kernel) are not needed here.
-    bo_library.resolve keeps runs with provided (manual/image) embeddings on BoTorch, whose
-    _ProvidedEmbeddingLCEMGP variant has no counterpart in LCEMGP's signature; the
-    ``context_emb_feature`` argument below serves a botorch-rust that adds one.
+    botorch-rust implements both variants natively: LCEMGP (learned embeddings) already has
+    _UnobservedContextLCEMGP's eval() behaviour, and ProvidedEmbeddingLCEMGP is
+    _ProvidedEmbeddingLCEMGP (task kernel (1 - w) * RBF(provided embeddings) + w * I).
+    botorch-rust ignores torch.manual_seed, so LCEMGP's random embedding initialisation gets a
+    seed drawn from torch's generator: runs stay reproducible from the run's seed.
     """
     import torch
 
     import bo_library
 
     names = bo_library.namespace(bo_library.BOTORCH_RS)
-    context_emb_feature = None
-    if setup.embeddings is not None:
-        context_emb_feature = torch.tensor(setup.embeddings, dtype=torch.double)
-    models = [
-        names.LCEMGP(
+    models = []
+    for j in range(train_y.shape[-1]):
+        common = dict(
             train_X=train_x_with_task,
             train_Y=train_y[:, j: j + 1],
             task_feature=task_feature,
             context_cat_feature=context_cat_feature,
-            context_emb_feature=context_emb_feature,
-            embs_dim_list=[1],  # one learned embedding dim for the single categorical feature
             output_tasks=[setup.current_index],
             all_tasks=all_tasks,
         )
-        for j in range(train_y.shape[-1])
-    ]
+        if setup.embeddings is not None:
+            models.append(names.ProvidedEmbeddingLCEMGP(
+                context_emb_feature=torch.tensor(setup.embeddings, dtype=torch.double), **common))
+        else:
+            seed = int(torch.randint(0, 2**62, (1,)).item())
+            # one learned embedding dim for the single categorical feature
+            models.append(names.LCEMGP(embs_dim_list=[1], seed=seed, **common))
     if len(models) == 1:
         model = models[0]
         return names.ExactMarginalLogLikelihood(model.likelihood, model), model
