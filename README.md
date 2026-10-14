@@ -1220,17 +1220,21 @@ version number does not change between source builds).
 logical CPUs, at most 4, so Unity keeps cores for rendering while a suggestion is computed;
 4 threads were 2.7–3.4× faster than one for `mobo.py`.
 
-**Installing botorch-rust.** botorch-rust is not on PyPI yet. Build it from source with the
-interpreter the backends run with (the Console logs it at startup as `Optimizer Python: …`,
-see [8.5](#85-python-settings)); this needs a Rust toolchain ([rustup.rs](https://rustup.rs)):
+**Installing botorch-rust.** Install it into the interpreter the backends run with (the
+Console logs it at startup as `Optimizer Python: …`, see [8.5](#85-python-settings)). Its
+releases come with prebuilt wheels for Windows, macOS and Linux (Python 3.11 and later; no
+Rust toolchain needed):
 
 ```text
-"<that path>" -m pip install "botorch-rust @ git+https://github.com/M-Colley/botorch-rust#subdirectory=botorch_pyo3"
+"<that path>" -m pip install "botorch-rust==0.1.0" --find-links https://github.com/M-Colley/botorch-rust/releases/expanded_assets/v0.1.0
 ```
 
-or, from a local clone, `"<that path>" -m pip install <clone>/botorch_pyo3`. Once wheels are
-released, `"<that path>" -m pip install botorch-rust` is enough. It is not part of
-`requirements.txt`; the BoTorch packages stay installed and remain the fallback.
+Once botorch-rust is on PyPI, `"<that path>" -m pip install "botorch-rust==0.1.0"` is enough.
+Keep the version fixed within a study, like the model library itself (`RunInfo.json` records
+it). It is not part of `requirements.txt`; the BoTorch packages stay installed and remain the
+fallback. A development version can be built from source with a Rust toolchain
+([rustup.rs](https://rustup.rs)):
+`"<that path>" -m pip install "botorch-rust @ git+https://github.com/M-Colley/botorch-rust#subdirectory=botorch_pyo3"`.
 
 <br>
 

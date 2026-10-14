@@ -35,8 +35,8 @@ loguru==0.7.3
 # pinned versions above (gpytorch sits exactly on openbo's minimum - keep in sync).
 #
 # Optional: botorch-rust, a Rust implementation of BoTorch the BoTorch and MetaTAF backends
-# can run on (inspector "Model Library", README 8.16). Not on PyPI yet; build it from source
-# (requires git and a Rust toolchain, https://rustup.rs):
-#   python -m pip install "botorch-rust @ git+https://github.com/M-Colley/botorch-rust#subdirectory=botorch_pyo3"
-# Once wheels are released:  python -m pip install botorch-rust
+# can run on (inspector "Model Library", README 8.16). Prebuilt wheels of its GitHub release
+# (Windows, macOS, Linux; no Rust toolchain needed):
+#   python -m pip install "botorch-rust==0.1.0" --find-links https://github.com/M-Colley/botorch-rust/releases/expanded_assets/v0.1.0
+# Once it is on PyPI:  python -m pip install "botorch-rust==0.1.0"
 # The BoTorch packages above stay installed: they are the default and the fallback.
