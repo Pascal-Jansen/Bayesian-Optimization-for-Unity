@@ -1221,15 +1221,14 @@ logical CPUs, at most 4, so Unity keeps cores for rendering while a suggestion i
 4 threads were 2.7–3.4× faster than one for `mobo.py`.
 
 **Installing botorch-rust.** Install it into the interpreter the backends run with (the
-Console logs it at startup as `Optimizer Python: …`, see [8.5](#85-python-settings)). Its
-releases come with prebuilt wheels for Windows, macOS and Linux (Python 3.11 and later; no
-Rust toolchain needed):
+Console logs it at startup as `Optimizer Python: …`, see [8.5](#85-python-settings)). PyPI
+has prebuilt wheels for Windows, macOS and Linux (Python 3.11 and later; no Rust toolchain
+needed):
 
 ```text
-"<that path>" -m pip install "botorch-rust==0.1.0" --find-links https://github.com/M-Colley/botorch-rust/releases/expanded_assets/v0.1.0
+"<that path>" -m pip install "botorch-rust==0.1.0"
 ```
 
-Once botorch-rust is on PyPI, `"<that path>" -m pip install "botorch-rust==0.1.0"` is enough.
 Keep the version fixed within a study, like the model library itself (`RunInfo.json` records
 it). It is not part of `requirements.txt`; the BoTorch packages stay installed and remain the
 fallback. A development version can be built from source with a Rust toolchain
