@@ -1226,7 +1226,7 @@ has prebuilt wheels for Windows, macOS and Linux (Python 3.11 and later; no Rust
 needed):
 
 ```text
-"<that path>" -m pip install "botorch-rust==0.1.0"
+"<that path>" -m pip install "botorch-rust==0.2.0"
 ```
 
 Keep the version fixed within a study, like the model library itself (`RunInfo.json` records
