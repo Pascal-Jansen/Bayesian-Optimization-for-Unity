@@ -37,5 +37,5 @@ loguru==0.7.3
 # Optional: botorch-rust, a Rust implementation of BoTorch the BoTorch and MetaTAF backends
 # can run on (inspector "Model Library", README 8.16). Prebuilt wheels on PyPI (Windows,
 # macOS, Linux; no Rust toolchain needed):
-#   python -m pip install "botorch-rust==0.1.0"
+#   python -m pip install "botorch-rust==0.2.0"
 # The BoTorch packages above stay installed: they are the default and the fallback.
