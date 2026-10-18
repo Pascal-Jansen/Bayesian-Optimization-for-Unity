@@ -8,7 +8,7 @@ torch==2.14.1
 botorch==0.18.1
 moocore==0.3.2
 scipy==1.18.1
-numpy==2.5.3
+numpy==2.5.4
 matplotlib==3.11.2
 pandas==3.0.6
 gpytorch==1.15.2
