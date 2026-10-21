@@ -600,7 +600,11 @@ def load_mobo():
 
 def load_dbo():
     install_stub_modules()
-    return _load_backend("dbo_runtime.py", dbo_torch_stub())
+    module = _load_backend("dbo_runtime.py", dbo_torch_stub())
+    # Exercise protocol/logging with the same stub draw as BO and MOBO. The
+    # shared real Torch Sobol helper is covered by the integration tests.
+    module.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor(np.linspace(0.1, 0.9, n).reshape(n, q, 1))
+    return module
 
 
 def load_cabop():
