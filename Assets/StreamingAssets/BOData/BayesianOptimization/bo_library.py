@@ -3,8 +3,8 @@
 # bo.py, mobo.py (plain and contextual mode) and MetaTAF (meta_mobo_runtime.py, meta_train.py
 # and the openbo modules they drive) can run their GP models, acquisition functions and
 # acquisition optimization on botorch-rust (https://github.com/M-Colley/botorch-rust, Python
-# package `botorch_rs`), a Rust implementation of BoTorch with the same API paths. CABOP and
-# DBO uses botorch-rust with its supplied GPyTorch temporal kernel.
+# package `botorch_rs`), a Rust implementation of BoTorch with the same API paths. CABOP
+# keeps its vendored optimizer; DBO uses botorch-rust with its GPyTorch temporal kernel.
 #
 # The environment variable BO_MODEL_LIBRARY selects it (Unity sets it from the inspector):
 #   botorch      BoTorch (default): exactly the behaviour of the backends without this module.
