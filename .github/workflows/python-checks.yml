@@ -92,10 +92,10 @@ jobs:
 
   full-stack-tests:
     # Runs the complete suite against the real pinned dependency stack
-    # (torch/botorch/moocore/scipy/sklearn), including the integration and
+    # (torch/botorch/botorch-rust/moocore/scipy/sklearn), including the integration and
     # CABOP tests that are skipped in the lightweight job above. Weekly and
     # on manual dispatch only, because the stack download is large.
-    name: Full-stack tests (real botorch)
+    name: Full-stack tests (BoTorch and botorch-rust)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

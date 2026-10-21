@@ -6,6 +6,7 @@
 # multi-GB CUDA build). Offline labs: put the wheels into Installation/wheels; pip then uses them (--find-links).
 torch==2.14.1
 botorch==0.18.1
+botorch-rust==0.3.0
 moocore==0.3.2
 scipy==1.18.1
 numpy==2.5.4
@@ -34,8 +35,8 @@ loguru==0.7.3
 # exact command if openbo is missing. openbo's dependency floors are satisfied by the
 # pinned versions above (gpytorch sits exactly on openbo's minimum - keep in sync).
 #
-# Optional: botorch-rust, a Rust implementation of BoTorch the BoTorch and MetaTAF backends
-# can run on (inspector "Model Library", README 8.16). Prebuilt wheels on PyPI (Windows,
-# macOS, Linux; no Rust toolchain needed):
-#   python -m pip install "botorch-rust==0.2.0"
+# botorch-rust is pinned above for the BoTorch/MetaTAF Model Library option and the
+# vendored DBO optimizer. Official BoTorch remains installed for the BoTorch option,
+# compatible external openbo releases and the source comparison tests. The two packages
+# use independent Python namespaces (botorch_rs and botorch).
 # The BoTorch packages above stay installed: they are the default and the fallback.

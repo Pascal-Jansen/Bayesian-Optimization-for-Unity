@@ -16,6 +16,12 @@ Human-in-the-Loop Optimization Problem*, IEEE RA-L 11(5), 2026
 [dbo-torch](https://github.com/M-Colley/dbo-torch) package, vendored under
 `Assets/StreamingAssets/BOData/BayesianOptimization/dbo_torch/`.
 
+This Unity copy uses `botorch-rust==0.3.0` for its GP models, fitting, acquisitions
+and acquisition optimization. Its temporal kernel and supplied GPyTorch kernels
+and likelihood remain actual PyTorch modules on the port's Tensor backend.
+The shared Torch Sobol draw preserves the initial designs used by the other
+backends. `DboRunState.json` records the active `botorch-rust` version.
+
 ## Selecting the backend
 
 In the `BoForUnityManager` inspector set **Backend → DBO**. DBO is
@@ -104,7 +110,7 @@ launches the real backend and drives it with a mock Unity client speaking the
 wire protocol byte for byte, including messages split across TCP writes, and
 checks every log file including `DboRunState.json` and the `iteration` each
 design is sent with; a second session ends with a stop request, after which the
-backend must exit with code 0 with every completed evaluation logged. Needs torch/botorch
+backend must exit with code 0 with every completed evaluation logged. Needs torch/botorch-rust
 installed; deliberately not part of `unittest discover`. `tests/test_dbo_runtime.py`
 is part of the normal suite (skipped without torch): init validation, run
 reproducibility, validation scheduling, the state record and the vendored

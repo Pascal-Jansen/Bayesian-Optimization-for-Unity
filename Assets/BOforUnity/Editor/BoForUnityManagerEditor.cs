@@ -312,7 +312,7 @@ namespace BOforUnity.Editor
                           BoForUnityManager.OptimizerBackend.DBO;
             if (!useCabop && !useDbo)
             {
-                // CABOP and DBO always run on BoTorch.
+                // CABOP keeps its vendored optimizer; DBO always runs on botorch-rust.
                 EditorGUILayout.PropertyField(
                     modelLibraryProp,
                     new GUIContent(
