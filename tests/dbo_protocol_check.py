@@ -33,7 +33,7 @@ Run it directly::
     python tests/dbo_protocol_check.py --backend <path to dbo.py>
 
 Deliberately NOT named ``test_*.py``: it launches the real backend with real
-torch/botorch and takes ~15s, so it must not be picked up by the stubbed
+torch/botorch-rust and takes ~15s, so it must not be picked up by the stubbed
 ``python -m unittest discover tests`` CI run. Run it manually after touching
 dbo_runtime.py or refreshing the vendored dbo_torch/ package.
 """
@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from importlib import metadata
 import json
 import os
 import socket
@@ -552,6 +553,10 @@ def check_logs(log_root, result):
     require(state["versions"].get("dbo_torch") == vendored_dbo_torch_version(),
             f"state records dbo_torch {state['versions'].get('dbo_torch')!r}, "
             f"vendored is {vendored_dbo_torch_version()!r}")
+    require(state["versions"].get("botorch-rust") == metadata.version("botorch-rust"),
+            "state must record the installed botorch-rust numerical package")
+    require("botorch" not in state["versions"],
+            "the migrated DBO runtime must not attribute calculations to BoTorch")
     require(len(state["observations"]) == N_TOTAL,
             f"expected {N_TOTAL} recorded observations, got {len(state['observations'])}")
     require(state["config"]["validation_every"] == VALIDATION_EVERY,
