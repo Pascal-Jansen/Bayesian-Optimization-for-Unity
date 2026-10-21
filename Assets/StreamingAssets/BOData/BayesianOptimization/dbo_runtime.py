@@ -31,11 +31,11 @@
 #
 # Deliberate scope limits (validated, not silently ignored):
 #   - single objective only (nObjectives == 1): DBO models one drifting cost,
-#   - no contextual optimization (the LCE-M context pipeline stays BoTorch-only).
+#   - no contextual optimization in the DBO bridge.
 #
 # dbo_torch is VENDORED into ./dbo_torch/ (the package's .py modules, LICENSE and
 # PROVENANCE.md) from https://github.com/M-Colley/dbo-torch so a study machine needs
-# nothing beyond the BoTorch stack bo.py already requires. The standalone bridge
+# the botorch-rust and GPyTorch stack used by the other optimizers. The standalone bridge
 # (docs/standalone-bridge/) is deliberately NOT vendored: it implements a different,
 # incompatible request/response protocol.
 #
@@ -53,8 +53,6 @@ import numpy as np
 import pandas as pd
 import torch
 
-from botorch.utils.sampling import draw_sobol_samples
-
 # Sibling module imports (and the vendored dbo_torch package) must work both when
 # running this file as a script and when loading it from another working directory
 # (e.g. the test suite).
@@ -63,6 +61,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 import bo_normalize
+from bo_library import draw_sobol_samples
 import dbo_torch
 from dbo_torch import DBOConfig, DBOModelConfig, DynamicBO
 # Socket, NDJSON, init parsing and log-writing plumbing shared by every backend.
@@ -176,7 +175,7 @@ DBO_DIAGNOSTICS_FIELDS = [
     'PredictedCost', 'PredictedSd', 'ObservedCost', 'ObservedObjective', 'SuggestSeconds',
 ]
 
-# Full optimizer state (config, dbo_torch/torch/botorch versions, RNG state, every
+# Full optimizer state (config, dbo_torch/torch/botorch-rust versions, RNG state, every
 # observation with its prediction), rewritten atomically after each evaluation.
 DBO_STATE_FILENAME = "DboRunState.json"
 
@@ -437,7 +436,7 @@ def save_dbo_diagnostics(iteration, phase, observation, alpha, raw_value, sugges
 def save_dbo_state(dbo):
     """Write DboRunState.json: provenance and an exact record of the optimizer.
 
-    Records the dbo_torch/torch/botorch/gpytorch versions next to the full config, RNG
+    Records the dbo_torch/torch/botorch-rust/gpytorch versions next to the full config, RNG
     state and every observation with its prediction, so a run can be attributed to the
     library version that produced it and re-analysed offline (``DynamicBO.load``). The
     write is atomic; a failure (e.g. the file briefly locked by Unity's asset importer)

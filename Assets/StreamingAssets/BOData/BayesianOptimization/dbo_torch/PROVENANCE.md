@@ -1,5 +1,17 @@
 # Provenance and licensing
 
+## Unity numerical backend integration
+
+This Unity copy retains dbo_torch 0.2.0's optimizer and temporal-kernel methods.
+Its GP model, fitting objective, acquisitions, samplers and candidate optimization
+use `botorch-rust` through the `botorch_rs` namespace. Caller-supplied GPyTorch
+spatial/temporal kernels and Gaussian likelihoods remain actual Torch modules;
+their parameters, including the fitted decay rate, are preserved. Run records
+attribute the numerical package using its `botorch-rust` distribution version.
+The Unity bridge obtains its initial Sobol design from the shared Torch
+`bo_library.draw_sobol_samples` helper, retaining the same seeded initial design
+as the other Unity model-library choices.
+
 This document records exactly where this implementation comes from, because the
 reference implementation of Dynamic Bayesian Optimization has a licensing
 situation that is easy to get wrong.

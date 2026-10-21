@@ -29,9 +29,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
 import torch
-from botorch.acquisition import LogExpectedImprovement, PosteriorMean
-from botorch.acquisition.analytic import AnalyticAcquisitionFunction
-from botorch.utils.transforms import t_batch_mode_transform
+from botorch_rs.acquisition import LogExpectedImprovement, PosteriorMean
+from botorch_rs.acquisition.analytic import AnalyticAcquisitionFunction
+from botorch_rs.utils.transforms import t_batch_mode_transform
 from torch import Tensor
 
 from ._base import DynamicOptimizerBase, _z_score

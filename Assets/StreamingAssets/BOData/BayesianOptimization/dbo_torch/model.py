@@ -18,13 +18,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import torch
-from botorch.fit import fit_gpytorch_mll
-from botorch.models import SingleTaskGP
-from botorch.models.transforms import Normalize, Standardize
+from botorch_rs.fit import fit_gpytorch_mll
+from botorch_rs.mlls import ExactMarginalLogLikelihood
+from botorch_rs.models import SingleTaskGP
+from botorch_rs.models.transforms import Normalize, Standardize
 from gpytorch.constraints import GreaterThan
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from gpytorch.likelihoods import GaussianLikelihood
-from gpytorch.mlls import ExactMarginalLogLikelihood
 from torch import Tensor
 
 from .kernels import TemporalDecayKernel
@@ -225,6 +225,7 @@ def build_model(
         input_transform=input_transform,
         outcome_transform=outcome_transform,
         time_dim=time_dim,
+        backend="torch",
     )
 
     if config.reference_init:

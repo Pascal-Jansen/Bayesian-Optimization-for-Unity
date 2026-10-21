@@ -21,7 +21,7 @@ from importlib import metadata
 from pathlib import Path
 
 import torch
-from botorch.optim import optimize_acqf
+from botorch_rs.optim import optimize_acqf
 from torch import Tensor
 
 from .model import DBOModelConfig, build_model, fit_model
@@ -386,7 +386,7 @@ def _versions() -> dict:
     from . import __version__
 
     out = {"dbo_torch": __version__}
-    for package in ("torch", "botorch", "gpytorch"):
+    for package in ("torch", "botorch-rust", "gpytorch"):
         try:
             out[package] = metadata.version(package)
         except metadata.PackageNotFoundError:

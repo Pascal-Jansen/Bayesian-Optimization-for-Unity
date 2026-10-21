@@ -26,16 +26,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
 import torch
-from botorch.acquisition.multi_objective.logei import (
+from botorch_rs.acquisition.multi_objective.logei import (
     qLogNoisyExpectedHypervolumeImprovement,
 )
-from botorch.acquisition.multi_objective.objective import WeightedMCMultiOutputObjective
-from botorch.models import ModelListGP
-from botorch.sampling.normal import SobolQMCNormalSampler
-from botorch.utils.multi_objective.box_decompositions.dominated import (
+from botorch_rs.acquisition.multi_objective.objective import WeightedMCMultiOutputObjective
+from botorch_rs.models import ModelListGP
+from botorch_rs.sampling.normal import SobolQMCNormalSampler
+from botorch_rs.utils.multi_objective.box_decompositions.dominated import (
     DominatedPartitioning,
 )
-from botorch.utils.multi_objective.pareto import is_non_dominated
+from botorch_rs.utils.multi_objective.pareto import is_non_dominated
 from torch import Tensor
 
 from ._base import DynamicOptimizerBase, _z_score
