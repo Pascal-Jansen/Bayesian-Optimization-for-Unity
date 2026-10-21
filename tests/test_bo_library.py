@@ -347,7 +347,10 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_openbo_library(self):
         mobo_botorch = types.ModuleType("openbo.optimizers.mobo_botorch")
-        with mock.patch.dict(sys.modules, {"openbo.optimizers.mobo_botorch": mobo_botorch}):
+        # Isolate every inspected module, including when real openbo is installed.
+        modules = {name: None for name in bo_library.OPENBO_LIBRARY_MODULES}
+        modules["openbo.optimizers.mobo_botorch"] = mobo_botorch
+        with mock.patch.dict(sys.modules, modules):
             self.assertIsNone(bo_library.openbo_library())
             mobo_botorch.optimize_acqf = _named("optimize_acqf", "botorch.optim.optimize")
             self.assertEqual(bo_library.openbo_library(), "botorch")
