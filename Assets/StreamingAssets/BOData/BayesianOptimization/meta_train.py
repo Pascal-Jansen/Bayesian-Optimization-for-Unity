@@ -539,9 +539,8 @@ def fit_per_objective_hyperparameters(x_unit, y_norm, stack):
                 continue
 
             if MODEL_LIBRARY == bo_library.BOTORCH_RS:
-                # botorch_rs models are not callable; mll() is the same training-data marginal
-                # log likelihood (GPyTorch's mll(gp(x), gp.train_targets) to ~1e-15).
-                score = float(mll().sum())
+                # Read the training-data marginal directly; restart ranking needs its value.
+                score = float(mll().detach().sum())
             else:
                 # fit_gpytorch_mll() leaves the model in eval mode, where gp(x_t) is the
                 # posterior conditioned on the training data -- not the training marginal

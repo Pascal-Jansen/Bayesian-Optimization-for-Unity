@@ -1267,12 +1267,14 @@ class DuplicateAndManifestTests(_RunMainMixin, unittest.TestCase):
             for name in ("srcA", "srcB"):
                 write_source(src, name, frame=make_frame(fp))
                 traj = src / "trajectories" / f"{name}.json"
-                traj.write_text(json.dumps(json.loads(traj.read_text(encoding="utf-8")), indent=1), encoding="utf-8")
+                # Match meta_train's LF writer before simulating an LF -> CRLF checkout.
+                traj.write_bytes(json.dumps(json.loads(traj.read_text(encoding="utf-8")), indent=1).encode("utf-8"))
                 gp = src / "gp_states" / f"{name}.json"
                 payload = json.loads(gp.read_text(encoding="utf-8"))
                 payload["provenance"] = {"trajectory_sha256": _sha256(traj)}  # as meta_train.py stamps it
                 gp.write_bytes(json.dumps(payload, indent=1).encode("utf-8"))
-            self._write_manifest(src)
+            manifest = self._write_manifest(src)
+            self.assertEqual([entry["name"] for entry in manifest["sources"]], ["srcA", "srcB"])
             for path in [*(src / "gp_states").iterdir(), *(src / "trajectories").iterdir()]:
                 path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))  # the checkout
             self._run(runtime, tmp)

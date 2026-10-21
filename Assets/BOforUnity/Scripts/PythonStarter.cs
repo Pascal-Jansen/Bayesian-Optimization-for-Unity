@@ -920,7 +920,7 @@ namespace BOforUnity.Scripts
         {
             startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
             startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
-            // BoTorch, botorch-rust or auto for bo.py, mobo.py and MetaTAF (CABOP and DBO ignore it). Always set, so
+            // BoTorch, botorch-rust or auto for bo.py, mobo.py and MetaTAF (CABOP and DBO ignore this selection). Always set, so
             // a BO_MODEL_LIBRARY in Unity's own environment cannot override the inspector.
             startInfo.Environment["BO_MODEL_LIBRARY"] = modelLibrary;
             startInfo.Environment["PYTHONIOENCODING"] = "utf-8";

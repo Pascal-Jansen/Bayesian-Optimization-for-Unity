@@ -1190,7 +1190,10 @@ or `meta_train.py` outside Unity. At startup the backend prints the library it u
 * MetaTAF ([8.14](#814-meta-bo-metataf-transfer-from-prior-participants)) and `meta_train.py`,
   once botorch-rust provides what openbo's MetaTAF needs (`PosteriorMeanModel`) and the
   installed openbo supports `BO_MODEL_LIBRARY`.
-* CABOP and DBO always use BoTorch.
+* DBO uses `botorch-rust==0.3.0` for models, fitting, acquisitions and acquisition
+  optimization, with its supplied GPyTorch temporal kernel on the port's Tensor
+  backend. The Model Library selector does not change DBO's implementation.
+* CABOP keeps its vendored optimizer.
 
 **Fallbacks.** A run that asks for botorch-rust (`BotorchRust` or `Auto`) but cannot use it
 runs on BoTorch and prints `Warning: the model library falls back to BoTorch: <reason>`:
@@ -1212,26 +1215,29 @@ in `MetaRunState.json` (MetaTAF), each with the requested and used library, the 
 version, the thread count and, for botorch-rust, the SHA-256 of its compiled extension (its
 version number does not change between source builds).
 
-**Speed.** Per suggestion (model fitting plus acquisition optimization), botorch-rust measured
-10–14× faster than BoTorch for `bo.py` and 3.5–17× faster for `mobo.py`, both on one thread
+**Speed.** In the 0.2.0 integration, botorch-rust measured 10–14× faster than BoTorch
+for `bo.py` and 3.5–17× faster for `mobo.py` per suggestion (fitting plus acquisition
+optimization), both on one thread
 (d = 2–8, 12–40 observations, 512 MC samples). Threads: `bo.py` runs botorch-rust on
 `BO_TORCH_THREADS` threads, by default 1 like PyTorch (a suggestion then takes 20–60 ms).
 `mobo.py` and MetaTAF use `BO_TORCH_THREADS` threads when it is set, otherwise half the
 logical CPUs, at most 4, so Unity keeps cores for rendering while a suggestion is computed;
 4 threads were 2.7–3.4× faster than one for `mobo.py`.
 
-**Installing botorch-rust.** Install it into the interpreter the backends run with (the
+**Installing botorch-rust.** The shared requirements now install `botorch-rust==0.3.0`
+automatically, alongside official BoTorch. For a manual installation, use the interpreter the backends run with (the
 Console logs it at startup as `Optimizer Python: …`, see [8.5](#85-python-settings)). PyPI
 has prebuilt wheels for Windows, macOS and Linux (Python 3.11 and later; no Rust toolchain
 needed):
 
 ```text
-"<that path>" -m pip install "botorch-rust==0.2.0"
+"<that path>" -m pip install "botorch-rust==0.3.0"
 ```
 
 Keep the version fixed within a study, like the model library itself (`RunInfo.json` records
-it). It is not part of `requirements.txt`; the BoTorch packages stay installed and remain the
-fallback. A development version can be built from source with a Rust toolchain
+it). The packages use separate Python namespaces (`botorch_rs` and `botorch`);
+the Model Library selector and optional openbo runtime retain their existing behavior.
+A development version can be built from source with a Rust toolchain
 ([rustup.rs](https://rustup.rs)):
 `"<that path>" -m pip install "botorch-rust @ git+https://github.com/M-Colley/botorch-rust#subdirectory=botorch_pyo3"`.
 

@@ -37,7 +37,7 @@ from _stubs import reset_protocol_state  # noqa: E402
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
 
-_REAL_MODULE_ROOTS = ("torch", "botorch", "gpytorch", "linear_operator", "moocore", "pandas", "botorch_rs")
+_REAL_MODULE_ROOTS = ("torch", "botorch", "gpytorch", "linear_operator", "moocore", "pandas", "botorch_rs", "openbo")
 
 try:
     import torch  # noqa: F401
@@ -74,6 +74,16 @@ if HAS_REAL_STACK:
         import botorch_rs.sampling.normal  # noqa: F401
 
         HAS_BOTORCH_RS = True
+    except ImportError:
+        pass
+
+HAS_REAL_OPENBO = False
+if HAS_REAL_STACK:
+    try:
+        import openbo.optimizers.mobo_botorch
+        import openbo.optimizers.mobo_taf
+
+        HAS_REAL_OPENBO = True
     except ImportError:
         pass
 
@@ -865,6 +875,53 @@ class BotorchRsLoopTests(_LoopHarness, unittest.TestCase):
             for key in ("variance", "noise", "mean_constant"):
                 self.assertAlmostEqual(rs[key], bt[key], delta=1e-3 * max(1.0, abs(bt[key])))
             np.testing.assert_allclose(rs["lengthscale"], bt["lengthscale"], rtol=1e-3)
+
+    @unittest.skipUnless(HAS_REAL_OPENBO, "optional external openbo not installed")
+    def test_port_fitted_artifact_replays_through_external_openbo(self):
+        from botorch_rs.fit import fit_gpytorch_mll
+        from botorch_rs.kernels import MaternKernel, ScaleKernel
+        from botorch_rs.mlls import ExactMarginalLogLikelihood
+        from botorch_rs.models import SingleTaskGP
+        from botorch_rs.models.transforms.outcome import Standardize
+        from openbo.optimizers.mobo_botorch import pareto_front
+        from openbo.optimizers.mobo_taf import _load_mo_source_surrogates
+
+        library = import_bo_library()
+        module = load_backend_module("meta_train.py")
+        module.MODEL_LIBRARY = "botorch_rs"
+        module.MODEL_LIBRARY_INFO = library.library_record("botorch_rs", "botorch_rs", "artifact round-trip test")
+        module.N_FIT_RESTARTS = 2
+        stack = (torch, fit_gpytorch_mll, SingleTaskGP, Standardize, MaternKernel,
+                 ScaleKernel, ExactMarginalLogLikelihood, pareto_front, _load_mo_source_surrogates)
+        x = np.array([[0.05, 0.1], [0.25, 0.7], [0.5, 0.3], [0.75, 0.9], [0.95, 0.5]])
+        y = np.column_stack((np.sin(x[:, 0] * 3) * 0.6, np.cos(x[:, 1] * 2) * 0.5))
+        entries = module.fit_per_objective_hyperparameters(x, y, stack)
+        frame = module.meta_fingerprint.canonical_frame(
+            ["p0", "p1"], [(0, 1), (0, 1)], ["o0", "o1"], [(-1, 1, 0), (-1, 1, 0)])
+        with tempfile.TemporaryDirectory() as directory:
+            residual = module.write_artifact(directory, "port_source", x, y, entries, frame,
+                                             "synthetic_run", "synthetic", "generated", stack)
+            self.assertTrue(np.isfinite(residual))
+            payload = json.loads((pathlib.Path(directory) / "gp_states/port_source.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["provenance"]["model_library"]["version"], botorch_rs.__version__)
+            sources = _load_mo_source_surrogates(directory, expected_m=2, expected_d=2)
+            self.assertEqual([source.name for source in sources], ["port_source"])
+            query = torch.tensor([[0.2, 0.4], [0.6, 0.8]], dtype=torch.double)
+            expected = []
+            for j, entry in enumerate(entries):
+                model = SingleTaskGP(torch.tensor(x, dtype=torch.double),
+                                     torch.tensor(y[:, j:j + 1], dtype=torch.double),
+                                     covar_module=ScaleKernel(MaternKernel(nu=2.5, ard_num_dims=2)),
+                                     outcome_transform=Standardize(1))
+                with torch.no_grad():
+                    model.covar_module.base_kernel.lengthscale = torch.tensor(entry["lengthscale"], dtype=torch.double)
+                    model.covar_module.outputscale = entry["variance"]
+                    model.likelihood.noise = entry["noise"]
+                    model.mean_module.constant = entry["mean_constant"]
+                model.eval()
+                expected.append(model.posterior(query).mean.detach().numpy())
+            np.testing.assert_allclose(sources[0].posterior_mean(query.numpy()),
+                                       np.concatenate(expected, axis=-1), rtol=1e-6, atol=1e-8)
 
 
 if __name__ == "__main__":

@@ -171,8 +171,9 @@ namespace BOforUnity
 
         public OptimizerBackend optimizerBackend = OptimizerBackend.BoTorch;
 
-        // Model library of the BoTorch and MetaTAF backends, passed to Python as BO_MODEL_LIBRARY. CABOP and DBO
-        // always use BoTorch, and modes botorch-rust cannot run yet fall back to BoTorch (the console says so).
+        // Model library of the BoTorch and MetaTAF backends, passed to Python as BO_MODEL_LIBRARY.
+        // DBO uses botorch-rust; CABOP keeps its vendored optimizer. Unsupported optional library modes
+        // fall back to BoTorch (the console says so).
         // A study factor: keep it fixed within a study. Each run records the library it used.
         public ModelLibrary modelLibrary = ModelLibrary.BoTorch;
 

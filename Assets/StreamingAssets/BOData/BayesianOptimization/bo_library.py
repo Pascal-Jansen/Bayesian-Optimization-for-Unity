@@ -4,7 +4,7 @@
 # and the openbo modules they drive) can run their GP models, acquisition functions and
 # acquisition optimization on botorch-rust (https://github.com/M-Colley/botorch-rust, Python
 # package `botorch_rs`), a Rust implementation of BoTorch with the same API paths. CABOP and
-# DBO always use BoTorch.
+# DBO uses botorch-rust with its supplied GPyTorch temporal kernel.
 #
 # The environment variable BO_MODEL_LIBRARY selects it (Unity sets it from the inspector):
 #   botorch      BoTorch (default): exactly the behaviour of the backends without this module.
@@ -352,8 +352,8 @@ def _sha256_file(path):
 def botorch_rs_record():
     """Identity of the imported botorch_rs: version, location and SHA-256 of its extension.
 
-    The version stays 0.1.0-dev across source builds, so the extension's hash pins the exact
-    build (like MetaRunState.json's openbo module hashes).
+    The extension's hash distinguishes source builds and identifies the wheel's native
+    payload (like MetaRunState.json's openbo module hashes).
     """
     module = sys.modules.get("botorch_rs")
     if module is None:
