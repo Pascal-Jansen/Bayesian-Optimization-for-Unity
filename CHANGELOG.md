@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-22
+
 ### Changed
 - Pin `botorch-rust==0.3.0` in the shared requirements. The existing Model Library choice, matched Sobol initial designs, contextual model variants and run provenance remain available. Official BoTorch stays installed for its selectable backend and compatible external openbo releases.
 - The vendored DBO optimizer uses the port for GP models, fitting, acquisitions and acquisition optimization. Its temporal kernel and supplied GPyTorch modules retain PyTorch gradients; saved optimizer state records the active `botorch-rust` version. DBO keeps the shared Torch Sobol initial design. Suggested designs and fitted hyperparameters can change across optimizer versions.
