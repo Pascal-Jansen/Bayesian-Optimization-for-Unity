@@ -1,0 +1,496 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/protocol/ibo-protocol-v1.schema.json",
+  "title": "IBO protocol v1 message",
+  "description": "One NDJSON line of the IBO protocol, version 1 (protocol/README.md). Receivers ignore message types they do not know; this schema covers the types version 1 defines.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/init"
+    },
+    {
+      "$ref": "#/$defs/objectives"
+    },
+    {
+      "$ref": "#/$defs/stop"
+    },
+    {
+      "$ref": "#/$defs/parameters"
+    },
+    {
+      "$ref": "#/$defs/tempCoverage"
+    },
+    {
+      "$ref": "#/$defs/coverage"
+    },
+    {
+      "$ref": "#/$defs/optimizationFinished"
+    }
+  ],
+  "$defs": {
+    "key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "values": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "parameterInit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "low",
+            "high"
+          ],
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "string",
+          "description": "Legacy form \"low,high\""
+        }
+      ]
+    },
+    "objectiveInit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "low",
+            "high",
+            "minimize"
+          ],
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            },
+            "minimize": {
+              "enum": [
+                0,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "type": "string",
+          "description": "Legacy form \"low,high,minimize\""
+        }
+      ]
+    },
+    "parameter": {
+      "type": "object",
+      "required": [
+        "key",
+        "init"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "init": {
+          "$ref": "#/$defs/parameterInit"
+        },
+        "optSeqOrder": {
+          "type": "integer"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "CABOP parameter group"
+        },
+        "tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "CABOP: fraction of the range"
+        },
+        "prefabValues": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "description": "CABOP prefabricated values"
+        }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "required": [
+        "key",
+        "init"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "init": {
+          "$ref": "#/$defs/objectiveInit"
+        },
+        "optSeqOrder": {
+          "type": "integer"
+        },
+        "weight": {
+          "type": "number",
+          "description": "CABOP scalarized multi-objective weight"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": [
+        "nParameters",
+        "nObjectives"
+      ],
+      "description": "Unknown keys are ignored. Defaults and backend-specific keys: protocol/README.md.",
+      "properties": {
+        "optimizerBackend": {
+          "enum": [
+            "botorch",
+            "cabop",
+            "meta-taf",
+            "dbo"
+          ]
+        },
+        "nParameters": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "nObjectives": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "numSamplingIterations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "numOptimizationIterations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "batchSize": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "numRestarts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rawSamples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mcSamples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "warmStart": {
+          "type": "boolean"
+        },
+        "initialParametersDataPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "initialObjectivesDataPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "warmStartObjectiveFormat": {
+          "enum": [
+            "auto",
+            "raw",
+            "normalized_max",
+            "normalized_native"
+          ]
+        },
+        "cabopObjectiveMode": {
+          "enum": [
+            "single",
+            "multi"
+          ]
+        }
+      }
+    },
+    "user": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conditionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "groupId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "context": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Contextual optimization (manual section 8.13)",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "currentContext": {
+          "type": "string"
+        },
+        "embeddingSource": {
+          "enum": [
+            "learned",
+            "manual",
+            "image"
+          ]
+        },
+        "normalizeEmbeddings": {
+          "type": "boolean"
+        },
+        "imageEmbeddingModel": {
+          "type": "string"
+        },
+        "imageEmbeddingPretrained": {
+          "type": "string"
+        },
+        "contexts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "embedding": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "number"
+                }
+              },
+              "imagePath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "costTriplet": {
+      "type": "object",
+      "properties": {
+        "unchanged": {
+          "type": "number"
+        },
+        "swapped": {
+          "type": "number"
+        },
+        "acquired": {
+          "type": "number"
+        }
+      }
+    },
+    "init": {
+      "type": "object",
+      "required": [
+        "type",
+        "config",
+        "parameters",
+        "objectives"
+      ],
+      "properties": {
+        "type": {
+          "const": "init"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "config": {
+          "$ref": "#/$defs/config"
+        },
+        "parameters": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/parameter"
+          }
+        },
+        "objectives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/objective"
+          }
+        },
+        "user": {
+          "$ref": "#/$defs/user"
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        },
+        "cabopGroupCosts": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "required": [
+              "group"
+            ],
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "cost": {
+                "$ref": "#/$defs/costTriplet"
+              },
+              "actualCost": {
+                "$ref": "#/$defs/costTriplet"
+              }
+            }
+          }
+        }
+      }
+    },
+    "objectives": {
+      "type": "object",
+      "required": [
+        "type",
+        "values"
+      ],
+      "properties": {
+        "type": {
+          "const": "objectives"
+        },
+        "values": {
+          "$ref": "#/$defs/values"
+        }
+      }
+    },
+    "stop": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "stop"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "required": [
+        "type",
+        "values"
+      ],
+      "properties": {
+        "type": {
+          "const": "parameters"
+        },
+        "values": {
+          "$ref": "#/$defs/values"
+        },
+        "iteration": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "tempCoverage": {
+      "type": "object",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "tempCoverage"
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "coverage"
+        },
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "optimizationFinished": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "optimization_finished"
+        }
+      }
+    }
+  }
+}

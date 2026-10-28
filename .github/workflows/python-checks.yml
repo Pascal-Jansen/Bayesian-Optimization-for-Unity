@@ -49,7 +49,7 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy pandas pytest
+          python -m pip install numpy pandas pytest jsonschema
 
       - name: Check patch whitespace
         shell: bash
@@ -80,6 +80,9 @@ jobs:
 
       - name: Run standalone bridge tests (transport only; optimiser tests need torch)
         run: python -m pytest docs/standalone-bridge -p no:cacheprovider -v
+
+      - name: Run IBO core tests (client, launcher, protocol schema; end-to-end tests need torch)
+        run: python -m unittest discover core/tests -v
 
       - name: Check tests did not create Python caches
         shell: bash
@@ -152,3 +155,9 @@ jobs:
 
       - name: Run standalone bridge tests (real dbo_torch)
         run: python -m pytest docs/standalone-bridge -p no:cacheprovider -v
+
+      - name: Run IBO end-to-end studies (ibo_server.py + Python client, real backends)
+        shell: bash
+        run: |
+          python -m pip install jsonschema
+          IBO_TEST_PYTHON="$(command -v python)" python -m unittest discover core/tests -v
