@@ -93,6 +93,24 @@ class BackendSyncTests(unittest.TestCase):
         sync.sync(repository=self.root)
         self.assertEqual(helper.read_text(encoding="utf-8"), guid)
 
+    def test_a_folder_emptied_by_a_removal_goes_with_its_unity_metadata(self):
+        (self.root / "Backend/package").mkdir()
+        (self.root / "Backend/package/helper.py").write_bytes(b"value = 2\n")
+        sync.sync(repository=self.root)
+        folder = sync.unity_data_root(self.root) / "BayesianOptimization/package"
+        self.assertTrue(Path(str(folder) + ".meta").is_file())
+        (self.root / "Backend/package/helper.py").unlink()
+        (self.root / "Backend/package").rmdir()
+        sync.sync(repository=self.root)
+        self.assertFalse(folder.exists())
+        self.assertFalse(Path(str(folder) + ".meta").exists())
+        self.assertFalse((self.root / "Unreal/Backend/package").exists())
+        sync.sync(check=True, repository=self.root)
+        orphan = sync.unity_data_root(self.root) / "BayesianOptimization/stale.py.meta"
+        orphan.write_text("guid: stale\n", encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "without its asset"):
+            sync.sync_engine("unity", check=True, repository=self.root)
+
     def test_runtime_embedding_cache_is_not_distributed(self):
         cache = self.root / "Backend/InitData/ContextEmbeddingCache/vector.npy"
         cache.parent.mkdir(parents=True)

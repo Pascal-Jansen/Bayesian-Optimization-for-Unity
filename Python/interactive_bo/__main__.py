@@ -37,7 +37,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         return run(args)
-    except FileNotFoundError as error:  # no backend folder, or no such interpreter
+    except (FileNotFoundError, RuntimeError) as error:  # no backend or interpreter, server did not start, protocol error
         print(f"ibo: {error}", file=sys.stderr)
         return 2
 

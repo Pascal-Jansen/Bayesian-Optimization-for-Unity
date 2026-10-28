@@ -68,7 +68,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_a_server_that_fails_at_startup_reports_its_output(self):
         self.write_server('print("Traceback: no module named torch", flush=True)\nraise SystemExit(3)\n')
-        with self.assertRaisesRegex(RuntimeError, r"(?s)did not start.*exit code 3.*no module named torch"):
+        with self.assertRaisesRegex(RuntimeError, r"(?s)exited with code 3.*no module named torch"):
             launch_server(backend_dir=self.backend_dir, log_root=self.root / "logs", ready_timeout=30)
 
     def test_a_server_that_never_gets_ready_is_stopped(self):

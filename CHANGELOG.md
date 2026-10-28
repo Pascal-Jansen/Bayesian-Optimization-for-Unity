@@ -18,11 +18,12 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 - **iBO protocol v1** (`protocol/`): the Unity <-> Python protocol written down, with a JSON schema.
 - **Python client** (`Python/`, package `interactive-bo`) and `Backend/ibo_server.py`, which picks the backend from the init message: studies from any Python program, `python -m interactive_bo demo|serve`.
 - Configurable port per study (`BO_PORT`), URP and HDRP material tools, analytic Unity example (`Tools > iBO > Create Analytic Demo`).
+- README animations of recorded iBO runs (one parameter, two conflicting goals, a drifting optimum with DBO and standard BO) and a table of the publications; `tools/readme_figures` regenerates them and the overview figure.
 
 ### Changed
 - The Unity project moved to `Unity/`, the package folder to `Assets/iBO`, the namespaces to `BayesianOptimization.*`.
 - **QuestionnaireToolkit is an optional add-on** (`Assets/iBO-QuestionnaireToolkit`) with the questionnaire examples (`BO-example-scene`, color demo, click game, Fitts's law study). The runtime uses `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` from `BOforUnity.Shared`.
-- Questionnaires created from the add-on's `QTQuestionnaireManager` prefab, and its showcase scenes, save their results to `Assets/StreamingAssets/BOData/LogData/` like the BO samples (was `Assets/QuestionnaireToolkit/Results/`).
+- Questionnaires created from the add-on's `QTQuestionnaireManager` prefab, and its three showcase scenes, save their results to `Assets/StreamingAssets/BOData/LogData/` like the BO samples (was `Assets/QuestionnaireToolkit/Results/`).
 - Release tooling: `tools/build_packages.py` packs only files Git tracks (no local logs or IDE files); `tools/sync_backends.py` creates and checks the Unity `.meta` files of the backend copy and leaves the image-embedding cache out; the release workflow also sets the Unreal plugin's beta flag, and `tests/test_release_consistency.py` checks that the version files and license copies agree.
 
 ### Removed

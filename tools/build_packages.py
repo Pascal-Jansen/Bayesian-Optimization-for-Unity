@@ -49,8 +49,13 @@ def distribution_files(folder: Path) -> list[Path]:
 def archive_folder(folder: Path, output: Path) -> None:
     if folder.resolve() == output.resolve() or folder.resolve() in output.resolve().parents:
         raise ValueError("Archive output must be outside the directory being packaged")
+    if output.exists():
+        raise FileExistsError(output)
+    files = distribution_files(folder)
+    if not files:
+        raise ValueError(f"No files to package in {folder} (are they tracked by Git?)")
     with zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as archive:
-        for path in distribution_files(folder):
+        for path in files:
             archive.write(path, (Path(folder.name) / path.relative_to(folder)).as_posix())
     with zipfile.ZipFile(output) as archive:
         if archive.testzip() is not None:

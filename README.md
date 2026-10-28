@@ -35,6 +35,39 @@ several objectives, with far fewer trials than manual tuning, A/B tests or grid 
 One Python optimizer serves every integration over the same [iBO protocol](protocol/README.md). iBO continues
 *Bayesian Optimization for Unity*; if you used it, see the [migration guide](docs/migration-to-ibo.md).
 
+## How iBO works
+
+A study is a loop. iBO proposes a design, a person experiences it, their rating or behavior is measured, and iBO
+updates its estimate of what works before it proposes the next design. The first few designs are spread out to get an
+overview (**sampling**); after that, iBO picks designs where its estimate is high or still uncertain
+(**optimization**). The animations below are recorded iBO runs with simulated participants.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-one-parameter-dark.gif">
+  <img alt="Animation of an iBO run with one design parameter: after three spread-out designs, iBO's estimate and its uncertainty guide each next design, and the ratings settle at the best design within 12 ratings." src="images/ibo-one-parameter-light.gif">
+</picture>
+
+**One parameter, one rating.** The dashed curve is what the participant would rate, which iBO never sees. With every
+rating its estimate (blue) and uncertainty (band) improve, and within 12 ratings it settles on the best design.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-trade-offs-dark.gif">
+  <img alt="Animation of a multi-objective iBO run: designs on the left are linked to their comfort and speed results on the right; the best trade-offs line up along the hidden best possible curve." src="images/ibo-trade-offs-light.gif">
+</picture>
+
+**Two goals that conflict.** When comfort and speed pull in different directions there is no single best design, but
+a set of best trade-offs (the Pareto front): designs that no other design beats on both goals. Multi-objective BO
+(MOBO) finds them; the dotted line links each design (left) to its result (right).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-drift-dark.gif">
+  <img alt="Animation comparing Dynamic BO and standard BO while the best design moves during a session: DBO's designs follow the moving best design, standard BO's designs scatter." src="images/ibo-drift-light.gif">
+</picture>
+
+**Preferences that change during a session.** People adapt, learn and tire, so the best design can move. Dynamic BO
+(DBO) trusts recent ratings more and keeps up: 15 of its 20 model-guided designs land in the gold band, against 7 for
+standard BO, which treats old and new ratings alike.
+
 ## At a glance
 
 | Part | What you get | Folder | Start here |
@@ -97,7 +130,7 @@ python -m pip install ./Python
 ibo demo --python .venv/bin/python
 ```
 
-![The Unity integration in action](images/BOforUnity.gif)
+![The Unity integration in action: a questionnaire study in Unity](images/BOforUnity.gif)
 
 ## Use iBO in your own project
 
@@ -141,7 +174,7 @@ pseudonymous participant IDs.
 | `Backend/` | The optimizer: backends, iBO server (`ibo_server.py`), requirements, licenses, example data |
 | `Unity/`, `Unreal/`, `Python/` | Integrations; `Unity/` and `Unreal/` carry generated copies of `Backend/` |
 | `protocol/` | iBO protocol specification and JSON schema |
-| `tools/` | `sync_backends.py` (engine copies of `Backend/`) and release packaging |
+| `tools/` | `sync_backends.py` (engine copies of `Backend/`), release packaging, and `readme_figures/` (the README figures, drawn from recorded iBO runs) |
 | `tests/` | Python tests of the backend and the release tools |
 | `docs/` | Manual, migration guide, architecture, validation, backend guides, [roadmap](docs/ibo/ROADMAP.md) |
 | `images/` | Figures of the README and the manual |
@@ -182,28 +215,22 @@ python -m unittest discover Python/tests
 
 ## Publications
 
-Scientific publications built on iBO (as Bayesian Optimization for Unity):
+**8 papers** at CHI, UIST, IMWUT and AutomotiveUI used iBO (as Bayesian Optimization for Unity) to optimize interfaces
+with people in the loop.
 
-**2026**
+| Year | Venue | Paper | What was optimized |
+|---|---|---|---|
+| 2026 | **IMWUT** | [**BlurDriving**: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://dl.acm.org/doi/10.1145/3831646) | Personalized blur for drivers in VR |
+| | **IMWUT** | [Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/10.1145/3831988) | Automated-vehicle communication across cultures |
+| | **AutomotiveUI '26** | [Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://dl.acm.org/doi/10.1145/3828157.3828785) | Automated-vehicle visualizations over several sessions |
+| | **UIST '26** | [**MoTUI**: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf) | Tactile in-vehicle interfaces |
+| | **CHI '26** | [**ProVoice**: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877) | Proactive voice assistants |
+| 2025 | **CHI '25** | [**OptiCarVis**: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514)<br>🏆 Best Paper Honorable Mention (top 5%) | Automated-vehicle visualizations |
+| | **CHI '25** | [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187) | External communication of automated vehicles |
+| | **CHI '25** | [**Fly Away**: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288) | Interfaces for urban air mobility |
 
-[BlurDriving: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://dl.acm.org/doi/10.1145/3831646). In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM.
-
-[Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/10.1145/3831988). In *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10. **IMWUT**. ACM.
-
-[Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://dl.acm.org/doi/10.1145/3828157.3828785). In *Proceedings of the 18th International Conference on Automotive User Interfaces and Interactive Vehicular Applications*. **AutomotiveUI '26**. ACM.
-
-[MoTUI: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf). In *Proceedings of the 39th Annual ACM Symposium on User Interface Software and Technology*. **UIST '26**. ACM.
-
-[ProVoice: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877). In *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems*. **CHI '26**. ACM.
-
-**2025**
-
-[OptiCarVis: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems*. **CHI '25**. ACM.
-  **Best Paper Honorable Mention (top 5%)**
-
-[Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems*. **CHI '25**. ACM.
-
-[Fly Away: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288). In *Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems*. **CHI '25**. ACM.
+IMWUT: *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10; all papers are
+published by ACM. Used iBO in your research? Open an issue or a pull request to add your paper.
 
 ## Citation
 

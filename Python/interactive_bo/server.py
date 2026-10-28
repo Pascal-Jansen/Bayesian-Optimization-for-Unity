@@ -76,9 +76,10 @@ class ServerProcess:
         self._ready.wait(timeout)
         if not self._seen_ready:
             tail = "\n".join(list(self.output)[-30:])
+            code = self.process.poll()
             self.stop()
-            raise RuntimeError(f"The iBO server did not start within {timeout:g} s "
-                               f"(exit code {self.process.poll()}). Last output:\n{tail}")
+            reason = f"exited with code {code}" if code is not None else f"did not start within {timeout:g} s"
+            raise RuntimeError(f"The iBO server {reason}. Last output:\n{tail}")
 
     def wait(self, timeout: Optional[float] = None) -> int:
         code = self.process.wait(timeout)

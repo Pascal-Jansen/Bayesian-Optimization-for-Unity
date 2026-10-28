@@ -60,6 +60,15 @@ class PackagingTests(unittest.TestCase):
             (source / "Unreal.sln").write_bytes(b"local project file")
             self.assertEqual(packaging.distribution_files(source), [source / "README.md"])
 
+    def test_an_empty_package_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "Unreal"
+            (source / "LogData").mkdir(parents=True)
+            (source / "LogData/private.csv").write_bytes(b"private measurements")
+            with self.assertRaisesRegex(ValueError, "No files to package"):
+                packaging.archive_folder(source, Path(folder) / "release.zip")
+            self.assertFalse((Path(folder) / "release.zip").exists())
+
     def test_questionnaire_addon_is_left_out_of_the_unity_archive(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

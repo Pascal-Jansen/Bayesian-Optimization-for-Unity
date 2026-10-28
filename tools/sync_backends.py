@@ -136,6 +136,10 @@ def sync_engine(engine: str, check: bool = False, repository: Path | None = None
             for name in unity_meta_paths(manifest):
                 if not (destination / (name + ".meta")).is_file():
                     errors.append(f"Missing Unity .meta file (run tools/sync_backends.py): {name}.meta")
+            for folder in (code_folder, *DATA_FOLDERS):
+                for metadata in (destination / folder).rglob("*.meta"):
+                    if not set(RUNTIME_FOLDERS) & set(metadata.parts) and not metadata.with_suffix("").exists():
+                        errors.append(f"Unity .meta file without its asset: {metadata.relative_to(destination).as_posix()}")
         if errors:
             raise RuntimeError("\n".join(errors))
         return manifest
@@ -147,6 +151,14 @@ def sync_engine(engine: str, check: bool = False, repository: Path | None = None
             metadata = managed_target(destination, name + ".meta", engine)
             if metadata.is_file():
                 metadata.unlink()
+        # A folder emptied by the removal goes too, with its Unity .meta.
+        folder = target.parent
+        while folder != destination and folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()
+            folder_meta = folder.with_name(folder.name + ".meta")
+            if engine == "unity" and folder_meta.is_file():
+                folder_meta.unlink()
+            folder = folder.parent
     for original, target in sorted(mapping.items()):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(canonical_bytes(original))

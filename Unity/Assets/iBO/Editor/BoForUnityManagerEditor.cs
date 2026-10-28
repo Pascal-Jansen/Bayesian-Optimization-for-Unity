@@ -231,7 +231,7 @@ namespace BayesianOptimization.Editor
             EditorGUILayout.LabelField("Python Settings", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("port"), new GUIContent("Optimizer TCP Port"));
             var localPyLabel = new GUIContent("Manually Installed Python",
-                "Use a locally installed Python instead of the project’s installer.");
+                "Use this Python interpreter instead of searching for an installed Python 3.13.");
             EditorGUILayout.PropertyField(localPythonProp, localPyLabel);
             EditorGUILayout.Space();
 

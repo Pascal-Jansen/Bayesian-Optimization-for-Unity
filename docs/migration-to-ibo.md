@@ -30,11 +30,14 @@ updated files in `Assets/BOforUnity` and `Assets/QuestionnaireToolkit` next to n
 project would not compile. Remove the old version first:
 
 1. Back up the project or commit it, then close Unity.
-2. Delete `Assets/BOforUnity`, `Assets/QuestionnaireToolkit` and everything in `Assets/StreamingAssets/BOData` except
-   `LogData` (your logs; this also removes the old installers in `Installation/Windows`, `MacOs` and `Linux`).
+2. Delete `Assets/BOforUnity`, `Assets/QuestionnaireToolkit`, and in `Assets/StreamingAssets/BOData` the folders
+   `BayesianOptimization` and `Installation` (this removes the old installers; move an offline `Installation/wheels`
+   cache aside first). Keep `LogData` (your logs), `InitData` (warm-start files, context images) and `MetaSources`
+   (MetaTAF population models).
 3. Copy `Assets/iBO` and `Assets/StreamingAssets/BOData` from the iBO Unity project (`Unity/` in this repository, or
-   the `iBO-Unity-<version>.zip` of a release) into the project. If you use questionnaires, also copy
-   `Assets/iBO-QuestionnaireToolkit` from this repository (the add-on is not part of the release packages).
+   the `iBO-Unity-<version>.zip` of a release) into the project, merging `BOData` with the folders you kept. If you use
+   questionnaires, also copy `Assets/iBO-QuestionnaireToolkit` from this repository (the add-on is not part of the
+   release packages).
 4. Open the project. Scenes and prefabs keep their components: every script kept its GUID.
 5. Replace `using BOforUnity...` with `using BayesianOptimization...` in your scripts. Code that used
    `QTQuestionnaireManager` from the optimization side can use `StudyQuestionnaires.Resolve()` and `IStudyQuestionnaire`.

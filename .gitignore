@@ -50,6 +50,7 @@ Unreal/LogData/
 # The Python client's default log root (./LogData) when run from the repository root or Backend/
 /LogData/
 Backend/LogData/
+tools/readme_figures/runs/
 
 # Left over in clones of the 1.x layout, where the Unity project was the repository root (see docs/migration-to-ibo.md)
 /Assets/

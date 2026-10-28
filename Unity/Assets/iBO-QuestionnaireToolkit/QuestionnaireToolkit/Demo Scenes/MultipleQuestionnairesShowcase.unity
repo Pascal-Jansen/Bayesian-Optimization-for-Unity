@@ -14045,7 +14045,7 @@ MonoBehaviour:
   showPageNumber: 1
   showPrevButton: 1
   generateResultsFile: 1
-  resultsSavePath: /QuestionnaireResults
+  resultsSavePath: Assets/StreamingAssets/BOData/LogData/
   resultsFileName: Questionnaire-2
   resultsFileFormat: 0
   newFileEachStart: 1
@@ -15919,7 +15919,7 @@ MonoBehaviour:
   showPageNumber: 1
   showPrevButton: 1
   generateResultsFile: 1
-  resultsSavePath: /QuestionnaireResults
+  resultsSavePath: Assets/StreamingAssets/BOData/LogData/
   resultsFileName: Questionnaire-1
   resultsFileFormat: 0
   newFileEachStart: 1

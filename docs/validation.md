@@ -35,7 +35,7 @@ Checked on macOS (Apple Silicon) on 28 October 2026 with Python 3.13; Unity 6000
 
 | Check | Result |
 | --- | --- |
-| Backend, packaging and standalone-bridge tests (`python -m pytest -q tests docs/standalone-bridge`, without torch) | 464 passed, 69 skipped |
+| Backend, packaging and standalone-bridge tests (`python -m pytest -q tests docs/standalone-bridge`, without torch) | 467 passed, 69 skipped |
 | Unreal portable tests | Passed |
 | Python client tests, including real BoTorch (single and multi-objective) and DBO studies through `ibo_server.py` | Passed; the client tests also pass on Python 3.9 |
 | Backend source synchronization | Both generated copies match 40 canonical files, Unity `.meta` files complete |

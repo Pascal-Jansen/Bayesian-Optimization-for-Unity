@@ -22,8 +22,8 @@ using Debug = UnityEngine.Debug;
 //
 // Setup (off the main thread, with timeouts):
 //   1. Find an interpreter: the configured one ("Manually Installed Python"), or the best installed Python 3.13
-//      (the python.org install location first; newer minors only after every tested one failed). When none is
-//      found, setup stops and asks for a Python 3.13 installation.
+//      (the standard install location first: python.org on Windows/macOS, /usr/bin on Linux; newer minors only after
+//      every tested one failed). When none is usable, setup stops and asks for a Python 3.13 installation.
 //   2. Pick where the packages go: into the configured interpreter if it already is a venv/conda environment,
 //      otherwise into a private venv at persistentDataPath/BOData/python-venv (falls back to `pip install --user`
 //      if a venv cannot be created, e.g. Debian without python3-venv).
@@ -1044,7 +1044,7 @@ namespace BayesianOptimization.Scripts
             if (candidates.Count == 0)
             {
                 return SetupOutcome.Fail(
-                    $"No Python {SupportedPythonMajor}.{MinSupportedPythonMinor} or newer was found. Install Python " +
+                    $"No usable Python {SupportedPythonMajor}.{MinSupportedPythonMinor} or newer was found (the Console lists skipped interpreters and why). Install Python " +
                     $"{SupportedPythonMajor}.{MaxTestedPythonMinor}, or enable Manually Installed Python on the optimizer manager and set " +
                     "Path of Python Executable to an installed interpreter. Restart Play mode after installation.");
             }
@@ -1321,7 +1321,7 @@ namespace BayesianOptimization.Scripts
 
         // The private environment for this base interpreter: the main one when it is unused or was built from this base,
         // otherwise a sibling keyed by the base path. Switching between interpreters (e.g. a manual one and the
-        // discovered bundled one) then reuses each environment instead of wiping the working one with --clear, which
+        // discovered one) then reuses each environment instead of wiping the working one with --clear, which
         // offline destroyed the only usable install before the new one failed.
         private static string GetPrivateVenvDirFor(SetupContext ctx, PythonCandidate baseCandidate)
         {
@@ -2116,8 +2116,7 @@ namespace BayesianOptimization.Scripts
 
             public void Dispose()
             {
-                // A nested acquisition (the bundled install holds the lock while the environment is prepared)
-                // must not release its caller's lock.
+                // A nested acquisition must not release its caller's lock.
                 if (!_owner)
                     return;
                 TryDelete(_ctx.LockPath);

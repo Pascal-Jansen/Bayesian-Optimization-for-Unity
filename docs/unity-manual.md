@@ -641,7 +641,7 @@ If that Python already is a virtual or conda environment, iBO installs the packa
 
 ### 8.6 Study Settings
 
-Set `User ID`, `Condition ID`, and `Group ID` in the inspector section shown in the [image](#py_st_ws_pr_settings).
+Set `User ID`, `Condition ID`, and `Group ID` in the inspector section **Study Settings**.
 If your study does not use any of these IDs, leave the field at -1. The value will still be logged, but you can ignore it in analysis.
 These three values are always logged as context columns in `ObservationsPerEvaluation.csv` and are used together for final-design row filtering.
 
@@ -735,7 +735,7 @@ Backend selection:
 
 ### 8.10 Optimization Budget
 
-These options are in the lower part of this [image](#py_st_ws_pr_settings).
+These options are in the inspector section **Optimization Budget** ([table](#py_st_ws_pr_settings)).
 
 #### 8.10.1 Warm Start Settings
 
