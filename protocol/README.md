@@ -1,6 +1,6 @@
-# IBO Protocol, version 1
+# iBO Protocol, version 1
 
-How an integration (Unity, Unreal, web, Python, ...) runs a human-in-the-loop study with the IBO
+How an integration (Unity, Unreal, web, Python, ...) runs a human-in-the-loop study with the iBO
 server. Version 1 is the protocol that Bayesian Optimization for Unity has used up to 1.8, written
 down; the Unity integration already speaks it. The machine-readable form is
 [`ibo-protocol-v1.schema.json`](ibo-protocol-v1.schema.json).
@@ -129,7 +129,7 @@ The server waits up to `BO_ACCEPT_TIMEOUT_SEC` (300 s) for the connection and up
 | Side | Where |
 |---|---|
 | Server | `Backend/ibo_server.py` and the backends next to it; `tools/sync_backends.py` copies them into the engines |
-| Unity client | `Unity/Assets/IBO/Scripts/SocketNetwork.cs`, started by `PythonStarter.cs` |
+| Unity client | `Unity/Assets/iBO/Scripts/SocketNetwork.cs`, started by `PythonStarter.cs` |
 | Unreal client | `Unreal/Plugins/BayesianOptimization/Source/BayesianOptimization/Private/BoProtocol.cpp` and `BoTransport.cpp`, started by `Unreal/launch_backend.py` |
 | Python client | `Python/interactive_bo/client.py`, launcher `Python/interactive_bo/server.py` |
 

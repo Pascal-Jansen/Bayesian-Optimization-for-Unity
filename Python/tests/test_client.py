@@ -1,4 +1,4 @@
-"""Tests for interactive_bo.client against a scripted IBO server on a real socket (standard library only)."""
+"""Tests for interactive_bo.client against a scripted iBO server on a real socket (standard library only)."""
 
 import json
 import math

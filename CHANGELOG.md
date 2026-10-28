@@ -10,18 +10,18 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 ## [Unreleased]
 
 ### Renamed
-- **Bayesian Optimization for Unity is now Interactive Bayesian Optimization (IBO)**: one Python optimizer for several integrations. See the [migration guide](docs/migration-to-ibo.md); scenes and prefabs keep working (unchanged GUIDs), scripts need `using BayesianOptimization...` instead of `using BOforUnity...`.
+- **Bayesian Optimization for Unity is now Interactive Bayesian Optimization (iBO)**: one Python optimizer for several integrations. See the [migration guide](docs/migration-to-ibo.md); scenes and prefabs keep working (unchanged GUIDs), scripts need `using BayesianOptimization...` instead of `using BOforUnity...`.
 
 ### Added
 - **Shared backend and multi-engine layout** (from [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines)): `Backend/` is the optimizer source; `tools/sync_backends.py` writes the copies in `Unity/` and `Unreal/`, and CI checks them.
 - **Unreal Engine plugin** (`Unreal/`): C++ component with Blueprint events, analytic example actor and Python launcher.
-- **IBO protocol v1** (`protocol/`): the Unity <-> Python protocol written down, with a JSON schema.
+- **iBO protocol v1** (`protocol/`): the Unity <-> Python protocol written down, with a JSON schema.
 - **Python client** (`Python/`, package `interactive-bo`) and `Backend/ibo_server.py`, which picks the backend from the init message: studies from any Python program, `python -m interactive_bo demo|serve`.
-- Configurable port per study (`BO_PORT`), optional botorch-rust model library (`BO_MODEL_LIBRARY`), URP and HDRP material tools, analytic Unity example (`Tools > IBO > Create Analytic Demo`).
+- Configurable port per study (`BO_PORT`), optional botorch-rust model library (`BO_MODEL_LIBRARY`), URP and HDRP material tools, analytic Unity example (`Tools > iBO > Create Analytic Demo`).
 
 ### Changed
-- The Unity project moved to `Unity/`, the package folder to `Assets/IBO`, the namespaces to `BayesianOptimization.*`.
-- **QuestionnaireToolkit is an optional add-on** (`Assets/IBO-QuestionnaireToolkit`) with the questionnaire examples (`BO-example-scene`, color demo, click game, Fitts's law study). The runtime uses `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` from `BOforUnity.Shared`.
+- The Unity project moved to `Unity/`, the package folder to `Assets/iBO`, the namespaces to `BayesianOptimization.*`.
+- **QuestionnaireToolkit is an optional add-on** (`Assets/iBO-QuestionnaireToolkit`) with the questionnaire examples (`BO-example-scene`, color demo, click game, Fitts's law study). The runtime uses `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` from `BOforUnity.Shared`.
 
 ### Removed
 - **The bundled Python installers and the install scripts** (`Installation/Windows`, `MacOs`, `Linux`; this supersedes the install-script notes below): install Python 3.13 yourself; Unity still installs the Python packages on the first Play.

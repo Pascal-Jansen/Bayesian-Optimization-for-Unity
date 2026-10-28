@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/protocol/ibo-protocol-v1.schema.json",
-  "title": "IBO protocol v1 message",
-  "description": "One NDJSON line of the IBO protocol, version 1 (protocol/README.md). Receivers ignore message types they do not know; this schema covers the types version 1 defines.",
+  "title": "iBO protocol v1 message",
+  "description": "One NDJSON line of the iBO protocol, version 1 (protocol/README.md). Receivers ignore message types they do not know; this schema covers the types version 1 defines.",
   "oneOf": [
     {
       "$ref": "#/$defs/init"

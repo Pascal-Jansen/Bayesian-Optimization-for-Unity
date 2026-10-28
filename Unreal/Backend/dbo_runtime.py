@@ -10,7 +10,7 @@
 # instead of assuming the objective is stationary.
 #
 # TIME IS THE ITERATION INDEX, AND IT IS CONTINUOUS ACROSS BOTH PHASES.
-# IBO runs a sampling phase (numSamplingIterations) followed by an optimization
+# iBO runs a sampling phase (numSamplingIterations) followed by an optimization
 # phase (numOptimizationIterations). Both phases are fed to ONE DynamicBO instance via
 # suggest()/observe(), so the sampling points are iterations 1..N_INITIAL and the
 # optimization points continue at N_INITIAL+1 .. N_INITIAL+N_ITERATIONS on the same
@@ -21,7 +21,7 @@
 # package's own mechanism for "fixed inputs at the first iterations" and keeps the
 # ask/tell loop uniform across phases.
 #
-# SIGN CONVENTION. IBO's canonical frame (bo_normalize.py) is: parameters in
+# SIGN CONVENTION. iBO's canonical frame (bo_normalize.py) is: parameters in
 # [0,1]^d, objectives in [-1,1] as a MAXIMIZATION problem, with the per-objective
 # 'minimize' flag from the init message already folded in via a sign flip. DynamicBO
 # MINIMISES cost. The bridge is therefore cost = -f, applied at exactly two places

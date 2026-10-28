@@ -1,4 +1,4 @@
-# ibo_server.py — the single entry point of the Interactive Bayesian Optimization (IBO) server.
+# ibo_server.py — the single entry point of the Interactive Bayesian Optimization (iBO) server.
 #
 # A client can start this script instead of choosing one of bo.py, mobo.py, cabop_bo.py,
 # cabop_mobo.py, meta_mobo.py or dbo.py itself (Unity's PythonStarter and Unreal's
@@ -6,7 +6,7 @@
 # every backend (127.0.0.1, BO_PORT or 56001; prints "Server starts, waiting for connection..."),
 # reads the client's init message, picks the backend from it with the rules PythonStarter.cs uses,
 # and runs that backend on the same connection (bo_protocol.adopt_connection). The wire protocol
-# is unchanged: protocol/README.md (IBO protocol v1).
+# is unchanged: protocol/README.md (iBO protocol v1).
 #
 # Backend choice from init.config:
 #   optimizerBackend "botorch" (default)  -> bo.py with one objective, mobo.py with more
@@ -71,7 +71,7 @@ def main():
     finally:
         s.close()
 
-    print(f"IBO server: running backend '{module_name}'.", flush=True)
+    print(f"iBO server: running backend '{module_name}'.", flush=True)
     bo_protocol.adopt_connection(conn, init_msg)
     backend = importlib.import_module(module_name)
     backend.main(**kwargs)  # closes the connection when the study ends

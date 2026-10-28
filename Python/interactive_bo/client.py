@@ -1,4 +1,4 @@
-"""Python client of the IBO protocol v1 (protocol/README.md).
+"""Python client of the iBO protocol v1 (protocol/README.md).
 
 Standard library only, so it runs inside experiment software (PsychoPy, robot controllers, scripts)
 without the optimizer's dependencies. The server proposes designs; the client evaluates them with a
@@ -138,7 +138,7 @@ class Design:
 
 
 class IboClient:
-    """One session with an IBO server: start(), then alternate next_design() and report().
+    """One session with an iBO server: start(), then alternate next_design() and report().
 
     ``on_message`` is called with every server message (dict), including progress messages.
     Unknown message types are ignored, so newer servers can add messages.

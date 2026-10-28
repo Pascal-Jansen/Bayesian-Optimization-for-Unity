@@ -19,7 +19,7 @@ namespace BayesianOptimization.Editor.Rendering
     /// <summary>Creates example materials for the user's existing render pipeline.</summary>
     public static class BoDemoRendering
     {
-        public const string GeneratedRoot = "Assets/IBOGenerated/Rendering";
+        public const string GeneratedRoot = "Assets/iBOGenerated/Rendering";
 
         public static BoDemoPipeline ActivePipeline
         {
@@ -153,8 +153,8 @@ namespace BayesianOptimization.Editor.Rendering
         {
             if (!scene.IsValid() || !scene.isLoaded) throw new ArgumentException("An open scene is required.", nameof(scene));
             Material[] variants = GenerateMaterials(generatedFolder);
-            Material originalCube = AssetDatabase.LoadAssetAtPath<Material>("Assets/IBO/Examples/CubeMat.mat");
-            Material originalCylinder = AssetDatabase.LoadAssetAtPath<Material>("Assets/IBO/Examples/CylinderMat.mat");
+            Material originalCube = AssetDatabase.LoadAssetAtPath<Material>("Assets/iBO/Examples/CubeMat.mat");
+            Material originalCylinder = AssetDatabase.LoadAssetAtPath<Material>("Assets/iBO/Examples/CylinderMat.mat");
             int changed = 0;
             foreach (GameObject root in scene.GetRootGameObjects())
             foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
@@ -170,7 +170,7 @@ namespace BayesianOptimization.Editor.Rendering
                     else if (source != null)
                     {
                         string sourcePath = AssetDatabase.GetAssetPath(source);
-                        bool owned = sourcePath.StartsWith("Assets/IBO/Samples/Rendering/", StringComparison.Ordinal) ||
+                        bool owned = sourcePath.StartsWith("Assets/iBO/Samples/Rendering/", StringComparison.Ordinal) ||
                                      sourcePath.StartsWith(GeneratedRoot + "/", StringComparison.Ordinal);
                         if (owned)
                         {
@@ -227,7 +227,7 @@ namespace BayesianOptimization.Editor.Rendering
             return scene;
         }
 
-        [MenuItem("Tools/IBO/Rendering/Generate Materials for Active Pipeline")]
+        [MenuItem("Tools/iBO/Rendering/Generate Materials for Active Pipeline")]
         private static void GenerateMenu()
         {
             Material[] materials = GenerateMaterials();
@@ -236,14 +236,14 @@ namespace BayesianOptimization.Editor.Rendering
             Debug.Log("BO materials generated for " + ActivePipeline + ". Project render pipeline settings were preserved.");
         }
 
-        [MenuItem("Tools/IBO/Rendering/Prepare Open BO Demo Scene")]
+        [MenuItem("Tools/iBO/Rendering/Prepare Open BO Demo Scene")]
         private static void PrepareMenu()
         {
             int changed = PrepareScene(SceneManager.GetActiveScene());
             Debug.Log("BO example renderers updated: " + changed + ". Save the scene to retain these material references.");
         }
 
-        [MenuItem("Tools/IBO/Rendering/Create Material Preview Scene")]
+        [MenuItem("Tools/iBO/Rendering/Create Material Preview Scene")]
         private static void PreviewMenu()
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;

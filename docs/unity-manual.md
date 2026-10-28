@@ -1,10 +1,10 @@
 # Bayesian Optimization for Unity
 
-> **This is the manual of Bayesian Optimization for Unity 1.8, now part of [Interactive Bayesian Optimization (IBO)](../README.md).**
+> **This is the manual of Bayesian Optimization for Unity 1.8, now part of [Interactive Bayesian Optimization (iBO)](../README.md).**
 > Its concepts and settings still apply to the Unity integration. Changed since 1.8 (see the [migration guide](migration-to-ibo.md)):
-> the Unity project is in `Unity/` and the package folder is `Assets/IBO`; namespaces are `BayesianOptimization.*`;
+> the Unity project is in `Unity/` and the package folder is `Assets/iBO`; namespaces are `BayesianOptimization.*`;
 > Python 3.13 is no longer bundled (install it yourself); QuestionnaireToolkit and the questionnaire example scenes are an
-> optional add-on in `Assets/IBO-QuestionnaireToolkit`; the optimizer source is `Backend/` (copied into the engines by
+> optional add-on in `Assets/iBO-QuestionnaireToolkit`; the optimizer source is `Backend/` (copied into the engines by
 > `tools/sync_backends.py`).
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg)](https://doi.org/10.5281/zenodo.19786494)
@@ -1227,7 +1227,7 @@ Once the server is running, *BoForUnityManager.cs* communicates with the selecte
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
-The Python side does not depend on Unity: the [IBO protocol](../protocol/README.md) describes the messages, *ibo_server.py* picks the backend from the init message, and the [Python client](../Python/README.md) runs complete studies from any program. The project is becoming Interactive Bayesian Optimization (IBO) with further integrations; see the [roadmap](ibo/ROADMAP.md).
+The Python side does not depend on Unity: the [iBO protocol](../protocol/README.md) describes the messages, *ibo_server.py* picks the backend from the init message, and the [Python client](../Python/README.md) runs complete studies from any program. The project is becoming Interactive Bayesian Optimization (iBO) with further integrations; see the [roadmap](ibo/ROADMAP.md).
 
 <br>
 

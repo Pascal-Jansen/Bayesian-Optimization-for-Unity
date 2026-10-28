@@ -1,10 +1,10 @@
-# Interactive Bayesian Optimization (IBO) for Unreal Engine
+# Interactive Bayesian Optimization (iBO) for Unreal Engine
 
 This distribution provides a native Unreal Engine 5 runtime plugin and a separate Python optimization backend. The component exposes study settings and events to Blueprint and C++. The backend implements single objective BO, multi objective BO, CABOP, DynamicBO, and MetaTAF. Parameters and objectives retain their original units across the connection. The Python backend performs normalization and objective direction changes.
 
 ## Installation
 
-Use Unreal Engine 5.8 with its supported C++ compiler. Copy `Plugins/BayesianOptimization` into the `Plugins` folder of a C++ Unreal project. Regenerate project files and build the project. Enable Interactive Bayesian Optimization (IBO) in the Plugins window. The plugin uses Unreal's Core, CoreUObject, Engine, Sockets, and Json modules. It requires no additional Unreal plugin.
+Use Unreal Engine 5.8 with its supported C++ compiler. Copy `Plugins/BayesianOptimization` into the `Plugins` folder of a C++ Unreal project. Regenerate project files and build the project. Enable Interactive Bayesian Optimization (iBO) in the Plugins window. The plugin uses Unreal's Core, CoreUObject, Engine, Sockets, and Json modules. It requires no additional Unreal plugin.
 
 Keep the remaining distribution in a separate writable directory. Install Python 3.13 and create a virtual environment. Run these commands from this directory with that interpreter:
 

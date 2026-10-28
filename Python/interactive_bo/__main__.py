@@ -9,7 +9,7 @@ from .server import launch_server
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="ibo", description="Interactive Bayesian Optimization (IBO)")
+    parser = argparse.ArgumentParser(prog="ibo", description="Interactive Bayesian Optimization (iBO)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p):
@@ -17,7 +17,7 @@ def main(argv=None) -> int:
         p.add_argument("--log-root", help="folder for the run logs (default: ./LogData)")
         p.add_argument("--backend-dir", help="folder holding ibo_server.py (default: IBO_BACKEND_DIR or this checkout)")
 
-    serve = sub.add_parser("serve", help="run the IBO server for one study; clients connect to 127.0.0.1:PORT")
+    serve = sub.add_parser("serve", help="run the iBO server for one study; clients connect to 127.0.0.1:PORT")
     common(serve)
     serve.add_argument("--port", type=int, default=56001, help="TCP port (default: %(default)s, as Unity)")
     serve.add_argument("--init-root", help="warm-start and context data (default: the backend's InitData)")
@@ -31,7 +31,7 @@ def main(argv=None) -> int:
     if args.command == "serve":
         server = launch_server(python=args.python, port=args.port, log_root=args.log_root,
                                init_root=args.init_root, backend_dir=args.backend_dir, echo=True)
-        print(f"IBO server listening on 127.0.0.1:{server.port}; logs in {server.log_root}", flush=True)
+        print(f"iBO server listening on 127.0.0.1:{server.port}; logs in {server.log_root}", flush=True)
         try:
             return server.wait()
         except KeyboardInterrupt:

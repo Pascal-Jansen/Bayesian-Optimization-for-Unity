@@ -51,10 +51,10 @@ class PackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = root / "Unity"
-            addon = source / "Assets/IBO-QuestionnaireToolkit"
+            addon = source / "Assets/iBO-QuestionnaireToolkit"
             (addon / "QuestionnaireToolkit/Plugins").mkdir(parents=True)
             (addon / "QuestionnaireToolkit/Plugins/Ookii.Dialogs.dll").write_bytes(b"native")
-            (source / "Assets/IBO-QuestionnaireToolkit.meta").write_bytes(b"folder metadata")
+            (source / "Assets/iBO-QuestionnaireToolkit.meta").write_bytes(b"folder metadata")
             (source / "Assets/README.md").write_bytes(b"Example\n")
             output = root / "release.zip"
             packaging.archive_folder(source, output)
@@ -72,7 +72,7 @@ class PackagingTests(unittest.TestCase):
                     packaging.distribution_files(root)
 
     def test_asset_package_paths_are_checked(self):
-        for path, expected in (("Assets/IBO/Scripts/Optimizer.cs", True),
+        for path, expected in (("Assets/iBO/Scripts/Optimizer.cs", True),
                                ("Assets/QuestionnaireToolkit/source.cs", False),
                                ("Assets/StreamingAssets/python.exe", False)):
             with self.subTest(path=path), tempfile.TemporaryDirectory() as folder:

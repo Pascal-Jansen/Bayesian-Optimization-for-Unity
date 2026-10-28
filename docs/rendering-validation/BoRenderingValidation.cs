@@ -46,7 +46,7 @@ public static class BoRenderingValidation
             AssetDatabase.SaveAssets();
             if (BoDemoRendering.ActivePipeline.ToString() != pipelineName) throw new Exception("Incorrect pipeline detection.");
 #if BO_VALIDATION_FULL
-            var previewScene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/IBO/Samples/Rendering/BuiltIn/BO-rendering-preview.unity");
+            var previewScene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/iBO/Samples/Rendering/BuiltIn/BO-rendering-preview.unity");
             if (BoDemoRendering.PrepareScene(previewScene, "Assets/Validation/Materials") != 2)
                 throw new Exception("Rendering sample conversion did not update both renderers.");
 #else

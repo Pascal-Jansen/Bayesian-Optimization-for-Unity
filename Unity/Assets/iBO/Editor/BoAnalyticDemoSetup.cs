@@ -10,11 +10,11 @@ namespace BayesianOptimization.Editor
 {
     public static class BoAnalyticDemoSetup
     {
-        [MenuItem("Tools/IBO/Create Analytic Demo")]
+        [MenuItem("Tools/iBO/Create Analytic Demo")]
         public static void CreateDefaultScene()
         {
             if (Application.isBatchMode || EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                CreateScene("Assets/IBO/Samples/Analytic/BO-analytic-demo.unity");
+                CreateScene("Assets/iBO/Samples/Analytic/BO-analytic-demo.unity");
         }
 
         public static Scene CreateScene(string path)

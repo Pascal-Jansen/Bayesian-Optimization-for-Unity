@@ -1,4 +1,4 @@
-"""Tests for ibo_server.py, the single entry point of the IBO server (stub suite, runs on CI).
+"""Tests for ibo_server.py, the single entry point of the iBO server (stub suite, runs on CI).
 
 Covers the backend choice from the init message (the rules PythonStarter.cs applies when Unity
 picks a script itself), the hand-over of the accepted connection and its init message through
@@ -146,7 +146,7 @@ class MainTests(_ServerTestCase):
         self.assertEqual(listener.bound, (self.p.HOST, self.p.PORT))
         self.assertTrue(listener.closed)
         self.assertEqual(out.count("Server starts, waiting for connection..."), 1)
-        self.assertIn("IBO server: running backend 'mobo'.", out)
+        self.assertIn("iBO server: running backend 'mobo'.", out)
 
     def test_stop_in_place_of_the_init_ends_without_a_backend(self):
         conn = FakeConn([json_line({"type": "stop", "reason": "invalid_configuration"})])

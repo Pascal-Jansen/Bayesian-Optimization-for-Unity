@@ -1,4 +1,4 @@
-# bo_protocol.py — client <-> Python plumbing shared by every IBO backend.
+# bo_protocol.py — client <-> Python plumbing shared by every iBO backend.
 #
 # bo.py, mobo.py, dbo_runtime.py, cabop_runtime.py and meta_mobo_runtime.py speak one wire
 # protocol (Python is a TCP server on 127.0.0.1:56001; newline-delimited UTF-8 JSON: Unity
@@ -83,7 +83,7 @@ def configure_listener_socket(s):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 
-# -------------------- hand-over from the IBO server --------------------
+# -------------------- hand-over from the iBO server --------------------
 # ibo_server.py accepts the connection and reads the init message itself to choose the backend,
 # then runs that backend's main(). The backend's own accept_unity_connection/receive_init_message
 # calls then return the connection and message handed over here instead of listening again.

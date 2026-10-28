@@ -1,6 +1,6 @@
 # Python integration (`interactive-bo`)
 
-The Python client for the [IBO protocol](../protocol/README.md) and a launcher for the IBO server
+The Python client for the [iBO protocol](../protocol/README.md) and a launcher for the iBO server
 (`Backend/ibo_server.py`). Any program that can show a design to a person and measure the
 response can run a study with it, without Unity.
 

@@ -1,4 +1,4 @@
-# meta_train.py — build Meta-TAF population models from completed IBO runs.
+# meta_train.py — build Meta-TAF population models from completed iBO runs.
 #
 # Offline tool (run by the researcher, never by participants). It converts each finished
 # run's ObservationsPerEvaluation.csv into one "source artifact" pair understood by the
@@ -833,7 +833,7 @@ def write_manifest(out_dir, frame):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="Convert completed IBO runs into Meta-TAF population models."
+        description="Convert completed iBO runs into Meta-TAF population models."
     )
     parser.add_argument("runs", nargs="*",
                         help="Run folders (containing ObservationsPerEvaluation.csv) or CSV paths.")

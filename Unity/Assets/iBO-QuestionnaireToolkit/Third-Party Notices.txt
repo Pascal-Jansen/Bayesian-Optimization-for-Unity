@@ -1,9 +1,9 @@
-IBO QuestionnaireToolkit add-on - Third-Party Notices
+iBO QuestionnaireToolkit add-on - Third-Party Notices
 =====================================================
 
 This add-on contains QuestionnaireToolkit ((c) Pascal Jansen), adapted for Interactive Bayesian
-Optimization (IBO), and the questionnaire example scenes. The third-party components below keep their own
-terms. The IBO core package lists its own components in Assets/IBO/Documentation/Third-Party Notices.txt.
+Optimization (iBO), and the questionnaire example scenes. The third-party components below keep their own
+terms. The iBO core package lists its own components in Assets/iBO/Documentation/Third-Party Notices.txt.
 
 Open items before the add-on is published (license or origin not yet confirmed) are marked TODO.
 
@@ -12,13 +12,13 @@ A. Components included in this add-on
 -------------------------------------
 
 1. SimpleJSON
-   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/SimpleJSON/
+   Location: Unity/Assets/iBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/SimpleJSON/
    Source:   https://github.com/Bunny83/SimpleJSON
    License:  MIT License (text below)
    Copyright (c) 2012-2019 Markus Göbel (Bunny83)
 
 2. Unity Standalone File Browser
-   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/
+   Location: Unity/Assets/iBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/
    Source:   https://github.com/gkngkc/UnityStandaloneFileBrowser
    License:  MIT License (text below)
    Copyright (c) 2017 Gökhan Gökçe
@@ -29,26 +29,26 @@ A. Components included in this add-on
      MIT (X11) License (text below).
 
 3. Reorderable List (editor list control)
-   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Editor/ReorderableList.cs, ReorderableDrawer.cs
+   Location: Unity/Assets/iBO-QuestionnaireToolkit/QuestionnaireToolkit/Editor/ReorderableList.cs, ReorderableDrawer.cs
    Source:   https://github.com/cfoulston/Unity-Reorderable-List
    License:  MIT License (text below); adapted (namespace, public-API drag and drop)
    Copyright (c) 2017 Chris Foulston
 
 4. Member reflection utilities (UnityMember, DropdownGUI)
-   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/MemberReflection/
+   Location: Unity/Assets/iBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/MemberReflection/
    Origin:   adapted from the "Reflection" plugin by Ludiq (Lazlo Bonin)
    TODO: confirm the license of Ludiq's Reflection plugin and add its copyright line and license text here,
    or replace these helpers.
 
 5. Canvas Keyboard (VR keyboard)
-   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/VR Keyboard/
+   Location: Unity/Assets/iBO-QuestionnaireToolkit/QuestionnaireToolkit/VR Keyboard/
    Origin:   CanvasKeyboard by Peter Koch, published on the "Tales from the Rift" blog (talesfromtherift.com,
              archived at web.archive.org). In the comments of that page (20 June 2016) the author invited a reader to
              use the source code in an Asset Store project.
    TODO: obtain the author's written permission for this use, or replace the keyboard.
 
 6. Loading animation frames
-   Location: Unity/Assets/IBO-QuestionnaireToolkit/Samples/LoadingImages/
+   Location: Unity/Assets/iBO-QuestionnaireToolkit/Samples/LoadingImages/
    TODO: confirm where the 24 loading-animation frames come from and under which terms they may be
    redistributed, or replace them.
 

@@ -171,7 +171,7 @@ jobs:
           BO_RUN_INTEGRATION_TESTS: "1"
         run: python -m unittest discover -s Unreal/tests -v
 
-      - name: Run IBO end-to-end studies (ibo_server.py + Python client, real backends)
+      - name: Run iBO end-to-end studies (ibo_server.py + Python client, real backends)
         shell: bash
         run: |
           python -m pip install jsonschema

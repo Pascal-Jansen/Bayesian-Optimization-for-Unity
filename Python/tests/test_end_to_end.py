@@ -56,21 +56,21 @@ class EndToEndTests(unittest.TestCase):
         study = Study(STUDY_PARAMETERS, STUDY_OBJECTIVES, sampling_iterations=3, optimization_iterations=2,
                       user_id="e2e", condition_id="mobo", config={"rawSamples": 128, "numRestarts": 4})
         _, output = self.run_and_check(study, simulated_participant(random.Random(1)), 5)
-        self.assertIn("IBO server: running backend 'mobo'.", output)
+        self.assertIn("iBO server: running backend 'mobo'.", output)
 
     def test_single_objective_botorch(self):
         study = Study([Parameter("x", -2.0, 2.0)], [Objective("score", 0.0, 10.0)],
                       sampling_iterations=2, optimization_iterations=2, user_id="e2e", condition_id="bo",
                       config={"rawSamples": 128, "numRestarts": 4})
         _, output = self.run_and_check(study, lambda d: {"score": 10.0 - (d["x"] - 0.5) ** 2}, 4)
-        self.assertIn("IBO server: running backend 'bo'.", output)
+        self.assertIn("iBO server: running backend 'bo'.", output)
 
     def test_dynamic_bo_backend(self):
         study = Study([Parameter("stiffness", 0.0, 1.0)], [Objective("effort", 0.0, 5.0, minimize=True)],
                       backend="dbo", sampling_iterations=2, optimization_iterations=2,
                       user_id="e2e", condition_id="dbo", config={"dboInitialAlpha": 0.99})
         _, output = self.run_and_check(study, lambda d: {"effort": 1.0 + abs(d["stiffness"] - 0.3)}, 4)
-        self.assertIn("IBO server: running backend 'dbo_runtime'.", output)
+        self.assertIn("iBO server: running backend 'dbo_runtime'.", output)
 
 
 if __name__ == "__main__":

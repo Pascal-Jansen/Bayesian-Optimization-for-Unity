@@ -1,4 +1,4 @@
-"""A complete IBO study without any engine: a simulated participant rates button designs.
+"""A complete iBO study without any engine: a simulated participant rates button designs.
 
 The participant's usability rating peaks at a medium size and high contrast, while larger buttons
 are always faster to hit, so the two objectives conflict and the optimizer has to find the trade-off.
