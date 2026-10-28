@@ -8,7 +8,7 @@
 # The workflow then:
 #   - validates the version and runs the Python unit tests,
 #   - moves the [Unreleased] changelog section under the new version heading,
-#   - bumps bundleVersion in Unity/ProjectSettings/ProjectSettings.asset, VERSION and CITATION.cff,
+#   - bumps the version in VERSION, CITATION.cff, Python/, the Unreal plugin and Unity bundleVersion,
 #   - commits ("Release vX.Y.Z") and pushes these version files to main,
 #   - creates a GitHub release using the changelog section as notes
 #     (falls back to auto-generated notes if the section is empty).
@@ -120,6 +120,9 @@ jobs:
           fi
 
           echo "$VERSION" > VERSION
+          sed -i "s/^version = .*/version = \"$VERSION\"/" Python/pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"$VERSION\"/" Python/interactive_bo/__init__.py
+          sed -i "s/\"VersionName\": \"[^\"]*\"/\"VersionName\": \"$VERSION\"/" Unreal/Plugins/BayesianOptimization/BayesianOptimization.uplugin
           if [[ -f CITATION.cff ]]; then
             sed -i "s/^version: .*/version: \"$VERSION\"/" CITATION.cff
           fi
@@ -155,7 +158,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md VERSION CITATION.cff Unity/ProjectSettings/ProjectSettings.asset 2>/dev/null || true
+          git add CHANGELOG.md VERSION CITATION.cff Python/pyproject.toml Python/interactive_bo/__init__.py Unreal/Plugins/BayesianOptimization/BayesianOptimization.uplugin Unity/ProjectSettings/ProjectSettings.asset 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No version file changes to commit."
           else

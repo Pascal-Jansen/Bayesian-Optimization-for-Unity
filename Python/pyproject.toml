@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "interactive-bo"
-version = "0.1.0.dev0"
-description = "Interactive Bayesian Optimization (IBO): human-in-the-loop Bayesian optimization for Unity, Unreal, the web and Python"
+version = "2.0.0rc1"
+description = "Interactive Bayesian Optimization (iBO): human-in-the-loop Bayesian optimization for Unity, Unreal, the web and Python"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
