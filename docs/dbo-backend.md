@@ -14,7 +14,7 @@ and *Validation of Dynamic Bayesian Optimization for a Non-Stationary
 Human-in-the-Loop Optimization Problem*, IEEE RA-L 11(5), 2026
 (doi 10.1109/LRA.2026.3665072). The Python implementation is the BSD-3-Clause
 [dbo-torch](https://github.com/M-Colley/dbo-torch) package, vendored under
-`Assets/StreamingAssets/BOData/BayesianOptimization/dbo_torch/`.
+`Backend/dbo_torch/` (copied into the Unity and Unreal backends by `tools/sync_backends.py`).
 
 ## Selecting the backend
 
@@ -123,7 +123,7 @@ the most likely fit), so **do not mix dbo_torch versions within one study**;
 ## Updating the vendored dbo_torch package
 
 The backend imports a vendored snapshot rather than a pip install, because the
-bundled Python runtime may lack git and `dbo-torch` is not on PyPI; the backend
+optimizer's Python may lack git and `dbo-torch` is not on PyPI; the backend
 puts its own folder first on `sys.path`, so the snapshot always wins. To
 refresh it after an upstream change, copy from a dbo-torch checkout:
 
@@ -131,10 +131,11 @@ refresh it after an upstream change, copy from a dbo-torch checkout:
 dbo-torch/src/dbo_torch/*.py
 dbo-torch/LICENSE
 dbo-torch/PROVENANCE.md
-  -> Assets/StreamingAssets/BOData/BayesianOptimization/dbo_torch/
+  -> Backend/dbo_torch/
 ```
 
-Commit a `.meta` file for every new file (Unity creates them on import), and do
+Then run `python tools/sync_backends.py` to update the engine copies. Commit a `.meta` file for
+every new file in the Unity copy (Unity creates them on import), and do
 **not** copy the standalone bridge — it implements a different, incompatible
 socket protocol. Re-run `tests/dbo_protocol_check.py` and
 `python -m unittest tests.test_dbo_runtime` after refreshing.

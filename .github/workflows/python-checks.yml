@@ -100,6 +100,38 @@ jobs:
             exit 1
           fi
 
+  python-client-older-pythons:
+    # The Python client (Python/) is standard library only and supports Python 3.9+, for example
+    # inside PsychoPy; the backend needs Python 3.13 and is tested above.
+    name: Python client on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        run: python -m pip install jsonschema
+
+      - name: Run Python client tests
+        run: python -m unittest discover Python/tests -v
+
   full-stack-tests:
     # Runs the complete suite against the real pinned dependency stack
     # (torch/botorch/botorch-rust/moocore/scipy/sklearn), including the integration and

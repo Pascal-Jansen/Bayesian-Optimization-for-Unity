@@ -18,7 +18,7 @@ components. Code that references the package needs the changes below.
 | Python | Installers for Windows and macOS bundled | Not bundled: install Python 3.13; the packages are still installed automatically on the first Play |
 | Optimizer source | `Assets/StreamingAssets/BOData/BayesianOptimization` | `Backend/`; `tools/sync_backends.py` writes the copies in `Unity/` and `Unreal/` |
 | Menus | | `Tools > iBO > ...` (analytic demo, rendering tools) |
-| Unity version | 6000.x | Tested with 6000.6; the package compiles on 6000.4 |
+| Unity version | 6000.x | Tested with 6000.6; the package also compiles and passes its EditMode tests on 6000.4 |
 
 New in 2.0: a configurable port per study (`BO_PORT`, for concurrent studies), the botorch-rust model library
 (`BO_MODEL_LIBRARY`), URP and HDRP material tools, the Unreal plugin, the Python client and `Backend/ibo_server.py`.

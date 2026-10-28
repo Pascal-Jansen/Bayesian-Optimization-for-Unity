@@ -59,4 +59,4 @@ docs/           architecture, validation, guides
 | Comfort and safety limits | Constrained / safe BO: new |
 
 The new methods need client-driven commands (`suggest`, `observe`) from protocol v2. Also open for v2:
-clients ignoring unknown server messages (the Unity integration still rejects them), and an `error` message.
+clients ignoring unknown server messages (the Unity and Unreal integrations still reject them), and an `error` message.

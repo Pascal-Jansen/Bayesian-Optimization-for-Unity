@@ -20,7 +20,7 @@ down; the Unity integration already speaks it. The machine-readable form is
 
 - TCP, UTF-8, one JSON object per line (NDJSON) ending in `\n`. `\r\n` and blank lines are tolerated.
 - Every message is an object with a string `type`. Receivers **ignore unknown types**, so later
-  versions can add messages. (The Unity integration still rejects unknown server messages.)
+  versions can add messages. (The Unity and Unreal integrations still reject unknown server messages: the study stops.)
 - Numbers are finite JSON numbers; `NaN` and `Infinity` are not allowed.
 - A line may hold up to 64 MiB (`BO_MAX_RECV_BUF_BYTES`), enough for large context embeddings.
 

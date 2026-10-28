@@ -21,5 +21,5 @@ On load, the toolkit adds its tags (names starting with `QT`) to **Project Setti
 items whose **Header Name** equals an objective key report their answer as that objective. The answers are logged next
 to the optimization logs in `Assets/StreamingAssets/BOData/LogData/<User ID>/<Condition ID>/`.
 
-The add-on ships separately from the core package (`tools/build_packages.py` leaves it out). Third-party components and
-open license items are listed in [Third-Party Notices.txt](Third-Party%20Notices.txt).
+The add-on is not part of the release packages (`tools/build_packages.py` leaves it out) until the open license items
+in [Third-Party Notices.txt](Third-Party%20Notices.txt) are resolved; use it from this repository.

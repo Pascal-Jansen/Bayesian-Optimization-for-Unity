@@ -1,11 +1,9 @@
-# Bayesian Optimization for Unity
+# iBO for Unity: manual
 
-> **This is the manual of Bayesian Optimization for Unity 1.8, now part of [Interactive Bayesian Optimization (iBO)](../README.md).**
-> Its concepts and settings still apply to the Unity integration. Changed since 1.8 (see the [migration guide](migration-to-ibo.md)):
-> the Unity project is in `Unity/` and the package folder is `Assets/iBO`; namespaces are `BayesianOptimization.*`;
-> Python 3.13 is no longer bundled (install it yourself); QuestionnaireToolkit and the questionnaire example scenes are an
-> optional add-on in `Assets/iBO-QuestionnaireToolkit`; the optimizer source is `Backend/` (copied into the engines by
-> `tools/sync_backends.py`).
+> Manual of the Unity integration of [Interactive Bayesian Optimization (iBO)](../README.md), formerly *Bayesian
+> Optimization for Unity*. Paths in this manual are relative to the Unity project in `Unity/`. Coming from 1.8? See the
+> [migration guide](migration-to-ibo.md). The screenshots show the 1.8 inspector; since then the Python Settings
+> gained **Optimizer TCP Port** and the optimizer settings a **Model Library** field (both described below).
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg)](https://doi.org/10.5281/zenodo.19786494)
 
@@ -17,7 +15,7 @@
 
 ## About
 
-This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Optimization** workflow (single- and multi-objective) built on [botorch.org](https://botorch.org/). It lets you declare **design parameters** and **objectives** in Unity, runs a Python backend, and loops with users inside your Unity scene. The result is an efficient search over large design spaces, yielding trade-off designs on the **Pareto front**.
+The Unity integration of iBO provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Optimization** workflow (single- and multi-objective) built on [botorch.org](https://botorch.org/). It lets you declare **design parameters** and **objectives** in Unity, runs a Python backend, and loops with users inside your Unity scene. The result is an efficient search over large design spaces, yielding trade-off designs on the **Pareto front**.
 
 **Why this matters.** Users typically have diverse preferences, needs, and abilities. Thus, manual design parameter tuning is often slow and potentially biased; A/B and grid search scale poorly. Instead, MOBO uses probabilistic surrogate models and principled acquisition to balance design exploration and exploitation, **reducing the number of user trials** required to achieve a high-quality design for individuals.
 
@@ -29,7 +27,7 @@ This Unity asset provides an end-to-end, **Human-in-the-Loop (HITL) Bayesian Opt
 - Cost-aware BO backend (CABOP) for cases where design evaluations have different costs, with single-objective and scalarized multi-objective modes; see Langerak et al.'s [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024) for background.
 - Dynamic BO backend (DBO) for single-objective studies whose cost **drifts during the session** (participant adaptation, learning, fatigue): the GP discounts past observations by a fitted temporal decay, with a one-toggle stationary baseline for matched control conditions; see Kim & Sergi's [Validation of Dynamic Bayesian Optimization for a Non-Stationary Human-in-the-Loop Optimization Problem](https://doi.org/10.1109/LRA.2026.3665072) for background.
 - Contextual optimization with a latent context embedding multi-task GP (LCE-M; see Feng et al.'s [High-Dimensional Contextual Policy Search with Unknown Context Rewards using Bayesian Optimization](https://proceedings.neurips.cc/paper/2020/hash/faff959d885ec1ecf843a3f45087e047-Abstract.html), NeurIPS 2020): reuse observations from other contexts (users, devices, environments) with **definable context embeddings** — learned from data, supplied manually from any encoder, or computed from context images with an open_clip vision transformer such as ViT-G/14.
-- Built-in integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) for explicit feedback in a HITL process; compatible with implicit telemetry.
+- Optional integration with the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) (add-on in `Assets/iBO-QuestionnaireToolkit`) for explicit feedback in a HITL process; compatible with implicit telemetry.
 - Automatic CSV logging of parameters/objectives and optimization metric traces (hypervolume for MOBO, best-objective trace for BO); warm-start from prior runs.
 - Unified log routing below `Assets/StreamingAssets/BOData/LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, including QuestionnaireToolkit CSVs and app-specific telemetry.
 - Ready-to-run example scenes, including questionnaire-driven design optimization and a 2D Fitts's law pointing task based on Fitts's [1954 paper](https://doi.org/10.1037/h0055392).
@@ -188,7 +186,7 @@ The optimizer balances **exploitation** (refining known good regions) and **expl
 
 ### 2.3 Questionnaires for User Feedback
 
-This asset uses the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330) to collect explicit subjective feedback. This feedback serves as a design objective in the HITL process.
+The optional QuestionnaireToolkit add-on (`Assets/iBO-QuestionnaireToolkit`, based on the [QuestionnaireToolkit](https://assetstore.unity.com/packages/tools/gui/questionnairetoolkit-157330)) collects explicit subjective feedback. This feedback serves as a design objective in the HITL process.
 
 #### 2.3.1 Questionnaire Data Routing (Important)
 
@@ -197,7 +195,7 @@ This asset uses the [QuestionnaireToolkit](https://assetstore.unity.com/packages
 - `User ID`, `Condition ID`, and `Group ID` are not BO objectives. They are logged as context columns in `ObservationsPerEvaluation.csv`.
 - Questionnaire result CSVs always include `UserID`, `ConditionID`, and `GroupID`. `QTQuestionnaireManager` reads them from `BoForUnityManager` when available; scenes without an active BO manager can set the fallback values in *QTQuestionnaireManager* -> *BO Context Logging*.
 - Final-design selection uses the full context triad (`User ID`, `Condition ID`, `Group ID`) when filtering candidate observation rows.
-- The bundled `QTQuestionnaireManager` now defaults its `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/`, and writes results below `LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, so raw QuestionnaireToolkit CSV output stays with the BO logs instead of `persistentDataPath`. (In installed builds where StreamingAssets is read-only, this default follows the BO logs to `<persistentDataPath>/BOData/LogData/`; see [8.12](#812-output-files-and-metrics).)
+- The add-on's `QTQuestionnaireManager` defaults its `resultsSavePath` to `Assets/StreamingAssets/BOData/LogData/`, and writes results below `LogData/<USER_LOG_ID>/<CONDITION_LOG_ID>/`, so raw QuestionnaireToolkit CSV output stays with the BO logs instead of `persistentDataPath`. (In installed builds where StreamingAssets is read-only, this default follows the BO logs to `<persistentDataPath>/BOData/LogData/`; see [8.12](#812-output-files-and-metrics).)
 - Typed numeric answers accept `.` or `,` as decimal separator (`3.5`, `3,5`). Non-numeric answers are submitted as NaN and ignored for the objective (the scale midpoint is used only if none of its sub-measures is numeric).
 - In app scenes that use the Fitts law task, `speed` and `accuracy` are added as extra questionnaire CSV columns. They are telemetry columns for analysis consistency; the BO objective values still come from the task script and the subjective questionnaire items.
 - Do not create `UserID`, `ConditionID`, `GroupID`, `speed`, or `accuracy` as normal questionnaire questions. They should be Additional CSV Items only.
@@ -223,15 +221,14 @@ MOBO is used in hyperparameter tuning, materials discovery, and engineering desi
 
 ## 3. Installation
 
-Set up the asset as follows:
+Set up the Unity integration as follows:
 1. Clone the repository.
-2. Optional: run `Windows/installation_python.bat` (Windows), `MacOs/install_python.sh` (macOS) or `Linux/install_python.sh` (Ubuntu/Debian) to install Python 3.13 ahead of time.
-   Files are in *Assets/StreamingAssets/BOData/Installation*. On Windows and macOS, Unity also installs the bundled Python 3.13 by itself when it finds none.
-   The scripts no longer install the Python packages: Unity installs them on the first Play into its own private environment (one time, a few minutes; see [Python Settings](#85-python-settings)).
+2. Install Python 3.13; it is not bundled. Windows and macOS: the installer from [python.org](https://www.python.org/downloads/) (Windows: tick **Add python.exe to PATH**); Ubuntu/Debian: `python3.13` and `python3.13-venv` from your package manager.
+   Unity installs the Python packages on the first Play into its own private environment (one time, a few minutes; see [Python Settings](#85-python-settings)).
 3. Install Unity Hub.
 4. Create or log in to your (student) Unity account.
-5. Install Unity 2022.3.21f1 or higher. We recommend Unity 6.2 or newer.
-6. Add the project to Unity Hub by selecting the repository folder.
+5. Install Unity 6000.6.7f1 (the version in `Unity/ProjectSettings/ProjectVersion.txt`). The package also compiles on Unity 6000.4.
+6. Add the project to Unity Hub by selecting the `Unity` folder of the repository.
 7. Open the project and set the [Python Settings](#85-python-settings).
 
 > **Note:** You may set the Python path manually if you already have a local Python installation or virtual environment. See [Python Settings](#85-python-settings). Also, read [Configuration](#8-configuration) to ensure settings are saved.
@@ -244,7 +241,7 @@ Set up the asset as follows:
 
 Before running your own scene, verify the following minimum setup:
 
-1. `BOforUnityManager` object exists in the scene and has the tag `BOforUnityManager`.
+1. A `BOforUnityManager` object exists in the scene (the `BOforUnityManager` prefab in `Assets/iBO-QuestionnaireToolkit/Samples/Prefabs` is a ready-made one).
 2. The same object contains these components:
    - `BoForUnityManager`
    - `PythonStarter`
@@ -274,9 +271,11 @@ If any item above is missing, the loop may start but stall before sending/receiv
 
 ## 5. Quick Start (10 Minutes)
 
-Use this path for a first successful run with the provided demo scene.
+Use this path for a first successful run with the provided demo scene. It is part of the QuestionnaireToolkit add-on
+(`Assets/iBO-QuestionnaireToolkit`); without the add-on, use the core analytic demo instead: **Tools > iBO > Create
+Analytic Demo** creates `Assets/iBO/Samples/Analytic/BO-analytic-demo.unity`.
 
-1. Open `Assets/BOforUnity/Scenes/BO-example-scene.unity`.
+1. Open `Assets/iBO-QuestionnaireToolkit/Samples/Scenes/BO-example-scene.unity`.
 2. Select `BOforUnityManager` in the hierarchy and verify the [Integration Checklist](#4-integration-checklist-required).
 3. In `BoForUnityManager` inspector:
    - keep `Iteration Advance Mode = NextButton`
@@ -304,14 +303,14 @@ If these outputs appear, your full Unity-Python loop is working.
 
 ## 6. Example Usage
 
-This section walks through the provided example workflows. Install the asset first as described in [Installation](#3-installation).
+This section walks through the example workflows of the QuestionnaireToolkit add-on (`Assets/iBO-QuestionnaireToolkit/Samples/Scenes`). Set up the Unity integration first as described in [Installation](#3-installation).
 > **Note:** *ObservationsPerEvaluation.csv* must be empty (except for the header). Find it below *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/*. By default these equal `User ID` and `Condition ID`, but invalid path characters are normalized for folder safety. You can delete the condition folder to recreate clean logs.
 
 ### 6.1 Questionnaire Demo Scene
 
 Use this scene when you want to see the standard QuestionnaireToolkit-based HITL workflow.
 
-1. In Unity, open *Assets/BOforUnity/Scenes* and double-click *BO-example-scene.unity*.
+1. In Unity, open *Assets/iBO-QuestionnaireToolkit/Samples/Scenes* and double-click *BO-example-scene.unity*.
 2. Press the Play button (⏵).
 3. Click `Next`, wait for loading, then click `Next` again.
 4. The simulation appears. You will see up to two colored shapes to evaluate.
@@ -323,7 +322,7 @@ Use this scene when you want to see the standard QuestionnaireToolkit-based HITL
 
 ### 6.2 Fitts Law Task Scene
 
-Use `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity` for all Fitts law study conditions. The task presents circular click targets arranged on a ring. One target is highlighted at a time, contains an `X` marker, and the participant clicks the highlighted target to advance to the next trial. The implementation lives in `Assets/BOforUnity/Examples/FittsLawTask.cs`; condition orchestration lives in `Assets/BOforUnity/Examples/FittsLawConditionManager.cs`.
+Use `Assets/iBO-QuestionnaireToolkit/Samples/Scenes/BO-fitts-law-task.unity` for all Fitts law study conditions. The task presents circular click targets arranged on a ring. One target is highlighted at a time, contains an `X` marker, and the participant clicks the highlighted target to advance to the next trial. The implementation lives in `Assets/iBO/Examples/FittsLawTask.cs`; condition orchestration lives in `Assets/iBO/Examples/FittsLawConditionManager.cs`.
 
 The scene now covers all three study conditions in one scene. Separate static/random scenes are not needed.
 
@@ -400,7 +399,7 @@ With `Target Selection Mode = Across Circle`, the highlighted target jumps acros
 
 Workflow:
 
-1. Open `Assets/BOforUnity/Scenes/BO-fitts-law-task.unity`.
+1. Open `Assets/iBO-QuestionnaireToolkit/Samples/Scenes/BO-fitts-law-task.unity`.
 2. Select `Fitts Law Condition Manager` and set `Condition Mode`.
 3. Press Play.
 4. For `HITL MOBO`, wait for the optimizer to initialize. For `Static` and `Random`, the local condition starts without Python optimization.
@@ -438,7 +437,7 @@ Assets/StreamingAssets/BOData/LogData/
       FittsLawTrialLog.csv
 ```
 
-If the requested user folder already contains a folder for the same condition, BOforUnity creates a suffix such as `<USER_LOG_ID>_1`, `<USER_LOG_ID>_2`, and so on. A user folder that only holds other conditions is reused, so one participant's condition folders stay together. This prevents accidental overwrites.
+If the requested user folder already contains a folder for the same condition, iBO creates a suffix such as `<USER_LOG_ID>_1`, `<USER_LOG_ID>_2`, and so on. A user folder that only holds other conditions is reused, so one participant's condition folders stay together. This prevents accidental overwrites.
 
 This example is useful for HCI experiments where movement amplitude, button size, marker size, button color, objective pointing performance, and subjective single-item ratings should be optimized together. For the original model, see Fitts's 1954 paper, [The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement](https://doi.org/10.1037/h0055392).
 
@@ -446,7 +445,7 @@ This example is useful for HCI experiments where movement amplitude, button size
 
 ## 7. Demo Video
 
-Click the thumbnail for a short demo showing how to export the main-branch package and import it into a new Unity project. It also shows what to do after import if you have an up-to-date Python (currently, we recommend 3.13.7) on Windows. You can also open the video in the *images* folder.
+Click the thumbnail for a short demo showing how to export the main-branch package and import it into a new Unity project. It also shows what to do after import if you have an up-to-date Python (Python 3.13) on Windows. You can also open the video in the *images* folder.
 > **Note:** This video shows a previous version of the user interface for this asset in Unity. The procedure is similar for the current version.
 
 [![Watch the video](../images/Demo_BO_for_Unity.jpg)](https://www.youtube.com/watch?v=J1hrFuiGiRI)
@@ -457,9 +456,9 @@ Click the thumbnail for a short demo showing how to export the main-branch packa
 
 ## 8. Configuration
 
-All configuration is done in Unity. Open *Assets/BOforUnity/Scenes/BO-example-scene.unity*. Select the *BOforUnityManager* object in the hierarchy, then click *Select* at the top of the inspector. Adjust settings as needed.
+All configuration is done in Unity. Open *Assets/iBO-QuestionnaireToolkit/Samples/Scenes/BO-example-scene.unity* (or your own scene) and select the *BOforUnityManager* object in the hierarchy. Adjust settings as needed.
 
-Save the scene after changes. Re-select *BOforUnityManager* to confirm your edits. The *BOforUnityManager* prefab must be correct; it overrides previous settings (see the inspector top left).
+Save the scene after changes. Re-select *BOforUnityManager* to confirm your edits. If the object is an instance of the *BOforUnityManager* prefab (`Assets/iBO-QuestionnaireToolkit/Samples/Prefabs`), the prefab must be correct; it overrides previous settings (see the inspector top left).
 
 > **Note:** All configuration lives in this object. The options below are listed from top to bottom.
 > **Note:** If you add or remove parameters/objectives, back up and clear the current user log folder to regenerate CSV headers.
@@ -552,7 +551,8 @@ Select the objective by clicking the `=` icon in its top-left corner (turns blue
 ### 8.3 Get Parameter Values via Code
 
 You can read the current parameter values each iteration by indexing into the *parameter* list on the *BOforUnityManager* instance.
-Here is an example snippet:
+`BoForUnityManager` is in the namespace `BayesianOptimization` (add `using BayesianOptimization;`); the optimizer types
+used by the examples are in `BayesianOptimization.Scripts`. Here is an example snippet:
 ```csharp
 // the persistent manager that runs the study
 BoForUnityManager bo = BoForUnityManager.Instance;
@@ -615,8 +615,11 @@ Make sure you assign objective values before the optimizer proceeds so that the 
 
 ### 8.5 Python Settings
 
+`Optimizer TCP Port` (default 56001) is the loopback port Unity and the Python backend use; Python receives it as
+`BO_PORT`. Change it only if another program uses the port or several studies run at the same time.
+
 **Default**:
-If you leave `Manually Installed Python` unchecked, BOforUnity looks for Python 3.13 (the version the pinned packages are tested with) and prefers the bundled `3.13.7` runtime. Newer Python versions are only used if no 3.13 interpreter works. If no Python 3.13 or newer is found, it installs the bundled 3.13.7 first (Windows: UAC prompt; macOS: administrator prompt, from the bundled `.pkg`); on Linux, run `Linux/install_python.sh` or install `python3.13` and `python3.13-venv` with your package manager. If that installation is cancelled or fails, startup is aborted with the reason on screen.
+If you leave `Manually Installed Python` unchecked, iBO looks for an installed Python 3.13 (the version the pinned packages are tested with). Newer Python versions are only used if no 3.13 interpreter works. Python is not bundled: install Python 3.13 yourself (on Linux, `python3.13` and `python3.13-venv` from your package manager). If no Python 3.13 or newer is found, startup is aborted and the message on screen says what to install.
 
 The packages from `requirements.txt` are installed into a **private virtual environment** at `<persistentDataPath>/BOData/python-venv`, and the optimizer backends run with that environment's Python (another base interpreter gets its own sibling folder `python-venv-<hash>`; on Windows a short folder under `%LOCALAPPDATA%\BOforUnity\` is used when the path would be too long). The first Play installs them (a few minutes; the download is several hundred MB, progress is shown on screen); every later start only checks, in about a second, that the installed versions match the pins in `requirements.txt` and reinstalls on a mismatch. The Console logs the interpreter in use (`Optimizer Python: …`) — install optional packages such as openbo or `open_clip_torch` with that interpreter (`"<that path>" -m pip install …`). If no virtual environment can be created (Debian/Ubuntu without `python3.13-venv`), BOforUnity falls back to `pip install --user` and says so in the Console. On Linux, PyTorch is installed from its CPU wheel index (no multi-GB CUDA download). For offline labs, put the wheels into `Assets/StreamingAssets/BOData/Installation/wheels/`; pip uses them (create them with `python -m pip download -r requirements.txt -d wheels` on a machine with the same OS, architecture and Python version).
 
@@ -626,11 +629,11 @@ You can **override** this behavior by checking `Manually Installed Python` and f
  1. Open a terminal and search for Python installations:
     * Windows: `where python`
     * Linux/macOS: `which python3`
-    Copy the path to a compatible Python (`3.13`, ideally the bundled `3.13.7` runtime), or to the Python of a virtual/conda environment (e.g. one created with `install_python.sh --venv DIR` / `installation_python.bat --venv DIR`).
+    Copy the path to a compatible Python (`3.13`), or to the Python of a virtual/conda environment (e.g. one created with `python3.13 -m venv DIR`).
  2. In *BOforUnityManager* → *Python Settings*, check the box
  3. Paste the path in the `Path of Python Executable` field (surrounding quotes are fine).
 
-If that Python already is a virtual or conda environment, BOforUnity installs the packages into it directly; otherwise it creates its private environment from it, as above.
+If that Python already is a virtual or conda environment, iBO installs the packages into it directly; otherwise it creates its private environment from it, as above.
 
 ![Python Settings](../images/python_settings.png)
 
@@ -643,7 +646,7 @@ These three values are always logged as context columns in `ObservationsPerEvalu
 
 The same ID triad is also routed into QuestionnaireToolkit through Additional CSV Items. In the standard BO scenes, `QTQuestionnaireManager` reads these values from the active `BoForUnityManager`. In Fitts law baseline conditions where the BO manager is disabled, `FittsLawConditionManager` supplies the context instead.
 
-Log folders are created below `Assets/StreamingAssets/BOData/LogData/` (in installed builds where StreamingAssets is read-only: `<persistentDataPath>/BOData/LogData/`). The user folder is a folder-safe version of `User ID`; invalid path characters are replaced. If that user folder already contains a folder for the current `Condition ID` (the same condition was run before with this ID), BOforUnity uses a suffix such as `_1` or `_2` to prevent overwriting prior data; the suffixed ID is then what Python, the questionnaires and every log row use. A user folder that only holds other conditions is reused. Condition folders are created inside the selected user folder.
+Log folders are created below `Assets/StreamingAssets/BOData/LogData/` (in installed builds where StreamingAssets is read-only: `<persistentDataPath>/BOData/LogData/`). The user folder is a folder-safe version of `User ID`; invalid path characters are replaced. If that user folder already contains a folder for the current `Condition ID` (the same condition was run before with this ID), iBO uses a suffix such as `_1` or `_2` to prevent overwriting prior data; the suffixed ID is then what Python, the questionnaires and every log row use. A user folder that only holds other conditions is reused. Condition folders are created inside the selected user folder.
 
 ![Study Settings](../images/study_settings.png)
 
@@ -657,6 +660,12 @@ Log folders are created below `Assets/StreamingAssets/BOData/LogData/` (in insta
   * `MultiObjectiveScalarized` -> `cabop_mobo.py` (requires at least 2 objectives; objectives are scalarized to one minimized score).
 * **MetaTAF**: multi-objective Meta-BO backend (`meta_mobo.py`, requires at least 2 objectives). Transfers knowledge from *population models* built from prior participants' runs so new users converge in fewer iterations; if no valid population model is found, the run aborts by default (**Meta Require Sources**) rather than silently running plain multi-objective BO. See section 8.14 and the [student guide](meta-taf-student-guide.md).
 * **DBO**: dynamic BO backend (`dbo.py`, requires exactly 1 objective) for costs that **drift while the study runs** — participant adaptation, learning, fatigue. The GP covariance is multiplied by a temporal decay `alpha^|t-t'|` whose rate is fitted from the data, so the optimizer infers how fast the participant is changing instead of assuming they are not; a **DBO Stationary Baseline** toggle pins `alpha = 1` for the matched plain-BO control condition. See section 8.15 and [docs/dbo-backend.md](dbo-backend.md).
+
+**Model Library** (BoTorch and MetaTAF backends) selects the implementation of the GP models and acquisition functions;
+Python receives it as `BO_MODEL_LIBRARY`: `BoTorch` (default), `BotorchRust` ([botorch-rust](https://github.com/M-Colley/botorch-rust),
+BoTorch's API in Rust, several times faster per suggestion) or `Auto` (botorch-rust when installed, otherwise BoTorch).
+botorch-rust is part of `requirements.txt`. CABOP keeps its own optimizer, and DBO always uses botorch-rust. The model
+library is a study factor: keep it fixed within a study.
 
 CABOP addresses the practical case where design changes do not all have the same evaluation cost. For the broader cost-aware BO motivation and terminology, see Langerak, Zhang, Wang, Kristensson, and Oulasvirta's [Cost-Aware Bayesian Optimization for Prototyping Interactive Devices](https://dl.acm.org/doi/full/10.1145/3772318.3791024).
 The optimizer in `BOData/BayesianOptimization/cabop/` is vendored from the authors' reference implementation ([aalto-ui/CABOP](https://github.com/aalto-ui/CABOP), MIT licence, copied to `cabop/LICENSE`); the local changes are listed in `cabop/__init__.py`.
@@ -728,7 +737,7 @@ These options are in the lower part of this [image](#py_st_ws_pr_settings).
 
 #### 8.10.1 Warm Start Settings
 
-* Checking **Warm Start** skips the initial rounds. Optimization starts from prior results supplied as CSVs, formatted like the examples in *Assets/StreamingAssets/BOData/BayesianOptimization/InitData*.
+* Checking **Warm Start** skips the initial rounds. Optimization starts from prior results supplied as CSVs, formatted like the examples in *Assets/StreamingAssets/BOData/InitData*.
 * Copying a prior *ObservationsPerEvaluation.csv* into the new study’s log folder is optional and only needed if you want one continuous observation log across runs.
 * Leaving it unchecked uses the default start. After the specified number of initial iterations (minimum 2), optimization begins using the collected values.
 * **Warm Start Objective Format** controls how objective values in the warm-start objective CSV are interpreted:
@@ -741,7 +750,7 @@ These options are in the lower part of this [image](#py_st_ws_pr_settings).
 
 #### 8.10.2 Warm-Start CSV Checklist (Required)
 
-* Both files must be in *Assets/StreamingAssets/BOData/BayesianOptimization/InitData* and referenced by file name in the inspector.
+* Both files must be in *Assets/StreamingAssets/BOData/InitData* and referenced by file name in the inspector.
 * Parameter CSV headers must exactly match parameter keys; objective CSV headers must exactly match objective keys.
 * Parameter and objective CSVs must have the same number of rows and at least one row.
 * All values must be numeric and finite (no `NaN`/`Inf`).
@@ -845,7 +854,7 @@ For `ExternalSignal`, call this from your own UI/event logic:
 BoForUnityManager.Instance.RequestNextIteration();
 ```
 
-If you use the bundled `QTQuestionnaireManager`, this request is queued automatically after questionnaire completion when `Iteration Advance Mode` is set to `ExternalSignal`.
+If you use the add-on's `QTQuestionnaireManager`, this request is queued automatically after questionnaire completion when `Iteration Advance Mode` is set to `ExternalSignal`.
 
 #### 8.10.8 Final Design Round (Optional)
 
@@ -940,7 +949,7 @@ LogData/
         multi/run/
 ```
 
-`<USER_LOG_ID>` and `<CONDITION_LOG_ID>` are folder-safe versions of `User ID` and `Condition ID`. If `<USER_LOG_ID>/<CONDITION_LOG_ID>` already exists, BOforUnity creates a suffixed user folder such as `<USER_LOG_ID>_1` to avoid overwriting. Within that user folder, all condition-specific files are written below their condition folder.
+`<USER_LOG_ID>` and `<CONDITION_LOG_ID>` are folder-safe versions of `User ID` and `Condition ID`. If `<USER_LOG_ID>/<CONDITION_LOG_ID>` already exists, iBO creates a suffixed user folder such as `<USER_LOG_ID>_1` to avoid overwriting. Within that user folder, all condition-specific files are written below their condition folder.
 
 BO/backend run files are written to:
 * *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/run/*
@@ -1036,7 +1045,7 @@ With `Context Embedding Source = Image`:
 
 * **Image Embedding Model** defaults to `ViT-bigG-14` — open_clip's release of **ViT-G/14** (~1.8B-parameter vision transformer, 1280-dimensional image embeddings). **Pretrained Weights Tag** defaults to the matching `laion2b_s39b_b160k`.
 * ViT-G/14 downloads roughly 10 GB of weights on first use and needs a correspondingly capable machine. For quick experiments, `ViT-B-32` with tag `laion2b_s34b_b79k` is a light-weight alternative (embeddings from different models are not interchangeable — keep the model fixed within a study).
-* The optional Python dependencies must be installed into the interpreter used by the optimizer, which the Console logs at startup as `Optimizer Python: …` (by default BOforUnity's private environment, see [8.5](#85-python-settings)): `"<that path>" -m pip install open_clip_torch pillow`. They are intentionally not part of `requirements.txt` so the default installation stays slim; a clear error with install instructions is raised if they are missing.
+* The optional Python dependencies must be installed into the interpreter used by the optimizer, which the Console logs at startup as `Optimizer Python: …` (by default iBO's private environment, see [8.5](#85-python-settings)): `"<that path>" -m pip install open_clip_torch pillow`. They are intentionally not part of `requirements.txt` so the default installation stays slim; a clear error with install instructions is raised if they are missing.
 * Relative image paths are resolved against `Assets/StreamingAssets/BOData/InitData/`.
 * Embeddings are cached under `InitData/ContextEmbeddingCache/` keyed by image content and model, so the vision model only runs when an image or the model configuration changes (override the cache location with the `BO_EMBED_CACHE` environment variable).
 
@@ -1169,10 +1178,10 @@ check, and vendor-update instructions: [docs/dbo-backend.md](dbo-backend.md).
 | "The optimizer backend could not be started: …" / "The optimizer backend stopped: …" (or "The system could not be started...") | The backend exited; the text is its last error line | Fix the reported cause (e.g. the port row below). The full backend output is in `<persistentDataPath>/BOData/BayesianOptimization/output.txt` (previous session: `output.prev.txt`). |
 | "Invalid optimizer configuration." on screen at startup | A setting the backend would crash on later: empty, duplicate or reserved keys, a parameter Lower Bound not below its Upper Bound, Raw Samples < Optimizer Restarts, a negative Seed with MetaTAF, a CABOP tolerance outside `[0, 1]` or prefabricated values outside the bounds | The message lists each problem; the inspector shows the same errors in red under the objective list. (The backends refuse the same settings, e.g. `rawSamples (...) must be >= numRestarts (...)` or `Parameter '<key>' has a degenerate range`.) |
 | "Optimizer connection failed." on screen during a study | Python ended unexpectedly or sent an invalid message | See `output.txt` / the Console for the Python traceback. The study stops on purpose so no design is shown without the optimizer. |
-| `externally-managed-environment` (PEP 668) in the pip log | BOforUnity could not create its private environment (Debian/Ubuntu without the venv module) and fell back to `pip install --user`, which system Pythons refuse | `sudo apt install python3.13-venv` (or run `Linux/install_python.sh`), then press Play again. |
+| `externally-managed-environment` (PEP 668) in the pip log | iBO could not create its private environment (Debian/Ubuntu without the venv module) and fell back to `pip install --user`, which system Pythons refuse | `sudo apt install python3.13-venv`, then press Play again. |
 | "Waiting for another Unity instance … to finish installing the Python dependencies" | A second Unity instance of the same project (e.g. a ParrelSync clone) is installing into the shared environment | Wait; the setup continues when the other install finishes. |
-| "this Python runs as 'x86_64', but the pinned PyTorch ships … arm64 … only" | An Intel-only Python on Apple Silicon (e.g. Homebrew under `/usr/local`) | Use the bundled python.org 3.13 (universal2) or an arm64 Python. An Intel (Rosetta) Unity is fine: Python is started as arm64 automatically. |
-| openbo or open_clip "not installed" although you installed it | The backends run in BOforUnity's private environment, not your system Python | Install it with the interpreter logged as `Optimizer Python: …` at startup (`"<that path>" -m pip install …`); the error message prints the same command. |
+| "this Python runs as 'x86_64', but the pinned PyTorch ships … arm64 … only" | An Intel-only Python on Apple Silicon (e.g. Homebrew under `/usr/local`) | Use the python.org 3.13 installer (universal2) or an arm64 Python. An Intel (Rosetta) Unity is fine: Python is started as arm64 automatically. |
+| openbo or open_clip "not installed" although you installed it | The backends run in iBO's private environment, not your system Python | Install it with the interpreter logged as `Optimizer Python: …` at startup (`"<that path>" -m pip install …`); the error message prints the same command. |
 | Loop stalls after questionnaire `Finish` | Objective values were not assigned, or objective keys do not match questionnaire headers | Verify each objective key is mapped and receives a value each iteration. |
 | Loop does not progress in `ExternalSignal` mode | `RequestNextIteration()` is not called from your custom flow | Add the explicit call after your evaluation step ends. |
 | Loop does not progress in `NextButton` mode | `Next Button` not assigned or not wired to `ButtonNextIteration()` | Assign the button reference and Unity `OnClick` event to `BoForUnityManager.ButtonNextIteration()`. |
@@ -1195,7 +1204,7 @@ check, and vendor-update instructions: [docs/dbo-backend.md](dbo-backend.md).
 | `Warning: warm-start ... values ... treating the column as already normalized` in `output.txt` | A warm-start column lies outside its raw bounds (beyond log rounding) but inside the normalized range | Check the file: if the values are raw, fix the bounds or the values; if they are normalized, set **Warm Start Objective Format** explicitly. |
 | CABOP: `CABOP tolerance of parameter '<key>' must lie in [0, 1]` at startup | The tolerance is given in parameter units (the meaning up to version 1.8.0) or is negative | Divide it by the parameter's range (the message names it), e.g. 2 on `[18, 64]` → `0.0435`. |
 | CABOP: `prefabricated value(s) [...] of parameter '<key>' lie outside its bounds` at startup | A prefabricated value lies outside Lower/Upper Bound | Remove it or widen the bounds. |
-| MetaTAF: `The Meta-TAF backend needs the 'openbo' package` | openbo is not installed for the Python that BOforUnity launches (its private environment, logged as `Optimizer Python: …`) | Run the printed command, i.e. `"<that path>" -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` (see [student guide](meta-taf-student-guide.md)). |
+| MetaTAF: `The Meta-TAF backend needs the 'openbo' package` | openbo is not installed for the Python that iBO launches (its private environment, logged as `Optimizer Python: …`) | Run the printed command, i.e. `"<that path>" -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` (see [student guide](meta-taf-student-guide.md)). |
 | MetaTAF: `The installed 'openbo' predates the TAF-R rework` | openbo was installed before 2026-08, when the `taf_r` weight mode switched from Pareto-dominance to objective-wise ranking agreement — the backend refuses to run a different similarity than configured | Run the printed command, i.e. `"<Optimizer Python>" -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` is a no-op: openbo's version number did not change). |
 | MetaTAF: `source '<name>' skipped: built for a different study frame` | The population model was generated for different parameter/objective names, bounds, or minimize flags | Regenerate sources with `meta_train.py` using a `frame.json` that matches the current study exactly. This check is intentional. |
 | MetaTAF: `the population loaded from '...' differs from its frozen population manifest` | The source folder changed since `population.json` was written (a source added, removed, replaced, or no longer loadable; each difference is listed) | During a study: restore the frozen folder. Before the study: rewrite the manifest with `meta_train.py --frame frame.json --out <folder> --manifest-only`. |
@@ -1217,31 +1226,33 @@ check, and vendor-update instructions: [docs/dbo-backend.md](dbo-backend.md).
 
 ## 10. System Architecture
 
-This section explains the architecture to help you extend the asset. The diagram below summarizes the flow.
+This section explains the architecture of the Unity integration to help you extend it. The diagram below summarizes the flow.
 
 ![System Architecture](../images/System_Architecture.png)
 
-At the top is *BoForUnityManagerEditor.cs*, which edits the *BoForUnityManager.prefab* (what can be set and how it is described). The prefab’s settings are configured in the Unity Inspector as explained in [Configuration](#8-configuration).\
+At the top is *BoForUnityManagerEditor.cs*, which edits the *BoForUnityManager* component, for example on the *BOforUnityManager* prefab of the add-on (what can be set and how it is described). The prefab’s settings are configured in the Unity Inspector as explained in [Configuration](#8-configuration).\
 *BoForUnityManager.cs* manages the process and first starts the Python server via *PythonStarter.cs*.\
 Once the server is running, *BoForUnityManager.cs* communicates with the selected backend script (*bo.py*/*mobo.py* or *cabop_bo.py*/*cabop_mobo.py*) using *SocketNetwork.cs*. On the Python side, all backends share the socket protocol, the init-message checks and the log writers in *bo_protocol.py*.\
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
-The Python side does not depend on Unity: the [iBO protocol](../protocol/README.md) describes the messages, *ibo_server.py* picks the backend from the init message, and the [Python client](../Python/README.md) runs complete studies from any program. The project is becoming Interactive Bayesian Optimization (iBO) with further integrations; see the [roadmap](ibo/ROADMAP.md).
+The Python side does not depend on Unity: the [iBO protocol](../protocol/README.md) describes the messages, *ibo_server.py* picks the backend from the init message, and the [Python client](../Python/README.md) runs complete studies from any program. iBO also has an Unreal Engine plugin and a Python client; see the [README](../README.md) and the [roadmap](ibo/ROADMAP.md).
 
 <br>
 
 ## 11. Portability to Your Own Project
 
-To reuse this tool in another project, export it as a Unity package:
-1. In the Unity hierarchy, ensure you are in *Assets*.
+To reuse the Unity integration in another project, export it as a Unity package:
+1. In the Unity Project window, select the *Assets* folder.
 2. `Assets` → **Export Package...**
 3. Click **None** to deselect all files.
 4. Select:
-   - *BOforUnity*
-   - *QuestionnaireToolkit*
+   - *iBO*
+   - *iBO-QuestionnaireToolkit* (optional; needed for the questionnaire scenes)
    - *StreamingAssets*
 5. Click **Export...** and save the package.
+
+Release packages are built with `tools/build_packages.py` (see the [README](../README.md)).
 
 To import: `Assets` → **Import Package** → **Custom Package...**, select your package, keep all selected, and press **Import**.
 
@@ -1256,9 +1267,9 @@ To import: `Assets` → **Import Package** → **Custom Package...**, select you
 If you use this software, please cite:
 
 ```bibtex
-@software{jansen_bayesian_optimization_for_unity,
+@software{jansen_interactive_bayesian_optimization,
   author    = {Pascal Jansen and Mark Colley},
-  title     = {Bayesian Optimization for Unity},
+  title     = {Interactive Bayesian Optimization (iBO), formerly Bayesian Optimization for Unity},
   publisher = {Zenodo},
   doi       = {10.5281/zenodo.19786494},
   url       = {https://doi.org/10.5281/zenodo.19786494}
@@ -1270,4 +1281,4 @@ If you use this software, please cite:
 
 ## 13. License
 
-This project is under the **MIT License**, available in the repository folder containing this README.
+This project is under the **MIT License**, see [LICENSE](../LICENSE).

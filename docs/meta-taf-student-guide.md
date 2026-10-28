@@ -1,7 +1,7 @@
-# Meta-BO in BOforUnity — Student Guide (MetaTAF backend)
+# Meta-BO in iBO — Student Guide (MetaTAF backend)
 
-*Written for BOforUnity v1.8. For questions, start with section 7 (troubleshooting) and
-section 9 (what to cite).*
+*Written for BOforUnity v1.8, now iBO. Paths are relative to the Unity project (`Unity/` in the repository).
+For questions, start with section 7 (troubleshooting) and section 9 (what to cite).*
 
 ## 1. What this does, in plain language
 
@@ -31,15 +31,15 @@ start (see **Meta Require Sources**) instead of silently running plain multi-obj
 This is the multi-objective (Pareto/hypervolume) counterpart of the meta-BO approach that
 Liao et al. (CHI 2024) showed cuts calibration to a handful of trials in wrist-input
 studies. The optimizer itself lives in the [openbo](https://github.com/M-Colley/openbo)
-Python package; BOforUnity talks to it through the same socket protocol as every other
+Python package; iBO talks to it through the same socket protocol as every other
 backend.
 
 ## 2. Requirements
 
-* BOforUnity set up and working normally (any backend) — see the main README first.
+* iBO set up and working normally in Unity (any backend) — see the [Unity manual](unity-manual.md) first.
 * **At least 2 objectives** (this backend is multi-objective only).
-* The **openbo** package installed for the same Python that BOforUnity launches. That is
-  BOforUnity's private environment (README 8.5), not your system Python: the Unity Console
+* The **openbo** package installed for the same Python that iBO launches. That is
+  iBO's private environment ([Unity manual 8.5](unity-manual.md#85-python-settings)), not your system Python: the Unity Console
   logs its interpreter at startup as `Optimizer Python: …`; use that path in place of
   `python` in the commands below (`"<that path>" -m pip install …`). The backend's error
   messages print the complete command with that interpreter.
@@ -54,7 +54,7 @@ python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"
 python -m pip install -e path/to/openbo
 ```
 
-  openbo's own dependencies (botorch, torch, ...) are already satisfied by BOforUnity's
+  openbo's own dependencies (botorch, torch, ...) are already satisfied by iBO's
   `requirements.txt` versions. If the backend starts without openbo it exits immediately
   with the exact install command above — nothing hangs.
 
@@ -214,7 +214,7 @@ between sources is unaffected, but if you tighten `Meta Rho` below its default, 
 this inflation: sources near the cutoff get dropped sooner on tie-heavy data.
 
 The remaining hyperparameters (restarts, raw samples, MC samples, seed, iteration counts)
-are the shared ones described in README 8.10/8.11 and apply unchanged.
+are the shared ones described in the Unity manual, sections 8.10/8.11, and apply unchanged.
 
 ## 5. What gets logged
 
@@ -298,7 +298,7 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 
 | Symptom | Fix |
 |---|---|
-| `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python BOforUnity uses** (README 8.5 shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` |
+| `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python iBO uses** ([Unity manual 8.5](unity-manual.md#85-python-settings) shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` |
 | `The installed 'openbo' predates the TAF-R rework` | Your openbo is from before 2026-08, when the `taf_r` mode changed from Pareto-dominance to objective-wise ranking agreement; running it would silently compute a different similarity than configured. Run the printed command: `python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` does nothing here — openbo's version number did not change). |
 | `source '<name>' skipped: built for a different study frame` | The artifact was generated for different names/bounds/minimize flags. The lines below it list the exact field. Regenerate with a matching `frame.json`. |
 | `source '<name>' skipped: no frame block` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
@@ -348,7 +348,7 @@ implementation:
 * **openbo (the optimizer implementation):** https://github.com/M-Colley/openbo (MIT,
   © Yi-Chi Liao; fork of https://github.com/yichiliao/openbo with correctness fixes and
   the multi-objective TAF-EHVI optimizers).
-* **BOforUnity itself:** see README section 12.
+* **iBO itself:** see the [citation](../README.md#citation) in the README.
 
 Method summary for your paper's notation: the acquisition blends the current user's
 `qLogNEHVI` with per-source hypervolume-improvement terms computed from each population
