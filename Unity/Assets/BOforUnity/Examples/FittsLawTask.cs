@@ -2364,7 +2364,7 @@ namespace BayesianOptimization.Examples
             if (BoForUnityManager.Instance != null)
                 return BoForUnityManager.Instance;
 
-            #if UNITY_6000_6_OR_NEWER
+#if UNITY_6000_4_OR_NEWER
             BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>();
 #else
             BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>(FindObjectsSortMode.None);
