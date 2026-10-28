@@ -38,18 +38,20 @@ def render(t):
              f'<path d="M0,0 L10,5 L0,10 z" fill="{t["accent"]}"/></marker></defs>')
     top, ch, gap = 58, 82, 14
     # column headers
-    o.append(text(20, 38, "Integrations", 14, t["muted"], 600))
+    o.append(text(20, 38, "Any front end", 14, t["muted"], 600))
     o.append(text(500, 38, "iBO protocol v1", 14, t["muted"], 600, "middle"))
     o.append(text(650, 38, "Backend", 14, t["muted"], 600))
     cards = [
         ("unity", t["unity"], "Unity", "C# package, Inspector setup", "questionnaire add-on, examples"),
         ("unrealengine", t["unreal"], "Unreal Engine", "C++ plugin, Blueprint component", "analytic example actor"),
         ("python", "#3776AB", "Python", "interactive_bo client", "scripts, PsychoPy, lab hardware"),
-        (None, t["text"], "Your engine or tool", "any client of the iBO protocol", "JSON lines over local TCP"),
+        (None, t["text"], "Your own tool", "Godot, C++, Node.js, MATLAB, ...", "any language with TCP and JSON"),
     ]
     for i, (ic, col, name, l1, l2) in enumerate(cards):
         y = top + i * (ch + gap)
-        o.append(f'<rect x="20" y="{y}" width="330" height="{ch}" rx="10" fill="{t["card"]}" stroke="{t["stroke"]}"/>')
+        # the open slot for other tools is outlined like a placeholder
+        outline = f'stroke="{t["stroke"]}"' if ic else f'stroke="{t["accent"]}" stroke-width="1.5" stroke-dasharray="6 4"'
+        o.append(f'<rect x="20" y="{y}" width="330" height="{ch}" rx="10" fill="{t["card"]}" {outline}/>')
         if ic:
             o.append(icon(ic, 38, y + 23, 36, col))
         else:

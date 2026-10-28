@@ -5,7 +5,7 @@ samples, or copy the package into your own project.
 
 ## Requirements
 
-- Unity 6000.6 (tested with 6000.6.7f1; the package also compiles and passes its EditMode tests on 6000.4).
+- Unity 6000.6 (the project uses 6000.6.7f1; the 2.0 package has so far been compiled and tested on 6000.4).
 - The packages `com.unity.nuget.newtonsoft-json` 3.2.2 and `com.unity.ugui` 2.6.0. The tests also need
   `com.unity.test-framework` 1.8.0.
 - Python 3.13. On the first Play, iBO installs the pinned packages of `requirements.txt` into a private virtual

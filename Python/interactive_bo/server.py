@@ -103,6 +103,17 @@ class ServerProcess:
         self.stop()
 
 
+def interpreter_path(python: Optional[PathLike]) -> str:
+    """The interpreter to start: a path is made absolute (the server runs in another folder), a bare command name
+    such as ``python3`` is left to the PATH lookup. Symbolic links are kept, so a venv's python stays the venv's."""
+    if python is None:
+        return sys.executable
+    text = str(python)
+    if os.sep in text or (os.altsep and os.altsep in text):
+        return os.path.abspath(text)
+    return text
+
+
 def launch_server(python: Optional[PathLike] = None, port: Optional[int] = None,
                   log_root: Optional[PathLike] = None, init_root: Optional[PathLike] = None,
                   backend_dir: Optional[PathLike] = None, env: Optional[Mapping[str, str]] = None,
@@ -142,7 +153,7 @@ def launch_server(python: Optional[PathLike] = None, port: Optional[int] = None,
         child_env.update(env)
 
     process = subprocess.Popen(
-        [str(python or sys.executable), "-u", str(script)],
+        [interpreter_path(python), "-u", str(script)],
         cwd=str(data_dir), env=child_env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
     )

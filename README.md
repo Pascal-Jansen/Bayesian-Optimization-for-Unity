@@ -1,14 +1,15 @@
 <h1 align="center">iBO · Interactive Bayesian Optimization</h1>
 
 <p align="center">
-  <b>Human-in-the-loop Bayesian optimization for Unity, Unreal Engine and Python.</b><br>
-  People's ratings and behavior steer the design of interactive systems, one evaluation at a time.
+  <b>Human-in-the-loop Bayesian optimization for any interactive system.</b><br>
+  Ready for Unity, Unreal Engine and Python; anything else connects through an open protocol.
 </p>
 
 <p align="center">
   <a href="Unity/README.md"><img alt="Unity 6000.6" src="https://img.shields.io/badge/Unity-6000.6-000000?logo=unity&amp;logoColor=white"></a>
   <a href="Unreal/README.md"><img alt="Unreal Engine 5.8" src="https://img.shields.io/badge/Unreal%20Engine-5.8-0E1128?logo=unrealengine&amp;logoColor=white"></a>
   <a href="Python/README.md"><img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&amp;logoColor=white"></a>
+  <a href="protocol/README.md"><img alt="iBO protocol: JSON over TCP" src="https://img.shields.io/badge/iBO%20protocol-JSON%20over%20TCP-6E7781"></a>
   <a href="https://botorch.org"><img alt="BoTorch 0.18" src="https://img.shields.io/badge/BoTorch-0.18-EE4C2C?logo=pytorch&amp;logoColor=white"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
   <a href="https://doi.org/10.5281/zenodo.19786494"><img alt="DOI 10.5281/zenodo.19786494" src="https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg"></a>
@@ -22,7 +23,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-overview-dark.svg">
-  <img alt="iBO overview: Unity, Unreal Engine, Python and other clients exchange designs and objectives with the iBO backend over the iBO protocol; the backend runs BoTorch or botorch-rust with BO, MOBO, CABOP, DBO, contextual LCE-M and MetaTAF" src="images/ibo-overview-light.svg">
+  <img alt="iBO overview: any front end (Unity, Unreal Engine, Python or your own tool) exchanges designs and objectives with the iBO backend over the iBO protocol; the backend offers BO, MOBO, CABOP, DBO, contextual LCE-M and MetaTAF" src="images/ibo-overview-light.svg">
 </picture>
 
 ## What iBO does
@@ -32,8 +33,9 @@ You declare **design parameters** (what the system may change, such as sizes, co
 next design to show after every evaluation. It finds good designs, or the **Pareto front** of best trade-offs between
 several objectives, with far fewer trials than manual tuning, A/B tests or grid search.
 
-One Python optimizer serves every integration over the same [iBO protocol](protocol/README.md). iBO continues
-*Bayesian Optimization for Unity*; if you used it, see the [migration guide](docs/migration-to-ibo.md).
+iBO is not tied to an engine: the optimizer runs as its own process, and whatever shows the designs talks to it over
+a small open protocol. iBO continues *Bayesian Optimization for Unity*; if you used it, see the
+[migration guide](docs/migration-to-ibo.md).
 
 ## How iBO works
 
@@ -47,102 +49,126 @@ overview (**sampling**); after that, iBO picks designs where its estimate is hig
   <img alt="Animation of an iBO run with one design parameter: after three spread-out designs, iBO's estimate and its uncertainty guide each next design, and the ratings settle at the best design within 12 ratings." src="images/ibo-one-parameter-light.gif">
 </picture>
 
-**One parameter, one rating.** The dashed curve is what the participant would rate, which iBO never sees. With every
-rating its estimate (blue) and uncertainty (band) improve, and within 12 ratings it settles on the best design.
+**One parameter, one rating** (BoTorch backend, 3 sampling and 9 optimization iterations). iBO found the peak with
+its 6th rating, then checked two regions it was still unsure about and spent the last four ratings on the peak.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-trade-offs-dark.gif">
   <img alt="Animation of a multi-objective iBO run: designs on the left are linked to their comfort and speed results on the right; the best trade-offs line up along the hidden best possible curve." src="images/ibo-trade-offs-light.gif">
 </picture>
 
-**Two goals that conflict.** When comfort and speed pull in different directions there is no single best design, but
-a set of best trade-offs (the Pareto front): designs that no other design beats on both goals. Multi-objective BO
-(MOBO) finds them; the dotted line links each design (left) to its result (right).
+**Two goals that conflict** (multi-objective BO, 6 sampling and 14 optimization iterations). 12 of the 20 designs
+are best trade-offs, and all of them lie close to the best possible ones; which compromise to use is then your
+decision.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-drift-dark.gif">
   <img alt="Animation comparing Dynamic BO and standard BO while the best design moves during a session: DBO's designs follow the moving best design, standard BO's designs scatter." src="images/ibo-drift-light.gif">
 </picture>
 
-**Preferences that change during a session.** People adapt, learn and tire, so the best design can move. Dynamic BO
-(DBO) trusts recent ratings more and keeps up: 15 of its 20 model-guided designs land in the gold band, against 7 for
-standard BO, which treats old and new ratings alike.
+**Preferences that change during a session** (DBO and the BoTorch backend with the same settings). People adapt,
+learn and tire, so the best design moves. 15 of DBO's 20 model-guided designs land in the gold band (within 0.1 of
+the best design at that moment), against 7 for standard BO.
 
-## At a glance
+## One optimizer, any front end
 
-| Part | What you get | Folder | Start here |
-|---|---|---|---|
-| **Unity** | C# package configured in the Inspector, analytic and rendering samples; optional QuestionnaireToolkit add-on with questionnaire studies and a Fitts's law study | `Unity/` | [Unity guide](Unity/README.md), [manual](docs/unity-manual.md) |
-| **Unreal Engine** | C++ plugin with a Blueprint component, analytic example actor, Python launcher | `Unreal/` | [Unreal guide](Unreal/README.md) |
-| **Python** | `interactive_bo`: client and server launcher for scripts, PsychoPy or lab hardware | `Python/` | [Python guide](Python/README.md) |
-| **Backend** | The optimizer: BO, MOBO, CABOP, DBO, contextual LCE-M, MetaTAF on BoTorch or botorch-rust; `ibo_server.py` for the Python client and new integrations | `Backend/` | [Backend](Backend/README.md), [architecture](docs/architecture.md) |
-| **Protocol** | Message specification and JSON schema for new integrations | `protocol/` | [Protocol](protocol/README.md) |
+Unity, Unreal Engine and Python come with ready-made integrations. Anything else that can open a local TCP connection
+and write JSON can run a study too: a VR or driving simulator, an experiment program, a web service, a robot or
+haptics controller. Every front end gets the same methods and the same CSV logs.
 
-**Status:** release candidate 2.0.0-rc.1.
+| Front end | What you use | Start here |
+|---|---|---|
+| **Unity** | C# package: copy `Assets/iBO` and `Assets/StreamingAssets/BOData` into your project and set it up in the Inspector; samples; optional QuestionnaireToolkit add-on with questionnaire studies and a Fitts's law study | [Unity guide](Unity/README.md), [manual](docs/unity-manual.md) |
+| **Unreal Engine** | C++ plugin with a Blueprint component and an analytic example actor; the rest of `Unreal/` (launcher, backend copy) stays in a writable folder | [Unreal guide](Unreal/README.md) |
+| **Python programs**: scripts, PsychoPy, lab hardware | `interactive_bo`: client and server launcher | [Python guide](Python/README.md) |
+| **Your own tool**: Godot, C++, Java, Node.js, MATLAB, R, ... | Start the server (`ibo serve`) and speak the iBO protocol in any language with TCP sockets and JSON; a JSON schema is included | [Protocol](protocol/README.md) |
 
-- Windows: the Unity and Unreal integrations iBO is built from were validated with Unity 6000.6 and Unreal Engine 5.8.
-- macOS: the backend, the Python client and the Unity package (compiled and tested in Unity 6000.4) are tested for 2.0.
+This is a complete study on the wire, recorded from iBO (`→` to iBO, `←` from iBO; each message is one line, the
+first is wrapped here, numbers are shortened):
+
+```text
+→ {"type": "init", "parameters": [{"key": "size", "init": {"low": 0.2, "high": 2.0}}],
+   "objectives": [{"key": "usability", "init": {"low": 0, "high": 100, "minimize": 0}}],
+   "config": {"nParameters": 1, "nObjectives": 1, "numSamplingIterations": 2, "numOptimizationIterations": 1}}
+← {"type": "parameters", "values": {"size": 0.32}, "iteration": 1}
+→ {"type": "objectives", "values": {"usability": 75.9}}
+← {"type": "tempCoverage", "value": 0.5}
+← {"type": "parameters", "values": {"size": 1.26}, "iteration": 2}
+→ {"type": "objectives", "values": {"usability": 99.0}}
+← {"type": "tempCoverage", "value": 1.0}
+← {"type": "coverage", "value": 0.98}
+← {"type": "parameters", "values": {"size": 1.60}, "iteration": 3}
+→ {"type": "objectives", "values": {"usability": 90.0}}
+← {"type": "coverage", "value": 0.98}
+← {"type": "optimization_finished"}
+```
+
+`tempCoverage` (share of the sampling phase done) and `coverage` (best value so far, on iBO's internal −1 to 1 scale)
+report progress and can be ignored. The optimizer behind every front end is in `Backend/`
+([Backend](Backend/README.md), [architecture](docs/architecture.md)).
+
+From 2.0 on, every [release](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases) carries
+`iBO-Unity-<version>.zip` and `iBO-Unreal-<version>.zip`. The QuestionnaireToolkit add-on and the Python package come
+from this repository (the package is not on PyPI).
+
+## Features
+
+- Single- and multi-objective Bayesian optimization on [BoTorch](https://botorch.org), or on
+  [botorch-rust](https://github.com/M-Colley/botorch-rust), a faster Rust implementation installed with the requirements.
+- Methods for special studies: cost-aware ([CABOP](https://dl.acm.org/doi/full/10.1145/3772318.3791024)), drifting
+  preferences ([DBO](https://doi.org/10.1109/LRA.2026.3665072)), transfer from earlier participants (MetaTAF) and
+  several users, devices or environments (contextual LCE-M); see [Choosing an optimizer](#choosing-an-optimizer).
+- Explicit feedback (questionnaires; QuestionnaireToolkit add-on for Unity) and implicit feedback (telemetry, behavior).
+- CSV logging per participant and condition, warm starts, reproducible seeds, concurrent studies on separate ports.
+
+## Status
+
+Release candidate 2.0.0-rc.1.
+
+- Windows: [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines),
+  where iBO's layout and Unreal plugin come from, was validated before the renaming with Unity 6000.6 and Unreal
+  Engine 5.8.
+- macOS: for 2.0, the backend and Python client tests pass, real BO, MOBO and DBO studies ran through the Python
+  client, and the Unity package compiles and passes its EditMode tests in Unity 6000.4; no Play-mode run with Python yet.
 - Linux: the backend and Python client tests run in CI.
 - Not yet validated: the renamed package in Unity 6000.6 and Unreal Engine 5.8, the engine integrations on macOS and
   Linux, and standalone player builds ([validation record](docs/validation.md)).
 
-## Features
-
-- Single- and multi-objective Bayesian optimization on [BoTorch](https://botorch.org);
-  [botorch-rust](https://github.com/M-Colley/botorch-rust), a faster Rust implementation of BoTorch installed with the
-  requirements, can run the models instead.
-- Cost-aware optimization ([CABOP](https://dl.acm.org/doi/full/10.1145/3772318.3791024)) when design changes have different costs.
-- Dynamic BO ([DBO](https://doi.org/10.1109/LRA.2026.3665072)) for objectives that drift during a session (learning, fatigue).
-- Contextual optimization with a latent context embedding multi-task GP (LCE-M) to reuse data across users, devices or environments.
-- Transfer from prior participants (MetaTAF).
-- Explicit feedback (questionnaires; QuestionnaireToolkit add-on for Unity) and implicit feedback (telemetry, behavior).
-- CSV logging per participant and condition, warm starts, reproducible seeds, concurrent studies on separate ports.
-
 ## Quick start
 
-The optimizer runs on **Python 3.13** with the pinned packages of [`Backend/requirements.txt`](Backend/requirements.txt)
-(several GB with PyTorch). Unity installs them by itself on the first Play. For Unreal and Python, create an environment
-once (on Windows, use `.venv\Scripts\python` instead of `.venv/bin/python`):
+Run the commands from the repository root. The optimizer needs **Python 3.13** with the pinned packages of
+[`Backend/requirements.txt`](Backend/requirements.txt) (several GB with PyTorch).
+
+**Unity**: install Python 3.13; Unity installs the packages into a private environment on the first Play. Open
+`Unity/` in Unity 6000.6 (the project's version; the 2.0 package has so far been tested in 6000.4), open
+`Assets/iBO/Samples/Analytic/BO-analytic-demo.unity` and press Play. The questionnaire examples (`BO-example-scene`,
+the Fitts's law study and others) are in `Assets/iBO-QuestionnaireToolkit/Samples/Scenes`.
+
+For **Unreal**, **Python** and **your own tool**, create an environment once (on Windows: `py -3.13 -m venv .venv`,
+then `.venv\Scripts\...` instead of `.venv/bin/...`):
 
 ```bash
 python3.13 -m venv .venv
 ```
 
 ```bash
-.venv/bin/python -m pip install -r Backend/requirements.txt
+.venv/bin/python -m pip install -r Backend/requirements.txt ./Python
 ```
 
-**Unity**: open `Unity/` in Unity 6000.6 (tested; the package also compiles and passes its EditMode tests on 6000.4),
-open `Assets/iBO/Samples/Analytic/BO-analytic-demo.unity` and press Play. The questionnaire examples
-(`BO-example-scene`, the Fitts's law study and others) are in `Assets/iBO-QuestionnaireToolkit/Samples/Scenes`.
-
-**Unreal**: copy `Unreal/Plugins/BayesianOptimization` into the `Plugins` folder of a C++ project, start the backend
-with `.venv/bin/python Unreal/launch_backend.py --backend botorch --objectives 1`, add a `BoAnalyticDemoActor` to a
-level and press Play ([Unreal guide](Unreal/README.md)).
-
-**Python**: install the client (it needs only Python 3.9 or newer) and run a study with a simulated participant:
+**Python**: run a complete study with a simulated participant:
 
 ```bash
-python -m pip install ./Python
+.venv/bin/ibo demo
 ```
 
-```bash
-ibo demo --python .venv/bin/python
-```
+**Unreal**: copy `Unreal/Plugins/BayesianOptimization` into the `Plugins` folder of a C++ project and build it, start
+the backend with `.venv/bin/python Unreal/launch_backend.py --backend botorch --objectives 1`, add a
+`BoAnalyticDemoActor` to a level and press Play ([Unreal guide](Unreal/README.md)).
+
+**Your own tool**: start a server with `.venv/bin/ibo serve`, connect to `127.0.0.1:56001` and exchange the messages
+shown [above](#one-optimizer-any-front-end) ([protocol](protocol/README.md)).
 
 ![The Unity integration in action: a questionnaire study in Unity](images/BOforUnity.gif)
-
-## Use iBO in your own project
-
-| Integration | What you need | Guide |
-|---|---|---|
-| Unity | `Assets/iBO` and `Assets/StreamingAssets/BOData` from `Unity/`; for questionnaires also `Assets/iBO-QuestionnaireToolkit` | [Unity guide](Unity/README.md#use-it-in-your-own-project) |
-| Unreal Engine | The plugin `Plugins/BayesianOptimization`, plus the rest of `Unreal/` (launcher, backend copy) in a writable folder | [Unreal guide](Unreal/README.md) |
-| Any other program | The Python client, or your own client of the iBO protocol | [Python guide](Python/README.md), [protocol](protocol/README.md) |
-
-From 2.0 on, every [release](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases) carries
-`iBO-Unity-<version>.zip` and `iBO-Unreal-<version>.zip`. The QuestionnaireToolkit add-on and the Python package come
-from this repository (the package is not on PyPI).
 
 ## Choosing an optimizer
 
@@ -151,13 +177,13 @@ from this repository (the package is not on PyPI).
 | One objective, or the Pareto front of several (default) | BoTorch (`botorch`): BO for one objective, MOBO for several | [Manual 8.7](docs/unity-manual.md#87-optimizer-backend-and-cabop-settings) |
 | Changing a design costs differently depending on what changes (e.g. swapping hardware) | CABOP (`cabop`) | [Manual 8.7](docs/unity-manual.md#87-optimizer-backend-and-cabop-settings) |
 | One objective that drifts during a session (learning, fatigue) | DBO (`dbo`) | [Manual 8.15](docs/unity-manual.md#815-dynamic-bo-dbo-optimizing-a-drifting-objective), [DBO guide](docs/dbo-backend.md) |
-| Several objectives, with data of earlier participants to start from | MetaTAF (`meta-taf`) | [Manual 8.14](docs/unity-manual.md#814-meta-bo-metataf-transfer-from-prior-participants), [MetaTAF guide](docs/meta-taf-student-guide.md) |
-| Users, devices or environments that differ but share structure | Contextual optimization (LCE-M) with BoTorch | [Manual 8.13](docs/unity-manual.md#813-contextual-optimization-and-context-embeddings-lce-m-gp) |
+| Several objectives, with data of earlier participants to start from | MetaTAF (`meta-taf`; needs the `open-bo` package, see the guide) | [Manual 8.14](docs/unity-manual.md#814-meta-bo-metataf-transfer-from-prior-participants), [MetaTAF guide](docs/meta-taf-student-guide.md) |
+| Users, devices or environments that differ but share structure | Contextual optimization (LCE-M): `botorch` with a `context` in the init message (Unity: **Enable Contextual Optimization** in the Inspector) | [Manual 8.13](docs/unity-manual.md#813-contextual-optimization-and-context-embeddings-lce-m-gp) |
 
 ## Data and logs
 
-Every run writes semicolon-separated CSV files (observations, Pareto flags or best value, hypervolume, timings) and
-its provenance to `<log root>/<user ID>/<condition ID>/run/`
+Every run writes semicolon-separated CSV files (observations, Pareto flags or best value, hypervolume, timings) to
+`<log root>/<user ID>/<condition ID>/run/`
 ([manual 8.12](docs/unity-manual.md#812-output-files-and-metrics)). Everything stays on the local machine; use
 pseudonymous participant IDs.
 
@@ -184,8 +210,9 @@ pseudonymous participant IDs.
 
 Report bugs and ideas in the [issues](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/issues); pull
 requests are welcome. Change the optimizer only in `Backend/`, then regenerate and verify the engine copies and run the
-tests. They need Python 3.13 with numpy, pandas, pytest and jsonschema; with the full stack of `Backend/requirements.txt`
-the tests that run real optimizers are included.
+tests, as CI does. They need Python 3.13 with numpy, pandas, pytest and jsonschema. Tests that run real optimizers
+need the full stack of `Backend/requirements.txt`: the backend tests use it when it is installed, the Python client's
+when `IBO_TEST_PYTHON` names that interpreter, and the Unreal launcher's when `BO_RUN_INTEGRATION_TESTS=1` is set.
 
 ```bash
 python tools/sync_backends.py
@@ -197,6 +224,14 @@ python tools/sync_backends.py --check
 
 ```bash
 python -m pytest -q tests
+```
+
+```bash
+python -m pytest -q docs/standalone-bridge
+```
+
+```bash
+python -m unittest discover -s Unreal/tests
 ```
 
 ```bash
@@ -241,6 +276,7 @@ If you use iBO in research, please cite it:
   author    = {Pascal Jansen and Mark Colley},
   title     = {Interactive Bayesian Optimization (iBO), formerly Bayesian Optimization for Unity},
   publisher = {Zenodo},
+  year      = {2026},
   doi       = {10.5281/zenodo.19786494},
   url       = {https://doi.org/10.5281/zenodo.19786494}
 }

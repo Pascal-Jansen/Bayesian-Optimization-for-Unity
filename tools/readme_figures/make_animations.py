@@ -1,7 +1,7 @@
 """Draw the README animations from studies.json (recorded iBO runs), in a light and a dark version.
 
 Usage: python tools/readme_figures/make_animations.py  (needs numpy, matplotlib, torch, botorch and ffmpeg)
-The curve in the first animation is a GP fitted to the recorded ratings for display, like the model of bo.py.
+The estimate in the first animation is the model of bo.py, refitted to the recorded ratings for each frame.
 """
 import json
 import shutil
@@ -82,19 +82,22 @@ def legend(fig, c, handles, ncol):
 
 
 # One parameter, one rating ------------------------------------------------------------------------------------------
-def gp_curves(xs, ys, grid):
+def gp_curves(xs, ys, grid, low=0.0, high=10.0):
+    """iBO's estimate after these ratings: the model of bo.py (a SingleTaskGP with its default transforms on
+    parameters in [0, 1] and ratings mapped to [-1, 1]), converted back to rating units."""
     import torch
     from botorch.fit import fit_gpytorch_mll
     from botorch.models import SingleTaskGP
-    from botorch.models.transforms import Standardize
     from gpytorch.mlls import ExactMarginalLogLikelihood
     torch.manual_seed(0)
-    model = SingleTaskGP(torch.tensor(xs, dtype=torch.double).unsqueeze(-1),
-                         torch.tensor(ys, dtype=torch.double).unsqueeze(-1), outcome_transform=Standardize(m=1))
+    scale = (high - low) / 2
+    train_y = torch.tensor([(y - low) / scale - 1 for y in ys], dtype=torch.double).unsqueeze(-1)
+    model = SingleTaskGP(torch.tensor(xs, dtype=torch.double).unsqueeze(-1), train_y)
     fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
     with torch.no_grad():
         posterior = model.posterior(torch.tensor(grid, dtype=torch.double).unsqueeze(-1))
-        return posterior.mean.squeeze(-1).numpy(), posterior.variance.clamp_min(0).sqrt().squeeze(-1).numpy()
+        mean = (posterior.mean.squeeze(-1).numpy() + 1) * scale + low
+        return mean, posterior.variance.clamp_min(0).sqrt().squeeze(-1).numpy() * scale
 
 
 def one_parameter(theme):

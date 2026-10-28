@@ -1,8 +1,8 @@
-# Shared backend and engine wrappers
+# Architecture: one backend, any front end
 
-`Backend/` owns optimization, protocol validation, normalization, warm starts, logging, and provenance. Unity and Unreal own scene lifecycle, parameter application, measurement collection, presentation, and connection setup.
+`Backend/` owns optimization, protocol validation, normalization, warm starts, logging, and provenance. The front end (Unity, Unreal, the Python client or any other program that speaks the protocol) owns the presentation of each design, measurement collection, scene or application lifecycle, and connection setup.
 
-The engines exchange newline delimited JSON over loopback TCP. The client sends its configuration. The backend returns a complete parameter map and an iteration identifier. The client evaluates that design and returns a complete objective map. Raw units and explicit minimization flags are preserved across this boundary. Numerical transformations run in the backend. The messages are specified in [protocol/README.md](../protocol/README.md).
+Front end and backend exchange newline delimited JSON over loopback TCP. The client sends its configuration. The backend returns a complete parameter map and an iteration identifier. The client evaluates that design and returns a complete objective map. Raw units and explicit minimization flags are preserved across this boundary. Numerical transformations run in the backend. The messages are specified in [protocol/README.md](../protocol/README.md).
 
 Unity and Unreal start the backend script of the selected optimizer directly (`bo.py`, `mobo.py`, `cabop_bo.py`, `cabop_mobo.py`, `dbo.py`, `meta_mobo.py`). `Backend/ibo_server.py` is the single entry point for the Python client and new integrations: it reads the init message, picks the backend from `optimizerBackend` and the number of objectives, and hands the connection over.
 

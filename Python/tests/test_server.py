@@ -90,6 +90,12 @@ class LaunchTests(unittest.TestCase):
             os.environ["IBO_BACKEND_DIR"] = str(self.backend_dir)
             self.assertEqual(server_module.default_backend_dir(), self.backend_dir.resolve())
 
+    def test_a_relative_interpreter_path_is_made_absolute(self):
+        relative = os.path.join(".venv", "bin", "python")
+        self.assertEqual(server_module.interpreter_path(relative), os.path.abspath(relative))
+        self.assertEqual(server_module.interpreter_path("python3"), "python3")
+        self.assertEqual(server_module.interpreter_path(None), sys.executable)
+
     def test_missing_script(self):
         with self.assertRaisesRegex(FileNotFoundError, "ibo_server.py not found"):
             launch_server(backend_dir=self.root, log_root=self.root / "logs")

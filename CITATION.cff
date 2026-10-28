@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "Please cite this software and the optimization methods used in your study."
 title: "Interactive Bayesian Optimization (iBO)"
-abstract: "Human-in-the-loop Bayesian optimization for Unity, Unreal Engine and Python. Formerly Bayesian Optimization for Unity."
+abstract: "Human-in-the-loop Bayesian optimization for any interactive system: integrations for Unity, Unreal Engine and Python, and an open protocol for other tools. Formerly Bayesian Optimization for Unity."
 version: "2.0.0-rc.1"
 doi: 10.5281/zenodo.19786494
 repository-code: "https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity"
