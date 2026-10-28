@@ -7,12 +7,14 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 _CORE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _CORE_DIR not in sys.path:
     sys.path.insert(0, _CORE_DIR)
 
 from interactive_bo import IboClient, launch_server  # noqa: E402
+from interactive_bo import server as server_module  # noqa: E402
 from interactive_bo.server import READY_LINE  # noqa: E402
 
 # Behaves like the real server on the wire: prints the ready line, serves one session, exits.
@@ -73,6 +75,20 @@ class LaunchTests(unittest.TestCase):
         self.write_server("import time\nprint('loading', flush=True)\ntime.sleep(60)\n")
         with self.assertRaisesRegex(RuntimeError, r"(?s)did not start within 1 s.*loading"):
             launch_server(backend_dir=self.backend_dir, log_root=self.root / "logs", ready_timeout=1)
+
+    def test_default_backend_dir_order(self):
+        backend = self.root / "checkout" / "Backend"
+        backend.mkdir(parents=True)
+        (backend / "ibo_server.py").write_text("", encoding="utf-8")
+        installed = str(self.root / "venv" / "site-packages" / "interactive_bo" / "server.py")
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        with mock.patch.object(server_module, "__file__", installed), mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("IBO_BACKEND_DIR", None)
+            os.chdir(self.root / "checkout")  # repository root after `pip install ./Python`
+            self.assertEqual(server_module.default_backend_dir(), backend.resolve())
+            os.environ["IBO_BACKEND_DIR"] = str(self.backend_dir)
+            self.assertEqual(server_module.default_backend_dir(), self.backend_dir.resolve())
 
     def test_missing_script(self):
         with self.assertRaisesRegex(FileNotFoundError, "ibo_server.py not found"):
