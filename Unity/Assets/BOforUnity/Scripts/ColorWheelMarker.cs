@@ -6,9 +6,10 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
     [ExecuteAlways]
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "ColorWheelMarker")]
     public class ColorWheelMarker : MonoBehaviour
     {
         [Header("Wheel")]

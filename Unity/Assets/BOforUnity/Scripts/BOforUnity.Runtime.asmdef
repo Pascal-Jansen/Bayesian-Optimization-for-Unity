@@ -1,10 +1,10 @@
 {
     "name": "BOforUnity.Runtime",
-    "rootNamespace": "BOforUnity",
+    "rootNamespace": "BayesianOptimization",
     "references": [
-        "QuestionnaireToolkit.Runtime",
         "Unity.TextMeshPro",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "BOforUnity.Shared"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

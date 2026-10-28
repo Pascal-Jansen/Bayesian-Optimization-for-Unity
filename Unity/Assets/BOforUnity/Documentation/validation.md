@@ -1,0 +1,26 @@
+# Validation record
+
+Validation was performed on Windows on 28 October 2026. The Unity Editor version was `6000.6.7f1`. Unreal Engine was `5.8`. URP and HDRP used version `17.6.0`. Python used the pinned requirements and OpenBO commit `43279884eb9ef6e97b998fc26b49942869c9eda1`.
+
+| Check | Result |
+| --- | --- |
+| Full Python suite in the clean common repository | 522 passed, one platform skip, 320 subtests passed |
+| Release packaging regressions | Six passed |
+| Unity core EditMode tests without QuestionnaireToolkit | 47 passed |
+| Unity dispatcher PlayMode test in the authoring project | One passed |
+| Repeated Play sessions with Domain Reload disabled | Passed inside the lifecycle regression |
+| Unreal Editor Development, Win64 Development, Win64 Shipping | All builds passed |
+| Unreal native protocol automation | One passed, zero warnings and errors |
+| Built-in rendering | GPU readback passed |
+| URP rendering | Full questionnaire independent package compiled and rendered correctly |
+| HDRP rendering with both SRP packages installed | Full package compiled and rendered correctly |
+| Backend source synchronization | Both generated copies match 39 canonical files |
+| Concurrent protocol processes | Independent ports passed isolation checks |
+
+Rendering checks generated Lit and Unlit materials through public validation APIs. They inspected distinct object colors and the background revealed by zero alpha. The pipeline fixtures also generated the analytic optimization scene and checked its objective values and component references. These checks establish shader and source compatibility. Study stimuli still require visual calibration for lighting, exposure, and tone mapping.
+
+The Python run reported numerical convergence and dependency deprecation warnings. The single skip concerns POSIX permissions on Windows. The tests used the actual BoTorch, botorch-rust, CABOP, DBO, and optional OpenBO stack. Native installer actions and actual image encoder weights remain untested.
+
+Run `python -m pytest -q` with `BO_RUN_INTEGRATION_TESTS=1` for the full Python suite. Run Unity tests through Test Runner. Run `Automation RunTests BayesianOptimization` for native protocol checks. The rendering fixture is documented in [render-pipeline-support.md](render-pipeline-support.md).
+
+macOS, Linux, and standalone player deployment require validation before support is advertised. Asset Store acceptance also requires the actions in [publication-status.md](publication-status.md).

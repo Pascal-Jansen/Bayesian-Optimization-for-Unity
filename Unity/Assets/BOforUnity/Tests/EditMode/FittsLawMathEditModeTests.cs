@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
-using BOforUnity.Examples;
+using BayesianOptimization.Examples;
 
-namespace BOforUnity.Tests.EditMode
+namespace BayesianOptimization.Tests.EditMode
 {
     public class FittsLawMathEditModeTests
     {

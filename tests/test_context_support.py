@@ -21,7 +21,7 @@ from _stubs import FakeTensor, install_torch_stub  # noqa: E402
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTEXT_SUPPORT_PATH = (
-    REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/context_support.py"
+    REPO_ROOT / "Backend/context_support.py"
 )
 
 

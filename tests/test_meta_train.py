@@ -13,6 +13,7 @@ import io
 import json
 import os
 import pathlib
+import sys
 import tempfile
 import unittest
 import uuid
@@ -22,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BO_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BO_DIR = REPO_ROOT / "Backend"
 TRAIN_PATH = BO_DIR / "meta_train.py"
 
 
@@ -359,6 +360,42 @@ class PublishingTests(_CliMixin, unittest.TestCase):
         self.mt.check_dominates_reference(np.array([[-1.0, 0.4], [-1.0, -0.2]]))
         with self.assertRaises(ValueError):
             self.mt.check_dominates_reference(np.array([[-1.2, 0.4]]))
+
+
+class ModelLibraryTests(_CliMixin, unittest.TestCase):
+    """BO_MODEL_LIBRARY: the fit follows the MetaTAF library choice and is stamped into provenance."""
+
+    def _select(self, library, modules):
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"BO_MODEL_LIBRARY": library}),                 mock.patch.dict(sys.modules, modules), contextlib.redirect_stdout(out):
+            chosen = self.mt._select_model_library()
+            seen = os.environ["BO_MODEL_LIBRARY"]
+        return chosen, seen, out.getvalue()
+
+    def test_botorch_by_default_and_passed_to_openbo(self):
+        chosen, seen, _ = self._select("", {})
+        self.assertEqual((chosen, seen, self.mt.MODEL_LIBRARY), ("botorch", "botorch", "botorch"))
+
+    def test_botorch_rs_without_metataf_support_falls_back(self):
+        from test_bo_library import fake_botorch_rs
+
+        modules, _ = fake_botorch_rs(posterior_mean=False)
+        chosen, seen, out = self._select("botorch_rs", modules)
+        self.assertEqual((chosen, seen), ("botorch", "botorch"))
+        self.assertIn("Warning: the model library falls back to BoTorch", out)
+        self.assertTrue(self.mt.MODEL_LIBRARY_INFO["fallback"])
+
+    def test_missing_botorch_rs_ends_the_tool_with_the_reason(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self._select("botorch_rs", {"botorch_rs": None})
+        self.assertIn("not installed", str(ctx.exception.code))
+
+    def test_artifacts_record_the_library_of_the_fit(self):
+        record = {"requested": "auto", "library": "botorch_rs", "version": "0.1.0-dev"}
+        self.mt.MODEL_LIBRARY_INFO = record
+        self.run_cli(write_run(self.logs, "p01"))
+        payload = json.loads((self.out / "gp_states" / "p01_main_run.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload["provenance"]["model_library"], record)
 
 
 class ManifestTests(_CliMixin, unittest.TestCase):

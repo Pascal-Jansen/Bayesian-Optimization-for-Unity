@@ -1,0 +1,38 @@
+{
+  "unity": "6000.6.7f1",
+  "pipeline": "HighDefinition",
+  "device": "NVIDIA GeForce RTX 5080",
+  "left": {
+    "r": 0.7960784435272217,
+    "g": 0.4627451002597809,
+    "b": 0.4431372582912445,
+    "a": 1.0
+  },
+  "right": {
+    "r": 0.545098066329956,
+    "g": 0.7215686440467834,
+    "b": 0.7960784435272217,
+    "a": 1.0
+  },
+  "litLeft": {
+    "r": 1.0,
+    "g": 1.0,
+    "b": 1.0,
+    "a": 1.0
+  },
+  "litRight": {
+    "r": 1.0,
+    "g": 1.0,
+    "b": 1.0,
+    "a": 1.0
+  },
+  "materialCount": 4,
+  "passed": true,
+  "analyticSample": true,
+  "alphaValidated": true,
+  "litValidated": true,
+  "pipelinePackages": {
+    "com.unity.render-pipelines.universal": "17.6.0",
+    "com.unity.render-pipelines.high-definition": "17.6.0"
+  }
+}

@@ -1,8 +1,9 @@
 {
     "name": "BOforUnity.Editor",
-    "rootNamespace": "BOforUnity.Editor",
+    "rootNamespace": "BayesianOptimization.Editor",
     "references": [
-        "BOforUnity.Runtime"
+        "BOforUnity.Runtime",
+        "BOforUnity.Examples"
     ],
     "includePlatforms": [
         "Editor"

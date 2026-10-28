@@ -25,7 +25,7 @@ if _TESTS_DIR not in sys.path:
 from _stubs import install_stub_modules  # noqa: E402
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BO_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BO_DIR = REPO_ROOT / "Backend"
 NORMALIZE_PATH = BO_DIR / "bo_normalize.py"
 MOBO_PATH = BO_DIR / "mobo.py"
 

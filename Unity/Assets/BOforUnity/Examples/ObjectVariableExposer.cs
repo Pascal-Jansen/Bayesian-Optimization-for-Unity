@@ -1,13 +1,14 @@
-using BOforUnity.Scripts;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Scripts;
+using BayesianOptimization.Integration;
 using UnityEngine;
 
-namespace BOforUnity.Examples
+namespace BayesianOptimization.Examples
 {
     /// <summary>
     /// Applies five design parameters (color R, G, B, transparency, visibility) to this object's renderer and
     /// exposes the applied values in the fields below.
     /// </summary>
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Examples", sourceAssembly: "BOforUnity.Examples", sourceClassName: "ObjectVariableExposer")]
     public class ObjectVariableExposer : MonoBehaviour
     {
         // Applied renderer values (read-only output, normalized to [0,1] by each parameter's bounds).
@@ -73,7 +74,7 @@ namespace BOforUnity.Examples
 
         public void StartQuestionnaire()
         {
-            var questionnaire = FindAnyObjectByType<QTQuestionnaireManager>();
+            var questionnaire = StudyQuestionnaires.Resolve();
             if (questionnaire == null)
             {
                 Debug.LogWarning("ObjectVariableExposer: QTQuestionnaireManager is missing.");

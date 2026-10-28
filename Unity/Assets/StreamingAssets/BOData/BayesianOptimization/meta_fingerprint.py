@@ -98,7 +98,7 @@ def canonical_frame(parameter_names, parameters_info, objective_names, objective
     objs = []
     for name, info in zip(objective_names, objectives_info):
         lo, hi, minflag = info[0], info[1], info[2]
-        if int(minflag) not in (0, 1):
+        if minflag not in (0, 1):
             raise ValueError(
                 f"objective '{name}' minimize flag must be 0 or 1, got {minflag!r}"
             )

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
     /// <summary>Result of reducing an objective's sub-measures to the one value sent to Python and logged.</summary>
     public struct ObjectiveAggregate
@@ -66,7 +66,8 @@ namespace BOforUnity.Scripts
 
             if (result.FiniteCount == 0)
             {
-                result.Value = 0.5f * (lo + hi);
+                // Add in double precision: two finite float bounds can overflow when added as floats.
+                result.Value = (float)(0.5 * ((double)lo + hi));
                 result.UsedMidpointFallback = true;
                 return result;
             }

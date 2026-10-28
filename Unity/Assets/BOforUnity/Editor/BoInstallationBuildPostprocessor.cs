@@ -7,7 +7,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace BOforUnity.Editor
+namespace BayesianOptimization.Editor
 {
     /// <summary>
     /// Removes the other platforms' Python installers from a player build. StreamingAssets is copied as a whole, so

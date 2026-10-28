@@ -1,6 +1,6 @@
 {
     "name": "BOforUnity.PlayModeTests",
-    "rootNamespace": "BOforUnity.Tests.PlayMode",
+    "rootNamespace": "BayesianOptimization.Tests.PlayMode",
     "references": [
         "BOforUnity.Runtime"
     ],

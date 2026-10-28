@@ -1,19 +1,21 @@
 using System;
 using System.Collections;
-using BOforUnity;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization;
+using BayesianOptimization.Scripts;
+using BayesianOptimization.Integration;
 using UnityEngine;
 using UnityEngine.UI;
 using Application = UnityEngine.Application;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "ColorGuesser")]
     public class ColorGuesser : MonoBehaviour
     {
         public Image image;
 
         public BoForUnityManager boManager;
-        public QTQuestionnaireManager qtManager;
+        public MonoBehaviour qtManager;
 
         [Header("BO Keys (empty: use the list position)")]
         public string redParameterKey = "Color-Red";
@@ -58,7 +60,7 @@ namespace BOforUnity.Scripts
             // call the questionnaire to receive the user feedback for the "Similarity" objective
             if (qtManager != null)
             {
-                qtManager.StartQuestionnaire();
+                (qtManager as IStudyQuestionnaire)?.StartQuestionnaire();
             }
             else
             {

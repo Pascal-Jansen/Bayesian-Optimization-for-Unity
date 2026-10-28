@@ -1,8 +1,8 @@
 using System.IO;
 using NUnit.Framework;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Integration;
 
-namespace BOforUnity.Tests.EditMode
+namespace BayesianOptimization.Tests.EditMode
 {
     public class LogDataFolderUtilityEditModeTests
     {

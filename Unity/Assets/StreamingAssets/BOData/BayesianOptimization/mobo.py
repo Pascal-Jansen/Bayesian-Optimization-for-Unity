@@ -1,3 +1,4 @@
+import json
 import socket
 import time
 import os
@@ -5,6 +6,9 @@ import numpy as np
 import torch
 import moocore
 
+# The model-library names below are BoTorch's. main() resolves BO_MODEL_LIBRARY once the
+# context configuration is known and rebinds them to botorch_rs when that library runs
+# (select_model_library; see bo_library.py).
 from botorch.acquisition.multi_objective.logei import qLogNoisyExpectedHypervolumeImprovement
 from botorch.fit import fit_gpytorch_mll
 from botorch.optim.optimize import optimize_acqf
@@ -21,6 +25,8 @@ if _SCRIPT_DIR not in sys.path:
 
 import context_support
 import bo_normalize
+# BoTorch or botorch-rust (BO_MODEL_LIBRARY), shared with bo.py and MetaTAF.
+import bo_library
 # Warm-start loading, model construction, context bookkeeping and the observation-log append,
 # shared with bo.py.
 import botorch_common
@@ -32,7 +38,7 @@ from bo_protocol import (
     parse_obj_init, parse_param_init, parse_user_ids, read_observation_log,
     receive_init_message, recv_objectives_blocking, send_json_line,
     validate_objective_bounds, validate_parameter_bounds, validate_raw_samples,
-    write_csv_rows, write_data_to_csv, write_dataframe_csv,
+    write_csv_rows, write_data_to_csv, write_dataframe_csv, write_log_text,
 )
 
 # -------------------- defaults (overwritten by Unity init) --------------------
@@ -81,6 +87,17 @@ CONTEXT_SETUP = None
 # device
 tkwargs = {"dtype": torch.double, "device": torch.device("cpu")}
 device = torch.device("cpu")
+
+# -------------------- model library --------------------
+# Names main() rebinds when the run uses botorch_rs (bind_model_library).
+MODEL_LIBRARY_NAMES = (
+    "qLogNoisyExpectedHypervolumeImprovement", "fit_gpytorch_mll", "optimize_acqf",
+    "SobolQMCNormalSampler", "draw_sobol_samples",
+)
+MODEL_LIBRARY = bo_library.BOTORCH  # the library the names above belong to
+MODEL_LIBRARY_INFO = None           # RunInfo.json's model_library block (select_model_library)
+# Optimization iteration of the suggestion being computed; seeds botorch_rs's optimize_acqf.
+OPTIMIZATION_ITERATION = 0
 
 # -------------------- Pareto / hypervolume helpers --------------------
 def as_numpy_array(values):
@@ -275,9 +292,8 @@ def generate_initial_data(conn, n_samples, hv_util=None, hvs=None):
                 hvs.append(volume)
                 save_hypervolume_to_file(hvs, i + 1)
                 send_json_line(conn, {"type": "coverage", "value": float(volume)})
-    except StopRequested:
-        # Unity ended the study during the sampling phase (perfect-rating stop): the rows logged
-        # so far must not keep their provisional flags.
+    except Exception:
+        # Stops, disconnects and evaluation errors must all leave completed rows with final flags.
         finalize_sampling_flags(obs_csv, train_obj)
         raise
 
@@ -309,9 +325,53 @@ def load_data():
         normalize_param_column=normalize_param_column, normalize_obj_column=normalize_obj_column,
     )
 
+# -------------------- model library --------------------
+def bind_model_library(library):
+    """Bind this module's model-library names (MODEL_LIBRARY_NAMES) to ``library``'s."""
+    global MODEL_LIBRARY
+    if library == MODEL_LIBRARY:
+        return  # already bound (keeps names a test or caller replaced)
+    names = bo_library.namespace(library)
+    for name in MODEL_LIBRARY_NAMES:
+        globals()[name] = getattr(names, name)
+    MODEL_LIBRARY = library
+
+
+def select_model_library(requested=None):
+    """Resolve BO_MODEL_LIBRARY for this run and bind it; returns the library.
+
+    Called once CONTEXT_SETUP is parsed: contextual mode runs on botorch_rs only where
+    botorch_rs supports it (bo_library.resolve). torch keeps its default threads here, as
+    before; botorch_rs runs on BO_TORCH_THREADS threads, or bo_library.default_rs_threads()
+    (half the logical CPUs, at most 4) when that is unset.
+    """
+    global MODEL_LIBRARY_INFO
+    requested = bo_library.requested_library() if requested is None else requested
+    contextual = CONTEXT_SETUP.embedding_source if CONTEXT_SETUP is not None else None
+    library, reason = bo_library.resolve(requested, contextual=contextual)
+    warning = bo_library.fallback_message(requested, library, reason)
+    if warning:
+        print(warning, flush=True)
+    bind_model_library(library)
+    threads = None
+    if library == bo_library.BOTORCH_RS:
+        threads = bo_library.configure_rs_threads(library, bo_library.threads_from_env())
+    MODEL_LIBRARY_INFO = bo_library.library_record(requested, library, reason, threads)
+    print(f"Model library: {bo_library.describe(MODEL_LIBRARY_INFO)} ({reason})", flush=True)
+    return library
+
+
+def write_run_info():
+    """RunInfo.json in the run folder: model library, versions and seed of this run."""
+    info = MODEL_LIBRARY_INFO or bo_library.library_record(
+        MODEL_LIBRARY, MODEL_LIBRARY, "bound without select_model_library()")
+    payload = bo_library.run_info("Backend/mobo.py", SEED, info)
+    write_log_text(os.path.join(PROJECT_PATH, bo_library.RUN_INFO_FILENAME),
+                   json.dumps(payload, indent=1, ensure_ascii=False, default=str))
+
 # -------------------- model --------------------
 def initialize_model(train_x, train_obj):
-    return botorch_common.initialize_model(train_x, train_obj, CONTEXT_SETUP)
+    return botorch_common.initialize_model(train_x, train_obj, CONTEXT_SETUP, library=MODEL_LIBRARY)
 
 def acquisition_baseline(train_x):
     """Baseline design points for the acquisition function (task column stripped)."""
@@ -346,7 +406,11 @@ def optimize_qnehvi(model, sampler, X_baseline):
         # init_batch_limit scores the raw samples 128 at a time instead of batch_limit's 5:
         # same candidates, a fraction of the wait. batch_limit stays 5: polishing all restarts
         # in one batch saved < 0.1 s but ended at a different local optimum in ~1% of problems.
-        options={"batch_limit": 5, "init_batch_limit": 128, "maxiter": 200},
+        # botorch_rs also gets a per-iteration seed (it ignores torch.manual_seed).
+        options=bo_library.acqf_options(
+            MODEL_LIBRARY, {"batch_limit": 5, "init_batch_limit": 128, "maxiter": 200},
+            SEED, OPTIMIZATION_ITERATION,
+        ),
         sequential=True,
     )
     return candidates.detach()
@@ -381,12 +445,13 @@ def save_hypervolume_to_file(hvs, iteration):
 
 # -------------------- main loop --------------------
 def mobo_execute(conn, seed, iterations, initial_samples):
-    global PROJECT_PATH, OBSERVATIONS_LOG_PATH
+    global PROJECT_PATH, OBSERVATIONS_LOG_PATH, OPTIMIZATION_ITERATION
     base = os.environ.get("BO_LOG_ROOT") or os.path.join(os.getcwd(), "LogData")
     condition_base = os.path.join(base, USER_LOG_ID, CONDITION_LOG_ID)
     os.makedirs(condition_base, exist_ok=True)
     PROJECT_PATH = get_unique_folder(condition_base, "run")
     OBSERVATIONS_LOG_PATH = os.path.join(PROJECT_PATH, "ObservationsPerEvaluation.csv")
+    write_run_info()
 
     exec_csv = os.path.join(PROJECT_PATH, 'ExecutionTimes.csv')
     create_csv_file(exec_csv, ['Optimization', 'Execution_Time'])
@@ -421,6 +486,7 @@ def mobo_execute(conn, seed, iterations, initial_samples):
         send_json_line(conn, {"type": "coverage", "value": float(volume)})
 
     for it in range(1, iterations + 1):
+        OPTIMIZATION_ITERATION = it
         t0 = time.time()
         fit_gpytorch_mll(mll)
         sampler = SobolQMCNormalSampler(sample_shape=torch.Size([MC_SAMPLES]), seed=SEED)
@@ -551,11 +617,15 @@ def main():
             dim=0
         )
 
+        # BoTorch or botorch_rs, now that the context configuration is known.
+        select_model_library()
+
         print("Init OK:", dict(
             BATCH_SIZE=BATCH_SIZE, NUM_RESTARTS=NUM_RESTARTS, RAW_SAMPLES=RAW_SAMPLES,
             N_ITERATIONS=N_ITERATIONS, MC_SAMPLES=MC_SAMPLES,
             N_INITIAL=N_INITIAL, SEED=SEED, PROBLEM_DIM=PROBLEM_DIM, NUM_OBJS=NUM_OBJS,
-            SOCKET_TIMEOUT_SEC=SOCKET_TIMEOUT_SEC, WARM_START_OBJECTIVE_FORMAT=WARM_START_OBJECTIVE_FORMAT
+            SOCKET_TIMEOUT_SEC=SOCKET_TIMEOUT_SEC, WARM_START_OBJECTIVE_FORMAT=WARM_START_OBJECTIVE_FORMAT,
+            MODEL_LIBRARY=bo_library.describe(MODEL_LIBRARY_INFO),
         ), flush=True)
 
         mobo_execute(conn, SEED, N_ITERATIONS, N_INITIAL)

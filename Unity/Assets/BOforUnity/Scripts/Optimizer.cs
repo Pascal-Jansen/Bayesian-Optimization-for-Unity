@@ -6,8 +6,9 @@ using UnityEngine;
 // It provides methods to start and control the optimization process, add and retrieve parameters,
 // and perform various optimization-related tasks. This class serves as the core component
 // for managing optimization behavior.
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "Optimizer")]
     public class Optimizer : MonoBehaviour
     {
         private BoForUnityManager _bomanager;

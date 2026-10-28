@@ -1,0 +1,19 @@
+{
+  "FileVersion": 3,
+  "Version": 2,
+  "VersionName": "2.0.0-rc.1",
+  "FriendlyName": "Bayesian Optimization",
+  "Description": "Human in the loop Bayesian optimization using a local Python backend.",
+  "Category": "Tools",
+  "CreatedBy": "Bayesian Optimization contributors",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "BayesianOptimization",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

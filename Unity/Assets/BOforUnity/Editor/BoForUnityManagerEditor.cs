@@ -3,12 +3,12 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using BOforUnity.Scripts;
+using BayesianOptimization.Scripts;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 
-namespace BOforUnity.Editor
+namespace BayesianOptimization.Editor
 {
     [CustomEditor(typeof(BoForUnityManager))]
     public class BoForUnityManagerEditor : UnityEditor.Editor
@@ -30,7 +30,7 @@ namespace BOforUnity.Editor
         private SerializedProperty progressTextProp;
         private SerializedProperty localPythonProp;
         private SerializedProperty pythonPathProp;
-        
+
         private SerializedProperty nSamplingIterProp;
         private SerializedProperty nOptimizationIterProp;
 
@@ -46,6 +46,7 @@ namespace BOforUnity.Editor
         private SerializedProperty initialObjectivesDataPathProp;
         private SerializedProperty warmStartObjectiveFormatProp;
         private SerializedProperty optimizerBackendProp;
+        private SerializedProperty modelLibraryProp;
         private SerializedProperty cabopObjectiveModeProp;
         private SerializedProperty cabopUseCostAwareAcquisitionProp;
         private SerializedProperty cabopUpdateRuleProp;
@@ -91,7 +92,7 @@ namespace BOforUnity.Editor
         private SerializedProperty groupIdProp;
         private SerializedProperty enablePriorSliderRatingHintProp;
         private SerializedProperty priorSliderRatingHintAlphaProp;
-        
+
         private ReorderableList parameterList;
         private ReorderableList objectiveList;
 
@@ -111,13 +112,13 @@ namespace BOforUnity.Editor
                 elementHeightCallback = GetParameterListItemHeight
             };
             parameterList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Parameters");
-            
+
             SerializedProperty objectivesProperty = serializedObject.FindProperty("objectives");
             objectiveList = new ReorderableList(serializedObject, objectivesProperty, true, true, true, true);
             objectiveList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Objectives");
             objectiveList.drawElementCallback = DrawObjectiveListItems;
             objectiveList.elementHeightCallback = GetObjectiveElementHeight;
-            
+
             outputTextProp = serializedObject.FindProperty("outputText");
             loadingObjProp = serializedObject.FindProperty("loadingObj");
             nextButtonProp = serializedObject.FindProperty("nextButton");
@@ -127,10 +128,10 @@ namespace BOforUnity.Editor
             localPythonProp = serializedObject.FindProperty("localPython");
             pythonPathProp = serializedObject.FindProperty("pythonPath");
             //endSimProp = serializedObject.FindProperty("endOfSimulation");
-            
+
             nSamplingIterProp = serializedObject.FindProperty("numSamplingIterations");
             nOptimizationIterProp = serializedObject.FindProperty("numOptimizationIterations");
-            
+
             batchSizeProp = serializedObject.FindProperty("batchSize");
             numRestartsProp = serializedObject.FindProperty("numRestarts");
             rawSamplesProp = serializedObject.FindProperty("rawSamples");
@@ -143,6 +144,7 @@ namespace BOforUnity.Editor
             initialObjectivesDataPathProp = serializedObject.FindProperty("initialObjectivesDataPath");
             warmStartObjectiveFormatProp = serializedObject.FindProperty("warmStartObjectiveFormat");
             optimizerBackendProp = serializedObject.FindProperty("optimizerBackend");
+            modelLibraryProp = serializedObject.FindProperty("modelLibrary");
             cabopObjectiveModeProp = serializedObject.FindProperty("cabopObjectiveMode");
             cabopUseCostAwareAcquisitionProp = serializedObject.FindProperty("cabopUseCostAwareAcquisition");
             cabopUpdateRuleProp = serializedObject.FindProperty("cabopUpdateRule");
@@ -182,13 +184,13 @@ namespace BOforUnity.Editor
             finalDesignAggressionEpsilonProp = serializedObject.FindProperty("finalDesignAggressionEpsilon");
 
             totalIterationsProp = serializedObject.FindProperty("totalIterations");
-            
+
             userIdProp = serializedObject.FindProperty("userId");
             conditionIdProp = serializedObject.FindProperty("conditionId");
             groupIdProp = serializedObject.FindProperty("groupId");
             enablePriorSliderRatingHintProp = serializedObject.FindProperty("enablePriorSliderRatingHint");
             priorSliderRatingHintAlphaProp = serializedObject.FindProperty("priorSliderRatingHintAlpha");
-            
+
             initDataPath = Path.Combine(Application.dataPath, "StreamingAssets", "BOData", "InitData");
 
             enableSamplingEditProp = serializedObject.FindProperty("enableSamplingEdit");
@@ -227,6 +229,7 @@ namespace BOforUnity.Editor
 
             // ── Python Settings ─────────────────────────────────────────────────────
             EditorGUILayout.LabelField("Python Settings", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("port"), new GUIContent("Optimizer TCP Port"));
             var localPyLabel = new GUIContent("Manually Installed Python",
                 "Use a locally installed Python instead of the project’s installer.");
             EditorGUILayout.PropertyField(localPythonProp, localPyLabel);
@@ -308,6 +311,31 @@ namespace BOforUnity.Editor
                               BoForUnityManager.OptimizerBackend.MetaTAF;
             bool useDbo = (BoForUnityManager.OptimizerBackend)optimizerBackendProp.enumValueIndex ==
                           BoForUnityManager.OptimizerBackend.DBO;
+            if (!useCabop && !useDbo)
+            {
+                // CABOP keeps its vendored optimizer; DBO always runs on botorch-rust.
+                EditorGUILayout.PropertyField(
+                    modelLibraryProp,
+                    new GUIContent(
+                        "Model Library",
+                        "BoTorch (default), BotorchRust (botorch-rust: BoTorch's API in Rust, several times " +
+                        "faster per suggestion; install it into the optimizer's Python first) or Auto (botorch-rust " +
+                        "when installed, otherwise BoTorch). Keep it fixed within a study."
+                    )
+                );
+                if ((BoForUnityManager.ModelLibrary)modelLibraryProp.enumValueIndex !=
+                    BoForUnityManager.ModelLibrary.BoTorch)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Runs that the installed botorch-rust (or openbo, for MetaTAF) cannot handle yet fall " +
+                        "back to BoTorch with a console message. Every run records the library it used " +
+                        "(RunInfo.json / MetaRunState.json). " +
+                        "See README 8.16.",
+                        MessageType.Info
+                    );
+                }
+            }
+
             if (useCabop)
             {
                 EditorGUILayout.PropertyField(
@@ -931,7 +959,7 @@ namespace BOforUnity.Editor
             EditorGUILayout.LabelField("Server Client Connection for LogFiles", EditorStyles.boldLabel);
             script.setServerClientCommunication(EditorGUILayout.Toggle("Server", script.getServerClientCommunication()));
             EditorGUILayout.Space();
-            
+
             if (!script.getServerClientCommunication())
             {
                 EditorGUILayout.LabelField("Attention! If the server is not used, make sure to select GroupID and LongitudinalID in the Object Parameter Controller before starting.", EditorStyles.helpBox);

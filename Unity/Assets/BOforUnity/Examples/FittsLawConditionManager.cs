@@ -2,12 +2,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using BOforUnity.Scripts;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Scripts;
+using BayesianOptimization.Integration;
 using UnityEngine;
 
-namespace BOforUnity.Examples
+namespace BayesianOptimization.Examples
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Examples", sourceAssembly: "BOforUnity.Examples", sourceClassName: "FittsLawConditionManager")]
     public class FittsLawConditionManager : MonoBehaviour, IQuestionnaireOptimizationBridge
     {
         public enum ConditionMode
@@ -20,7 +21,7 @@ namespace BOforUnity.Examples
 
         [Header("References")]
         public FittsLawTask fittsLawTask;
-        public QTQuestionnaireManager questionnaireManager;
+        public MonoBehaviour questionnaireManager;
         public BoForUnityManager iterationSettingsSource;
 
         [Header("Condition")]
@@ -267,7 +268,7 @@ namespace BOforUnity.Examples
                 fittsLawTask = FindSceneObject<FittsLawTask>();
 
             if (questionnaireManager == null)
-                questionnaireManager = FindSceneObject<QTQuestionnaireManager>();
+                questionnaireManager = StudyQuestionnaires.FindComponent();
 
             if (iterationSettingsSource == null)
                 ResolveIterationSettingsSource();
@@ -401,8 +402,8 @@ namespace BOforUnity.Examples
             if (source != null)
                 source.conditionId = conditionId;
 
-            if (questionnaireManager != null)
-                questionnaireManager.contextConditionId = conditionId;
+            if (questionnaireManager is IStudyQuestionnaire questionnaire)
+                questionnaire.ContextConditionId = conditionId;
         }
 
         private void DisableBoRuntimeForBaseline()
@@ -493,11 +494,11 @@ namespace BOforUnity.Examples
                 source.groupId = groupId;
             }
 
-            if (questionnaireManager != null)
+            if (questionnaireManager is IStudyQuestionnaire questionnaire)
             {
-                questionnaireManager.contextUserId = userId;
-                questionnaireManager.contextConditionId = conditionId;
-                questionnaireManager.contextGroupId = groupId;
+                questionnaire.ContextUserId = userId;
+                questionnaire.ContextConditionId = conditionId;
+                questionnaire.ContextGroupId = groupId;
             }
         }
 

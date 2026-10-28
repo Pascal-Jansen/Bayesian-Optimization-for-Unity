@@ -1,7 +1,7 @@
 # bo_protocol.py — Unity <-> Python plumbing shared by every BOforUnity backend.
 #
 # bo.py, mobo.py, dbo_runtime.py, cabop_runtime.py and meta_mobo_runtime.py speak one wire
-# protocol (Python is a TCP server on 127.0.0.1:56001, or BO_PORT; newline-delimited UTF-8 JSON: Unity
+# protocol (Python is a TCP server on 127.0.0.1:56001; newline-delimited UTF-8 JSON: Unity
 # sends one init message, then Python drives a parameters -> objectives loop) and write the
 # same CSV family. That plumbing lives here once, so a protocol or robustness fix reaches every
 # backend: the listener and the NDJSON reader, init-message parsing and validation helpers,
@@ -31,8 +31,22 @@ import uuid
 # -------------------- connection settings --------------------
 # Loopback only: Unity connects to 127.0.0.1, and the protocol is unauthenticated.
 HOST = '127.0.0.1'
-# Unity always connects to 56001; other clients of the IBO server (ibo_server.py) may choose a port.
-PORT = int(os.environ.get("BO_PORT", "56001"))
+
+
+def port_from_environment(environ=None):
+    """Select an explicit loopback port so independent studies can run concurrently."""
+    environ = os.environ if environ is None else environ
+    raw = environ.get("BO_PORT", "56001")
+    try:
+        port = int(raw)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"BO_PORT must be an integer from 1 to 65535, got {raw!r}") from error
+    if str(raw).strip() != str(port) or not 1 <= port <= 65535:
+        raise ValueError(f"BO_PORT must be an integer from 1 to 65535, got {raw!r}")
+    return port
+
+
+PORT = port_from_environment()
 SOCKET_TIMEOUT_SEC = float(os.environ.get("BO_SOCKET_TIMEOUT_SEC", "3600"))
 SOCKET_ACCEPT_TIMEOUT_SEC = float(os.environ.get("BO_ACCEPT_TIMEOUT_SEC", "300"))
 # Upper bound for one message line. The init message carries manual context embeddings
@@ -69,28 +83,12 @@ def configure_listener_socket(s):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 
-# -------------------- hand-over from the IBO server --------------------
-# ibo_server.py accepts the connection and reads the init message itself to choose the backend,
-# then runs that backend's main(). The backend's own accept_unity_connection/receive_init_message
-# calls then return the connection and message handed over here instead of listening again.
-_HANDOVER = None  # (conn, init_msg) until the backend has taken both
-
-
-def adopt_connection(conn, init_msg):
-    """Hand an accepted connection and its init message to the backend that runs next."""
-    global _HANDOVER
-    _HANDOVER = (conn, init_msg)
-
-
 def accept_unity_connection(s, accept_timeout_sec):
     """Listen on HOST:PORT and return Unity's connection; the listener is closed after it.
 
     PythonStarter.cs waits for the "Server starts, waiting for connection..." line before
-    Unity connects, so that line must stay verbatim. With a connection handed over by
-    ibo_server.py, that connection is returned and nothing listens.
+    Unity connects, so that line must stay verbatim.
     """
-    if _HANDOVER is not None:
-        return _HANDOVER[0]
     if accept_timeout_sec <= 0:
         raise ValueError(f"BO_ACCEPT_TIMEOUT_SEC must be > 0, got {accept_timeout_sec}")
     s.settimeout(accept_timeout_sec)
@@ -104,6 +102,7 @@ def accept_unity_connection(s, accept_timeout_sec):
         ) from e
     s.listen(1)
     print('Server starts, waiting for connection...', flush=True)
+    print(f'Listening on {HOST}:{PORT}', flush=True)
     try:
         conn, addr = s.accept()
     except socket.timeout as e:
@@ -117,18 +116,11 @@ def receive_init_message(conn, socket_timeout_sec):
     """Arm the session timeout, start a fresh reader and block for Unity's init message.
 
     Messages before the init (non-dict lines, other types) are skipped. Unity sends a stop
-    instead of the init when it refuses to start the study (invalid configuration). The init
-    of a handed-over connection was already read: it is returned, and the reader keeps any
-    bytes that arrived after it.
+    instead of the init when it refuses to start the study (invalid configuration).
     """
-    global _HANDOVER
     if socket_timeout_sec <= 0:
         raise ValueError(f"BO_SOCKET_TIMEOUT_SEC must be > 0, got {socket_timeout_sec}")
     conn.settimeout(socket_timeout_sec)
-    if _HANDOVER is not None and _HANDOVER[0] is conn:
-        init_msg = _HANDOVER[1]
-        _HANDOVER = None
-        return init_msg
     reset_receive_state()
     while True:
         msg = recv_json_message(conn)
@@ -184,7 +176,14 @@ class _ReceiveBuffer:
             self.partial_len += len(chunk)
         else:
             head = b"".join(self.partial) + chunk[:cut]
-            self.lines.extend(head.split(b"\n"))
+            complete_lines = head.split(b"\n")
+            if any(len(line) > SOCKET_MAX_RECV_BUF_BYTES for line in complete_lines):
+                self.reset()
+                raise RuntimeError(
+                    f"Socket receive buffer exceeded {SOCKET_MAX_RECV_BUF_BYTES} bytes for one "
+                    "message line (the limit is the environment variable BO_MAX_RECV_BUF_BYTES)."
+                )
+            self.lines.extend(complete_lines)
             tail = chunk[cut + 1:]
             self.partial = [tail] if tail else []
             self.partial_len = len(tail)
@@ -312,17 +311,28 @@ def parse_obj_init(init_val):
             raise ValueError(f"Objective init parse error (missing 'low'/'high'): {init_val}")
         if "minimize" not in init_val:
             raise ValueError(f"Objective init parse error (missing 'minimize'): {init_val}")
-        return float(init_val["low"]), float(init_val["high"]), int(init_val["minimize"])
+        return float(init_val["low"]), float(init_val["high"]), _exact_int(init_val["minimize"])
     parts = [p.strip() for p in str(init_val).split(",")]
     if len(parts) < 3:
         raise ValueError(f"Objective init parse error: '{init_val}'")
-    return float(parts[0]), float(parts[1]), int(float(parts[2]))
+    return float(parts[0]), float(parts[1]), _exact_int(float(parts[2]))
+
+
+def _exact_int(value):
+    """Read integer settings without silently truncating fractional JSON numbers."""
+    try:
+        parsed = int(value)
+        if not isinstance(value, str) and value != parsed:
+            raise ValueError(f"Expected an integer, got {value!r}")
+        return parsed
+    except (TypeError, ValueError, OverflowError) as e:
+        raise ValueError(f"Expected an integer, got {value!r}") from e
 
 
 def get_cfg_int(cfg, key, default=None, required=False):
     if key in cfg and cfg.get(key) is not None:
         try:
-            return int(cfg.get(key))
+            return _exact_int(cfg.get(key))
         except (TypeError, ValueError) as e:
             raise ValueError(f"Config field '{key}' must be an integer, got {cfg.get(key)!r}") from e
     if required:
@@ -438,7 +448,7 @@ def validate_objective_bounds(names, objectives):
             raise ValueError(f"Objective '{name}' bounds must be finite, got ({lo}, {hi})")
         if hi < lo:
             raise ValueError(f"Objective '{name}' has invalid bounds: low={lo} > high={hi}")
-        if int(minflag) not in (0, 1):
+        if minflag not in (0, 1):
             raise ValueError(f"Objective '{name}' minimize flag must be 0 or 1, got {minflag}")
 
 

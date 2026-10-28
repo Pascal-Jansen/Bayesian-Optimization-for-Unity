@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
     /// <summary>
     /// Configuration checks for settings that would otherwise crash or silently corrupt a run only after it has
@@ -33,6 +33,8 @@ namespace BOforUnity.Scripts
                 errors.Add("BoForUnityManager is missing.");
                 return errors;
             }
+            if (manager.port < 1 || manager.port > 65535)
+                errors.Add("Optimizer TCP port must be between 1 and 65535.");
 
             var reserved = new HashSet<string>(FixedObservationLogColumns, StringComparer.OrdinalIgnoreCase);
             if (manager.contextualOptimization)

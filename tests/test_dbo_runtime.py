@@ -1,7 +1,7 @@
-"""DBO backend (dbo_runtime.py) tests against the real torch/botorch stack.
+"""DBO backend (dbo_runtime.py) tests against the real torch/botorch-rust stack.
 
 The DBO backend imports the vendored dbo_torch package, which needs real torch,
-botorch and gpytorch, so these tests are skipped automatically on the
+botorch-rust and gpytorch, so these tests are skipped automatically on the
 lightweight CI environment and run locally in a full dev environment.
 
 Other test modules in this suite replace torch/botorch in ``sys.modules`` with
@@ -24,7 +24,7 @@ import uuid
 from unittest import mock
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BACKEND_DIR = REPO_ROOT / "Backend"
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in sys.path:
@@ -38,15 +38,15 @@ from _stubs import (  # noqa: E402
     run_main_recording_listener,
 )
 
-_REAL_MODULE_ROOTS = ("torch", "botorch", "gpytorch", "linear_operator", "pandas")
+_REAL_MODULE_ROOTS = ("torch", "botorch_rs", "gpytorch", "linear_operator", "pandas")
 
 try:
     import torch  # noqa: F401
     # Imported now so the real modules are captured below, before stubs replace them.
     for _module in (
-        "botorch", "botorch.acquisition", "botorch.acquisition.analytic", "botorch.fit",
-        "botorch.models", "botorch.models.transforms", "botorch.optim", "botorch.utils.sampling",
-        "botorch.utils.transforms", "gpytorch.constraints", "gpytorch.kernels", "gpytorch.mlls",
+        "botorch_rs", "botorch_rs.acquisition", "botorch_rs.acquisition.analytic", "botorch_rs.fit",
+        "botorch_rs.models", "botorch_rs.models.transforms", "botorch_rs.optim", "botorch_rs.utils.sampling",
+        "botorch_rs.utils.transforms", "botorch_rs.mlls", "gpytorch.constraints", "gpytorch.kernels", "gpytorch.mlls",
         "pandas",
     ):
         importlib.import_module(_module)
@@ -151,7 +151,7 @@ class ScriptedUnity:
         return [m["values"] for m in self.sent if m.get("type") == "parameters"]
 
 
-@unittest.skipUnless(HAS_REAL_STACK, "requires torch, botorch and gpytorch")
+@unittest.skipUnless(HAS_REAL_STACK, "requires torch, botorch-rust and gpytorch")
 class DboRuntimeTests(unittest.TestCase):
     def _run_main(self, module, init_msg, log_root, execute=None):
         conn = ScriptedUnity(init_msg)
@@ -235,6 +235,10 @@ class DboRuntimeTests(unittest.TestCase):
             state_path = run_dir / module.DBO_STATE_FILENAME
             state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual(state["versions"]["dbo_torch"], module.dbo_torch.__version__)
+            self.assertEqual(
+                state["versions"]["botorch-rust"], importlib.import_module("botorch_rs").__version__
+            )
+            self.assertNotIn("botorch", state["versions"])
             self.assertEqual(state["config"]["validation_every"], VALIDATION_EVERY)
             self.assertEqual(state["config"]["seed"], 7)
             self.assertEqual(len(state["observations"]), N_SAMPLING + N_OPTIMIZATION)

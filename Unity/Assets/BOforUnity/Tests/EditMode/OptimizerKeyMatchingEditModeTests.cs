@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
-using BOforUnity;
-using BOforUnity.Scripts;
+using BayesianOptimization;
+using BayesianOptimization.Scripts;
 
-namespace BOforUnity.Tests.EditMode
+namespace BayesianOptimization.Tests.EditMode
 {
     public class OptimizerKeyMatchingEditModeTests
     {

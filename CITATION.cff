@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "Please cite this software and the optimization methods used in your study."
+title: "Bayesian Optimization for Game Engines"
+version: "2.0.0-rc.1"
+date-released: 2026-10-28
+repository-code: "https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines"
+license: MIT
+authors:
+  - family-names: Jansen
+    given-names: Pascal
+  - family-names: Colley
+    given-names: Mark

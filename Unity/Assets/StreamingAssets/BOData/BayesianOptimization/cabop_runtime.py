@@ -12,7 +12,7 @@ import bo_normalize
 from bo_protocol import (
     SOCKET_ACCEPT_TIMEOUT_SEC, SOCKET_TIMEOUT_SEC, StopRequested,
     accept_unity_connection, append_csv_rows, close_connection, configure_listener_socket,
-    flush_pending_logs, get_cfg_int, get_unique_folder, log_exists, parse_obj_init,
+    flush_pending_logs, get_cfg_bool, get_cfg_int, get_unique_folder, log_exists, parse_obj_init,
     parse_param_init, parse_user_ids, read_observation_log, receive_init_message,
     recv_objectives_blocking, send_json_line, validate_objective_bounds,
     validate_parameter_bounds, write_csv_rows, write_dataframe_csv,
@@ -733,6 +733,12 @@ def parse_init_and_validate(init_msg, forced_mode):
     global CABOP_UPDATE_RULE, CABOP_ENABLE_COST_BUDGET, CABOP_MAX_CUMULATIVE_COST
 
     cfg = init_msg.get("config", {}) or {}
+
+    context_cfg = init_msg.get("context") or {}
+    if not isinstance(context_cfg, dict):
+        raise ValueError("init 'context' must be an object")
+    if get_cfg_bool(context_cfg, "enabled", default=False):
+        raise ValueError("Contextual optimization is not supported by the CABOP backend. Use BoTorch.")
 
     N_INITIAL = get_cfg_int(cfg, "numSamplingIterations", default=N_INITIAL)
     N_ITERATIONS = get_cfg_int(cfg, "numOptimizationIterations", default=N_ITERATIONS)

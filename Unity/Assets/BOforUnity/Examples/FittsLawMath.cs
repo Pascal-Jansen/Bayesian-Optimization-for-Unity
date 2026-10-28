@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BOforUnity.Examples
+namespace BayesianOptimization.Examples
 {
     /// <summary>One completed Fitts trial in play-area coordinates (pixels).</summary>
     public struct FittsTrialSample

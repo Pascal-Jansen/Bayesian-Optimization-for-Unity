@@ -40,7 +40,7 @@ from _stubs import (  # noqa: E402
 )
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BACKEND_DIR = REPO_ROOT / "Backend"
 
 # The cabop package lives next to the runtime scripts.
 if str(BACKEND_DIR) not in sys.path:

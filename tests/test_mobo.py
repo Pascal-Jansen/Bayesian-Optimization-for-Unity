@@ -32,7 +32,7 @@ from test_bo import OBJECTIVE_TRANSFORM_CASES, legacy_outcome  # noqa: E402
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-MOBO_PATH = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/mobo.py"
+MOBO_PATH = REPO_ROOT / "Backend/mobo.py"
 
 
 def load_mobo_module():
@@ -723,9 +723,19 @@ class MoboTests(unittest.TestCase):
         self.assertTrue(any(m.get("type") == "optimization_finished" for m in out_msgs))
 
     def test_stop_during_sampling_finalizes_ispareto_flags(self):
+        mobo = load_mobo_module()
+        self._assert_interrupted_sampling_flags(
+            mobo, _json_line({"type": "stop", "reason": "perfect_rating"}), mobo.StopRequested
+        )
+
+    def test_failed_sampling_finalizes_ispareto_flags(self):
+        for final_chunk in (b"", b"malformed json\n"):
+            with self.subTest(final_chunk=final_chunk):
+                self._assert_interrupted_sampling_flags(load_mobo_module(), final_chunk, RuntimeError)
+
+    def _assert_interrupted_sampling_flags(self, mobo, final_chunk, exception):
         # A perfect-rating stop in the sampling phase used to leave every sampling row at its
         # provisional IsPareto = FALSE, so FinalDesignSelector found no Pareto candidates.
-        mobo = load_mobo_module()
         with tempfile.TemporaryDirectory() as tmp:
             mobo.PROJECT_PATH = tmp
             mobo.USER_ID, mobo.CONDITION_ID, mobo.GROUP_ID = "u", "c", "g"
@@ -743,10 +753,10 @@ class MoboTests(unittest.TestCase):
             conn = _FakeConn(
                 [_json_line({"type": "objectives", "values": {"o0": a, "o1": b}})
                  for a, b in ((2.0, 2.0), (5.0, 8.0), (8.0, 5.0))]
-                + [_json_line({"type": "stop", "reason": "perfect_rating"})]
+                + [final_chunk]
             )
             with mock.patch.object(mobo, "send_json_line", lambda c, payload: None):
-                with self.assertRaises(mobo.StopRequested):
+                with self.assertRaises(exception):
                     mobo.generate_initial_data(conn, n_samples=4)
             with open(pathlib.Path(tmp) / "ObservationsPerEvaluation.csv", newline="", encoding="utf-8") as f:
                 rows = list(csv.DictReader(f, delimiter=";"))

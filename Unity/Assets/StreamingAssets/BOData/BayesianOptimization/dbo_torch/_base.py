@@ -21,7 +21,7 @@ from importlib import metadata
 from pathlib import Path
 
 import torch
-from botorch.optim import optimize_acqf
+from botorch_rs.optim import optimize_acqf
 from torch import Tensor
 
 from .model import DBOModelConfig, build_model, fit_model
@@ -49,6 +49,8 @@ class DynamicOptimizerBase:
         bounds_t = torch.tensor(
             [[lo for lo, _ in bounds], [hi for _, hi in bounds]], **self._tkwargs
         )
+        if bounds_t.size(-1) == 0 or not torch.isfinite(bounds_t).all():
+            raise ValueError("Bounds must contain at least one parameter and finite endpoints")
         if not torch.all(bounds_t[1] > bounds_t[0]):
             raise ValueError(f"Each bound must have hi > lo; got {list(bounds)}")
 
@@ -57,10 +59,9 @@ class DynamicOptimizerBase:
 
         if config.seed_points is not None:
             for p in config.seed_points:
-                if len(p) != self.dim:
-                    raise ValueError(
-                        f"Each seed point needs {self.dim} values, got {len(p)}: {p}"
-                    )
+                point = self._check_x(p)
+                if any(v < lo or v > hi for v, lo, hi in zip(point, *self.bounds.tolist())):
+                    raise ValueError(f"Seed point lies outside the parameter bounds: {p}")
 
         # A private generator: the optimiser never reseeds or consumes torch's
         # global one. See _isolated_rng.
@@ -212,9 +213,14 @@ class DynamicOptimizerBase:
         x = list(map(float, x))
         if len(x) != self.dim:
             raise ValueError(f"Expected {self.dim} input values, got {len(x)}: {x}")
+        if not all(math.isfinite(v) for v in x):
+            raise ValueError(f"Input values must be finite, got {x}")
         return x
 
     def _record(self, x: list[float], y, is_validation: bool | None, time: float | None):
+        observation_time = float(self.next_iteration) if time is None else float(time)
+        if not math.isfinite(observation_time):
+            raise ValueError(f"Observation time must be finite, got {observation_time}")
         pending = self._claim_pending(x)
         if is_validation is None:
             is_validation = bool(pending.get("is_validation", False))
@@ -224,7 +230,7 @@ class DynamicOptimizerBase:
             iteration=iteration,
             x=x,
             y=y,
-            time=float(iteration) if time is None else float(time),
+            time=observation_time,
             is_validation=is_validation,
             predicted_y=pending.get("predicted_y"),
             predicted_sd=pending.get("predicted_sd"),
@@ -386,7 +392,7 @@ def _versions() -> dict:
     from . import __version__
 
     out = {"dbo_torch": __version__}
-    for package in ("torch", "botorch", "gpytorch"):
+    for package in ("torch", "botorch-rust", "gpytorch"):
         try:
             out[package] = metadata.version(package)
         except metadata.PackageNotFoundError:

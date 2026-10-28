@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using NUnit.Framework;
-using BOforUnity.Scripts;
+using BayesianOptimization.Scripts;
 
-namespace BOforUnity.Tests.EditMode
+namespace BayesianOptimization.Tests.EditMode
 {
     public class BoObjectiveMathEditModeTests
     {
@@ -33,6 +33,21 @@ namespace BOforUnity.Tests.EditMode
             ObjectiveAggregate empty = BoObjectiveMath.Aggregate(null, 1, 2f, 4f);
             Assert.That(empty.Value, Is.EqualTo(3f));
             Assert.That(empty.UsedMidpointFallback, Is.True);
+        }
+
+        [Test]
+        public void MidpointOfLargeFiniteBoundsStaysFinite()
+        {
+            foreach (float sign in new[] { -1f, 1f })
+            {
+                float first = sign * float.MaxValue;
+                float second = sign * (float.MaxValue * 0.5f);
+                ObjectiveAggregate result = BoObjectiveMath.Aggregate(null, 1, first, second);
+
+                Assert.That(BoObjectiveMath.IsFinite(result.Value), Is.True);
+                Assert.That(result.Value, Is.EqualTo((float)(((double)first + second) * 0.5)));
+                Assert.That(result.UsedMidpointFallback, Is.True);
+            }
         }
 
         [Test]

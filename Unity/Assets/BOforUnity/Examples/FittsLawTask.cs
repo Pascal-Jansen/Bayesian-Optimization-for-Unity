@@ -4,15 +4,16 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using BOforUnity.Scripts;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Scripts;
+using BayesianOptimization.Integration;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace BOforUnity.Examples
+namespace BayesianOptimization.Examples
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Examples", sourceAssembly: "BOforUnity.Examples", sourceClassName: "FittsLawTask")]
     public class FittsLawTask : MonoBehaviour
     {
         public enum TargetSelectionMode
@@ -160,7 +161,7 @@ namespace BOforUnity.Examples
         [Min(1)] public int statusFontSize = 32;
 
         [Header("Questionnaire Toolkit")]
-        public QTQuestionnaireManager questionnaireToolkitManager;
+        public MonoBehaviour questionnaireToolkitManager;
 
         [Header("Questionnaire CSV Logging")]
         public bool logPerformanceToQuestionnaireCsv = true;
@@ -1266,7 +1267,7 @@ namespace BOforUnity.Examples
             label.color = targetXColor;
             label.fontSize = xFontSizePixels;
             label.fontStyle = FontStyles.Bold;
-#if UNITY_2023_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER
             label.textWrappingMode = TextWrappingModes.NoWrap;
 #else
             label.enableWordWrapping = false;
@@ -1525,7 +1526,7 @@ namespace BOforUnity.Examples
 
         private bool TryShowToolkitSubjectiveRatingQuestions()
         {
-            QTQuestionnaireManager manager = ResolveQuestionnaireToolkitManager();
+            IStudyQuestionnaire manager = ResolveQuestionnaireToolkitManager();
             if (manager == null)
             {
                 Debug.LogWarning("FittsLawTask: QuestionnaireToolkit manager was not found in the scene. Finalizing without a questionnaire rating.");
@@ -1553,20 +1554,17 @@ namespace BOforUnity.Examples
             ClearGeneratedUi();
         }
 
-        private QTQuestionnaireManager ResolveQuestionnaireToolkitManager()
+        private IStudyQuestionnaire ResolveQuestionnaireToolkitManager()
         {
-            if (questionnaireToolkitManager != null)
-                return questionnaireToolkitManager;
-
-            return FindAnyObjectByType<QTQuestionnaireManager>();
+            return StudyQuestionnaires.Resolve(questionnaireToolkitManager);
         }
 
-        private void EnsureQuestionnairePerformanceCsvItems(QTQuestionnaireManager manager = null)
+        private void EnsureQuestionnairePerformanceCsvItems(IStudyQuestionnaire manager = null)
         {
             if (!logPerformanceToQuestionnaireCsv)
                 return;
 
-            manager = manager != null ? manager : questionnaireToolkitManager;
+            manager = manager ?? StudyQuestionnaires.Resolve(questionnaireToolkitManager);
             if (manager == null)
                 return;
 
@@ -1586,26 +1584,18 @@ namespace BOforUnity.Examples
             );
         }
 
-        private bool ValidateSubjectiveQuestionnaireItems(QTQuestionnaireManager manager)
+        private bool ValidateSubjectiveQuestionnaireItems(IStudyQuestionnaire manager)
         {
-            if (manager == null || manager.questionPages == null || manager.questionPages.Count == 0)
+            if (manager == null)
                 return false;
 
             int aestheticsCount = 0;
             int usabilityCount = 0;
 
-            for (int i = 0; i < manager.questionPages.Count; i++)
+            foreach (string header in manager.SliderHeaderNames)
             {
-                GameObject page = manager.questionPages[i];
-                if (page == null)
-                    continue;
-
-                QTQuestionPageManager pageManager = page.GetComponent<QTQuestionPageManager>();
-                if (pageManager == null || pageManager.questionItems == null)
-                    continue;
-
-                aestheticsCount += CountSliderQuestionsForObjective(pageManager, aestheticsObjectiveKey);
-                usabilityCount += CountSliderQuestionsForObjective(pageManager, usabilityObjectiveKey);
+                if (MatchesObjectiveHeader(header, aestheticsObjectiveKey)) aestheticsCount++;
+                if (MatchesObjectiveHeader(header, usabilityObjectiveKey)) usabilityCount++;
             }
 
             int requiredAestheticsCount = GetRequiredObjectiveSubMeasureCount(aestheticsObjectiveKey);
@@ -1636,27 +1626,6 @@ namespace BOforUnity.Examples
             }
 
             return 1;
-        }
-
-        private static int CountSliderQuestionsForObjective(QTQuestionPageManager pageManager, string objectiveKey)
-        {
-            if (pageManager == null || pageManager.questionItems == null || string.IsNullOrWhiteSpace(objectiveKey))
-                return 0;
-
-            int count = 0;
-
-            for (int i = 0; i < pageManager.questionItems.Count; i++)
-            {
-                GameObject item = pageManager.questionItems[i];
-                if (item == null)
-                    continue;
-
-                QTSlider slider = item.GetComponent<QTSlider>();
-                if (slider != null && MatchesObjectiveHeader(slider.headerName, objectiveKey))
-                    count++;
-            }
-
-            return count;
         }
 
         private static bool MatchesObjectiveHeader(string headerName, string objectiveKey)
@@ -2074,7 +2043,7 @@ namespace BOforUnity.Examples
                 return;
             }
 
-            QTQuestionnaireManager questionnaireManager = ResolveQuestionnaireToolkitManager();
+            IStudyQuestionnaire questionnaireManager = ResolveQuestionnaireToolkitManager();
             if (questionnaireManager != null)
             {
                 questionnaireManager.ResolveBoContextForLogging(out userId, out conditionId, out groupId);
@@ -2395,7 +2364,7 @@ namespace BOforUnity.Examples
             if (BoForUnityManager.Instance != null)
                 return BoForUnityManager.Instance;
 
-#if UNITY_6000_4_OR_NEWER
+            #if UNITY_6000_6_OR_NEWER
             BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>();
 #else
             BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>(FindObjectsSortMode.None);
@@ -2542,7 +2511,7 @@ namespace BOforUnity.Examples
         {
             // Adds StandaloneInputModule only when the legacy Input Manager is active; in Input-System-only
             // projects it would throw every frame, so the Input System's UI module is used there.
-            QTEventSystemUtility.EnsureEventSystem();
+            BoEventSystemUtility.EnsureEventSystem();
         }
 
         private void ClearGeneratedUi()

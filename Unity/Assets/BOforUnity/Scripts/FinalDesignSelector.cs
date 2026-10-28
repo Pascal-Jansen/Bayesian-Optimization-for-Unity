@@ -5,10 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using UnityEngine;
-using BOforUnity;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization;
+using BayesianOptimization.Integration;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
     /// <summary>
     /// Deterministic final-design selection from optimizer observation CSV.
@@ -690,8 +690,8 @@ namespace BOforUnity.Scripts
                 {
                     float direction = objectives[j].value.smallerIsBetter ? -1f : 1f;
                     float directed = direction * row.ObjectiveRaw[j];
-                    float denom = maxV[j] - minV[j];
-                    float normalized = Mathf.Abs(denom) < 1e-12f ? 0.5f : (directed - minV[j]) / denom;
+                    double denom = (double)maxV[j] - minV[j];
+                    float normalized = Math.Abs(denom) < 1e-12 ? 0.5f : (float)(((double)directed - minV[j]) / denom);
                     row.ObjectiveNormalized[j] = Mathf.Clamp01(normalized);
                 }
             }
@@ -740,10 +740,10 @@ namespace BOforUnity.Scripts
 
         private static float Normalize01(float value, float min, float max)
         {
-            float denom = max - min;
-            if (Mathf.Abs(denom) < 1e-12f)
+            double denom = (double)max - min;
+            if (Math.Abs(denom) < 1e-12)
                 return 0.5f;
-            return Mathf.Clamp01((value - min) / denom);
+            return Mathf.Clamp01((float)(((double)value - min) / denom));
         }
 
         private static List<CsvRow> ArgMinWithTies(List<CsvRow> items, Func<CsvRow, float> key, float epsilon)

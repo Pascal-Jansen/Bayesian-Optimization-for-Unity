@@ -1,6 +1,6 @@
 // SocketNetwork.cs
 // Unity <-> Python NDJSON protocol using Newtonsoft.Json.
-// Place Newtonsoft.Json source under Assets/<YourAsset>/ThirdParty/Newtonsoft.Json with an .asmdef.
+// Requires the Unity Registry com.unity.nuget.newtonsoft-json package.
 
 using System;
 using System.Collections.Generic;
@@ -15,12 +15,12 @@ using UnityEngine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
-    // -------------------- JSON DTOs --------------------
-    [Serializable] class MsgBase { public string type; }
+    // Protocol DTOs use Newtonsoft.Json serialization and are not Unity serialized assets.
+    class MsgBase { public string type; }
 
-    [Serializable] class InitMsg : MsgBase
+    class InitMsg : MsgBase
     {
         public InitConfig config;
         public List<ParamInfo> parameters;
@@ -30,7 +30,7 @@ namespace BOforUnity.Scripts
         public UserInfo user;
     }
 
-    [Serializable] class InitConfig
+    class InitConfig
     {
         public int batchSize, numRestarts, rawSamples, numOptimizationIterations, mcSamples, numSamplingIterations, seed;
         public int nParameters, nObjectives;
@@ -55,24 +55,24 @@ namespace BOforUnity.Scripts
     // Bounds stay float, like the inspector fields and the objective values sent later:
     // widening 0.7f to double serializes it as 0.699999988079071 while the value clamped to
     // that bound is sent as 0.7, which the backends then reject as out of bounds.
-    [Serializable] class ParamInit { public float low; public float high; }
-    [Serializable] class ObjInit   { public float low; public float high; public int minimize; }
+    class ParamInit { public float low; public float high; }
+    class ObjInit   { public float low; public float high; public int minimize; }
 
-    [Serializable] class CabopCostTripletInfo
+    class CabopCostTripletInfo
     {
         public float unchanged;
         public float swapped;
         public float acquired;
     }
 
-    [Serializable] class CabopGroupCostInfo
+    class CabopGroupCostInfo
     {
         public string group;
         public CabopCostTripletInfo cost;
         public CabopCostTripletInfo actualCost;
     }
 
-    [Serializable] class ParamInfo
+    class ParamInfo
     {
         public string key;
         public ParamInit init;
@@ -82,7 +82,7 @@ namespace BOforUnity.Scripts
         public List<float> prefabValues;
     }
 
-    [Serializable] class ObjInfo
+    class ObjInfo
     {
         public string key;
         public ObjInit init;
@@ -90,14 +90,14 @@ namespace BOforUnity.Scripts
         public float weight;
     }
 
-    [Serializable] class ContextInfo
+    class ContextInfo
     {
         public string key;
         public List<float> embedding;
         public string imagePath;
     }
 
-    [Serializable] class ContextConfigInfo
+    class ContextConfigInfo
     {
         public bool enabled;
         public string currentContext;
@@ -108,12 +108,12 @@ namespace BOforUnity.Scripts
         public List<ContextInfo> contexts;
     }
 
-    [Serializable] class UserInfo
+    class UserInfo
     {
         public string userId, conditionId, groupId;
     }
 
-    [Serializable] class ParametersMsg : MsgBase
+    class ParametersMsg : MsgBase
     {
         public Dictionary<string, float> values;
         // Global log iteration (the Iteration column of ObservationsPerEvaluation.csv) the suggested design
@@ -121,23 +121,24 @@ namespace BOforUnity.Scripts
         public int? iteration;
     }
 
-    [Serializable] class ObjectivesMsg : MsgBase
+    class ObjectivesMsg : MsgBase
     {
         public Dictionary<string, float> values;
     }
 
-    [Serializable] class CoverageMsg : MsgBase
+    class CoverageMsg : MsgBase
     {
         public float value;
     }
 
     // Unity -> Python: end the session cleanly (the backend logs the reason and exits).
-    [Serializable] class StopMsg : MsgBase
+    class StopMsg : MsgBase
     {
         public string reason;
     }
 
     // -------------------- SocketNetwork --------------------
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "SocketNetwork")]
     public class SocketNetwork : MonoBehaviour
     {
         private Socket _serverSocket;
@@ -162,6 +163,8 @@ namespace BOforUnity.Scripts
         // which Encoding.UTF8.GetString per read turned into U+FFFD replacement characters (a key such as
         // "Gr\u00f6\u00dfe" then no longer matched).
         private Decoder _utf8Decoder;
+        private long _incomingFrameBytes;
+        private long _maxIncomingMessageBytes = DefaultMaxMessageBytes;
 
         // Python's receive limit for one NDJSON line (BO_MAX_RECV_BUF_BYTES, default 64 MiB). A larger init message
         // would only fail in Python as a "possible framing error".
@@ -209,13 +212,17 @@ namespace BOforUnity.Scripts
         {
             _bomanager = gameObject.GetComponent<BoForUnityManager>();
             _ip = IPAddress.Parse("127.0.0.1");
-            _ipEnd = new IPEndPoint(_ip, 56001);
+            if (_bomanager == null || _bomanager.port < 1 || _bomanager.port > 65535)
+                throw new InvalidOperationException("Configure an optimizer TCP port between 1 and 65535.");
+            _ipEnd = new IPEndPoint(_ip, _bomanager.port);
 
             _stopRequested = false;
             _stopMessageSent = false;
             _connectionClosedByPeer = false;
             _optimizationFinished = false;
             _lineBuf.Length = 0;
+            _incomingFrameBytes = 0;
+            _maxIncomingMessageBytes = GetMaxMessageBytes();
             _utf8Decoder = new UTF8Encoding(false).GetDecoder();
             _connectThread = new Thread(SocketReceive) { IsBackground = true };
             _connectThread.Start();
@@ -304,8 +311,7 @@ namespace BOforUnity.Scripts
                         break;
                     }
 
-                    int charCount = _utf8Decoder.GetChars(_recvBuf, 0, recvLen, _charBuf, 0, false);
-                    _lineBuf.Append(_charBuf, 0, charCount);
+                    AppendReceivedBytes(_recvBuf, recvLen);
 
                     int newlineIndex;
                     bool protocolError = false;
@@ -376,6 +382,25 @@ namespace BOforUnity.Scripts
         {
             try { _serverSocket?.Shutdown(SocketShutdown.Both); } catch { }
             try { _serverSocket?.Close(); } catch { }
+        }
+
+        private void AppendReceivedBytes(byte[] bytes, int count)
+        {
+            // Count the original UTF-8 bytes, including the delimiter, before allocating decoded text.
+            // Each complete frame resets the count even when several frames share one socket read.
+            for (int i = 0; i < count; i++)
+            {
+                if (_incomingFrameBytes >= _maxIncomingMessageBytes)
+                    throw new InvalidOperationException(
+                        $"Incoming optimizer message exceeds the {FormatMiB(_maxIncomingMessageBytes)} MiB limit " +
+                        "(BO_MAX_RECV_BUF_BYTES).");
+                _incomingFrameBytes++;
+                if (bytes[i] == (byte)'\n')
+                    _incomingFrameBytes = 0;
+            }
+
+            int charCount = _utf8Decoder.GetChars(bytes, 0, count, _charBuf, 0, false);
+            _lineBuf.Append(_charBuf, 0, charCount);
         }
 
         private static int IndexOfChar(StringBuilder buffer, char value)
@@ -501,7 +526,7 @@ namespace BOforUnity.Scripts
                             return;
                         }
 
-                        var expectedParameters = new List<BOforUnity.ParameterEntry>();
+                        var expectedParameters = new List<BayesianOptimization.ParameterEntry>();
                         var seenParameterKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         foreach (var pa in _bomanager.parameters)
                         {
@@ -750,9 +775,9 @@ namespace BOforUnity.Scripts
                 );
             }
 
-            if (_bomanager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            if (_bomanager.optimizerBackend == BayesianOptimization.BoForUnityManager.OptimizerBackend.CABOP)
             {
-                if (_bomanager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.SingleObjective &&
+                if (_bomanager.cabopObjectiveMode == BayesianOptimization.BoForUnityManager.CabopObjectiveMode.SingleObjective &&
                     objectivePayload.Count != 1)
                 {
                     throw new InvalidOperationException(
@@ -760,7 +785,7 @@ namespace BOforUnity.Scripts
                     );
                 }
 
-                if (_bomanager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized &&
+                if (_bomanager.cabopObjectiveMode == BayesianOptimization.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized &&
                     objectivePayload.Count < 2)
                 {
                     throw new InvalidOperationException(
@@ -769,7 +794,7 @@ namespace BOforUnity.Scripts
                 }
             }
 
-            if (_bomanager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF)
+            if (_bomanager.optimizerBackend == BayesianOptimization.BoForUnityManager.OptimizerBackend.MetaTAF)
             {
                 if (objectivePayload.Count < 2)
                 {
@@ -892,7 +917,7 @@ namespace BOforUnity.Scripts
             if (_bomanager == null || !_bomanager.contextualOptimization)
                 return null;
 
-            if (_bomanager.optimizerBackend != BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch)
+            if (_bomanager.optimizerBackend != BayesianOptimization.BoForUnityManager.OptimizerBackend.BoTorch)
             {
                 // Applies to every non-BoTorch backend (CABOP, MetaTAF, future additions).
                 throw new InvalidOperationException(
@@ -933,7 +958,7 @@ namespace BOforUnity.Scripts
 
                 var info = new ContextInfo { key = key };
 
-                if (source == BOforUnity.BoForUnityManager.ContextEmbeddingSource.Manual)
+                if (source == BayesianOptimization.BoForUnityManager.ContextEmbeddingSource.Manual)
                 {
                     if (entry.embedding == null || entry.embedding.Count == 0)
                     {
@@ -963,7 +988,7 @@ namespace BOforUnity.Scripts
                     }
                     info.embedding = new List<float>(entry.embedding);
                 }
-                else if (source == BOforUnity.BoForUnityManager.ContextEmbeddingSource.Image)
+                else if (source == BayesianOptimization.BoForUnityManager.ContextEmbeddingSource.Image)
                 {
                     if (string.IsNullOrWhiteSpace(entry.imagePath))
                     {
@@ -1009,15 +1034,15 @@ namespace BOforUnity.Scripts
         }
 
         private static string NormalizeContextEmbeddingSource(
-            BOforUnity.BoForUnityManager.ContextEmbeddingSource source)
+            BayesianOptimization.BoForUnityManager.ContextEmbeddingSource source)
         {
             switch (source)
             {
-                case BOforUnity.BoForUnityManager.ContextEmbeddingSource.Manual:
+                case BayesianOptimization.BoForUnityManager.ContextEmbeddingSource.Manual:
                     return "manual";
-                case BOforUnity.BoForUnityManager.ContextEmbeddingSource.Image:
+                case BayesianOptimization.BoForUnityManager.ContextEmbeddingSource.Image:
                     return "image";
-                case BOforUnity.BoForUnityManager.ContextEmbeddingSource.Learned:
+                case BayesianOptimization.BoForUnityManager.ContextEmbeddingSource.Learned:
                 default:
                     return "learned";
             }
@@ -1042,67 +1067,67 @@ namespace BOforUnity.Scripts
             }
         }
 
-        private static string NormalizeOptimizerBackend(BOforUnity.BoForUnityManager.OptimizerBackend backend)
+        private static string NormalizeOptimizerBackend(BayesianOptimization.BoForUnityManager.OptimizerBackend backend)
         {
             switch (backend)
             {
-                case BOforUnity.BoForUnityManager.OptimizerBackend.CABOP:
+                case BayesianOptimization.BoForUnityManager.OptimizerBackend.CABOP:
                     return "cabop";
-                case BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF:
+                case BayesianOptimization.BoForUnityManager.OptimizerBackend.MetaTAF:
                     return "meta-taf";
-                case BOforUnity.BoForUnityManager.OptimizerBackend.DBO:
+                case BayesianOptimization.BoForUnityManager.OptimizerBackend.DBO:
                     return "dbo";
-                case BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch:
+                case BayesianOptimization.BoForUnityManager.OptimizerBackend.BoTorch:
                 default:
                     return "botorch";
             }
         }
 
-        private static string NormalizeDboSpatialKernel(BOforUnity.BoForUnityManager.DboSpatialKernel kernel)
+        private static string NormalizeDboSpatialKernel(BayesianOptimization.BoForUnityManager.DboSpatialKernel kernel)
         {
-            return kernel == BOforUnity.BoForUnityManager.DboSpatialKernel.Matern52 ? "matern52" : "rbf";
+            return kernel == BayesianOptimization.BoForUnityManager.DboSpatialKernel.Matern52 ? "matern52" : "rbf";
         }
 
-        private static string NormalizeDboAlphaParameterization(BOforUnity.BoForUnityManager.DboAlphaParameterization p)
+        private static string NormalizeDboAlphaParameterization(BayesianOptimization.BoForUnityManager.DboAlphaParameterization p)
         {
-            return p == BOforUnity.BoForUnityManager.DboAlphaParameterization.Direct ? "direct" : "decay";
+            return p == BayesianOptimization.BoForUnityManager.DboAlphaParameterization.Direct ? "direct" : "decay";
         }
 
-        private static string NormalizeMetaWeightMode(BOforUnity.BoForUnityManager.MetaWeightMode mode)
+        private static string NormalizeMetaWeightMode(BayesianOptimization.BoForUnityManager.MetaWeightMode mode)
         {
             switch (mode)
             {
-                case BOforUnity.BoForUnityManager.MetaWeightMode.TafM:
+                case BayesianOptimization.BoForUnityManager.MetaWeightMode.TafM:
                     return "taf_m";
-                case BOforUnity.BoForUnityManager.MetaWeightMode.TafRPareto:
+                case BayesianOptimization.BoForUnityManager.MetaWeightMode.TafRPareto:
                     return "taf_r_pareto";
-                case BOforUnity.BoForUnityManager.MetaWeightMode.TafR:
+                case BayesianOptimization.BoForUnityManager.MetaWeightMode.TafR:
                 default:
                     return "taf_r";
             }
         }
 
-        private static string NormalizeCabopObjectiveMode(BOforUnity.BoForUnityManager.CabopObjectiveMode mode)
+        private static string NormalizeCabopObjectiveMode(BayesianOptimization.BoForUnityManager.CabopObjectiveMode mode)
         {
             switch (mode)
             {
-                case BOforUnity.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized:
+                case BayesianOptimization.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized:
                     return "multi";
-                case BOforUnity.BoForUnityManager.CabopObjectiveMode.SingleObjective:
+                case BayesianOptimization.BoForUnityManager.CabopObjectiveMode.SingleObjective:
                 default:
                     return "single";
             }
         }
 
-        private static string NormalizeCabopUpdateRule(BOforUnity.BoForUnityManager.CabopUpdateRule updateRule)
+        private static string NormalizeCabopUpdateRule(BayesianOptimization.BoForUnityManager.CabopUpdateRule updateRule)
         {
             switch (updateRule)
             {
-                case BOforUnity.BoForUnityManager.CabopUpdateRule.Intended:
+                case BayesianOptimization.BoForUnityManager.CabopUpdateRule.Intended:
                     return "intended";
-                case BOforUnity.BoForUnityManager.CabopUpdateRule.Both:
+                case BayesianOptimization.BoForUnityManager.CabopUpdateRule.Both:
                     return "both";
-                case BOforUnity.BoForUnityManager.CabopUpdateRule.Actual:
+                case BayesianOptimization.BoForUnityManager.CabopUpdateRule.Actual:
                 default:
                     return "actual";
             }
@@ -1205,7 +1230,7 @@ namespace BOforUnity.Scripts
             return result;
         }
 
-        private static CabopCostTripletInfo NormalizeCabopCostTriplet(BOforUnity.CabopCostTriplet source)
+        private static CabopCostTripletInfo NormalizeCabopCostTriplet(BayesianOptimization.CabopCostTriplet source)
         {
             if (source == null)
                 return DefaultCabopCostTriplet();

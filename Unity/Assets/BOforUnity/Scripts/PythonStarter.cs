@@ -11,7 +11,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Integration;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -33,8 +33,9 @@ using Debug = UnityEngine.Debug;
 // Launch: the backend runs with that environment's interpreter; its console output goes to
 // persistentDataPath/BOData/BayesianOptimization/output.txt (previous run kept as output.prev.txt) and is archived
 // into the run's LogData folder at the end of the session.
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "PythonStarter")]
     public class PythonStarter : MonoBehaviour
     {
         // ── Public state (read by BoForUnityManager, shown in the inspector) ──────────────────
@@ -390,7 +391,8 @@ namespace BOforUnity.Scripts
             string scriptPath = Path.Combine(Application.streamingAssetsPath, "BOData", "BayesianOptimization", optimizerScriptName);
             Debug.Log("Optimizer script path: " + scriptPath + " (exists: " + File.Exists(scriptPath) + ")");
 
-            yield return new WaitForSeconds(0.25f);
+            // Dependency setup must finish even when a host scene pauses its simulation clock.
+            yield return new WaitForSecondsRealtime(0.25f);
             if (_shutdownDone)
                 yield break;
             LaunchBackend(scriptPath, optimizerScriptName);
@@ -573,7 +575,8 @@ namespace BOforUnity.Scripts
                 // Python writes UTF-8 (PYTHONIOENCODING); decode it as such, not as the console code page.
                 startInfo.StandardOutputEncoding = Encoding.UTF8;
                 startInfo.StandardErrorEncoding = Encoding.UTF8;
-                ConfigurePythonRuntimeEnvironment(startInfo, logRoot, _environment.UserSite);
+                ConfigurePythonRuntimeEnvironment(startInfo, logRoot, _environment.UserSite,
+                    ModelLibraryToken(_bomanager.modelLibrary), _bomanager.port);
 
                 process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
                 process.OutputDataReceived += OnBackendStdout;
@@ -615,7 +618,7 @@ namespace BOforUnity.Scripts
             if (string.IsNullOrEmpty(e.Data))
                 return;
             AppendToOutputFile(e.Data);
-            Debug.LogWarning("Python Output: " + e.Data);
+            Debug.Log("Python Output: " + e.Data);
 
             if (e.Data.IndexOf("Server starts, waiting for connection...", StringComparison.OrdinalIgnoreCase) >= 0)
             {
@@ -664,7 +667,9 @@ namespace BOforUnity.Scripts
 
             _backendExitCode = exitCode;
             _backendExitObserved = true;
-            Debug.LogWarning("Python process exited with code: " + (exitCode == int.MinValue ? "unknown" : exitCode.ToString(CultureInfo.InvariantCulture)));
+            string message = "Python process exited with code: " + (exitCode == int.MinValue ? "unknown" : exitCode.ToString(CultureInfo.InvariantCulture));
+            if (exitCode == 0) Debug.Log(message);
+            else Debug.LogWarning(message);
         }
 
         private void ReportBackendExit()
@@ -899,10 +904,30 @@ namespace BOforUnity.Scripts
             return Path.Combine(Application.streamingAssetsPath, "BOData", "InitData");
         }
 
-        private static void ConfigurePythonRuntimeEnvironment(ProcessStartInfo startInfo, string logRootPath, bool userSite)
+        // BO_MODEL_LIBRARY value of the inspector's Model Library (read by bo_library.py).
+        private static string ModelLibraryToken(BoForUnityManager.ModelLibrary library)
         {
+            switch (library)
+            {
+                case BoForUnityManager.ModelLibrary.BotorchRust:
+                    return "botorch_rs";
+                case BoForUnityManager.ModelLibrary.Auto:
+                    return "auto";
+                case BoForUnityManager.ModelLibrary.BoTorch:
+                default:
+                    return "botorch";
+            }
+        }
+
+        private static void ConfigurePythonRuntimeEnvironment(ProcessStartInfo startInfo, string logRootPath, bool userSite,
+            string modelLibrary, int port)
+        {
+            startInfo.Environment["BO_PORT"] = port.ToString(CultureInfo.InvariantCulture);
             startInfo.Environment["BO_LOG_ROOT"] = logRootPath;
             startInfo.Environment["BO_INIT_ROOT"] = GetPythonInitRootPath();
+            // BoTorch, botorch-rust or auto for bo.py, mobo.py and MetaTAF (CABOP and DBO ignore this selection). Always set, so
+            // a BO_MODEL_LIBRARY in Unity's own environment cannot override the inspector.
+            startInfo.Environment["BO_MODEL_LIBRARY"] = modelLibrary;
             startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
             // UTF-8 mode makes open() default to UTF-8 instead of the Windows code page, so the
             // CSV logs are written in the encoding pandas and FinalDesignSelector read them with
@@ -915,6 +940,7 @@ namespace BOforUnity.Scripts
             startInfo.Environment["KMP_DUPLICATE_LIB_OK"] = "TRUE";
             ApplySitePolicy(startInfo, userSite);
             Debug.Log("BO log root: " + logRootPath);
+            Debug.Log("BO model library: " + modelLibrary);
         }
 
         // Packages in another project's `pip install --user` would shadow the environment's own pinned versions;
@@ -1058,7 +1084,7 @@ namespace BOforUnity.Scripts
             }
 
             // Only interpreters newer than the tested version were found, and none worked: fall back to the bundled 3.13.
-            if (!bundledInstallAttempted && !candidates.Any(IsTestedVersion) && HasBundledInstaller(ctx))
+            if (!bundledInstallAttempted && !candidates.Any(IsTestedVersion) && IsBundledInstallSupported(ctx.Os))
             {
                 Debug.LogWarning(
                     $"Only Python versions newer than the tested {SupportedPythonMajor}.{MaxTestedPythonMinor} were found and none " +
@@ -1820,46 +1846,25 @@ namespace BOforUnity.Scripts
 
         // ── Bundled Python installation (Windows/macOS) ────────────────────────────────────────
 
-        // Windows/macOS copies from GitHub carry the installers; the Asset Store edition does not (the store accepts no
-        // executables), and Linux never had one.
-        private static bool HasBundledInstaller(SetupContext ctx)
+        private static bool IsBundledInstallSupported(HostOs os)
         {
-            switch (ctx.Os)
-            {
-                case HostOs.MacOS:
-                    return File.Exists(Path.Combine(ctx.BundledInstallerRoot, "MacOs", "Data", "Installation_Objects", MacPythonPkgFile));
-                case HostOs.Windows:
-                    string windowsDir = Path.Combine(ctx.BundledInstallerRoot, "Windows");
-                    return File.Exists(Path.Combine(windowsDir, "installation_python.bat")) &&
-                           File.Exists(Path.Combine(windowsDir, "Installation_Objects", WindowsPythonInstallerFile)) &&
-                           File.Exists(Path.Combine(windowsDir, "Installation_Objects", WindowsVcRedistFile));
-                default:
-                    return false;
-            }
-        }
-
-        private static string PythonInstallGuidance(SetupContext ctx)
-        {
-            string version = $"{SupportedPythonMajor}.{BundledPythonMinor}";
-            const string manualOption = "or select an existing interpreter under Python Settings > Manually Installed Python";
-            switch (ctx.Os)
-            {
-                case HostOs.Windows:
-                    return $"Install Python {version} from https://www.python.org/downloads/ (tick \"Add python.exe to PATH\"), " +
-                           manualOption + ", then press Play again.";
-                case HostOs.MacOS:
-                    return $"Install Python {version} from https://www.python.org/downloads/, " + manualOption + ", then press Play again.";
-                default:
-                    string script = Path.Combine(ctx.BundledInstallerRoot, "Linux", "install_python.sh");
-                    string packages = $"python{version} and python{version}-venv";
-                    return File.Exists(script)
-                        ? $"Run {script} in a terminal (or install {packages} with your package manager), then press Play again."
-                        : $"Install {packages} with your package manager, " + manualOption + ", then press Play again.";
-            }
+            return os == HostOs.Windows || os == HostOs.MacOS;
         }
 
         private static bool TryInstallBundledPython(SetupContext ctx, string reason, out string error)
         {
+            string installer = ctx.Os == HostOs.Windows
+                ? Path.Combine(ctx.BundledInstallerRoot, "Windows", "Installation_Objects", WindowsPythonInstallerFile)
+                : ctx.Os == HostOs.MacOS
+                    ? Path.Combine(ctx.BundledInstallerRoot, "MacOs", "Data", "Installation_Objects", MacPythonPkgFile)
+                    : null;
+            if (installer == null || !File.Exists(installer))
+            {
+                error = $"No Python installer is included for this platform. Install Python {SupportedPythonMajor}.{MinSupportedPythonMinor} " +
+                        $"through {SupportedPythonMajor}.{MaxTestedPythonMinor}, enable Manually Installed Python on the optimizer manager, " +
+                        "and set Path of Python Executable to that interpreter. Restart Play mode after installation.";
+                return false;
+            }
             // Two Unity instances (or a restart during the install) must not run the system installer twice.
             using (InstallLock installLock = AcquireInstallLock(ctx))
             {
@@ -1886,15 +1891,6 @@ namespace BOforUnity.Scripts
         private static bool TryInstallBundledPythonUnlocked(SetupContext ctx, string reason, out string error)
         {
             error = null;
-            if (!HasBundledInstaller(ctx))
-            {
-                error = ctx.Os == HostOs.Windows || ctx.Os == HostOs.MacOS
-                    ? $"{reason}, and this copy of BOforUnity includes no Python installer. {PythonInstallGuidance(ctx)}"
-                    : $"{reason}. Python {SupportedPythonMajor}.{BundledPythonMinor} cannot be installed automatically on this platform. {PythonInstallGuidance(ctx)}";
-                Debug.LogError(error);
-                return false;
-            }
-
             SetStatus($"{reason}. Installing bundled Python {BundledPythonVersionLabel} (may require admin confirmation)…");
             Debug.Log($"{reason}; installing the bundled Python {BundledPythonVersionLabel}.");
 
@@ -1938,6 +1934,11 @@ namespace BOforUnity.Scripts
                     }
                     break;
                 }
+                default:
+                    error = "Python 3.13 cannot be installed automatically on this platform. Run " +
+                            "Assets/StreamingAssets/BOData/Installation/Linux/install_python.sh in a terminal (or install " +
+                            "Python 3.13 and its venv module with your package manager), then press Play again.";
+                    break;
             }
 
             if (error == null && !File.Exists(GetBundledPythonPath(ctx.Os)))
@@ -2668,12 +2669,12 @@ namespace BOforUnity.Scripts
 
         // ── Configuration validation (unchanged rules) ─────────────────────────────────────────
 
-        private static int CountDistinctValidParameterKeys(IList<BOforUnity.ParameterEntry> parameters)
+        private static int CountDistinctValidParameterKeys(IList<BayesianOptimization.ParameterEntry> parameters)
         {
             return GetDistinctValidParameterKeys(parameters).Count;
         }
 
-        private static HashSet<string> GetDistinctValidParameterKeys(IList<BOforUnity.ParameterEntry> parameters)
+        private static HashSet<string> GetDistinctValidParameterKeys(IList<BayesianOptimization.ParameterEntry> parameters)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (parameters == null)
@@ -2691,12 +2692,12 @@ namespace BOforUnity.Scripts
             return seen;
         }
 
-        private static int CountDistinctValidObjectiveKeys(IList<BOforUnity.ObjectiveEntry> objectives)
+        private static int CountDistinctValidObjectiveKeys(IList<BayesianOptimization.ObjectiveEntry> objectives)
         {
             return GetDistinctValidObjectiveKeys(objectives).Count;
         }
 
-        private static HashSet<string> GetDistinctValidObjectiveKeys(IList<BOforUnity.ObjectiveEntry> objectives)
+        private static HashSet<string> GetDistinctValidObjectiveKeys(IList<BayesianOptimization.ObjectiveEntry> objectives)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (objectives == null)
@@ -2721,14 +2722,14 @@ namespace BOforUnity.Scripts
         /// the init message is built.
         /// </summary>
         private static bool TryValidateContextualConfiguration(
-            BOforUnity.BoForUnityManager manager,
+            BayesianOptimization.BoForUnityManager manager,
             out string error)
         {
             error = null;
             if (manager == null || !manager.contextualOptimization)
                 return true;
 
-            if (manager.optimizerBackend != BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch)
+            if (manager.optimizerBackend != BayesianOptimization.BoForUnityManager.OptimizerBackend.BoTorch)
             {
                 // Applies to every non-BoTorch backend (CABOP, MetaTAF, future additions):
                 // the LCE-M context pipeline lives in the BoTorch backends only.
@@ -2771,7 +2772,7 @@ namespace BOforUnity.Scripts
         }
 
         private static bool TryResolveOptimizerScriptName(
-            BOforUnity.BoForUnityManager manager,
+            BayesianOptimization.BoForUnityManager manager,
             int effectiveObjectiveCount,
             out string scriptName,
             out string error)
@@ -2785,15 +2786,15 @@ namespace BOforUnity.Scripts
                 return false;
             }
 
-            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.BoTorch)
+            if (manager.optimizerBackend == BayesianOptimization.BoForUnityManager.OptimizerBackend.BoTorch)
             {
                 scriptName = effectiveObjectiveCount > 1 ? "mobo.py" : "bo.py";
                 return true;
             }
 
-            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.CABOP)
+            if (manager.optimizerBackend == BayesianOptimization.BoForUnityManager.OptimizerBackend.CABOP)
             {
-                if (manager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.SingleObjective)
+                if (manager.cabopObjectiveMode == BayesianOptimization.BoForUnityManager.CabopObjectiveMode.SingleObjective)
                 {
                     if (effectiveObjectiveCount != 1)
                     {
@@ -2806,7 +2807,7 @@ namespace BOforUnity.Scripts
                     return true;
                 }
 
-                if (manager.cabopObjectiveMode == BOforUnity.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized)
+                if (manager.cabopObjectiveMode == BayesianOptimization.BoForUnityManager.CabopObjectiveMode.MultiObjectiveScalarized)
                 {
                     if (effectiveObjectiveCount < 2)
                     {
@@ -2820,7 +2821,7 @@ namespace BOforUnity.Scripts
                 }
             }
 
-            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.MetaTAF)
+            if (manager.optimizerBackend == BayesianOptimization.BoForUnityManager.OptimizerBackend.MetaTAF)
             {
                 if (effectiveObjectiveCount < 2)
                 {
@@ -2842,7 +2843,7 @@ namespace BOforUnity.Scripts
                 return true;
             }
 
-            if (manager.optimizerBackend == BOforUnity.BoForUnityManager.OptimizerBackend.DBO)
+            if (manager.optimizerBackend == BayesianOptimization.BoForUnityManager.OptimizerBackend.DBO)
             {
                 if (effectiveObjectiveCount != 1)
                 {

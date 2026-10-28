@@ -1,11 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Integration;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
     /// Fraction BO interface (the parameter value itself is the fraction, so the configured bounds narrow
     /// the range, e.g. TargetSize in [0.3, 0.4] keeps sizes within 30-40% of the size range):
@@ -15,6 +15,7 @@ namespace BOforUnity.Scripts
     ///   size = lerp(sizeMinAbs, sizeMaxTight, u_size)
     ///   ecc  = lerp(0, EccMaxForSize(size), u_ecc)
     /// where sizeMaxTight = lerp(sizeMinAbs, GlobalSizeMax(), sizeRangeFactor) and sizeRangeFactor∈[0,1].
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "TargetClickerEvaluator")]
     public class TargetClickerEvaluator : MonoBehaviour
     {
         [Header("UI")]
@@ -44,7 +45,7 @@ namespace BOforUnity.Scripts
         public int maxIterations = 3;
         public int currRound = 1;
 
-        public QTQuestionnaireManager qtManager;
+        public MonoBehaviour qtManager;
 
         private BoForUnityManager boManager;
         private bool _clicked;
@@ -127,7 +128,7 @@ namespace BOforUnity.Scripts
             }
 
             // call the questionnaire to receive the user feedback for perceived difficulty as f1
-            if (qtManager) qtManager.StartQuestionnaire();
+            if (qtManager is IStudyQuestionnaire questionnaire) questionnaire.StartQuestionnaire();
         }
 
         private bool TrySetSecondObjectiveValues(List<float> values)
@@ -299,10 +300,11 @@ namespace BOforUnity.Scripts
 
             float lo = Mathf.Min(parameter.lowerBound, parameter.upperBound);
             float hi = Mathf.Max(parameter.lowerBound, parameter.upperBound);
-            if (!(hi - lo > 1e-12f))
+            double range = (double)hi - lo;
+            if (!(range > 1e-12))
                 return Mathf.Clamp01(parameter.Value);
 
-            return Mathf.Clamp01((parameter.Value - lo) / (hi - lo));
+            return Mathf.Clamp01((float)(((double)parameter.Value - lo) / range));
         }
 
         /// <summary>The raw value clamped to [0,1], for parameters whose value is itself a fraction.</summary>

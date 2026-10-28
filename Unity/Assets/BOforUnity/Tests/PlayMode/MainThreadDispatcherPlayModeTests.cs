@@ -2,9 +2,9 @@ using System.Reflection;
 using System.Threading;
 using NUnit.Framework;
 using UnityEngine;
-using BOforUnity.Scripts;
+using BayesianOptimization.Scripts;
 
-namespace BOforUnity.Tests.PlayMode
+namespace BayesianOptimization.Tests.PlayMode
 {
     public class MainThreadDispatcherPlayModeTests
     {

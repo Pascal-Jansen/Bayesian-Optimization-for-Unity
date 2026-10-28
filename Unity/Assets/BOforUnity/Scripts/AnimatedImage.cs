@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "AnimatedImage")]
     public class AnimatedImage : MonoBehaviour
     {
         public Sprite[] frames; // Array to hold the frames of the animation

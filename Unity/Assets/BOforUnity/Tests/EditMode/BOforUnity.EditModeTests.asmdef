@@ -1,10 +1,10 @@
 {
     "name": "BOforUnity.EditModeTests",
-    "rootNamespace": "BOforUnity.Tests.EditMode",
+    "rootNamespace": "BayesianOptimization.Tests.EditMode",
     "references": [
         "BOforUnity.Runtime",
         "BOforUnity.Examples",
-        "QuestionnaireToolkit.Runtime"
+        "BOforUnity.Shared"
     ],
     "includePlatforms": [
         "Editor"

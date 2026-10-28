@@ -1,46 +1,24 @@
-# MetaSources — population models for the Meta-TAF backend
+# MetaTAF source models
 
-This folder holds the "population models" (source artifacts) that the **MetaTAF**
-optimizer backend transfers from. Layout:
+MetaTAF transfers information from a fixed population of source models. Each population contains GP hyperparameters, normalized observations, a Pareto front, and a population manifest:
 
-```
-MetaSources/
-  gp_states/       one <name>.json per source (GP hyperparameters + study frame)
-  trajectories/    one <name>.json per source (normalized observations + Pareto front)
-  population.json  population manifest: names, SHA-256 hashes, frame digest
-```
-
-You do not write these files by hand. Generate them from completed runs with:
-
-```
-python Assets/StreamingAssets/BOData/BayesianOptimization/meta_train.py ^
-    --frame frame.json --out Assets/StreamingAssets/BOData/MetaSources ^
-    --source-type human --y-calibration measured ^
-    path/to/LogData/<user>/<condition>/run ...
+```text
+study-sources/
+  gp_states/<name>.json
+  trajectories/<name>.json
+  population.json
 ```
 
-`--source-type` (`human`, `llm-persona`, `synthetic`) and `--y-calibration` (`measured`,
-`generated`) are required provenance stamps written into every artifact — label them
-honestly. `meta_train.py` needs the full stack plus openbo: on the Unity machine, run it with
-the interpreter the Unity Console logs as `Optimizer Python: …` instead of `python`.
+Generate source models from completed runs with the canonical tool in the common repository. Use the Python environment that runs the optimizer. The optional OpenBO dependency must use the audited revision specified in Backend/requirements.txt.
 
-Each source is named after its run's path (`<participant>_<condition>_<run>`, e.g.
-`p01_main_run`), so rebuilding the folder with more runs adds only the new ones; runs that
-are already here are kept, under the name they have here (also an index-prefixed
-`00_..._run` name from an older `meta_train.py`), unless you pass `--force`. `--dry-run`
-shows what would be written without writing anything.
+```text
+python Backend/meta_train.py --frame frame.json --out study-sources --source-type human --y-calibration measured path/to/completed/run
+```
 
-`population.json` freezes the population: it is rewritten by every `meta_train.py` build,
-and while it is present the backend refuses to start when the sources it loads differ from
-it (added, removed, replaced or unloadable sources; converted line endings, e.g. from a git
-checkout, do not count). After editing this folder by hand
-before a study, rewrite it with `meta_train.py --frame frame.json --out <this folder>
---manifest-only`; do not change the folder during a study.
+The frame file records every parameter and objective, including bounds and objective direction. Source type and calibration describe how objective values were obtained. Set source type to human, llm-persona, or synthetic. Set calibration to measured or generated. These values are recorded with each source.
 
-Sources whose study frame (parameter/objective names, bounds, minimize flags) does not
-match the live study are skipped at runtime with a field-by-field explanation — that is
-intentional, not a bug. Sources that match the frame but cannot be loaded by the optimizer
-are dropped with the reason as well (so are macOS `._*.json` metadata files from copies via
-exFAT drives or network shares); each run records what it actually used in its
-`MetaSourcesUsed/` folder and `MetaRunState.json`. See `docs/meta-taf-student-guide.md`
-for the full workflow.
+Source names derive from their original run paths. Existing sources are retained unless --force is given. Use --dry-run to inspect a planned build. Configure metaSourceDir with the population directory in the engine wrapper. An absolute path can identify an external study directory.
+
+The population manifest records source names, content hashes, and the frame digest. Freeze this directory before collecting study data. The runtime rejects a population whose loaded sources differ from its manifest. Regenerate the manifest with --manifest-only after intentional changes made before the study.
+
+Source frames must match the current study. The runtime reports incompatible or unloadable sources. Each run records its actual source population in MetaSourcesUsed and MetaRunState.json. Preserve these records with the study data and analysis scripts.

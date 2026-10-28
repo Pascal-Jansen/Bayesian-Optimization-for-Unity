@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace BOforUnity.Scripts
+namespace BayesianOptimization.Scripts
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "MainThreadDispatcher")]
     public class MainThreadDispatcher : MonoBehaviour
     {
         private static readonly Queue<Action> ExecutionQueue = new Queue<Action>();
@@ -53,7 +54,7 @@ namespace BOforUnity.Scripts
                 ExecutionQueue.Enqueue(action);
             }
         }
-        
+
         public static void Execute<T>(Action<T> action, T param)
         {
             lock (ExecutionQueue)

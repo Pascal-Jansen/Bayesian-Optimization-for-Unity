@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
-using BOforUnity;
-using BOforUnity.Scripts;
+using BayesianOptimization;
+using BayesianOptimization.Scripts;
 
-namespace BOforUnity.Tests.EditMode
+namespace BayesianOptimization.Tests.EditMode
 {
     public class FinalDesignSelectorEditModeTests
     {
@@ -52,6 +52,36 @@ namespace BOforUnity.Tests.EditMode
                 Path.Combine(_tempRoot, "run", "ObservationsPerEvaluation.csv"),
                 lines
             );
+        }
+
+        [Test]
+        public void SelectsBalancedRowAcrossLargeFiniteRanges()
+        {
+            WriteObservationCsv(
+                "u;c;g;t;1;sampling;TRUE;-3E38;3E38;-3E38",
+                "u;c;g;t;2;sampling;TRUE;3E38;-3E38;3E38",
+                "u;c;g;t;3;optimization;TRUE;0;0;0"
+            );
+            var parameters = new List<ParameterEntry>
+            {
+                new ParameterEntry("p0", new ParameterArgs(-3e38f, 3e38f))
+            };
+            var objectives = new List<ObjectiveEntry>
+            {
+                new ObjectiveEntry("o0", new ObjectiveArgs(-3e38f, 3e38f, false, 1)),
+                new ObjectiveEntry("o1", new ObjectiveArgs(-3e38f, 3e38f, false, 1))
+            };
+
+            bool ok = FinalDesignSelector.TrySelectFromLatestObservationCsv(
+                _tempRoot, "u", "c", "g", parameters, objectives,
+                1e-6f, 1e-6f, 1e-6f, out var selection, out _, out string error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(selection.Iteration, Is.EqualTo(3));
+            Assert.That(selection.UtopiaDistance, Is.EqualTo((float)System.Math.Sqrt(0.5)).Within(1e-6f));
+            Assert.That(selection.Aggression, Is.Zero);
+            Assert.That(BoParameterReader.Normalize(new ParameterArgs(-3e38f, 3e38f) { Value = 0f }), Is.EqualTo(0.5f));
+            Assert.That(BoParameterReader.Normalize(new ParameterArgs(-3e38f, 3e38f) { Value = 3e38f }), Is.EqualTo(1f));
         }
 
         [Test]

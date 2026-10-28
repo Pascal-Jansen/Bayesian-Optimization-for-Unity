@@ -4,8 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using BOforUnity.Scripts;
-using QuestionnaireToolkit.Scripts;
+using BayesianOptimization.Scripts;
+using BayesianOptimization.Integration;
 using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -16,10 +16,11 @@ using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
-using PythonStarter = BOforUnity.Scripts.PythonStarter;
+using PythonStarter = BayesianOptimization.Scripts.PythonStarter;
 
-namespace BOforUnity
+namespace BayesianOptimization
 {
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "BoForUnityManager")]
     public class BoForUnityManager : MonoBehaviour, IQuestionnaireOptimizationBridge
     {
         public enum IterationAdvanceMode
@@ -40,6 +41,17 @@ namespace BOforUnity
             // alpha^|t-t'|, for objectives that drift during a session (adaptation,
             // learning, fatigue). Single-objective. See Kim & Sergi, RA-L 2026.
             DBO = 3
+        }
+
+        public enum ModelLibrary
+        {
+            // BoTorch (PyTorch), the reference implementation.
+            BoTorch = 0,
+            // botorch-rust: BoTorch's API implemented in Rust, several times faster per suggestion.
+            // Must be installed into the optimizer's Python; the backend refuses to start without it.
+            BotorchRust = 1,
+            // botorch-rust when it is installed, otherwise BoTorch.
+            Auto = 2
         }
 
         public enum MetaWeightMode
@@ -100,6 +112,9 @@ namespace BOforUnity
         public MainThreadDispatcher mainThreadDispatcher;
         public SocketNetwork socketNetwork;
 
+        [Tooltip("Loopback TCP port shared with the Python backend through BO_PORT.")]
+        [Range(1, 65535)] public int port = 56001;
+
         private static BoForUnityManager _instance;
 
         /// <summary>
@@ -113,7 +128,7 @@ namespace BOforUnity
         public List<ParameterEntry> parameters = new List<ParameterEntry>();
         public List<ObjectiveEntry> objectives = new List<ObjectiveEntry>();
         //-----------------------------------------------
-        
+
         //-----------------------------------------------
         // ITERATION CONTROLLER
         [SerializeField]
@@ -137,7 +152,7 @@ namespace BOforUnity
         public bool initialized = false;
         public bool simulationRunning = false;
         private bool _waitingForPythonProcess = false;
-        
+
         // BO Hyper-parameters
         public int batchSize = 1;
         public int numRestarts = 10;
@@ -148,9 +163,9 @@ namespace BOforUnity
         public int numSamplingIterations = 4; // Auto-default is 2(d+1), where d is the number of design parameters.
         public int numOptimizationIterations = 10;
         public int seed = 3;
-        
+
         [SerializeField] private bool enableSamplingEdit = false; // checkbox in inspector
-        
+
         public bool warmStart = false;
         public bool perfectRatingActive = false;
         public bool perfectRatingInInitialRounds = false;
@@ -159,6 +174,12 @@ namespace BOforUnity
         public string warmStartObjectiveFormat = "auto";
 
         public OptimizerBackend optimizerBackend = OptimizerBackend.BoTorch;
+
+        // Model library of the BoTorch and MetaTAF backends, passed to Python as BO_MODEL_LIBRARY.
+        // DBO uses botorch-rust; CABOP keeps its vendored optimizer. Unsupported optional library modes
+        // fall back to BoTorch (the console says so).
+        // A study factor: keep it fixed within a study. Each run records the library it used.
+        public ModelLibrary modelLibrary = ModelLibrary.BoTorch;
 
         public CabopObjectiveMode cabopObjectiveMode = CabopObjectiveMode.SingleObjective;
         public bool cabopUseCostAwareAcquisition = true;
@@ -251,6 +272,7 @@ namespace BOforUnity
         private List<string> _configuredParameterKeys;
         private List<string> _configuredObjectiveKeys;
         private OptimizerBackend _configuredBackend;
+        private ModelLibrary _configuredModelLibrary;
         private string _configuredUserId;
         private string _configuredConditionId;
         private string _configuredGroupId;
@@ -265,7 +287,7 @@ namespace BOforUnity
         private readonly Dictionary<string, float> _priorSliderRatingHints = new Dictionary<string, float>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _priorLinearScaleRatingHints = new Dictionary<string, string>(StringComparer.Ordinal);
         //-----------------------------------------------
-        
+
         //-----------------------------------------------
         // Static state survives play sessions when "Enter Play Mode Options" disable domain reload; a stale
         // instance would make the next session's manager discard itself.
@@ -326,6 +348,7 @@ namespace BOforUnity
             _configuredParameterKeys = NormalizedKeys(parameters?.Select(p => p?.key));
             _configuredObjectiveKeys = NormalizedKeys(objectives?.Select(o => o?.key));
             _configuredBackend = optimizerBackend;
+            _configuredModelLibrary = modelLibrary;
             _configuredUserId = userId;
             _configuredConditionId = conditionId;
             _configuredGroupId = groupId;
@@ -343,6 +366,8 @@ namespace BOforUnity
                 differences.Add("objective keys");
             if (optimizerBackend != running._configuredBackend)
                 differences.Add($"backend ({optimizerBackend} vs. {running._configuredBackend})");
+            if (modelLibrary != running._configuredModelLibrary)
+                differences.Add($"model library ({modelLibrary} vs. {running._configuredModelLibrary})");
             if (!SameId(userId, running._configuredUserId))
                 differences.Add("User ID");
             if (!SameId(conditionId, running._configuredConditionId))
@@ -377,7 +402,7 @@ namespace BOforUnity
             SyncSamplingIterationDefaults();
             totalIterations = GetConfiguredTotalIterations();
         }
-        
+
         void Start()
         {
             // A startup error reported before this Start (TerminateWithError, e.g. from the launcher) keeps its
@@ -409,10 +434,10 @@ namespace BOforUnity
             // Start each run from a clean measurement state so the first objective payload
             // cannot reuse stale values from a prior session or serialized inspector data.
             ClearObjectiveMeasurements();
-            simulationRunning = true; // the simulation to true to prevent 
+            simulationRunning = true; // the simulation to true to prevent
             totalIterations = GetConfiguredTotalIterations();
         }
-        
+
         void Update()
         {
             if (_waitingForPythonProcess && pythonStarter != null && pythonStarter.isPythonProcessRunning && pythonStarter.isSystemStarted)
@@ -422,8 +447,8 @@ namespace BOforUnity
             }
         }
         //-----------------------------------------------
-        
-        
+
+
         // CONTROLLER SCENE
         //-----------------------------------------------
         public TMP_Text outputText;
@@ -462,7 +487,7 @@ namespace BOforUnity
             _pendingAdvanceRequest = true;
             TryConsumeAdvanceRequest();
         }
-        
+
         public void OptimizationStart()
         {
             if (_loopTerminated)
@@ -548,14 +573,14 @@ namespace BOforUnity
             SetNextButtonVisible(false);
             SetOutputText("The system is loading, please wait ...");
         }
-        
+
         public void OptimizationDone()
         {
             Debug.Log("Optimization DONE");
             currentIteration++; // increase iteration counter
             HandleParametersReady("The system has finished loading.\nYou can now proceed.");
         }
-        
+
         public void InitializationDone()
         {
             Debug.Log("Initialization DONE");
@@ -634,7 +659,7 @@ namespace BOforUnity
                 nextButtonText: "Start Final Evaluation"
             );
         }
-        
+
         private void PythonInitializationDone()
         {
             Debug.Log("Python Process Initialization DONE");
@@ -899,6 +924,14 @@ namespace BOforUnity
         public static int ComputeRecommendedSamplingIterations(int designParameterCount)
         {
             return 2 * (Mathf.Max(0, designParameterCount) + 1);
+        }
+
+        public void SetIterationBudget(int samplingIterations, int optimizationIterations)
+        {
+            enableSamplingEdit = true;
+            numSamplingIterations = Mathf.Max(0, samplingIterations);
+            numOptimizationIterations = Mathf.Max(0, optimizationIterations);
+            totalIterations = GetConfiguredTotalIterations();
         }
 
         private void SyncSamplingIterationDefaults()
@@ -1922,7 +1955,7 @@ namespace BOforUnity
         {
             return LogDataFolderUtility.NormalizeLogFolderToken(value);
         }
-        
+
         private bool IsPerfectRating()
         {
             var effectiveObjectives = BuildEffectiveObjectiveEntries(
@@ -1970,9 +2003,9 @@ namespace BOforUnity
             {
                 return false;
             }
-            
+
             Debug.Log("Could be perfect rating ...");
-            
+
             switch (perfectRatingStart)
             {
                 case false:
@@ -1995,7 +2028,7 @@ namespace BOforUnity
             }
             return false;
         }
-        
+
         public void EndApplication()
         {
 #if UNITY_EDITOR
@@ -2005,8 +2038,8 @@ namespace BOforUnity
 #endif
         }
         //-----------------------------------------------
-        
-        
+
+
         //--------------------------------------------
         [Header("Location of Python executable")]
         public bool localPython;
@@ -2014,10 +2047,10 @@ namespace BOforUnity
 
         public bool getLocalPython() { return localPython; }
         public void setLocalPython(bool a) { localPython = a; }
-        
+
         public string getPythonPath() { return pythonPath; }
         public void setPythonPath(string newPath) { pythonPath = newPath; }
-        
+
         //-----------------------------------------------
     }
 
@@ -2086,7 +2119,7 @@ namespace BOforUnity
                 this.actualCost = actualCost ?? new CabopCostTriplet();
             }
         }
-    
+
             // ------------------
         // the objective entries:
         // ------------------
@@ -2101,7 +2134,7 @@ namespace BOforUnity
                 this.value = value;
             }
         }
-        
+
         [System.Serializable]
         public class ObjectiveArgs
         {
@@ -2144,8 +2177,8 @@ namespace BOforUnity
             }
         }
         // ------------------
-        
-        
+
+
         // ------------------
         // the parameter entries:
         // ------------------
@@ -2160,7 +2193,7 @@ namespace BOforUnity
                 this.value = value;
             }
         }
-        
+
         [System.Serializable]
         public class ParameterArgs
         {

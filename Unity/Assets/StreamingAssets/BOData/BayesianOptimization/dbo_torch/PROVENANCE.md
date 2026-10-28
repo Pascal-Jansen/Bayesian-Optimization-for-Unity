@@ -1,5 +1,21 @@
 # Provenance and licensing
 
+## Input validation
+
+The repository copy validates finite domain endpoints, seed coordinates, observed coordinates, and observation times. Seed points must lie within the configured domain. Invalid observations preserve the pending suggestion and the recorded history. These checks were added during the repository audit on October 27, 2026.
+
+## Unity numerical backend integration
+
+This Unity copy retains dbo_torch 0.2.0's optimizer and temporal-kernel methods.
+Its GP model, fitting objective, acquisitions, samplers and candidate optimization
+use `botorch-rust` through the `botorch_rs` namespace. Caller-supplied GPyTorch
+spatial/temporal kernels and Gaussian likelihoods remain actual Torch modules;
+their parameters, including the fitted decay rate, are preserved. Run records
+attribute the numerical package using its `botorch-rust` distribution version.
+The Unity bridge obtains its initial Sobol design from the shared Torch
+`bo_library.draw_sobol_samples` helper, retaining the same seeded initial design
+as the other Unity model-library choices.
+
 This document records exactly where this implementation comes from, because the
 reference implementation of Dynamic Bayesian Optimization has a licensing
 situation that is easy to get wrong.

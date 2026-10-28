@@ -14,14 +14,14 @@ protocols with opposite topologies:
 | Client | BOforUnity's `SocketNetwork.cs` | `DboClient.cs` (drop into any Unity project) |
 
 If you are inside this repository, you want the BOforUnity backend — see
-[docs/dbo-backend.md](../dbo-backend.md). Use this bridge only for a bare Unity
+[shared backend architecture](../architecture.md). Use this bridge only for a bare Unity
 project where adopting BOforUnity is not an option.
 
 Run the server (needs `dbo_torch` importable: a dbo-torch checkout or installation, or this
 repository's vendored copy on `PYTHONPATH`):
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=Assets/StreamingAssets/BOData/BayesianOptimization \
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=Backend \
     python docs/standalone-bridge/unity_bridge.py --host 127.0.0.1 --port 8756 --save-dir runs
 ```
 
@@ -44,3 +44,7 @@ BOforUnity backends it never shares its port (`SO_EXCLUSIVEADDRUSE` on Windows).
 
 `DboClient.cs` sends calls in the order they are made (one worker thread, FIFO
 queue), so `Reset(); Suggest();` is safe without waiting for the first callback.
+
+`DboClient.cs` requires the Unity Registry package `com.unity.nuget.newtonsoft-json` (tested with 3.2.2). Add that package through Package Manager before copying the client into your project. Assemblies that override precompiled references must include `Newtonsoft.Json.dll`. Replies are parsed with Json.NET. Numeric arrays must contain finite numbers in the float range. A malformed reply invokes the error callback before any success callback is queued.
+
+`DboClientEditModeTests.cs` contains Unity NUnit tests for JSON escape decoding, complete coordinate arrays, invalid payloads, and error callback delivery through a local TCP server. To run them in this repository, copy `DboClient.cs` into `Assets/BOforUnity/Scripts/` and copy `DboClientEditModeTests.cs` into `Assets/BOforUnity/Tests/EditMode/`. Run the EditMode suite in Unity Test Runner. Remove both copies and their generated `.meta` files after testing. The persistent originals remain in this directory. The standalone tests require no Python server.

@@ -1,0 +1,35 @@
+{
+  "unity": "6000.6.7f1",
+  "pipeline": "BuiltIn",
+  "device": "NVIDIA GeForce RTX 5080",
+  "left": {
+    "r": 1.0,
+    "g": 0.5254902243614197,
+    "b": 0.5254902243614197,
+    "a": 1.0
+  },
+  "right": {
+    "r": 0.5803921818733215,
+    "g": 0.8549019694328308,
+    "b": 1.0,
+    "a": 1.0
+  },
+  "litLeft": {
+    "r": 1.0,
+    "g": 1.0,
+    "b": 1.0,
+    "a": 1.0
+  },
+  "litRight": {
+    "r": 1.0,
+    "g": 1.0,
+    "b": 1.0,
+    "a": 1.0
+  },
+  "materialCount": 4,
+  "passed": true,
+  "analyticSample": false,
+  "alphaValidated": true,
+  "litValidated": true,
+  "pipelinePackages": {}
+}
