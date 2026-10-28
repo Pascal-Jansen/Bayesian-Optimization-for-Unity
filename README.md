@@ -1,19 +1,53 @@
-# Interactive Bayesian Optimization (IBO)
+<h1 align="center">iBO · Interactive Bayesian Optimization</h1>
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg)](https://doi.org/10.5281/zenodo.19786494)
+<p align="center">
+  <b>Human-in-the-loop Bayesian optimization for Unity, Unreal Engine and Python.</b><br>
+  People's ratings and behavior steer the design of interactive systems, one evaluation at a time.
+</p>
 
-**[Pascal Jansen](https://pascal-jansen.github.io)**, Ulm University · **[Mark Colley](https://m-colley.github.io)**, University College London
+<p align="center">
+  <a href="Unity/README.md"><img alt="Unity 6000.6" src="https://img.shields.io/badge/Unity-6000.6-000000?logo=unity&amp;logoColor=white"></a>
+  <a href="Unreal/README.md"><img alt="Unreal Engine 5.8" src="https://img.shields.io/badge/Unreal%20Engine-5.8-0E1128?logo=unrealengine&amp;logoColor=white"></a>
+  <a href="Python/README.md"><img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&amp;logoColor=white"></a>
+  <a href="https://botorch.org"><img alt="BoTorch 0.18" src="https://img.shields.io/badge/BoTorch-0.18-EE4C2C?logo=pytorch&amp;logoColor=white"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
+  <a href="https://doi.org/10.5281/zenodo.19786494"><img alt="DOI 10.5281/zenodo.19786494" src="https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg"></a>
+  <a href="https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/actions/workflows/python-checks.yml"><img alt="Python checks" src="https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/actions/workflows/python-checks.yml/badge.svg"></a>
+</p>
 
-![Demo](images/BOforUnity.gif)
+<p align="center">
+  <b><a href="https://pascal-jansen.github.io">Pascal Jansen</a></b>, Ulm University ·
+  <b><a href="https://m-colley.github.io">Mark Colley</a></b>, University College London
+</p>
 
-Interactive Bayesian Optimization (IBO) runs **human-in-the-loop Bayesian optimization** in interactive systems: you declare
-**design parameters** (what the system may change) and **objectives** (what a person's ratings or behavior score), and a
-Bayesian optimizer proposes the next design to show after every evaluation. Good designs, or the **Pareto front** of best
-trade-offs, are found with far fewer trials than manual tuning, A/B tests or grid search.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-overview-dark.svg">
+  <img alt="iBO overview: Unity, Unreal Engine, Python and other clients exchange designs and objectives with the iBO backend over the iBO protocol; the backend runs BoTorch or botorch-rust with BO, MOBO, CABOP, DBO, contextual LCE-M and MetaTAF" src="images/ibo-overview-light.svg">
+</picture>
 
-One Python optimizer serves every integration over the same [protocol](protocol/README.md): **Unity**, **Unreal Engine**
-and **Python**, and any other engine or experiment tool that can open a local TCP connection. IBO continues
-*Bayesian Optimization for Unity*; see the [migration guide](docs/migration-to-ibo.md) if you used it.
+## What iBO does
+
+You declare **design parameters** (what the system may change, such as sizes, colors or timings) and **objectives**
+(what a person's ratings or behavior score, such as usability or task time). iBO's Bayesian optimizer then proposes the
+next design to show after every evaluation. It finds good designs, or the **Pareto front** of best trade-offs between
+several objectives, with far fewer trials than manual tuning, A/B tests or grid search.
+
+One Python optimizer serves every integration over the same [iBO protocol](protocol/README.md). iBO continues
+*Bayesian Optimization for Unity*; if you used it, see the [migration guide](docs/migration-to-ibo.md).
+
+## At a glance
+
+| Part | What you get | Folder | Start here |
+|---|---|---|---|
+| **Unity** | C# package configured in the Inspector, analytic and rendering samples; optional QuestionnaireToolkit add-on with questionnaire studies and a Fitts's law study | `Unity/` | [Unity guide](Unity/README.md), [manual](docs/unity-manual.md) |
+| **Unreal Engine** | C++ plugin with a Blueprint component, analytic example actor, Python launcher | `Unreal/` | [Unreal guide](Unreal/README.md) |
+| **Python** | `interactive_bo`: client and server launcher for scripts, PsychoPy or lab hardware | `Python/` | [Python guide](Python/README.md) |
+| **Backend** | The optimizer: BO, MOBO, CABOP, DBO, contextual LCE-M, MetaTAF on BoTorch or botorch-rust; `ibo_server.py` | `Backend/` | [Architecture](docs/architecture.md) |
+| **Protocol** | Message specification and JSON schema for new integrations | `protocol/` | [Protocol](protocol/README.md) |
+
+**Status:** release candidate 2.0.0-rc.1. The Unity and Unreal integrations were validated on Windows with Unity 6000.6
+and Unreal Engine 5.8 ([validation record](docs/validation.md)); the backend and the Python client also run on macOS.
+Validation of the engine integrations on macOS and Linux is pending.
 
 ## Features
 
@@ -26,41 +60,36 @@ and **Python**, and any other engine or experiment tool that can open a local TC
 - Explicit feedback (questionnaires; QuestionnaireToolkit add-on for Unity) and implicit feedback (telemetry, behavior).
 - CSV logging per participant and condition, warm starts, reproducible seeds, concurrent studies on separate ports.
 
-## Integrations
+## Quick start
 
-| Integration | Where | Start here |
-|---|---|---|
-| Unity | `Unity/` (Unity project; package in `Unity/Assets/IBO`) | [Unity guide](Unity/README.md), [Unity manual](docs/unity-manual.md) |
-| Unreal Engine | `Unreal/` (C++ plugin with a Blueprint component) | [Unreal guide](Unreal/README.md) |
-| Python | `Python/` (`pip install ./Python`, package `interactive_bo`) | [Python guide](Python/README.md) |
-| Anything else | your client of the IBO protocol | [Protocol](protocol/README.md) |
-
-Every integration needs **Python 3.13** with the pinned packages of [`Backend/requirements.txt`](Backend/requirements.txt)
-(Unity installs them into a private environment on the first Play).
+Every integration needs **Python 3.13** with the pinned packages of [`Backend/requirements.txt`](Backend/requirements.txt).
+Unity installs them into a private environment on the first Play.
 
 **Unity**: open `Unity/` in Unity 6000.6 (tested; the package also compiles and passes its EditMode tests on 6000.4), choose
-**Tools > IBO > Create Analytic Demo** and press Play. The questionnaire examples (`BO-example-scene`, the Fitts's law
-study and others) are in `Assets/IBO-QuestionnaireToolkit/Samples/Scenes`.
+**Tools > iBO > Create Analytic Demo** and press Play. The questionnaire examples (`BO-example-scene`, the Fitts's law
+study and others) are in `Assets/iBO-QuestionnaireToolkit/Samples/Scenes`.
 
 **Unreal**: copy `Unreal/Plugins/BayesianOptimization` into a C++ project and follow the [Unreal guide](Unreal/README.md).
 
-**Python**: run a complete study with a simulated participant:
+**Python**: from the repository root, install the client and run a complete study with a simulated participant:
 
 ```bash
 python -m pip install ./Python
 ```
 
 ```bash
-python -m interactive_bo demo --python /path/to/python-with-the-requirements
+ibo demo --python /path/to/python-with-the-requirements
 ```
+
+![The Unity integration in action](images/BOforUnity.gif)
 
 ## Repository layout
 
 | Folder | Content |
 |---|---|
-| `Backend/` | The optimizer: backends, IBO server (`ibo_server.py`), requirements, licenses, example data |
+| `Backend/` | The optimizer: backends, iBO server (`ibo_server.py`), requirements, licenses, example data |
 | `Unity/`, `Unreal/`, `Python/` | Integrations; `Unity/` and `Unreal/` carry generated copies of `Backend/` |
-| `protocol/` | IBO protocol specification and JSON schema |
+| `protocol/` | iBO protocol specification and JSON schema |
 | `tools/` | `sync_backends.py` (engine copies of `Backend/`) and release packaging |
 | `tests/` | Python tests of the backend |
 | `docs/` | Manual, migration guide, architecture, validation, backend guides, [roadmap](docs/ibo/ROADMAP.md) |
@@ -87,14 +116,14 @@ python -m unittest discover Python/tests
 
 - [Unity manual](docs/unity-manual.md): concepts, every setting, logging, troubleshooting
 - [Migration guide](docs/migration-to-ibo.md) from Bayesian Optimization for Unity 1.x
-- [IBO protocol](protocol/README.md) for new integrations
+- [iBO protocol](protocol/README.md) for new integrations
 - [Architecture](docs/architecture.md), [validation record](docs/validation.md), [render pipelines](docs/render-pipeline-support.md)
 - Backend guides: [Dynamic BO](docs/dbo-backend.md), [MetaTAF](docs/meta-taf-student-guide.md)
 - [Roadmap](docs/ibo/ROADMAP.md)
 
 ## Publications
 
-Scientific publications built on IBO (as Bayesian Optimization for Unity):
+Scientific publications built on iBO (as Bayesian Optimization for Unity):
 
 **2026**
 
@@ -119,12 +148,12 @@ Scientific publications built on IBO (as Bayesian Optimization for Unity):
 
 ## Citation
 
-If you use IBO in research, please cite it:
+If you use iBO in research, please cite it:
 
 ```bibtex
 @software{jansen_interactive_bayesian_optimization,
   author    = {Pascal Jansen and Mark Colley},
-  title     = {Interactive Bayesian Optimization (IBO), formerly Bayesian Optimization for Unity},
+  title     = {Interactive Bayesian Optimization (iBO), formerly Bayesian Optimization for Unity},
   publisher = {Zenodo},
   doi       = {10.5281/zenodo.19786494},
   url       = {https://doi.org/10.5281/zenodo.19786494}
@@ -137,3 +166,5 @@ MIT, see [LICENSE](LICENSE). Vendored components keep their licenses; see [THIRD
 The multi-engine layout and the Unreal integration come from
 [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines).
 Parts of the code were written with AI coding assistants (OpenAI Codex, Anthropic Claude).
+Unity, Unreal Engine, Python and PyTorch are trademarks of their respective owners; their logos only show
+which tools iBO works with.
