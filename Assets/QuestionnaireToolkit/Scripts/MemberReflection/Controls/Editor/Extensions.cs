@@ -2,7 +2,7 @@
 using System.Linq;
 using UnityEditor;
 
-namespace Ludiq.Controls.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor
 {
 	public static class Extensions
 	{

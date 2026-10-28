@@ -12,6 +12,9 @@ namespace QuestionnaireToolkit.Editor {
 
 		private static Dictionary<int, ReorderableList> lists = new Dictionary<int, ReorderableList>();
 
+#if UNITY_6000_4_OR_NEWER
+		[System.Obsolete("Overrides PropertyDrawer.CanCacheInspectorGUI, which Unity has deprecated.")]
+#endif
 		public override bool CanCacheInspectorGUI(SerializedProperty property) {
 
 			return false;

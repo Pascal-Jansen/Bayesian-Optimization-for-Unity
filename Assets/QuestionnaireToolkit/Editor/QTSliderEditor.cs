@@ -48,8 +48,8 @@ namespace QuestionnaireToolkit.Editor
             labelThreeQuarters = serializedObject.FindProperty("labelThreeQuarters");
             labelFull = serializedObject.FindProperty("labelFull");
             
-            image = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/Banner/SliderBanner.png");
-            logo = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2_Right.png");
+            image = QTEditorPaths.LoadTexture("Textures/Banner/SliderBanner.png");
+            logo = QTEditorPaths.LoadTexture("Textures/QT_Logo_Mini2_Right.png");
         }
 
         public override void OnInspectorGUI()

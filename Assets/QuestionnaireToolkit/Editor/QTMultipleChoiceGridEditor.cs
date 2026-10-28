@@ -34,8 +34,8 @@ namespace QuestionnaireToolkit.Editor
             columns = serializedObject.FindProperty("columns");
             columnTexts = serializedObject.FindProperty("columnTexts");
             
-            image = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/Banner/MCGridBanner.png");
-            logo = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2_Right.png");
+            image = QTEditorPaths.LoadTexture("Textures/Banner/MCGridBanner.png");
+            logo = QTEditorPaths.LoadTexture("Textures/QT_Logo_Mini2_Right.png");
         }
 
         public override void OnInspectorGUI()

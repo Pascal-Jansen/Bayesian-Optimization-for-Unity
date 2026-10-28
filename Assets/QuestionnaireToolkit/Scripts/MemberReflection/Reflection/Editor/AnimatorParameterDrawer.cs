@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
-using Ludiq.Controls.Editor;
+using QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor;
 using QuestionnaireToolkit.Scripts.MemberReflection.Reflection;
 using QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Utilities;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 
-namespace Ludiq.Reflection.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor
 {
 	[CustomPropertyDrawer(typeof(AnimatorParameter))]
 	public class AnimatorParameterDrawer : TargetedDrawer

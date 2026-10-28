@@ -1,4 +1,4 @@
-﻿namespace Ludiq.Controls.Editor
+﻿namespace QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor
 {
 	/// <summary>
 	/// An option in an editor popup field.

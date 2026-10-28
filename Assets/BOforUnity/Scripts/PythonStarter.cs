@@ -1058,7 +1058,7 @@ namespace BOforUnity.Scripts
             }
 
             // Only interpreters newer than the tested version were found, and none worked: fall back to the bundled 3.13.
-            if (!bundledInstallAttempted && !candidates.Any(IsTestedVersion) && IsBundledInstallSupported(ctx.Os))
+            if (!bundledInstallAttempted && !candidates.Any(IsTestedVersion) && HasBundledInstaller(ctx))
             {
                 Debug.LogWarning(
                     $"Only Python versions newer than the tested {SupportedPythonMajor}.{MaxTestedPythonMinor} were found and none " +
@@ -1820,9 +1820,42 @@ namespace BOforUnity.Scripts
 
         // ── Bundled Python installation (Windows/macOS) ────────────────────────────────────────
 
-        private static bool IsBundledInstallSupported(HostOs os)
+        // Windows/macOS copies from GitHub carry the installers; the Asset Store edition does not (the store accepts no
+        // executables), and Linux never had one.
+        private static bool HasBundledInstaller(SetupContext ctx)
         {
-            return os == HostOs.Windows || os == HostOs.MacOS;
+            switch (ctx.Os)
+            {
+                case HostOs.MacOS:
+                    return File.Exists(Path.Combine(ctx.BundledInstallerRoot, "MacOs", "Data", "Installation_Objects", MacPythonPkgFile));
+                case HostOs.Windows:
+                    string windowsDir = Path.Combine(ctx.BundledInstallerRoot, "Windows");
+                    return File.Exists(Path.Combine(windowsDir, "installation_python.bat")) &&
+                           File.Exists(Path.Combine(windowsDir, "Installation_Objects", WindowsPythonInstallerFile)) &&
+                           File.Exists(Path.Combine(windowsDir, "Installation_Objects", WindowsVcRedistFile));
+                default:
+                    return false;
+            }
+        }
+
+        private static string PythonInstallGuidance(SetupContext ctx)
+        {
+            string version = $"{SupportedPythonMajor}.{BundledPythonMinor}";
+            const string manualOption = "or select an existing interpreter under Python Settings > Manually Installed Python";
+            switch (ctx.Os)
+            {
+                case HostOs.Windows:
+                    return $"Install Python {version} from https://www.python.org/downloads/ (tick \"Add python.exe to PATH\"), " +
+                           manualOption + ", then press Play again.";
+                case HostOs.MacOS:
+                    return $"Install Python {version} from https://www.python.org/downloads/, " + manualOption + ", then press Play again.";
+                default:
+                    string script = Path.Combine(ctx.BundledInstallerRoot, "Linux", "install_python.sh");
+                    string packages = $"python{version} and python{version}-venv";
+                    return File.Exists(script)
+                        ? $"Run {script} in a terminal (or install {packages} with your package manager), then press Play again."
+                        : $"Install {packages} with your package manager, " + manualOption + ", then press Play again.";
+            }
         }
 
         private static bool TryInstallBundledPython(SetupContext ctx, string reason, out string error)
@@ -1853,6 +1886,15 @@ namespace BOforUnity.Scripts
         private static bool TryInstallBundledPythonUnlocked(SetupContext ctx, string reason, out string error)
         {
             error = null;
+            if (!HasBundledInstaller(ctx))
+            {
+                error = ctx.Os == HostOs.Windows || ctx.Os == HostOs.MacOS
+                    ? $"{reason}, and this copy of BOforUnity includes no Python installer. {PythonInstallGuidance(ctx)}"
+                    : $"{reason}. Python {SupportedPythonMajor}.{BundledPythonMinor} cannot be installed automatically on this platform. {PythonInstallGuidance(ctx)}";
+                Debug.LogError(error);
+                return false;
+            }
+
             SetStatus($"{reason}. Installing bundled Python {BundledPythonVersionLabel} (may require admin confirmation)…");
             Debug.Log($"{reason}; installing the bundled Python {BundledPythonVersionLabel}.");
 
@@ -1896,11 +1938,6 @@ namespace BOforUnity.Scripts
                     }
                     break;
                 }
-                default:
-                    error = "Python 3.13 cannot be installed automatically on this platform. Run " +
-                            "Assets/StreamingAssets/BOData/Installation/Linux/install_python.sh in a terminal (or install " +
-                            "Python 3.13 and its venv module with your package manager), then press Play again.";
-                    break;
             }
 
             if (error == null && !File.Exists(GetBundledPythonPath(ctx.Os)))

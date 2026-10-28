@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
@@ -2672,51 +2671,103 @@ namespace QuestionnaireToolkit.Editor {
 		// -- INTERNAL --
 		//
 
+		// Drag-and-drop validation and appending with public APIs only (this used to call the internal
+		// EditorGUI.ValidateObjectFieldAssignment and SerializedProperty.AppendFoldoutPPtrValue via reflection).
 		static class Internals {
-
-			private static MethodInfo dragDropValidation;
-			private static object[] dragDropValidationParams;
-			private static MethodInfo appendDragDrop;
-			private static object[] appendDragDropParams;
-
-			static Internals() {
-
-				dragDropValidation = System.Type.GetType("UnityEditor.EditorGUI, UnityEditor").GetMethod("ValidateObjectFieldAssignment", BindingFlags.NonPublic | BindingFlags.Static);
-				appendDragDrop = typeof(SerializedProperty).GetMethod("AppendFoldoutPPtrValue", BindingFlags.NonPublic | BindingFlags.Instance);
-			}
 
 			internal static Object ValidateObjectDragAndDrop(Object[] references, SerializedProperty property, System.Type type, bool exactType) {
 
-#if UNITY_2017_1_OR_NEWER
-				dragDropValidationParams = GetParams(ref dragDropValidationParams, 4);
-				dragDropValidationParams[0] = references;
-				dragDropValidationParams[1] = type;
-				dragDropValidationParams[2] = property;
-				dragDropValidationParams[3] = exactType ? 1 : 0;
-#else
-				dragDropValidationParams = GetParams(ref dragDropValidationParams, 3);
-				dragDropValidationParams[0] = references;
-				dragDropValidationParams[1] = type;
-				dragDropValidationParams[2] = property;
-#endif
-				return dragDropValidation.Invoke(null, dragDropValidationParams) as Object;
+				if (type == null) {
+
+					type = ElementObjectType(property);
+				}
+
+				if (type == null || references == null) {
+
+					return null;
+				}
+
+				foreach (Object reference in references) {
+
+					Object candidate = MatchType(reference, type, exactType);
+
+					if (candidate != null) {
+
+						return candidate;
+					}
+				}
+
+				return null;
 			}
 
 			internal static void AppendDragAndDropValue(Object obj, SerializedProperty list) {
 
-				appendDragDropParams = GetParams(ref appendDragDropParams, 1);
-				appendDragDropParams[0] = obj;
-				appendDragDrop.Invoke(list, appendDragDropParams);
+				int index = list.arraySize;
+				list.arraySize = index + 1;
+				list.GetArrayElementAtIndex(index).objectReferenceValue = obj;
 			}
 
-			private static object[] GetParams(ref object[] parameters, int count) {
+			private static Object MatchType(Object reference, System.Type type, bool exactType) {
 
-				if (parameters == null) {
+				if (reference == null) {
 
-					parameters = new object[count];
+					return null;
 				}
 
-				return parameters;
+				if (exactType ? reference.GetType() == type : type.IsInstanceOfType(reference)) {
+
+					return reference;
+				}
+
+				// A GameObject dropped on a component list stands for its component of that type, as in an object field.
+				GameObject gameObject = reference as GameObject;
+
+				if (gameObject != null && typeof(Component).IsAssignableFrom(type)) {
+
+					Component component = gameObject.GetComponent(type);
+
+					if (component != null && (!exactType || component.GetType() == type)) {
+
+						return component;
+					}
+				}
+
+				return null;
+			}
+
+			// Object type of the list's elements; null when they are not object references (structs, numbers, ...).
+			private static System.Type ElementObjectType(SerializedProperty property) {
+
+				if (property == null || !property.isArray) {
+
+					return null;
+				}
+
+				// arrayElementType is "PPtr<$TypeName>" for object references.
+				string elementType = property.arrayElementType;
+				const string prefix = "PPtr<$";
+
+				if (string.IsNullOrEmpty(elementType) || !elementType.StartsWith(prefix) || !elementType.EndsWith(">")) {
+
+					return null;
+				}
+
+				string typeName = elementType.Substring(prefix.Length, elementType.Length - prefix.Length - 1);
+
+				if (typeName == "Object") {
+
+					return typeof(Object);
+				}
+
+				foreach (System.Type candidate in TypeCache.GetTypesDerivedFrom<Object>()) {
+
+					if (candidate.Name == typeName) {
+
+						return candidate;
+					}
+				}
+
+				return null;
 			}
 		}
 	}

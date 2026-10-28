@@ -27,7 +27,7 @@ namespace QuestionnaireToolkit.VR_Keyboard.Scripts
 		public static CanvasKeyboard Open(GameObject parent = null, GameObject inputObject = null, RectTransform textInputparent = null, CanvasKeyboardType keyboardType = CanvasKeyboardType.ASCIICapable)
 		{
 			// Don't open the keyboard if it is already open for the current input object
-			CanvasKeyboard keyboard = GameObject.FindObjectOfType<CanvasKeyboard>();
+			CanvasKeyboard keyboard = GameObject.FindAnyObjectByType<CanvasKeyboard>();
 			if (keyboard == null || (keyboard != null && keyboard.inputObject != inputObject))
 			{
 				Close();
@@ -70,7 +70,11 @@ namespace QuestionnaireToolkit.VR_Keyboard.Scripts
 		
 		public static void Close()
 		{
-			CanvasKeyboard[] kbs = GameObject.FindObjectsOfType<CanvasKeyboard>();
+#if UNITY_6000_4_OR_NEWER
+			CanvasKeyboard[] kbs = GameObject.FindObjectsByType<CanvasKeyboard>();
+#else
+			CanvasKeyboard[] kbs = GameObject.FindObjectsByType<CanvasKeyboard>(FindObjectsSortMode.None);
+#endif
 			foreach (CanvasKeyboard kb in kbs)
 			{
 				kb.CloseKeyboard();
@@ -81,7 +85,7 @@ namespace QuestionnaireToolkit.VR_Keyboard.Scripts
 		{
 			get
 			{
-				return GameObject.FindObjectsOfType<CanvasKeyboard>().Length != 0;
+				return GameObject.FindAnyObjectByType<CanvasKeyboard>() != null;
 			}
 		}
 

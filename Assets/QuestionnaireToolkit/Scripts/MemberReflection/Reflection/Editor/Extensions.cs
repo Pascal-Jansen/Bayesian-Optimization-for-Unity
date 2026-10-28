@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CSharp;
 
-namespace Ludiq.Reflection.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor
 {
 	public static class Extensions
 	{

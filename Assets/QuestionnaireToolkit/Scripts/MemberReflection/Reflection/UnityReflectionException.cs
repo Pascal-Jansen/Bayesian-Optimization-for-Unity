@@ -3,7 +3,7 @@
 namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection
 {
 	/// <summary>
-	/// An exception thrown by the Ludiq Reflection plugin.
+	/// An exception thrown by the member reflection utilities (adapted from Ludiq's Reflection plugin).
 	/// </summary>
 	public class UnityReflectionException : Exception
 	{

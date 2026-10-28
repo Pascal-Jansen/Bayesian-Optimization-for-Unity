@@ -1,4 +1,4 @@
-﻿namespace Ludiq.Reflection.Editor
+﻿namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor
 {
 	/// <summary>
 	/// A simplified representation of the type of a UnityEngine.Object.

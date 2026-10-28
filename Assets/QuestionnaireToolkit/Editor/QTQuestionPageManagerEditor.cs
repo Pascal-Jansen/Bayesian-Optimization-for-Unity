@@ -70,8 +70,8 @@ namespace QuestionnaireToolkit.Editor
                 pageManager.DeleteItem(list.Length, i);
             };
             
-            image = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/Banner/PageBanner.png");
-            logo = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2_Right.png");
+            image = QTEditorPaths.LoadTexture("Textures/Banner/PageBanner.png");
+            logo = QTEditorPaths.LoadTexture("Textures/QT_Logo_Mini2_Right.png");
         }
 
         public override void OnInspectorGUI()

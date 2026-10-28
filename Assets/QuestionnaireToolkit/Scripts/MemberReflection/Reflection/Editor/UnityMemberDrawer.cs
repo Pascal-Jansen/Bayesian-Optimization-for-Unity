@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Ludiq.Controls.Editor;
+using QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor;
 using QuestionnaireToolkit.Scripts.MemberReflection.Reflection;
 using QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Utilities;
 using UnityEditor;
 using UnityEngine;
 using UnityObject = UnityEngine.Object;
 
-namespace Ludiq.Reflection.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor
 {
 	[CustomPropertyDrawer(typeof(UnityMember))]
 	public class UnityMemberDrawer : TargetedDrawer

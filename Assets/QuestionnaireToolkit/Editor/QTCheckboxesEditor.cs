@@ -49,8 +49,8 @@ namespace QuestionnaireToolkit.Editor
                 checkboxes.DeleteItem(list.Length, i);
             };
             
-            image = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/Banner/CheckboxesBanner.png");
-            logo = AssetDatabase.LoadAssetAtPath<Texture>("Assets/QuestionnaireToolkit/Textures/QT_Logo_Mini2_Right.png");
+            image = QTEditorPaths.LoadTexture("Textures/Banner/CheckboxesBanner.png");
+            logo = QTEditorPaths.LoadTexture("Textures/QT_Logo_Mini2_Right.png");
         }
 
         public override void OnInspectorGUI()

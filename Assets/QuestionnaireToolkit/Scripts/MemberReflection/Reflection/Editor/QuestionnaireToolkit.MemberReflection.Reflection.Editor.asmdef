@@ -1,6 +1,6 @@
 {
     "name": "QuestionnaireToolkit.MemberReflection.Reflection.Editor",
-    "rootNamespace": "Ludiq.Reflection.Editor",
+    "rootNamespace": "QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor",
     "references": [
         "QuestionnaireToolkit.Runtime",
         "QuestionnaireToolkit.MemberReflection.Controls.Editor"

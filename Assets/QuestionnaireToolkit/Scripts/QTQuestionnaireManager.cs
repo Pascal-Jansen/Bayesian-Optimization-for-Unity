@@ -10,6 +10,7 @@ using QuestionnaireToolkit.Scripts.StandaloneFileBrowser;
 using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.Build;
 #endif
  using UnityEngine;
 using UnityEngine.Events;
@@ -1004,7 +1005,11 @@ namespace QuestionnaireToolkit.Scripts
                                     float.Parse(cc[2], CultureInfo.InvariantCulture),
                                     float.Parse(cc[3].Trim(')'), CultureInfo.InvariantCulture));
                                 elem.alignment = (TextAlignmentOptions) Enum.Parse( typeof(TextAlignmentOptions), qItems[j]["alignment"].Value );
+#if UNITY_2023_2_OR_NEWER
+                                elem.textWrappingMode = qItems[j]["word_wrapping"].AsBool ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+#else
                                 elem.enableWordWrapping = qItems[j]["word_wrapping"].AsBool;
+#endif
                                 elem.overflowMode = (TextOverflowModes) Enum.Parse( typeof(TextOverflowModes), qItems[j]["overflow_mode"].Value );
                                 elem.horizontalMapping = (TextureMappingOptions) Enum.Parse( typeof(TextureMappingOptions), qItems[j]["horizontal_mapping"].Value );
                                 elem.verticalMapping = (TextureMappingOptions) Enum.Parse( typeof(TextureMappingOptions), qItems[j]["vertical_mapping"].Value );
@@ -1199,7 +1204,11 @@ namespace QuestionnaireToolkit.Scripts
                                           + "\"line_spacing\":\"" + child.lineSpacing + "\","
                                           + "\"color\":\"" + child.color + "\","
                                           + "\"alignment\":\"" + child.alignment + "\","
+#if UNITY_2023_2_OR_NEWER
+                                          + "\"word_wrapping\":\"" + (child.textWrappingMode == TextWrappingModes.Normal || child.textWrappingMode == TextWrappingModes.PreserveWhitespace) + "\","
+#else
                                           + "\"word_wrapping\":\"" + child.enableWordWrapping + "\","
+#endif
                                           + "\"overflow_mode\":\"" + child.overflowMode + "\","
                                           + "\"horizontal_mapping\":\"" + child.horizontalMapping + "\","
                                           + "\"vertical_mapping\":\"" + child.verticalMapping + "\"},";
@@ -1731,7 +1740,14 @@ namespace QuestionnaireToolkit.Scripts
             }
 
             _cachedOptimizationBridge = null;
-            foreach (var behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.InstanceID))
+#if UNITY_6000_4_OR_NEWER
+            // FindObjectsSortMode is deprecated: sort here to keep the choice deterministic when several bridges exist.
+            MonoBehaviour[] behaviours = FindObjectsByType<MonoBehaviour>();
+            Array.Sort(behaviours, (a, b) => a.GetEntityId().CompareTo(b.GetEntityId()));
+#else
+            MonoBehaviour[] behaviours = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.InstanceID);
+#endif
+            foreach (var behaviour in behaviours)
             {
                 if (IsActiveSceneBridge(behaviour) && behaviour is IQuestionnaireOptimizationBridge bridge)
                 {
@@ -3345,8 +3361,8 @@ namespace QuestionnaireToolkit.Scripts
         private void AddDefineIfNeeded(string define, string[] toRemove)
         {
             // Get selected target defines.
-            BuildTargetGroup buildTargetGroup = EditorUserBuildSettings.selectedBuildTargetGroup;
-            string defines = PlayerSettings.GetScriptingDefineSymbolsForGroup(buildTargetGroup);
+            NamedBuildTarget buildTarget = NamedBuildTarget.FromBuildTargetGroup(EditorUserBuildSettings.selectedBuildTargetGroup);
+            string defines = PlayerSettings.GetScriptingDefineSymbols(buildTarget);
             
             foreach (var d in toRemove)
             {
@@ -3357,14 +3373,14 @@ namespace QuestionnaireToolkit.Scripts
             if (define.Equals("Other") || defines.Contains(define))
             {
                 // Overwrite defines
-                PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, (defines));
+                PlayerSettings.SetScriptingDefineSymbols(buildTarget, (defines));
             }
             else if (define.Equals("HTC_Vive"))
             {
                 if (File.Exists("Assets/HTC.UnityPlugin/Pointer3D/RaycastMethod/CanvasRaycastTarget.cs"))
                 {
                     // Append.
-                    PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, (defines + ";" + define));
+                    PlayerSettings.SetScriptingDefineSymbols(buildTarget, (defines + ";" + define));
                 }
                 else
                 {
@@ -3377,7 +3393,7 @@ namespace QuestionnaireToolkit.Scripts
                 if (File.Exists("Assets/Oculus/VR/Scripts/Util/OVRRaycaster.cs"))
                 {
                     // Append.
-                    PlayerSettings.SetScriptingDefineSymbolsForGroup(buildTargetGroup, (defines + ";" + define));
+                    PlayerSettings.SetScriptingDefineSymbols(buildTarget, (defines + ";" + define));
                 }
                 else
                 {

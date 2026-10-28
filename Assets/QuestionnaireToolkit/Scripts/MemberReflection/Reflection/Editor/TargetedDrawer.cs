@@ -1,11 +1,11 @@
 using System;
-using Ludiq.Controls.Editor;
+using QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor;
 using QuestionnaireToolkit.Scripts.MemberReflection.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityObject = UnityEngine.Object;
 
-namespace Ludiq.Reflection.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor
 {
 	public abstract class TargetedDrawer : PropertyDrawer
 	{

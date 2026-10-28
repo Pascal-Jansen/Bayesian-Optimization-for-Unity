@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
-using Ludiq.Controls.Editor;
+using QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor;
 using QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Utilities;
 using UnityEditor;
 
-namespace Ludiq.Reflection.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection.Editor
 {
 	public static class UnityMemberDrawerHelper
 	{

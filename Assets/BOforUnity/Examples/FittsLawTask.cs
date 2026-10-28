@@ -1266,7 +1266,11 @@ namespace BOforUnity.Examples
             label.color = targetXColor;
             label.fontSize = xFontSizePixels;
             label.fontStyle = FontStyles.Bold;
+#if UNITY_2023_2_OR_NEWER
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+#else
             label.enableWordWrapping = false;
+#endif
             label.raycastTarget = false;
             return label;
         }
@@ -2391,7 +2395,11 @@ namespace BOforUnity.Examples
             if (BoForUnityManager.Instance != null)
                 return BoForUnityManager.Instance;
 
+#if UNITY_6000_4_OR_NEWER
+            BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>();
+#else
             BoForUnityManager[] managers = FindObjectsByType<BoForUnityManager>(FindObjectsSortMode.None);
+#endif
             if (managers == null || managers.Length == 0)
                 return null;
 

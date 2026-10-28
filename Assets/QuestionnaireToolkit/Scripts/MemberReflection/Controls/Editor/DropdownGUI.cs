@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
-namespace Ludiq.Controls.Editor
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Controls.Editor
 {
 	/// <summary>
 	/// Utility class to display complex editor popups.
@@ -38,16 +37,13 @@ namespace Ludiq.Controls.Editor
 			return EqualityComparer<T>.Default.Equals(a, b);
 		}
 
-		// Get the internal last control ID via reflection
-		private static FieldInfo lastControlIDField;
-		private static int GetLastControlID()
+		// Identifies the popup button just drawn. Control IDs follow the call order of the GUI pass, so the same popup
+		// gets the same ID in every pass, which is all the active-popup matching below needs (public API only:
+		// the previous version read EditorGUIUtility's internal s_LastControlID via reflection).
+		private static readonly int popupControlHint = "DropdownGUIPopup".GetHashCode();
+		private static int GetPopupControlID(Rect position)
 		{
-			if (lastControlIDField == null)
-			{
-				lastControlIDField = typeof(EditorGUIUtility).GetField("s_LastControlID", BindingFlags.Static | BindingFlags.NonPublic);
-			}
-
-			return (int)lastControlIDField.GetValue(null);
+			return GUIUtility.GetControlID(popupControlHint, FocusType.Passive, position);
 		}
 
 		#region Single
@@ -252,7 +248,7 @@ namespace Ludiq.Controls.Editor
 
 			// Render a button and get its control ID
 			var popupClicked = GUI.Button(position, label, style);
-			var popupControlID = GetLastControlID();
+			var popupControlID = GetPopupControlID(position);
 
 			if (popupClicked)
 			{
@@ -515,7 +511,7 @@ namespace Ludiq.Controls.Editor
 
 			// Render a button and get its control ID
 			var popupClicked = GUI.Button(position, label, style);
-			var popupControlID = GetLastControlID();
+			var popupControlID = GetPopupControlID(position);
 
 			if (popupClicked)
 			{
