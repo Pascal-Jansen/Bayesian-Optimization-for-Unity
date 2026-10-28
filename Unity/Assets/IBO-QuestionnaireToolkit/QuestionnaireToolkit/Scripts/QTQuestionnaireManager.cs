@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using BayesianOptimization.Integration;
  using System.Text;
  using QuestionnaireToolkit.Scripts.MemberReflection.Reflection;
 using QuestionnaireToolkit.Scripts.SimpleJSON;
@@ -33,7 +34,7 @@ namespace QuestionnaireToolkit.Scripts
     /// This class is used to manage all available questionnaire settings and to write the results in a file.
     /// </summary>
     [ExecuteInEditMode, DisallowMultipleComponent]
-    public class QTQuestionnaireManager : MonoBehaviour
+    public class QTQuestionnaireManager : MonoBehaviour, IStudyQuestionnaire
     {
         public enum DisplayMode { Desktop, VR, Mobile }
         public enum FileFormat { csv }
@@ -100,6 +101,36 @@ namespace QuestionnaireToolkit.Scripts
         public string contextUserId = "-1";
         public string contextConditionId = "-1";
         public string contextGroupId = "-1";
+
+        // IStudyQuestionnaire (BOforUnity.Shared): how the optimization examples drive this manager
+        // without referencing QuestionnaireToolkit.
+        string IStudyQuestionnaire.ContextUserId { get => contextUserId; set => contextUserId = value; }
+        string IStudyQuestionnaire.ContextConditionId { get => contextConditionId; set => contextConditionId = value; }
+        string IStudyQuestionnaire.ContextGroupId { get => contextGroupId; set => contextGroupId = value; }
+
+        bool IStudyQuestionnaire.StartQuestionnaire() => StartQuestionnaire();
+
+        /// <summary>Header names of the slider items on all pages, one entry per slider.</summary>
+        public IEnumerable<string> SliderHeaderNames
+        {
+            get
+            {
+                if (questionPages == null)
+                    yield break;
+                foreach (GameObject page in questionPages)
+                {
+                    QTQuestionPageManager pageManager = page != null ? page.GetComponent<QTQuestionPageManager>() : null;
+                    if (pageManager == null || pageManager.questionItems == null)
+                        continue;
+                    foreach (GameObject item in pageManager.questionItems)
+                    {
+                        QTSlider slider = item != null ? item.GetComponent<QTSlider>() : null;
+                        if (slider != null)
+                            yield return slider.headerName;
+                    }
+                }
+            }
+        }
 
         public string BoContextUserIdForCsv
         {

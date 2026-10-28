@@ -3,7 +3,8 @@
     "rootNamespace": "QuestionnaireToolkit",
     "references": [
         "Unity.TextMeshPro",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "BOforUnity.Shared"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

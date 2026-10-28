@@ -47,6 +47,20 @@ class PackagingTests(unittest.TestCase):
                 self.assertEqual(archive.namelist(), ["Unreal/README.md"])
                 self.assertEqual(archive.read("Unreal/README.md"), b"Example\n")
 
+    def test_questionnaire_addon_is_left_out_of_the_unity_archive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "Unity"
+            addon = source / "Assets/IBO-QuestionnaireToolkit"
+            (addon / "QuestionnaireToolkit/Plugins").mkdir(parents=True)
+            (addon / "QuestionnaireToolkit/Plugins/Ookii.Dialogs.dll").write_bytes(b"native")
+            (source / "Assets/IBO-QuestionnaireToolkit.meta").write_bytes(b"folder metadata")
+            (source / "Assets/README.md").write_bytes(b"Example\n")
+            output = root / "release.zip"
+            packaging.archive_folder(source, output)
+            with zipfile.ZipFile(output) as archive:
+                self.assertEqual(archive.namelist(), ["Unity/Assets/README.md"])
+
     def test_installers_and_commercial_toolkit_are_refused(self):
         for name in ("python.exe", "QuestionnaireToolkit/source.cs", "TextMesh Pro/example.cs"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:

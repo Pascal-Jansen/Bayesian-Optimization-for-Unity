@@ -14,7 +14,9 @@ import tarfile
 import zipfile
 
 
-EXCLUDED_PARTS = {".git", "Library", "Temp", "Logs", "UserSettings", "Binaries", "Intermediate", "Saved", "DerivedDataCache", "__pycache__", ".venv", "LogData", "wheels", "ContextEmbeddingCache"}
+# The QuestionnaireToolkit add-on lives in the Unity project but ships separately from the core packages.
+ADDON_FOLDERS = {"IBO-QuestionnaireToolkit"}
+EXCLUDED_PARTS = {".git", "Library", "Temp", "Logs", "UserSettings", "Binaries", "Intermediate", "Saved", "DerivedDataCache", "__pycache__", ".venv", "LogData", "wheels", "ContextEmbeddingCache"} | ADDON_FOLDERS
 FORBIDDEN_PARTS = {"QuestionnaireToolkit", "TextMesh Pro", "Installation_Objects", "wheels", "LogData"}
 FORBIDDEN_SUFFIXES = {".exe", ".dll", ".so", ".dylib", ".pkg", ".msi", ".pyc", ".pyo"}
 
