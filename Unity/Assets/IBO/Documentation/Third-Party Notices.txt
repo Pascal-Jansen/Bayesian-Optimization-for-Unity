@@ -1,6 +1,6 @@
 Third Party Notices
 
-The original Bayesian Optimization for Unity source is distributed under the MIT license by Pascal Jansen. The complete notice is retained in LICENSE. The engine integration changes retain that license.
+Interactive Bayesian Optimization (IBO), formerly Bayesian Optimization for Unity, is distributed under the MIT license by Pascal Jansen. The complete notice is retained in LICENSE. The engine integration changes retain that license.
 
 CABOP is vendored from https://github.com/aalto-ui/CABOP. Copyright (c) 2026 Computational Behavior Lab @ Aalto University. Its MIT license is retained in Backend/cabop/LICENSE and the generated engine copies.
 

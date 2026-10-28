@@ -1,4 +1,4 @@
-# bo_protocol.py — Unity <-> Python plumbing shared by every BOforUnity backend.
+# bo_protocol.py — client <-> Python plumbing shared by every IBO backend.
 #
 # bo.py, mobo.py, dbo_runtime.py, cabop_runtime.py and meta_mobo_runtime.py speak one wire
 # protocol (Python is a TCP server on 127.0.0.1:56001; newline-delimited UTF-8 JSON: Unity

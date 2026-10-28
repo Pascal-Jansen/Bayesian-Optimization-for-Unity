@@ -3,11 +3,29 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-How releasing works: collect notes under `## [Unreleased]` while developing. The [Release workflow](.github/workflows/release.yml) (Actions -> Release -> Run workflow) moves them under the new version heading, bumps `ProjectSettings/ProjectSettings.asset` `bundleVersion`, commits, and creates the GitHub release using that section as release notes.
+How releasing works: collect notes under `## [Unreleased]` while developing. The [Release workflow](.github/workflows/release.yml) (Actions -> Release -> Run workflow) moves them under the new version heading, bumps `Unity/ProjectSettings/ProjectSettings.asset` `bundleVersion`, `VERSION` and `CITATION.cff`, commits, and creates the GitHub release using that section as release notes.
 
 Release notes for versions before 1.5.0 are available on the [GitHub releases page](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases).
 
 ## [Unreleased]
+
+### Renamed
+- **Bayesian Optimization for Unity is now Interactive Bayesian Optimization (IBO)**: one Python optimizer for several integrations. See the [migration guide](docs/migration-to-ibo.md); scenes and prefabs keep working (unchanged GUIDs), scripts need `using BayesianOptimization...` instead of `using BOforUnity...`.
+
+### Added
+- **Shared backend and multi-engine layout** (from [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines)): `Backend/` is the optimizer source; `tools/sync_backends.py` writes the copies in `Unity/` and `Unreal/`, and CI checks them.
+- **Unreal Engine plugin** (`Unreal/`): C++ component with Blueprint events, analytic example actor and Python launcher.
+- **IBO protocol v1** (`protocol/`): the Unity <-> Python protocol written down, with a JSON schema.
+- **Python client** (`Python/`, package `interactive-bo`) and `Backend/ibo_server.py`, which picks the backend from the init message: studies from any Python program, `python -m interactive_bo demo|serve`.
+- Configurable port per study (`BO_PORT`), optional botorch-rust model library (`BO_MODEL_LIBRARY`), URP and HDRP material tools, analytic Unity example (`Tools > IBO > Create Analytic Demo`).
+
+### Changed
+- The Unity project moved to `Unity/`, the package folder to `Assets/IBO`, the namespaces to `BayesianOptimization.*`.
+- **QuestionnaireToolkit is an optional add-on** (`Assets/IBO-QuestionnaireToolkit`) with the questionnaire examples (`BO-example-scene`, color demo, click game, Fitts's law study). The runtime uses `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` from `BOforUnity.Shared`.
+
+### Removed
+- **The bundled Python installers and the install scripts** (`Installation/Windows`, `MacOs`, `Linux`; this supersedes the install-script notes below): install Python 3.13 yourself; Unity still installs the Python packages on the first Play.
+- TextMesh Pro essentials from the repository (Unity imports them on demand).
 
 ### Changed
 - **Python packages now live in a private virtual environment, so the first Play after updating installs them once more.** 1.8.0 ran `pip install --user`, which every virtual environment refuses (a **Manually Installed Python** pointing at a venv never worked), as do externally managed Pythons (PEP 668: Homebrew, Debian/Ubuntu system Pythons); the user site is also shared with every other project of that user, so another project's `pip install --user numpy==…` silently changed what the backends imported. Now a configured interpreter that is itself a venv/conda environment receives the packages; any other interpreter gets a private environment at `<persistentDataPath>/BOData/python-venv` (a sibling `python-venv-<hash>` for each further base interpreter, so switching interpreters never wipes a working environment; on Windows a short folder under `%LOCALAPPDATA%\BOforUnity\` when that path would be too long), and the backends run with its Python. Only if no venv can be created (Debian/Ubuntu without `python3.13-venv`) does the launcher fall back to `--user`, and it says why. **The first Play after updating takes a few minutes (it downloads several hundred MB). Optional packages — openbo for MetaTAF, `open_clip_torch`/`pillow` for image embeddings — must be installed again with the interpreter the Console logs at startup as `Optimizer Python: …` (`"<that path>" -m pip install …`)**; the backends' "not installed" messages now print that interpreter.

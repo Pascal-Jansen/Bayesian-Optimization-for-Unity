@@ -74,7 +74,7 @@ def build(root: Path, output: Path, version: str, unity_editor: Path | None) -> 
     output.mkdir(parents=True, exist_ok=True)
     outputs = []
     if unity_editor is not None:
-        target = output / f"BayesianOptimization-Unity-{version}.unitypackage"
+        target = output / f"IBO-Unity-{version}.unitypackage"
         if target.exists():
             raise FileExistsError(target)
         environment = dict(os.environ, BO_RELEASE_DIRECTORY=str(output.resolve()), BO_RELEASE_VERSION=version)
@@ -88,7 +88,7 @@ def build(root: Path, output: Path, version: str, unity_editor: Path | None) -> 
         inspect_unitypackage(target)
         outputs.append(target)
     for engine in ("Unity", "Unreal"):
-        package = output / f"BayesianOptimization-{engine}-{version}.zip"
+        package = output / f"IBO-{engine}-{version}.zip"
         archive_folder(root / engine, package)
         outputs.append(package)
     checksums = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in outputs}

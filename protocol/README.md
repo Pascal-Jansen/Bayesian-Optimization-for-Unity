@@ -129,7 +129,7 @@ The server waits up to `BO_ACCEPT_TIMEOUT_SEC` (300 s) for the connection and up
 | Side | Where |
 |---|---|
 | Server | `Backend/ibo_server.py` and the backends next to it; `tools/sync_backends.py` copies them into the engines |
-| Unity client | `Unity/Assets/BOforUnity/Scripts/SocketNetwork.cs`, started by `PythonStarter.cs` |
+| Unity client | `Unity/Assets/IBO/Scripts/SocketNetwork.cs`, started by `PythonStarter.cs` |
 | Unreal client | `Unreal/Plugins/BayesianOptimization/Source/BayesianOptimization/Private/BoProtocol.cpp` and `BoTransport.cpp`, started by `Unreal/launch_backend.py` |
 | Python client | `Python/interactive_bo/client.py`, launcher `Python/interactive_bo/server.py` |
 

@@ -34,12 +34,15 @@ docs/           architecture, validation, guides
 
 1. **Core and protocol: done.** `ibo_server.py` picks the backend from the init message; protocol v1
    specification and schema; Python client and launcher; end-to-end studies in CI.
-2. **Merge and rename: in progress.**
-   - Done: Mark's multi-engine layout (shared `Backend/` with synchronized engine copies, Unity core
-     without QuestionnaireToolkit, URP/HDRP support, Unreal plugin, release packaging); Phase 1 on
-     top of it (`Backend/ibo_server.py`, `Python/`).
-   - Open: QuestionnaireToolkit add-on with the questionnaire example scenes; IBO naming in docs,
-     folders and menus; migration guide; GitHub repository rename and Zenodo record title.
+2. **Merge and rename: done in the repository.**
+   - Mark's multi-engine layout (shared `Backend/` with synchronized engine copies, Unity core without
+     QuestionnaireToolkit, URP/HDRP support, Unreal plugin, release packaging) with Phase 1 on top
+     (`Backend/ibo_server.py`, `Python/`); QuestionnaireToolkit add-on with the questionnaire examples;
+     IBO naming (README, citation, `Assets/IBO`, `Tools > IBO` menus, Unreal plugin name, artifact names);
+     [migration guide](../migration-to-ibo.md).
+   - Open: GitHub repository rename and Zenodo record title; a Play-mode run of the questionnaire examples
+     with Python on Windows and macOS; the three open license items of the add-on
+     (`Unity/Assets/IBO-QuestionnaireToolkit/Third-Party Notices.txt`).
 3. **Unreal: largely done** by Mark's plugin (built and tested with Unreal Engine 5.8 on Windows).
    Open: macOS and Linux validation; optionally start `ibo_server.py` from the launcher.
 4. **Web client.** Browsers cannot open TCP sockets: a WebSocket transport (protocol v2) or a small

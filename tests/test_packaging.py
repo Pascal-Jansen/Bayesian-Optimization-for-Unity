@@ -72,7 +72,7 @@ class PackagingTests(unittest.TestCase):
                     packaging.distribution_files(root)
 
     def test_asset_package_paths_are_checked(self):
-        for path, expected in (("Assets/BOforUnity/Scripts/Optimizer.cs", True),
+        for path, expected in (("Assets/IBO/Scripts/Optimizer.cs", True),
                                ("Assets/QuestionnaireToolkit/source.cs", False),
                                ("Assets/StreamingAssets/python.exe", False)):
             with self.subTest(path=path), tempfile.TemporaryDirectory() as folder:

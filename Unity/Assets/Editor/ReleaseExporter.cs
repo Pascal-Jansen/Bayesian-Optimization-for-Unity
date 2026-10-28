@@ -18,9 +18,9 @@ namespace BayesianOptimization.Distribution
 
             Directory.CreateDirectory(output);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-            BoAnalyticDemoSetup.CreateScene("Assets/BOforUnity/Samples/Analytic/BO-analytic-demo.unity");
+            BoAnalyticDemoSetup.CreateScene("Assets/IBO/Samples/Analytic/BO-analytic-demo.unity");
             AssetDatabase.SaveAssets();
-            string package = Path.Combine(Path.GetFullPath(output), "BayesianOptimization-Unity-" + version + ".unitypackage");
+            string package = Path.Combine(Path.GetFullPath(output), "IBO-Unity-" + version + ".unitypackage");
             string organization = Environment.GetEnvironmentVariable("BO_UNITY_ORG_ID") ?? string.Empty;
             string[] assets = AssetDatabase.GetAllAssetPaths().Where(IsReleaseAsset).ToArray();
             Package.Export(new ExportPackageParameters(
@@ -31,8 +31,8 @@ namespace BayesianOptimization.Distribution
         private static bool IsReleaseAsset(string path)
         {
             if (AssetDatabase.IsValidFolder(path)) return false;
-            if (path.StartsWith("Assets/BOforUnity/Tests/", StringComparison.Ordinal)) return false;
-            return path.StartsWith("Assets/BOforUnity/", StringComparison.Ordinal) ||
+            if (path.StartsWith("Assets/IBO/Tests/", StringComparison.Ordinal)) return false;
+            return path.StartsWith("Assets/IBO/", StringComparison.Ordinal) ||
                    path.StartsWith("Assets/StreamingAssets/BOData/BayesianOptimization/", StringComparison.Ordinal) ||
                    path.StartsWith("Assets/StreamingAssets/BOData/InitData/", StringComparison.Ordinal) ||
                    path.StartsWith("Assets/StreamingAssets/BOData/MetaSources/", StringComparison.Ordinal) ||

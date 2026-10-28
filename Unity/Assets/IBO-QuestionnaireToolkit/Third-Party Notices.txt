@@ -1,38 +1,24 @@
-Bayesian Optimization for Unity (BOforUnity) - Third-Party Notices
-====================================================================
+IBO QuestionnaireToolkit add-on - Third-Party Notices
+=====================================================
 
-This package contains third-party components that are licensed under their own terms, listed below. Everything
-else in the package is (c) Pascal Jansen and Mark Colley.
+This add-on contains QuestionnaireToolkit ((c) Pascal Jansen), adapted for Interactive Bayesian
+Optimization (IBO), and the questionnaire example scenes. The third-party components below keep their own
+terms. The IBO core package lists its own components in Assets/IBO/Documentation/Third-Party Notices.txt.
 
-The package also needs software that it does NOT contain: Python 3.13 and the Python packages in
-Assets/StreamingAssets/BOData/Installation/requirements.txt. Python is installed by you; the packages are
-downloaded by pip from the Python Package Index on first use into a private virtual environment. Their licenses
-are listed in part B for your information.
+Open items before the add-on is published (license or origin not yet confirmed) are marked TODO.
 
 
-A. Components included in this package
---------------------------------------
+A. Components included in this add-on
+-------------------------------------
 
-1. CABOP (cost-aware Bayesian optimization)
-   Location: Assets/StreamingAssets/BOData/BayesianOptimization/cabop/
-   Source:   https://github.com/aalto-ui/CABOP
-   License:  MIT License (full text in cabop/LICENSE)
-   Copyright (c) 2026 Computational Behavior Lab @ Aalto University
-
-2. dbo_torch (Dynamic Bayesian Optimization, Python reimplementation)
-   Location: Assets/StreamingAssets/BOData/BayesianOptimization/dbo_torch/
-   License:  BSD 3-Clause License (full text in dbo_torch/LICENSE; provenance in dbo_torch/PROVENANCE.md)
-   Copyright (c) 2026, Mark Colley, UCL Interaction Centre
-   Copyright (c) 2026, GilHwan
-
-3. SimpleJSON
-   Location: Assets/BOforUnity/QuestionnaireToolkit/Scripts/SimpleJSON/
+1. SimpleJSON
+   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/SimpleJSON/
    Source:   https://github.com/Bunny83/SimpleJSON
    License:  MIT License (text below)
    Copyright (c) 2012-2019 Markus Göbel (Bunny83)
 
-4. Unity Standalone File Browser
-   Location: Assets/BOforUnity/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/
+2. Unity Standalone File Browser
+   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/StandaloneFileBrowser/
    Source:   https://github.com/gkngkc/UnityStandaloneFileBrowser
    License:  MIT License (text below)
    Copyright (c) 2017 Gökhan Gökçe
@@ -42,55 +28,35 @@ A. Components included in this package
    - System.Windows.Forms.dll - from the Mono project, Copyright (c) 2004-2008 Novell, Inc.,
      MIT (X11) License (text below).
 
-5. Reorderable List (editor list control)
-   Location: Assets/BOforUnity/QuestionnaireToolkit/Editor/ReorderableList.cs, ReorderableDrawer.cs
+3. Reorderable List (editor list control)
+   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Editor/ReorderableList.cs, ReorderableDrawer.cs
    Source:   https://github.com/cfoulston/Unity-Reorderable-List
    License:  MIT License (text below); adapted (namespace, public-API drag and drop)
    Copyright (c) 2017 Chris Foulston
 
-6. Member reflection utilities (UnityMember, DropdownGUI)
-   Location: Assets/BOforUnity/QuestionnaireToolkit/Scripts/MemberReflection/
+4. Member reflection utilities (UnityMember, DropdownGUI)
+   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/Scripts/MemberReflection/
    Origin:   adapted from the "Reflection" plugin by Ludiq (Lazlo Bonin)
-   TODO: confirm the license of Ludiq's Reflection plugin and add its copyright line and license text here.
+   TODO: confirm the license of Ludiq's Reflection plugin and add its copyright line and license text here,
+   or replace these helpers.
 
-7. Canvas Keyboard (VR keyboard)
-   Location: Assets/BOforUnity/QuestionnaireToolkit/VR Keyboard/
-   Origin:   adapted from the CanvasKeyboard published on the "Tales from the Rift" blog
-   TODO: confirm the license and author of the CanvasKeyboard scripts and textures, or replace them.
+5. Canvas Keyboard (VR keyboard)
+   Location: Unity/Assets/IBO-QuestionnaireToolkit/QuestionnaireToolkit/VR Keyboard/
+   Origin:   CanvasKeyboard by Peter Koch, published on the "Tales from the Rift" blog (talesfromtherift.com,
+             archived at web.archive.org). In the comments of that page (20 June 2016) the author invited a reader to
+             use the source code in an Asset Store project.
+   TODO: obtain the author's written permission for this use, or replace the keyboard.
 
-8. Loading animation frames
-   Location: Assets/BOforUnity/LoadingImages/
-   TODO: confirm where the 24 loading-animation frames come from and under which terms they may be redistributed.
-
-
-B. Software installed on first use (not included in this package)
------------------------------------------------------------------
-
-   Python 3.13              Python Software Foundation License     https://www.python.org
-   torch (PyTorch)          BSD 3-Clause                            https://pytorch.org
-   botorch                  MIT                                     https://botorch.org
-   gpytorch                 MIT                                     https://gpytorch.ai
-   moocore                  LGPL-2.1-or-later                       https://multi-objective.github.io/moocore/
-   numpy                    BSD 3-Clause                            https://numpy.org
-   scipy                    BSD 3-Clause                            https://scipy.org
-   pandas                   BSD 3-Clause                            https://pandas.pydata.org
-   scikit-learn             BSD 3-Clause                            https://scikit-learn.org
-   matplotlib               Matplotlib License (PSF-based)          https://matplotlib.org
-   loguru                   MIT                                     https://github.com/Delgan/loguru
-
-   Optional, installed only by you for specific features:
-   open_clip_torch          MIT                                     https://github.com/mlfoundations/open_clip
-   pillow                   MIT-CMU (HPND)                          https://python-pillow.org
-   openbo (MetaTAF backend) see its repository                      https://github.com/M-Colley/openbo
-
-   The packages above pull in further dependencies; pip lists them in
-   <persistentDataPath>/BOData/pip-install.log.
+6. Loading animation frames
+   Location: Unity/Assets/IBO-QuestionnaireToolkit/Samples/LoadingImages/
+   TODO: confirm where the 24 loading-animation frames come from and under which terms they may be
+   redistributed, or replace them.
 
 
-C. License texts
+B. License texts
 ----------------
 
-MIT License (SimpleJSON, Unity Standalone File Browser, Reorderable List, CABOP; copyright lines above)
+MIT License (SimpleJSON, Unity Standalone File Browser, Reorderable List; copyright lines above)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -131,7 +97,7 @@ MIT (X11) License (System.Windows.Forms.dll, Mono project)
     OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
     WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-BSD 3-Clause License (Ookii.Dialogs, dbo_torch; copyright lines above)
+BSD 3-Clause License (Ookii.Dialogs; copyright lines above)
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:

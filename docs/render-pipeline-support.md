@@ -6,17 +6,17 @@ Configure the project with Unity's pipeline tools before creating the rendering 
 
 ## Example materials
 
-Choose `Tools > Bayesian Optimization > Rendering > Generate Materials for Active Pipeline`. The command writes four materials below `Assets/BOforUnityGenerated/Rendering/<pipeline>`. CubeMat and CylinderMat use the pipeline's Lit shader. CubeUnlit and CylinderUnlit use its Unlit shader. The built in Unlit examples use Unity's transparent sprite shader. All four templates support changes to their main color and alpha.
+Choose `Tools > IBO > Rendering > Generate Materials for Active Pipeline`. The command writes four materials below `Assets/IBOGenerated/Rendering/<pipeline>`. CubeMat and CylinderMat use the pipeline's Lit shader. CubeUnlit and CylinderUnlit use its Unlit shader. The built in Unlit examples use Unity's transparent sprite shader. All four templates support changes to their main color and alpha.
 
 The integration uses `GraphicsSettings.currentRenderPipeline` to respect the active quality level's pipeline override. It then uses the selected shader's public `ShaderGUI.ValidateMaterial` implementation to configure blend states, shader keywords, queues, and passes. The command preserves the project pipeline settings. Repeating it updates its generated materials. Unity documents the [pipeline selection rule](https://docs.unity.com/en-us/engine/6000.7/script-reference/unityengine/rendering/graphicssettings/currentrenderpipeline) and [material validation API](https://docs.unity.com/en-us/engine/6000.0/script-reference/unityeditor/shadergui/validatematerial).
 
 Choose `Create Material Preview Scene` from the same menu to generate a scene with a cube, cylinder, camera, and light. Its objects use Unlit materials so their displayed colors can be inspected without scene lighting. Generated scenes contain direct material references. Unity includes the required shader variants when those scenes are included in a build.
 
-The package includes `Assets/BOforUnity/Samples/Rendering/BuiltIn/BO-rendering-preview.unity`. Open this scene and choose `Prepare Open BO Demo Scene` to use it with the active pipeline. The command updates the package's rendering sample materials and the original CubeMat and CylinderMat references. Save the scene after conversion. Other scene materials remain unchanged.
+The package includes `Assets/IBO/Samples/Rendering/BuiltIn/BO-rendering-preview.unity`. Open this scene and choose `Prepare Open BO Demo Scene` to use it with the active pipeline. The command updates the package's rendering sample materials and the original CubeMat and CylinderMat references. Save the scene after conversion. Other scene materials remain unchanged.
 
 ## Analytic optimization sample
 
-Choose `Tools > Bayesian Optimization > Create Analytic Demo` to create `Assets/BOforUnity/Samples/Analytic/BO-analytic-demo.unity`. This sample uses an automatic quadratic objective and requires no questionnaire assets. Its optimization measurements have no dependency on rendering. The same sample can therefore exercise the Python connection in built in, URP, and HDRP projects.
+Choose `Tools > IBO > Create Analytic Demo` to create `Assets/IBO/Samples/Analytic/BO-analytic-demo.unity`. This sample uses an automatic quadratic objective and requires no questionnaire assets. Its optimization measurements have no dependency on rendering. The same sample can therefore exercise the Python connection in built in, URP, and HDRP projects.
 
 ## Validation
 

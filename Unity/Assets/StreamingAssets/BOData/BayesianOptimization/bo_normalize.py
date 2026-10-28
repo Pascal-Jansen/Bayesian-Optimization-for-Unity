@@ -1,4 +1,4 @@
-# bo_normalize.py — canonical parameter/objective normalization for every BOforUnity backend.
+# bo_normalize.py — canonical parameter/objective normalization for every IBO backend.
 #
 # Single source of truth for "the frame": parameters live in [0,1]^d, objectives live in
 # [-1,1] as a MAXIMIZATION problem (minimized objectives are sign-flipped). bo.py, mobo.py
