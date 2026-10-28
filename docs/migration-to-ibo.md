@@ -1,6 +1,6 @@
 # Migrating from Bayesian Optimization for Unity 1.x to iBO
 
-Interactive Bayesian Optimization (iBO) 2.0 continues Bayesian Optimization for Unity 1.8 with a shared Python backend
+Interactive Bayesian Optimization (iBO) 2.0 continues Bayesian Optimization for Unity 1.9 with a shared Python backend
 and further integrations. Scenes and prefabs keep working: every script keeps its GUID, so Unity still finds the
 components. Code that references the package needs the changes below.
 
@@ -20,8 +20,8 @@ components. Code that references the package needs the changes below.
 | Menus | | `Tools > iBO > ...` (analytic demo, rendering tools) |
 | Unity version | 6000.x | Tested with 6000.6; the package also compiles and passes its EditMode tests on 6000.4 |
 
-New in 2.0: a configurable port per study (`BO_PORT`, for concurrent studies), the botorch-rust model library
-(`BO_MODEL_LIBRARY`), URP and HDRP material tools, the Unreal plugin, the Python client and `Backend/ibo_server.py`.
+New in 2.0: a configurable port per study (`BO_PORT`, for concurrent studies), URP and HDRP material tools, the Unreal
+plugin, the Python client and `Backend/ibo_server.py`.
 
 ## Projects that imported the package
 

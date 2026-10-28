@@ -1,7 +1,7 @@
 # iBO Protocol, version 1
 
 How an integration (Unity, Unreal, web, Python, ...) runs a human-in-the-loop study with the iBO
-server. Version 1 is the protocol that Bayesian Optimization for Unity has used up to 1.8, written
+server. Version 1 is the protocol that Bayesian Optimization for Unity has used up to 1.9, written
 down; the Unity integration already speaks it. The machine-readable form is
 [`ibo-protocol-v1.schema.json`](ibo-protocol-v1.schema.json).
 
