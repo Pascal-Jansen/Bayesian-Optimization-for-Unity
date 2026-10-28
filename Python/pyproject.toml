@@ -12,7 +12,7 @@ license = "MIT"
 authors = [{ name = "Pascal Jansen" }, { name = "Mark Colley" }]
 keywords = ["bayesian optimization", "human-in-the-loop", "botorch", "user study", "hci"]
 # The client is standard library only. The server's optimizer stack (torch, botorch, ...) is listed in
-# Assets/StreamingAssets/BOData/Installation/requirements.txt until the backends move into this package.
+# Backend/requirements.txt.
 dependencies = []
 
 [project.urls]

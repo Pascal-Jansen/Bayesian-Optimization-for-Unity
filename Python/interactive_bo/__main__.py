@@ -20,7 +20,7 @@ def main(argv=None) -> int:
     serve = sub.add_parser("serve", help="run the IBO server for one study; clients connect to 127.0.0.1:PORT")
     common(serve)
     serve.add_argument("--port", type=int, default=56001, help="TCP port (default: %(default)s, as Unity)")
-    serve.add_argument("--init-root", help="warm-start and context data (default: InitData next to the backends)")
+    serve.add_argument("--init-root", help="warm-start and context data (default: the backend's InitData)")
 
     demo = sub.add_parser("demo", help="run a short study with a simulated participant")
     common(demo)

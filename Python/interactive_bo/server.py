@@ -1,7 +1,6 @@
 """Start the IBO server (ibo_server.py) as a child process, the way Unity's PythonStarter does.
 
-The server needs a Python with the optimizer stack (torch, botorch, ...; see requirements.txt next
-to the backends). Pass that interpreter as ``python``; the client itself needs none of it.
+The server needs a Python with the optimizer stack (torch, botorch, ...; Backend/requirements.txt). Pass that interpreter as ``python``; the client itself needs none of it.
 """
 
 from __future__ import annotations
@@ -21,12 +20,18 @@ PathLike = Union[str, os.PathLike]
 
 
 def default_backend_dir() -> Path:
-    """IBO_BACKEND_DIR, else the backends of this repository checkout."""
+    """IBO_BACKEND_DIR, else Backend/ of this repository checkout."""
     configured = os.environ.get("IBO_BACKEND_DIR")
     if configured:
         return Path(configured).expanduser().resolve()
-    # core/interactive_bo/server.py -> repository root
-    return Path(__file__).resolve().parents[2] / "Assets" / "StreamingAssets" / "BOData" / "BayesianOptimization"
+    # Python/interactive_bo/server.py -> repository root
+    return Path(__file__).resolve().parents[2] / "Backend"
+
+
+def data_dir_for(backend_dir: Path) -> Path:
+    """Folder holding InitData and MetaSources: Backend/ itself, or the parent of an engine copy
+    (Unity's StreamingAssets/BOData/BayesianOptimization, Unreal's Unreal/Backend)."""
+    return backend_dir if (backend_dir / "InitData").is_dir() else backend_dir.parent
 
 
 def free_port() -> int:
@@ -101,7 +106,7 @@ def launch_server(python: Optional[PathLike] = None, port: Optional[int] = None,
     python:      interpreter with the optimizer stack (default: this one)
     port:        TCP port on 127.0.0.1 (default: a free one; Unity always uses 56001)
     log_root:    root of the run folders <userId>/<conditionId>/run/ (default: ./LogData)
-    init_root:   warm-start and context data (default: InitData next to the backends)
+    init_root:   warm-start and context data (default: the InitData folder of the backend)
     backend_dir: folder holding ibo_server.py (default: default_backend_dir())
     echo:        print the server's console output as it arrives
     """
@@ -111,7 +116,8 @@ def launch_server(python: Optional[PathLike] = None, port: Optional[int] = None,
         raise FileNotFoundError(f"ibo_server.py not found in {backend_dir} (set IBO_BACKEND_DIR or backend_dir).")
     port = int(port) if port else free_port()
     log_root = Path(log_root).resolve() if log_root else Path.cwd() / "LogData"
-    init_root = Path(init_root).resolve() if init_root else backend_dir.parent / "InitData"
+    data_dir = data_dir_for(backend_dir)
+    init_root = Path(init_root).resolve() if init_root else data_dir / "InitData"
     log_root.mkdir(parents=True, exist_ok=True)
 
     child_env = dict(os.environ)
@@ -130,7 +136,7 @@ def launch_server(python: Optional[PathLike] = None, port: Optional[int] = None,
 
     process = subprocess.Popen(
         [str(python or sys.executable), "-u", str(script)],
-        cwd=str(backend_dir.parent), env=child_env,
+        cwd=str(data_dir), env=child_env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
     )
     server = ServerProcess(process, port, log_root, echo=echo)

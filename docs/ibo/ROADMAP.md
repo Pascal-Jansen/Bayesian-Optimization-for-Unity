@@ -1,69 +1,50 @@
 # Interactive Bayesian Optimization (IBO): roadmap
 
 Bayesian Optimization for Unity becomes **Interactive Bayesian Optimization (IBO)**: one optimizer
-core that any engine or experiment tool can use to run human-in-the-loop studies, with Unity as one
-integration among several.
+backend that any engine or experiment tool can use to run human-in-the-loop studies, with Unity,
+Unreal and Python as integrations.
 
-## Decisions taken (change them here if needed)
+## Decisions
 
 | Topic | Decision |
 |---|---|
 | Name | Interactive Bayesian Optimization, short **IBO** |
+| Repository | This repository, with the layout of Mark Colley's Bayesian-Optimization-for-Game-Engines |
 | Package names | `interactive-bo` on PyPI and npm (`ibo` is taken on both); Python import `interactive_bo` |
-| Repository | One repository for core, protocol and all integrations |
-| Protocol | Version 1 = today's wire protocol, written down; new features go into version 2 |
+| Protocol | Version 1 = the existing wire protocol, written down; new features go into version 2 |
+| QuestionnaireToolkit | An optional Unity add-on; the Unity core works without it |
+| Renamed | Repository, documentation, citation, Unity package folder and menus, Unreal plugin display name, Python package |
+| Kept | C# namespaces (`BayesianOptimization`), class names (`BoForUnityManager`), assembly names and the Unreal module, so authored projects need no second migration |
 | Existing Unity users | A migration guide (no compatibility layer) |
-| Order | Core and protocol, then Unity on the core with the rename, then Unreal, then web, then new HITL methods |
 
-## Target layout
+## Layout
 
 ```
-core/                 Python: optimizer backends, IBO server, Python client   (pip install interactive-bo)
-protocol/             IBO protocol specification and JSON schema
-integrations/unity/   Unity package (today's Assets/BOforUnity + QuestionnaireToolkit) and its host project
-integrations/unreal/  Unreal Engine plugin (C++, Blueprint nodes)
-integrations/web/     JavaScript/TypeScript client (online studies, jsPsych)
-docs/                 Manual, guides
+Backend/        canonical Python optimizer and IBO server (ibo_server.py); copied into the engines
+Unity/          Unity project: the IBO package, samples, tests, and the QuestionnaireToolkit add-on
+Unreal/         Unreal plugin (C++, Blueprint component), launcher and backend copy
+Python/         Python client and server launcher (pip install interactive-bo)
+protocol/       IBO protocol specification and JSON schema
+tools/          backend synchronization (sync_backends.py) and release packaging
+tests/          Python tests of the backend
+docs/           architecture, validation, guides
 ```
 
 ## Phases
 
-### 1. Core and protocol: done
-
-- `ibo_server.py`: one server entry point that picks the backend from the init message; the backends
-  run unchanged on the connection it hands over (`bo_protocol.adopt_connection`). `BO_PORT` selects the port.
-- [`protocol/`](../../protocol/README.md): protocol v1 specification and JSON schema, validated against the
-  messages of Unity, the backends and the Python client.
-- [`core/`](../../core/README.md): `interactive_bo` with the Python client (standard library only), the
-  server launcher and `python -m interactive_bo serve|demo`.
-- Tests: stub tests for the server and hand-over, client and launcher tests, end-to-end studies with the
-  real backends (multi- and single-objective BoTorch, DBO), all in CI.
-
-The backends still live in `Assets/StreamingAssets/BOData/BayesianOptimization`, so Unity keeps working unchanged.
-
-### 2. Unity on the core, and the rename
-
-- Move the backends into `core/interactive_bo/backends/`; ship them to Unity as a build step instead of keeping
-  the only copy in StreamingAssets.
-- PythonStarter starts `ibo_server.py` instead of choosing a script.
-- Move the Unity project to `integrations/unity/`; rename namespaces and assemblies `BOforUnity` → `IBO.Unity`
-  (scenes and prefabs keep working: Unity links scripts by GUID).
-- Let SocketNetwork ignore unknown server messages (protocol v1 rule).
-- Rename the repository (GitHub redirects old links), the Zenodo record title ("formerly Bayesian Optimization
-  for Unity"), README, citation and the Asset Store submission kit in `AssetStore/`.
-- Migration guide for existing projects.
-
-### 3. Unreal Engine plugin
-
-C++ client of protocol v1 (TCP, NDJSON), server launcher, Blueprint nodes (start study, next design, report),
-an example map. Needs an Unreal Engine installation to build and test.
-
-### 4. Web client
-
-Browsers cannot open TCP sockets: a WebSocket transport (protocol v2) or a small bridge, a TypeScript client,
-and a jsPsych plugin for online studies.
-
-### 5. Human-in-the-loop methods
+1. **Core and protocol: done.** `ibo_server.py` picks the backend from the init message; protocol v1
+   specification and schema; Python client and launcher; end-to-end studies in CI.
+2. **Merge and rename: in progress.**
+   - Done: Mark's multi-engine layout (shared `Backend/` with synchronized engine copies, Unity core
+     without QuestionnaireToolkit, URP/HDRP support, Unreal plugin, release packaging); Phase 1 on
+     top of it (`Backend/ibo_server.py`, `Python/`).
+   - Open: QuestionnaireToolkit add-on with the questionnaire example scenes; IBO naming in docs,
+     folders and menus; migration guide; GitHub repository rename and Zenodo record title.
+3. **Unreal: largely done** by Mark's plugin (built and tested with Unreal Engine 5.8 on Windows).
+   Open: macOS and Linux validation; optionally start `ibo_server.py` from the launcher.
+4. **Web client.** Browsers cannot open TCP sockets: a WebSocket transport (protocol v2) or a small
+   bridge, a TypeScript client, and a jsPsych plugin for online studies.
+5. **Human-in-the-loop methods.**
 
 | Feedback | Optimizer |
 |---|---|
@@ -74,4 +55,5 @@ and a jsPsych plugin for online studies.
 | Designer steering (lock, propose, veto) | User-steered BO: new |
 | Comfort and safety limits | Constrained / safe BO: new |
 
-The new methods need client-driven commands (`suggest`, `observe`) from protocol v2.
+The new methods need client-driven commands (`suggest`, `observe`) from protocol v2. Also open for v2:
+clients ignoring unknown server messages (the Unity integration still rejects them), and an `error` message.

@@ -1221,7 +1221,7 @@ Once the server is running, *BoForUnityManager.cs* communicates with the selecte
 After receiving data from *SocketNetwork.cs*, it passes it to *Optimizer.cs*, which updates simulation parameters.\
 *BoForUnityManager.cs* also tracks the current iteration and orchestrates the loop.
 
-The Python side does not depend on Unity: the [IBO protocol](protocol/README.md) describes the messages, *ibo_server.py* picks the backend from the init message, and the [Python client](core/README.md) runs complete studies from any program. The project is becoming Interactive Bayesian Optimization (IBO) with further integrations; see the [roadmap](docs/ibo/ROADMAP.md).
+The Python side does not depend on Unity: the [IBO protocol](protocol/README.md) describes the messages, *ibo_server.py* picks the backend from the init message, and the [Python client](Python/README.md) runs complete studies from any program. The project is becoming Interactive Bayesian Optimization (IBO) with further integrations; see the [roadmap](docs/ibo/ROADMAP.md).
 
 <br>
 

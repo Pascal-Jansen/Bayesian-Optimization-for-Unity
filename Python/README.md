@@ -1,7 +1,7 @@
-# IBO core (`interactive-bo`)
+# Python integration (`interactive-bo`)
 
-Python side of Interactive Bayesian Optimization: the client for the [IBO protocol](../protocol/README.md)
-and a launcher for the IBO server. Any program that can show a design to a person and measure the
+The Python client for the [IBO protocol](../protocol/README.md) and a launcher for the IBO server
+(`Backend/ibo_server.py`). Any program that can show a design to a person and measure the
 response can run a study with it, without Unity.
 
 ```python
@@ -27,7 +27,7 @@ with launch_server(python="/path/to/python-with-botorch") as server:
   in the same format as the Unity integration.
 
 The server needs Python 3.13 with the packages of
-[requirements.txt](../Assets/StreamingAssets/BOData/Installation/requirements.txt). The client needs nothing.
+[Backend/requirements.txt](../Backend/requirements.txt). The client needs nothing.
 
 ```bash
 python -m interactive_bo demo --python /path/to/python-with-botorch
@@ -40,5 +40,5 @@ python -m interactive_bo serve --python /path/to/python-with-botorch --port 5600
 Tests (the end-to-end test runs when `IBO_TEST_PYTHON` points to an interpreter with the optimizer stack):
 
 ```bash
-python -m unittest discover core/tests
+python -m unittest discover Python/tests
 ```

@@ -7,7 +7,7 @@ down; the Unity integration already speaks it. The machine-readable form is
 
 ## Roles and session
 
-- The **server** is `ibo_server.py` (it picks the optimizer backend from the init message) or one
+- The **server** is `Backend/ibo_server.py` (it picks the optimizer backend from the init message) or one
   backend script (`bo.py`, `mobo.py`, `cabop_bo.py`, `cabop_mobo.py`, `meta_mobo.py`, `dbo.py`).
   It listens on **127.0.0.1**, port **56001** or `BO_PORT`, accepts **one** client and exits when the study ends.
 - The **client** is the integration. It describes the study once, then shows each proposed design to a
@@ -20,7 +20,7 @@ down; the Unity integration already speaks it. The machine-readable form is
 
 - TCP, UTF-8, one JSON object per line (NDJSON) ending in `\n`. `\r\n` and blank lines are tolerated.
 - Every message is an object with a string `type`. Receivers **ignore unknown types**, so later
-  versions can add messages. (The Unity integration up to 1.8 still rejects unknown server messages.)
+  versions can add messages. (The Unity integration still rejects unknown server messages.)
 - Numbers are finite JSON numbers; `NaN` and `Infinity` are not allowed.
 - A line may hold up to 64 MiB (`BO_MAX_RECV_BUF_BYTES`), enough for large context embeddings.
 
@@ -121,14 +121,17 @@ The server waits up to `BO_ACCEPT_TIMEOUT_SEC` (300 s) for the connection and up
 | `BO_LOG_ROOT` | `./LogData` | Root of the run folders `<userId>/<conditionId>/run/` (manual section 8.12) |
 | `BO_INIT_ROOT` | `./InitData` | Warm-start files and context data |
 | `BO_ACCEPT_TIMEOUT_SEC`, `BO_SOCKET_TIMEOUT_SEC`, `BO_MAX_RECV_BUF_BYTES` | 300, 3600, 64 MiB | Limits above |
+| `BO_MODEL_LIBRARY` | `botorch` | `botorch`, `botorch_rs` (botorch-rust) or `auto`; a study factor, never changed within a study (`Backend/bo_library.py`) |
+| `BO_TORCH_THREADS` | | Torch thread count |
 
 ## Implementations
 
 | Side | Where |
 |---|---|
-| Server | `Assets/StreamingAssets/BOData/BayesianOptimization/ibo_server.py` and the backends next to it |
-| Unity client | `Assets/BOforUnity/Scripts/SocketNetwork.cs` (started by `PythonStarter.cs`) |
-| Python client | `core/interactive_bo/client.py`, launcher `core/interactive_bo/server.py` |
+| Server | `Backend/ibo_server.py` and the backends next to it; `tools/sync_backends.py` copies them into the engines |
+| Unity client | `Unity/Assets/BOforUnity/Scripts/SocketNetwork.cs`, started by `PythonStarter.cs` |
+| Unreal client | `Unreal/Plugins/BayesianOptimization/Source/BayesianOptimization/Private/BoProtocol.cpp` and `BoTransport.cpp`, started by `Unreal/launch_backend.py` |
+| Python client | `Python/interactive_bo/client.py`, launcher `Python/interactive_bo/server.py` |
 
 ## Planned for version 2
 
