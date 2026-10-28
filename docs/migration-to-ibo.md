@@ -25,15 +25,22 @@ plugin, the Python client and `Backend/ibo_server.py`.
 
 ## Projects that imported the package
 
-1. Back up the project or commit it.
-2. Import the iBO package. Unity moves the files from `Assets/BOforUnity` to `Assets/iBO` because the GUIDs match.
-   If you use questionnaires, also import the QuestionnaireToolkit add-on; it replaces `Assets/QuestionnaireToolkit` the same way.
-3. Delete what is left in `Assets/BOforUnity` and `Assets/QuestionnaireToolkit` after the import (files that iBO no
-   longer ships), and `Assets/StreamingAssets/BOData/Installation/Windows`, `MacOs` and `Linux` (the old installers).
-4. Replace `using BOforUnity...` with `using BayesianOptimization...` in your scripts. Code that used
+Unity matches files by GUID and updates such a file where it already is, so importing iBO over 1.x would leave the
+updated files in `Assets/BOforUnity` and `Assets/QuestionnaireToolkit` next to new ones in `Assets/iBO`, and the
+project would not compile. Remove the old version first:
+
+1. Back up the project or commit it, then close Unity.
+2. Delete `Assets/BOforUnity`, `Assets/QuestionnaireToolkit` and everything in `Assets/StreamingAssets/BOData` except
+   `LogData` (your logs; this also removes the old installers in `Installation/Windows`, `MacOs` and `Linux`).
+3. Copy `Assets/iBO` and `Assets/StreamingAssets/BOData` from the iBO Unity project (`Unity/` in this repository, or
+   the `iBO-Unity-<version>.zip` of a release) into the project. If you use questionnaires, also copy
+   `Assets/iBO-QuestionnaireToolkit` from this repository (the add-on is not part of the release packages).
+4. Open the project. Scenes and prefabs keep their components: every script kept its GUID.
+5. Replace `using BOforUnity...` with `using BayesianOptimization...` in your scripts. Code that used
    `QTQuestionnaireManager` from the optimization side can use `StudyQuestionnaires.Resolve()` and `IStudyQuestionnaire`.
-5. Replace hard-coded paths that start with `Assets/BOforUnity/`.
-6. Install Python 3.13 if you relied on the bundled installer, or select an interpreter under
+6. Replace hard-coded paths that start with `Assets/BOforUnity/` or `Assets/QuestionnaireToolkit/`, including a
+   questionnaire's **Results Save Path** (the iBO default is `Assets/StreamingAssets/BOData/LogData/`).
+7. Install Python 3.13 if you relied on the bundled installer, or select an interpreter under
    **Python Settings > Manually Installed Python**.
 
 Your logs stay where they were: `Assets/StreamingAssets/BOData/LogData` is not part of the package.
@@ -45,3 +52,6 @@ Your logs stay where they were: `Assets/StreamingAssets/BOData/LogData` is not p
 - Logs written by 1.x stay in `Assets/StreamingAssets/BOData/LogData` at the repository root (git ignores them). Move them to
   `Unity/Assets/StreamingAssets/BOData/LogData` if you want them next to new runs.
 - Edit the optimizer in `Backend/`, never in the engine copies, and run `python tools/sync_backends.py` afterwards.
+- The product name is now `iBO`, which moves Unity's `persistentDataPath` (from `.../DefaultCompany/BO-for-Unity`
+  to `.../DefaultCompany/iBO`): the first Play installs the Python packages again into a new private environment, and
+  `pip-install.log` and the backend console log `output.txt` are written there. The old folder can be deleted.

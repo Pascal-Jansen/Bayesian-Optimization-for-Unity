@@ -45,7 +45,7 @@ backend.
   messages print the complete command with that interpreter.
 
 ```bash
-python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"
+python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@43279884eb9ef6e97b998fc26b49942869c9eda1"
 ```
 
   or, if you have a local clone of the fork:
@@ -63,7 +63,7 @@ python -m pip install -e path/to/openbo
   with the exact upgrade command:
 
 ```bash
-python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"
+python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@43279884eb9ef6e97b998fc26b49942869c9eda1"
 ```
 
   (`--force-reinstall` because openbo's version number did not change, so a plain
@@ -298,8 +298,8 @@ Everything a normal multi-objective run logs (`ObservationsPerEvaluation.csv` wi
 
 | Symptom | Fix |
 |---|---|
-| `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python iBO uses** ([Unity manual 8.5](unity-manual.md#85-python-settings) shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` |
-| `The installed 'openbo' predates the TAF-R rework` | Your openbo is from before 2026-08, when the `taf_r` mode changed from Pareto-dominance to objective-wise ranking agreement; running it would silently compute a different similarity than configured. Run the printed command: `python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` does nothing here — openbo's version number did not change). |
+| `The Meta-TAF backend needs the 'openbo' package` | Install openbo **for the Python iBO uses** ([Unity manual 8.5](unity-manual.md#85-python-settings) shows which one that is): `python -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@43279884eb9ef6e97b998fc26b49942869c9eda1"` |
+| `The installed 'openbo' predates the TAF-R rework` | Your openbo is from before 2026-08, when the `taf_r` mode changed from Pareto-dominance to objective-wise ranking agreement; running it would silently compute a different similarity than configured. Run the printed command: `python -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@43279884eb9ef6e97b998fc26b49942869c9eda1"` (plain `--upgrade` does nothing here — openbo's version number did not change). |
 | `source '<name>' skipped: built for a different study frame` | The artifact was generated for different names/bounds/minimize flags. The lines below it list the exact field. Regenerate with a matching `frame.json`. |
 | `source '<name>' skipped: no frame block` | The artifact predates frame stamping or was hand-built. Regenerate with `meta_train.py` (or set the env var `BO_META_ALLOW_UNFRAMED=1` if you are absolutely sure). |
 | `source '._<name>' skipped: macOS AppleDouble metadata file` | Harmless: metadata files that macOS adds when a folder is copied via an exFAT/FAT32 drive or a network share. Delete them (`dot_clean` on macOS) to silence the message. |

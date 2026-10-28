@@ -32661,7 +32661,7 @@ MonoBehaviour:
   showPageNumber: 1
   showPrevButton: 0
   generateResultsFile: 1
-  resultsSavePath: Assets/QuestionnaireToolkit/Results/
+  resultsSavePath: Assets/StreamingAssets/BOData/LogData/
   resultsFileName: MyQuestionnaire
   resultsFileFormat: 0
   newFileEachStart: 1

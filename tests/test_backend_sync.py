@@ -77,6 +77,35 @@ class BackendSyncTests(unittest.TestCase):
         sync.sync(repository=self.root)
         self.assertEqual(metadata.read_bytes(), b"guid: keep-this-guid\n")
 
+    def test_unity_metadata_is_created_for_new_files_and_folders_and_checked(self):
+        (self.root / "Backend/package").mkdir()
+        (self.root / "Backend/package/helper.py").write_bytes(b"value = 2\n")
+        sync.sync(repository=self.root)
+        data = sync.unity_data_root(self.root)
+        folder = data / "BayesianOptimization/package.meta"
+        helper = data / "BayesianOptimization/package/helper.py.meta"
+        self.assertIn("folderAsset: yes", folder.read_text(encoding="utf-8"))
+        guid = helper.read_text(encoding="utf-8")
+        self.assertNotIn("folderAsset", guid)
+        helper.unlink()
+        with self.assertRaisesRegex(RuntimeError, "Missing Unity .meta file"):
+            sync.sync_engine("unity", check=True, repository=self.root)
+        sync.sync(repository=self.root)
+        self.assertEqual(helper.read_text(encoding="utf-8"), guid)
+
+    def test_runtime_embedding_cache_is_not_distributed(self):
+        cache = self.root / "Backend/InitData/ContextEmbeddingCache/vector.npy"
+        cache.parent.mkdir(parents=True)
+        cache.write_bytes(b"cached")
+        manifests = sync.sync(repository=self.root)
+        for engine, manifest in manifests.items():
+            with self.subTest(engine=engine):
+                self.assertFalse(any("ContextEmbeddingCache" in name for name in manifest))
+        written = self.root / "Unreal/InitData/ContextEmbeddingCache/other.npy"
+        written.parent.mkdir(parents=True)
+        written.write_bytes(b"cached")
+        sync.sync(check=True, repository=self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

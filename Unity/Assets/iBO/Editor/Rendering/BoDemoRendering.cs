@@ -153,8 +153,9 @@ namespace BayesianOptimization.Editor.Rendering
         {
             if (!scene.IsValid() || !scene.isLoaded) throw new ArgumentException("An open scene is required.", nameof(scene));
             Material[] variants = GenerateMaterials(generatedFolder);
-            Material originalCube = AssetDatabase.LoadAssetAtPath<Material>("Assets/iBO/Examples/CubeMat.mat");
-            Material originalCylinder = AssetDatabase.LoadAssetAtPath<Material>("Assets/iBO/Examples/CylinderMat.mat");
+            string packageRoot = BoEditorPaths.PackageRoot;
+            Material originalCube = AssetDatabase.LoadAssetAtPath<Material>(packageRoot + "/Examples/CubeMat.mat");
+            Material originalCylinder = AssetDatabase.LoadAssetAtPath<Material>(packageRoot + "/Examples/CylinderMat.mat");
             int changed = 0;
             foreach (GameObject root in scene.GetRootGameObjects())
             foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
@@ -170,7 +171,7 @@ namespace BayesianOptimization.Editor.Rendering
                     else if (source != null)
                     {
                         string sourcePath = AssetDatabase.GetAssetPath(source);
-                        bool owned = sourcePath.StartsWith("Assets/iBO/Samples/Rendering/", StringComparison.Ordinal) ||
+                        bool owned = sourcePath.StartsWith(packageRoot + "/Samples/Rendering/", StringComparison.Ordinal) ||
                                      sourcePath.StartsWith(GeneratedRoot + "/", StringComparison.Ordinal);
                         if (owned)
                         {

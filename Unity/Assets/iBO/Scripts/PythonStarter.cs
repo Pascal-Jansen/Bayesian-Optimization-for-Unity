@@ -22,8 +22,9 @@ using Debug = UnityEngine.Debug;
 //
 // Setup (off the main thread, with timeouts):
 //   1. Find an interpreter: the configured one ("Manually Installed Python"), or the best installed Python 3.13
-//      (bundled 3.13 first; newer minors only after every tested one failed). When none is found, the bundled
-//      Python 3.13 is installed on Windows/macOS (after checking the installer's SHA-256).
+//      (bundled 3.13 first; newer minors only after every tested one failed). When none is found and the Python
+//      installers were added to StreamingAssets/BOData/Installation (iBO does not ship them), Python 3.13 is
+//      installed from there on Windows/macOS (after checking the installer's SHA-256).
 //   2. Pick where the packages go: into the configured interpreter if it already is a venv/conda environment,
 //      otherwise into a private venv at persistentDataPath/BOData/python-venv (falls back to `pip install --user`
 //      if a venv cannot be created, e.g. Debian without python3-venv).
@@ -1935,9 +1936,8 @@ namespace BayesianOptimization.Scripts
                     break;
                 }
                 default:
-                    error = "Python 3.13 cannot be installed automatically on this platform. Run " +
-                            "Assets/StreamingAssets/BOData/Installation/Linux/install_python.sh in a terminal (or install " +
-                            "Python 3.13 and its venv module with your package manager), then press Play again.";
+                    error = "Python 3.13 cannot be installed automatically on this platform. Install Python 3.13 and " +
+                            "its venv module with your package manager, then press Play again.";
                     break;
             }
 

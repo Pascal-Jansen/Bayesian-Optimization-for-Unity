@@ -6,7 +6,7 @@
   "InitData/ExampleObservationPerEvaluation.csv": "7b1d00da86478c8f8e23bd9926332ee70d22edf3fed22d4d4182ff14ea5120de",
   "BayesianOptimization/LICENSE": "01704477f57d02e99cea1eb999aedc3f1c8f8eca8b9eef4257a9f397de4852e5",
   "MetaSources/README.md": "75546afc7ebf8b08eb96302e49dde7ac9e2adf5741e816ee043421d6fce1f5e7",
-  "BayesianOptimization/README.md": "d448b83a4418a50b1e0b6524896e6f0b006c138c52257aebe57a3ebd4d403d20",
+  "BayesianOptimization/README.md": "c3b6c5c62ae9b646dbc584e465cb9938b99bcae3547f5f2abf26478aefe73fd0",
   "BayesianOptimization/bo.py": "251d6a61441cef71baca3782d9017821d21137f5e91016f67dcccd7e16eda536",
   "BayesianOptimization/bo_library.py": "ed16f2d247f3bf8e6af73cd86e9631f38f47bc88453db57c8fa42ba18ece54f4",
   "BayesianOptimization/bo_normalize.py": "0920227c1abc9c5a509d94474baa5b3d23587305558f7ea6d6fffab4ca206084",

@@ -109,7 +109,7 @@ def launch_server(python: Optional[PathLike] = None, port: Optional[int] = None,
     """Start ibo_server.py and wait until it accepts a connection.
 
     python:      interpreter with the optimizer stack (default: this one)
-    port:        TCP port on 127.0.0.1 (default: a free one; Unity always uses 56001)
+    port:        TCP port on 127.0.0.1 (default: a free one; Unity and Unreal default to 56001)
     log_root:    root of the run folders <userId>/<conditionId>/run/ (default: ./LogData)
     init_root:   warm-start and context data (default: the InitData folder of the backend)
     backend_dir: folder holding ibo_server.py (default: default_backend_dir())

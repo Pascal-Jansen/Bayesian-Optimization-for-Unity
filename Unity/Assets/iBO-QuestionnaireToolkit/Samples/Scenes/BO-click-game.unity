@@ -5446,7 +5446,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 8710690043899141844}
-        m_TargetAssemblyTypeName: BOforUnity.BoForUnityManager, Assembly-CSharp
+        m_TargetAssemblyTypeName: BayesianOptimization.BoForUnityManager, BOforUnity.Runtime
         m_MethodName: ButtonNextIteration
         m_Mode: 1
         m_Arguments:
@@ -7532,7 +7532,7 @@ GameObject:
   - component: {fileID: 4547499764866807583}
   m_Layer: 0
   m_Name: BOforUnityManager
-  m_TagString: BOforUnityManager
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

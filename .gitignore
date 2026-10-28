@@ -48,12 +48,21 @@ Unity/Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
 Unity/Assets/StreamingAssets/BOData/BayesianOptimization/output.txt.meta
 Unreal/runs/
 Unreal/LogData/
+# The Python client's default log root (./LogData) when run from the repository root or Backend/
+/LogData/
+Backend/LogData/
+
+# Left over in clones of the 1.x layout, where the Unity project was the repository root (see docs/migration-to-ibo.md)
+/Assets/
+/Packages/
+/ProjectSettings/
 
 # Offline wheel cache for the dependency install: local, can be several GB
 Unity/Assets/StreamingAssets/BOData/Installation/wheels/
 Unity/Assets/StreamingAssets/BOData/Installation/wheels.meta
-Unity/Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache/
-Unity/Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache.meta
+# Image-embedding cache the backends write next to their InitData
+**/InitData/ContextEmbeddingCache/
+**/InitData/ContextEmbeddingCache.meta
 
 # Unity editor recovery scenes
 Unity/Assets/_Recovery/
@@ -65,3 +74,5 @@ __pycache__.meta
 *.py[cod]
 *$py.class
 *.egg-info/
+dist/
+.pytest_cache/

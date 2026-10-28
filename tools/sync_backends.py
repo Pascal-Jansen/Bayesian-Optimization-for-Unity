@@ -9,6 +9,12 @@ from pathlib import Path, PureWindowsPath
 
 ENGINES = ("unity", "unreal")
 DATA_FOLDERS = ("InitData", "MetaSources")
+# Written by the backends at run time (context_support.py), never part of a distribution.
+RUNTIME_FOLDERS = ("__pycache__", "ContextEmbeddingCache")
+UNITY_META = (
+    "fileFormatVersion: 2\nguid: {guid}\n{folder}DefaultImporter:\n  externalObjects: {{}}\n  userData: \n"
+    "  assetBundleName: \n  assetBundleVariant: \n"
+)
 
 
 def canonical_bytes(path: Path) -> bytes:
@@ -41,7 +47,7 @@ def source_files(engine: str, repository: Path | None = None) -> tuple[Path, dic
     mapping: dict[Path, Path] = {}
     for item in source.rglob("*"):
         relative = item.relative_to(source)
-        if not item.is_file() or "__pycache__" in relative.parts or item.suffix in (".pyc", ".pyo", ".meta"):
+        if not item.is_file() or set(RUNTIME_FOLDERS) & set(relative.parts) or item.suffix in (".pyc", ".pyo", ".meta"):
             continue
         if relative.parts[0] in DATA_FOLDERS:
             mapping[item] = destination / relative
@@ -69,6 +75,25 @@ def managed_target(destination: Path, name: str, engine: str) -> Path:
     if not allowed:
         raise ValueError(f"Unmanaged generated path: {name}")
     return target
+
+
+def unity_meta_paths(names) -> list[str]:
+    """Every generated file and folder below BOData needs a .meta file, or Unity creates one on import."""
+    paths = set()
+    for name in names:
+        parts = name.split("/")
+        paths.update("/".join(parts[:index]) for index in range(1, len(parts) + 1))
+    return sorted(paths)
+
+
+def write_unity_meta(destination: Path, name: str) -> None:
+    """Create a missing .meta with a GUID derived from the path, so every checkout generates the same one."""
+    target = destination / (name + ".meta")
+    if target.exists():
+        return
+    guid = hashlib.md5(f"iBO/StreamingAssets/BOData/{name}".encode("utf-8")).hexdigest()
+    folder = "folderAsset: yes\n" if (destination / name).is_dir() else ""
+    target.write_text(UNITY_META.format(guid=guid, folder=folder), encoding="utf-8", newline="\n")
 
 
 def manifest_path(engine: str, repository: Path | None = None) -> Path:
@@ -103,10 +128,14 @@ def sync_engine(engine: str, check: bool = False, repository: Path | None = None
         code_folder = "BayesianOptimization" if engine == "unity" else "Backend"
         for folder in (code_folder, *DATA_FOLDERS):
             for target in (destination / folder).rglob("*"):
-                if target.is_file() and "__pycache__" not in target.parts and target.suffix not in (".pyc", ".pyo", ".meta"):
+                if target.is_file() and not set(RUNTIME_FOLDERS) & set(target.parts) and target.suffix not in (".pyc", ".pyo", ".meta"):
                     name = target.relative_to(destination).as_posix()
                     if name not in manifest:
                         errors.append(f"Unexpected generated {engine} file: {name}")
+        if engine == "unity":
+            for name in unity_meta_paths(manifest):
+                if not (destination / (name + ".meta")).is_file():
+                    errors.append(f"Missing Unity .meta file (run tools/sync_backends.py): {name}.meta")
         if errors:
             raise RuntimeError("\n".join(errors))
         return manifest
@@ -121,6 +150,9 @@ def sync_engine(engine: str, check: bool = False, repository: Path | None = None
     for original, target in sorted(mapping.items()):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(canonical_bytes(original))
+    if engine == "unity":
+        for name in unity_meta_paths(manifest):
+            write_unity_meta(destination, name)
     record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest

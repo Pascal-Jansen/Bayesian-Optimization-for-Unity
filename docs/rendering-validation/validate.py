@@ -25,19 +25,22 @@ def main():
         parser.error("Validation requires an empty project directory.")
     editor = project / "Assets" / "Editor"
     editor.mkdir(parents=True)
-    source = root / "Assets" / "BOforUnity" / "Editor" / "Rendering" / "BoDemoRendering.cs"
+    source = root / "Unity" / "Assets" / "iBO" / "Editor" / "Rendering" / "BoDemoRendering.cs"
     if not source.is_file():
-        source = root / "Unity" / "Assets" / "BOforUnity" / "Editor" / "Rendering" / "BoDemoRendering.cs"
+        source = root / "Assets" / "iBO" / "Editor" / "Rendering" / "BoDemoRendering.cs"
+    paths = source.parents[1] / "BoEditorPaths.cs"
     shutil.copyfile(source, editor / source.name)
+    shutil.copyfile(paths, editor / paths.name)
     shutil.copyfile(Path(__file__).with_name("BoRenderingValidation.cs"), editor / "BoRenderingValidation.cs")
     dependencies = {}
     defines = []
     if args.full_package:
         defines.append("BO_VALIDATION_FULL")
         (editor / source.name).unlink()
+        (editor / paths.name).unlink()
         asset_root = source.parents[2]
         for folder in ("Scripts", "Shared", "Examples", "Editor", "Tests", "Samples"):
-            shutil.copytree(asset_root / folder, project / "Assets" / "BOforUnity" / folder)
+            shutil.copytree(asset_root / folder, project / "Assets" / "iBO" / folder)
         dependencies.update({"com.unity.nuget.newtonsoft-json": "3.2.2", "com.unity.ugui": "2.6.0", "com.unity.test-framework": "1.8.0"})
         dependencies.update({"com.unity.modules." + module: "1.0.0" for module in ("audio", "physics", "physics2d", "imgui", "animation", "jsonserialize")})
     for name, package, define in (

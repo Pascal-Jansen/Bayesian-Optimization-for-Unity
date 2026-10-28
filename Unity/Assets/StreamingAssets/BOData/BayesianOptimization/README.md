@@ -2,7 +2,9 @@
 
 The common source repository stores the canonical Python implementation in its root `Backend/` directory. Source changes belong there. Engine releases contain generated copies of that implementation. The shared source includes optimizer code, dependency versions, source model instructions, and example data.
 
-Run `python tools/sync_backends.py` from the repository root after changing this directory. Run `python tools/sync_backends.py --check` to verify both mirrors. The Unity mirror is under `Unity/Assets/StreamingAssets/BOData` in the common repository. The original Unity authoring project uses `Assets/StreamingAssets/BOData`. The Unreal mirror is under `Unreal/Backend`, with dependency and data files beside it.
+Run `python tools/sync_backends.py` from the repository root after changing this directory. Run `python tools/sync_backends.py --check` to verify both mirrors. The Unity mirror is `Unity/Assets/StreamingAssets/BOData` (the sync also creates its Unity `.meta` files). The Unreal mirror is `Unreal/Backend`, with dependency and data files beside it.
+
+Unity and Unreal start the script of the selected optimizer directly: `bo.py`, `mobo.py`, `cabop_bo.py`, `cabop_mobo.py`, `dbo.py` or `meta_mobo.py`. `ibo_server.py` is the single entry point for the Python client (`Python/` in the repository) and new integrations: it reads the init message, picks the backend from `optimizerBackend` and the number of objectives, and hands the connection over. All of them speak the iBO protocol (`protocol/README.md` in the repository).
 
 Install `requirements.txt` into a Python 3.13 virtual environment. Optional OpenBO installation uses the audited source revision specified in that file. Preserve the complete environment, run metadata, source population manifest, and seed for study replication.
 

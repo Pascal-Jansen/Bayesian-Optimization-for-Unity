@@ -3,6 +3,7 @@
 import importlib.util
 import io
 from pathlib import Path
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -46,6 +47,18 @@ class PackagingTests(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 self.assertEqual(archive.namelist(), ["Unreal/README.md"])
                 self.assertEqual(archive.read("Unreal/README.md"), b"Example\n")
+
+    def test_a_checkout_ships_only_tracked_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "Unreal"
+            (source / "runs/P01").mkdir(parents=True)
+            (source / "README.md").write_bytes(b"Example\n")
+            git = ["git", "-c", "user.name=iBO", "-c", "user.email=ibo@example.invalid"]
+            subprocess.run([*git, "init", "-q"], cwd=source, check=True)
+            subprocess.run([*git, "add", "README.md"], cwd=source, check=True)
+            (source / "runs/P01/ObservationsPerEvaluation.csv").write_bytes(b"private measurements")
+            (source / "Unreal.sln").write_bytes(b"local project file")
+            self.assertEqual(packaging.distribution_files(source), [source / "README.md"])
 
     def test_questionnaire_addon_is_left_out_of_the_unity_archive(self):
         with tempfile.TemporaryDirectory() as folder:

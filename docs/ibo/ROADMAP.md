@@ -14,7 +14,7 @@ Unreal and Python as integrations.
 | Protocol | Version 1 = the existing wire protocol, written down; new features go into version 2 |
 | QuestionnaireToolkit | An optional Unity add-on; the Unity core works without it |
 | Renamed | Repository, documentation, citation, Unity package folder and menus, Unreal plugin display name, Python package |
-| Kept | C# namespaces (`BayesianOptimization`), class names (`BoForUnityManager`), assembly names and the Unreal module, so authored projects need no second migration |
+| Kept | Class names (`BoForUnityManager`), script GUIDs, assembly names and the Unreal module; the C# namespaces are those of Mark's layout (`BayesianOptimization.*`). Authored projects need no second migration |
 | Existing Unity users | A migration guide (no compatibility layer) |
 
 ## Layout
@@ -23,7 +23,7 @@ Unreal and Python as integrations.
 Backend/        canonical Python optimizer and iBO server (ibo_server.py); copied into the engines
 Unity/          Unity project: the iBO package, samples, tests, and the QuestionnaireToolkit add-on
 Unreal/         Unreal plugin (C++, Blueprint component), launcher and backend copy
-Python/         Python client and server launcher (pip install interactive-bo)
+Python/         Python client and server launcher (pip install ./Python)
 protocol/       iBO protocol specification and JSON schema
 tools/          backend synchronization (sync_backends.py) and release packaging
 tests/          Python tests of the backend
@@ -40,7 +40,8 @@ docs/           architecture, validation, guides
      (`Backend/ibo_server.py`, `Python/`); QuestionnaireToolkit add-on with the questionnaire examples;
      iBO naming (README, citation, `Assets/iBO`, `Tools > iBO` menus, Unreal plugin name, artifact names);
      [migration guide](../migration-to-ibo.md).
-   - Open: GitHub repository rename and Zenodo record title; a Play-mode run of the questionnaire examples
+   - Open: GitHub repository rename and Zenodo record title; the renamed package in Unity 6000.6 and Unreal
+     Engine 5.8 (so far compiled and tested in Unity 6000.4); a Play-mode run of the questionnaire examples
      with Python on Windows and macOS; the three open license items of the add-on
      (`Unity/Assets/iBO-QuestionnaireToolkit/Third-Party Notices.txt`).
 3. **Unreal: largely done** by Mark's plugin (built and tested with Unreal Engine 5.8 on Windows).

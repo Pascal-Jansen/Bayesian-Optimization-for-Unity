@@ -14,7 +14,7 @@ namespace BayesianOptimization.Editor
         public static void CreateDefaultScene()
         {
             if (Application.isBatchMode || EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                CreateScene("Assets/iBO/Samples/Analytic/BO-analytic-demo.unity");
+                CreateScene(BoEditorPaths.PackageRoot + "/Samples/Analytic/BO-analytic-demo.unity");
         }
 
         public static Scene CreateScene(string path)

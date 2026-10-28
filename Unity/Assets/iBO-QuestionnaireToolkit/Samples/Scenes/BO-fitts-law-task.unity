@@ -360,7 +360,7 @@ GameObject:
   - component: {fileID: 300006}
   m_Layer: 0
   m_Name: BOforUnityManager
-  m_TagString: BOforUnityManager
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -15159,7 +15159,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 200002}
-        m_TargetAssemblyTypeName: BOforUnity.Examples.FittsLawTask, Assembly-CSharp
+        m_TargetAssemblyTypeName: BayesianOptimization.Examples.FittsLawTask, BOforUnity.Examples
         m_MethodName: SendFittsResultsToOptimizerFromQuestionnaire
         m_Mode: 1
         m_Arguments:
@@ -17573,7 +17573,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 300002}
-        m_TargetAssemblyTypeName: BOforUnity.BoForUnityManager, Assembly-CSharp
+        m_TargetAssemblyTypeName: BayesianOptimization.BoForUnityManager, BOforUnity.Runtime
         m_MethodName: ButtonNextIteration
         m_Mode: 1
         m_Arguments:

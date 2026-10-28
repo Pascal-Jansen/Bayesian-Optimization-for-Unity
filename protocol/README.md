@@ -73,7 +73,7 @@ Older clients may send `init` as a string, `"low,high"` or `"low,high,minimize"`
 |---|---|---|---|
 | `optimizerBackend` | `"botorch"` | all | `botorch`, `cabop`, `meta-taf` or `dbo` |
 | `nParameters`, `nObjectives` | required | all | Must equal the array lengths |
-| `numSamplingIterations` | 2·(nParameters+1) | all | Initial space-filling designs |
+| `numSamplingIterations` | 2·(nParameters+1) | all | Initial space-filling designs (Unity and the Python client send 2·(n+1); a server that receives no value uses 5) |
 | `numOptimizationIterations` | 10 | all | Model-based designs after sampling |
 | `seed` | 3 | all | Reproducibility |
 | `batchSize` | 1 | botorch | Only 1 is supported in the human-in-the-loop loop |
@@ -101,7 +101,7 @@ Several measurements of one objective (questionnaire items) are averaged by the 
 
 | Message | Fields | Meaning |
 |---|---|---|
-| `parameters` | `values: {"<parameter key>": number}`, `iteration` (integer, optional) | The next design, in the parameters' own units within their bounds. `iteration` is the row's `Iteration` in `ObservationsPerEvaluation.csv`. |
+| `parameters` | `values: {"<parameter key>": number}`, `iteration` (integer; every iBO server sends it, and the Unreal plugin requires it) | The next design, in the parameters' own units within their bounds. `iteration` is the row's `Iteration` in `ObservationsPerEvaluation.csv`. |
 | `tempCoverage` | `value` (0..1) | Progress of the sampling phase |
 | `coverage` | `value` (number) | Hypervolume of the observed designs (several objectives) or best objective value (one) |
 | `optimization_finished` | | No further designs; the server closes the connection |
@@ -117,7 +117,7 @@ The server waits up to `BO_ACCEPT_TIMEOUT_SEC` (300 s) for the connection and up
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BO_PORT` | 56001 | Listening port (the Unity integration always uses 56001) |
+| `BO_PORT` | 56001 | Listening port; Unity passes its **Optimizer TCP Port**, Unreal its launcher's `--port` (both default to 56001) |
 | `BO_LOG_ROOT` | `./LogData` | Root of the run folders `<userId>/<conditionId>/run/` (manual section 8.12) |
 | `BO_INIT_ROOT` | `./InitData` | Warm-start files and context data |
 | `BO_ACCEPT_TIMEOUT_SEC`, `BO_SOCKET_TIMEOUT_SEC`, `BO_MAX_RECV_BUF_BYTES` | 300, 3600, 64 MiB | Limits above |

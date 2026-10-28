@@ -12,7 +12,9 @@ iBO objectives, and the questionnaire-based example studies. The iBO core works 
 
 ## Use
 
-1. Import the iBO Unity package first, then this add-on.
+1. In this repository's Unity project the add-on is already in place. For your own project, first add the iBO package
+   (`Assets/iBO` and `Assets/StreamingAssets/BOData`, see the [Unity guide](../../README.md)), then copy this folder into
+   `Assets`.
 2. Import the TextMesh Pro essentials when Unity asks for them.
 3. Open a scene in `Samples/Scenes` and press Play. The first Play installs the Python packages (see the
    [Unity guide](../../README.md)).

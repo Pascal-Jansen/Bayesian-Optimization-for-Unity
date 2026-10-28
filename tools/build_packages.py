@@ -16,16 +16,29 @@ import zipfile
 
 # The QuestionnaireToolkit add-on lives in the Unity project but ships separately from the core packages.
 ADDON_FOLDERS = {"iBO-QuestionnaireToolkit"}
-EXCLUDED_PARTS = {".git", "Library", "Temp", "Logs", "UserSettings", "Binaries", "Intermediate", "Saved", "DerivedDataCache", "__pycache__", ".venv", "LogData", "wheels", "ContextEmbeddingCache"} | ADDON_FOLDERS
+EXCLUDED_PARTS = {".git", ".DS_Store", ".idea", ".vs", ".vscode", "Library", "Temp", "Logs", "UserSettings", "Binaries", "Intermediate", "Saved", "DerivedDataCache", "__pycache__", ".venv", "LogData", "wheels", "ContextEmbeddingCache"} | ADDON_FOLDERS
 FORBIDDEN_PARTS = {"QuestionnaireToolkit", "TextMesh Pro", "Installation_Objects", "wheels", "LogData"}
 FORBIDDEN_SUFFIXES = {".exe", ".dll", ".so", ".dylib", ".pkg", ".msi", ".pyc", ".pyo"}
 
 
+def tracked_files(folder: Path) -> set[Path] | None:
+    """Files Git tracks below folder, or None outside a Git work tree (then every file is a candidate)."""
+    try:
+        listing = subprocess.run(["git", "ls-files", "-z"], cwd=folder, capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {folder / name for name in listing.decode("utf-8").split("\0") if name}
+
+
 def distribution_files(folder: Path) -> list[Path]:
+    # In a checkout only tracked files ship: local logs, IDE projects and caches never reach a release.
+    tracked = tracked_files(folder)
     files = []
     for path in folder.rglob("*"):
         relative = path.relative_to(folder)
         if not path.is_file() or EXCLUDED_PARTS.intersection(relative.parts) or (path.suffix == ".meta" and path.stem in EXCLUDED_PARTS):
+            continue
+        if tracked is not None and path not in tracked:
             continue
         if FORBIDDEN_PARTS.intersection(relative.parts) or path.suffix.lower() in FORBIDDEN_SUFFIXES:
             raise ValueError(f"Unexpected distribution content: {relative}")

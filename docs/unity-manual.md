@@ -81,7 +81,7 @@ Several scientific publications have built upon **Bayesian Optimization for Unit
   * [2.3 Questionnaires for User Feedback](#23-questionnaires-for-user-feedback)
   * [2.4 Results of Multi-Objective Bayesian Optimization](#24-results-of-multi-objective-bayesian-optimization-pareto-front)
 * [3. Installation](#3-installation)
-* [4. Integration Checklist](#4-integration-checklist-required)
+* [4. Integration Checklist](#4-integration-checklist)
 * [5. Quick Start](#5-quick-start-10-minutes)
 * [6. Example Usage](#6-example-usage)
   * [6.1 Questionnaire Demo Scene](#61-questionnaire-demo-scene)
@@ -238,32 +238,32 @@ Set up the Unity integration as follows:
 
 <br>
 
-## 4. Integration Checklist (Required)
+## 4. Integration Checklist
 
 Before running your own scene, verify the following minimum setup:
 
-1. A `BOforUnityManager` object exists in the scene (the `BOforUnityManager` prefab in `Assets/iBO-QuestionnaireToolkit/Samples/Prefabs` is a ready-made one).
-2. The same object contains these components:
+1. One object in the scene carries these components (the `Analytic Optimization` object of the analytic demo and the
+   `BOforUnityManager` prefab in `Assets/iBO-QuestionnaireToolkit/Samples/Prefabs` are ready-made ones):
    - `BoForUnityManager`
    - `PythonStarter`
    - `SocketNetwork`
    - `Optimizer`
    - `MainThreadDispatcher`
-3. In `BoForUnityManager`, required references are assigned:
+2. Optional UI references in `BoForUnityManager` (the questionnaire samples use them; iBO runs without them, as in the analytic demo):
    - `Output Text`
    - `Loading Obj`
    - `Welcome Panel`
    - `Optimizer State Panel`
-   - `Progress Text` (optional): shows `Iteration x / N` whenever a design is ready.
-4. If `Iteration Advance Mode = NextButton`, `Next Button` is assigned and wired to `BoForUnityManager.ButtonNextIteration()`.
-5. If `Iteration Advance Mode = ExternalSignal`, your UI/game logic calls:
+   - `Progress Text`: shows `Iteration x / N` whenever a design is ready.
+3. If `Iteration Advance Mode = NextButton`, `Next Button` is assigned and wired to `BoForUnityManager.ButtonNextIteration()`.
+4. If `Iteration Advance Mode = ExternalSignal`, your UI/game logic calls:
    ```csharp
    BoForUnityManager.Instance.RequestNextIteration(); // the running manager
    ```
-6. Every objective key in `BoForUnityManager` has a matching data source (questionnaire item or manual script assignment).
-7. If you use QuestionnaireToolkit mapping, each question `Header Name` matches the objective key exactly.
-8. Parameter and objective keys are unique (no duplicates). The inspector lists configuration errors in red under the objective list; the study refuses to start while any remain.
-9. Python settings are valid (`Manually Installed Python` path or automatic detection works).
+5. Every objective key in `BoForUnityManager` has a matching data source (questionnaire item or manual script assignment).
+6. If you use QuestionnaireToolkit mapping, each question `Header Name` matches the objective key exactly.
+7. Parameter and objective keys are unique (no duplicates). The inspector lists configuration errors in red under the objective list; the study refuses to start while any remain.
+8. Python settings are valid (`Manually Installed Python` path or automatic detection works).
 
 If any item above is missing, the loop may start but stall before sending/receiving valid optimization data.
 
@@ -277,7 +277,7 @@ Use this path for a first successful run with the provided demo scene. It is par
 Analytic Demo** creates `Assets/iBO/Samples/Analytic/BO-analytic-demo.unity`.
 
 1. Open `Assets/iBO-QuestionnaireToolkit/Samples/Scenes/BO-example-scene.unity`.
-2. Select `BOforUnityManager` in the hierarchy and verify the [Integration Checklist](#4-integration-checklist-required).
+2. Select `BOforUnityManager` in the hierarchy and verify the [Integration Checklist](#4-integration-checklist).
 3. In `BoForUnityManager` inspector:
    - keep `Iteration Advance Mode = NextButton`
    - keep `Warm Start = false`
@@ -1292,8 +1292,8 @@ A development version can be built from source with a Rust toolchain
 | `Warning: warm-start ... values ... treating the column as already normalized` in `output.txt` | A warm-start column lies outside its raw bounds (beyond log rounding) but inside the normalized range | Check the file: if the values are raw, fix the bounds or the values; if they are normalized, set **Warm Start Objective Format** explicitly. |
 | CABOP: `CABOP tolerance of parameter '<key>' must lie in [0, 1]` at startup | The tolerance is given in parameter units (the meaning up to version 1.8.0) or is negative | Divide it by the parameter's range (the message names it), e.g. 2 on `[18, 64]` → `0.0435`. |
 | CABOP: `prefabricated value(s) [...] of parameter '<key>' lie outside its bounds` at startup | A prefabricated value lies outside Lower/Upper Bound | Remove it or widen the bounds. |
-| MetaTAF: `The Meta-TAF backend needs the 'openbo' package` | openbo is not installed for the Python that iBO launches (its private environment, logged as `Optimizer Python: …`) | Run the printed command, i.e. `"<that path>" -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@main"` (see [student guide](meta-taf-student-guide.md)). |
-| MetaTAF: `The installed 'openbo' predates the TAF-R rework` | openbo was installed before 2026-08, when the `taf_r` weight mode switched from Pareto-dominance to objective-wise ranking agreement — the backend refuses to run a different similarity than configured | Run the printed command, i.e. `"<Optimizer Python>" -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@main"` (plain `--upgrade` is a no-op: openbo's version number did not change). |
+| MetaTAF: `The Meta-TAF backend needs the 'openbo' package` | openbo is not installed for the Python that iBO launches (its private environment, logged as `Optimizer Python: …`) | Run the printed command, i.e. `"<that path>" -m pip install "open-bo @ git+https://github.com/M-Colley/openbo@43279884eb9ef6e97b998fc26b49942869c9eda1"` (see [student guide](meta-taf-student-guide.md)). |
+| MetaTAF: `The installed 'openbo' predates the TAF-R rework` | openbo was installed before 2026-08, when the `taf_r` weight mode switched from Pareto-dominance to objective-wise ranking agreement — the backend refuses to run a different similarity than configured | Run the printed command, i.e. `"<Optimizer Python>" -m pip install --force-reinstall --no-deps "open-bo @ git+https://github.com/M-Colley/openbo@43279884eb9ef6e97b998fc26b49942869c9eda1"` (plain `--upgrade` is a no-op: openbo's version number did not change). |
 | MetaTAF: `source '<name>' skipped: built for a different study frame` | The population model was generated for different parameter/objective names, bounds, or minimize flags | Regenerate sources with `meta_train.py` using a `frame.json` that matches the current study exactly. This check is intentional. |
 | MetaTAF: `the population loaded from '...' differs from its frozen population manifest` | The source folder changed since `population.json` was written (a source added, removed, replaced, or no longer loadable; each difference is listed) | During a study: restore the frozen folder. Before the study: rewrite the manifest with `meta_train.py --frame frame.json --out <folder> --manifest-only`. |
 | MetaTAF: `Seed must be >= 0 for the Meta-TAF backend` | A negative **Random Seed** | Set a non-negative seed, the same in every condition, so MetaTAF and the BoTorch control start from the same initial design. |
