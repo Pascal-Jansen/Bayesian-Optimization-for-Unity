@@ -46,5 +46,5 @@ iteration. The analytic sample is the smallest complete example. Projects that u
 - Logs go to `Assets/StreamingAssets/BOData/LogData/<User ID>/<Condition ID>/run/`, or below `persistentDataPath`
   when StreamingAssets is read-only ([manual 8.12](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/unity-manual.md#812-output-files-and-metrics)).
 
-See also the [validation record](validation.md), [render pipeline support](render-pipeline-support.md) and the
+See also the [validation record](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/validation.md), [render pipeline support](render-pipeline-support.md) and the
 [publication assessment](publication-status.md).

@@ -41,10 +41,10 @@ iteration. The analytic sample is the smallest complete example. Projects that u
 - Questionnaires connect through `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` (assembly
   `BOforUnity.Shared`, namespace `BayesianOptimization.Integration`); the core contains no QuestionnaireToolkit code.
 - The core compiles with the built-in render pipeline, URP and HDRP. **Tools > iBO > Rendering** creates Lit and Unlit
-  sample materials for the active pipeline ([render pipeline support](../docs/render-pipeline-support.md)).
+  sample materials for the active pipeline ([render pipeline support](Assets/iBO/Documentation/render-pipeline-support.md)).
 - **Optimizer TCP Port** (default 56001) reaches Python as `BO_PORT`; give concurrent studies different ports.
 - Logs go to `Assets/StreamingAssets/BOData/LogData/<User ID>/<Condition ID>/run/`, or below `persistentDataPath`
   when StreamingAssets is read-only ([manual 8.12](../docs/unity-manual.md#812-output-files-and-metrics)).
 
 See also the [manual](../docs/unity-manual.md), the [validation record](../docs/validation.md) and the
-[publication assessment](../docs/publication-status.md).
+[publication assessment](Assets/iBO/Documentation/publication-status.md).

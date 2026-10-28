@@ -25,9 +25,9 @@ Rendering checks generated Lit and Unlit materials through public validation API
 
 The Python run reported numerical convergence and dependency deprecation warnings. The single skip concerns POSIX permissions on Windows. The tests used the actual BoTorch, botorch-rust, CABOP, DBO, and optional OpenBO stack. Native installer actions and actual image encoder weights remain untested.
 
-Run `python -m pytest -q` with `BO_RUN_INTEGRATION_TESTS=1` for the full Python suite. Run Unity tests through Test Runner. Run `Automation RunTests BayesianOptimization` for native protocol checks. The rendering fixture is documented in [render-pipeline-support.md](render-pipeline-support.md).
+Run `python -m pytest -q` with `BO_RUN_INTEGRATION_TESTS=1` for the full Python suite. Run Unity tests through Test Runner. Run `Automation RunTests BayesianOptimization` for native protocol checks. The rendering fixture is documented in [render-pipeline-support.md](../Unity/Assets/iBO/Documentation/render-pipeline-support.md).
 
-macOS, Linux, and standalone player deployment require validation before support is advertised. Asset Store acceptance also requires the actions in [publication-status.md](publication-status.md).
+macOS, Linux, and standalone player deployment require validation before support is advertised. Asset Store acceptance also requires the actions in [publication-status.md](../Unity/Assets/iBO/Documentation/publication-status.md).
 
 ## iBO 2.0.0-rc.1
 

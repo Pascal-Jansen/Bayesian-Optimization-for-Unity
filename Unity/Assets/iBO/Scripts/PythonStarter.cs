@@ -22,9 +22,8 @@ using Debug = UnityEngine.Debug;
 //
 // Setup (off the main thread, with timeouts):
 //   1. Find an interpreter: the configured one ("Manually Installed Python"), or the best installed Python 3.13
-//      (bundled 3.13 first; newer minors only after every tested one failed). When none is found and the Python
-//      installers were added to StreamingAssets/BOData/Installation (iBO does not ship them), Python 3.13 is
-//      installed from there on Windows/macOS (after checking the installer's SHA-256).
+//      (the python.org install location first; newer minors only after every tested one failed). When none is
+//      found, setup stops and asks for a Python 3.13 installation.
 //   2. Pick where the packages go: into the configured interpreter if it already is a venv/conda environment,
 //      otherwise into a private venv at persistentDataPath/BOData/python-venv (falls back to `pip install --user`
 //      if a venv cannot be created, e.g. Debian without python3-venv).
@@ -55,16 +54,6 @@ namespace BayesianOptimization.Scripts
         // Newer interpreters are only tried after every tested one failed: the pinned wheels may not exist for them.
         private const int MaxTestedPythonMinor = 13;
         private const int BundledPythonMinor = 13;
-        private const string BundledPythonVersionLabel = "3.13.7";
-
-        // SHA-256 of the bundled installers as shipped in Installation/. Checked before they run with admin rights,
-        // so a truncated copy or a Git LFS pointer file is reported instead of executed.
-        private const string MacPythonPkgFile = "python-3.13.7-macos11.pkg";
-        private const string MacPythonPkgSha256 = "f7e8c8d63ab0a4e736b5864aa369098b16af622042c079addb2f1a08400560c5";
-        private const string WindowsPythonInstallerFile = "python-3.13.7.exe";
-        private const string WindowsPythonInstallerSha256 = "b12e2e82461ac8e51fc43289050bc8eb937a32d84ce4d242e2c88258c37cf2bb";
-        private const string WindowsVcRedistFile = "VC_redist.x64.exe";
-        private const string WindowsVcRedistSha256 = "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b";
 
         // PyPI's Linux torch wheels are CUDA builds that pull several GB of nvidia-* packages; GP-sized workloads run
         // on the CPU. With PyTorch's CPU index added, pip picks 2.14.1+cpu, which satisfies the "torch==2.14.1" pin.
@@ -74,7 +63,6 @@ namespace BayesianOptimization.Scripts
         private static readonly TimeSpan VenvTimeout = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan EnsurePipTimeout = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan PipInstallTimeout = TimeSpan.FromMinutes(45);
-        private static readonly TimeSpan BundledInstallTimeout = TimeSpan.FromMinutes(30);
         private static readonly TimeSpan SetupTimeout = TimeSpan.FromMinutes(60);
 
         // Prints version, machine, whether the interpreter already is a virtual/conda environment, and the real path
@@ -153,7 +141,6 @@ namespace BayesianOptimization.Scripts
             public string ManualPythonPath;
             public string RequirementsPath;
             public string WheelsDir;
-            public string BundledInstallerRoot;
             public string StateDir;
             public string VenvDir;
             public string PipLogPath;
@@ -486,7 +473,6 @@ namespace BayesianOptimization.Scripts
                 ManualPythonPath = _bomanager.getPythonPath(),
                 RequirementsPath = Path.Combine(installationDir, "requirements.txt"),
                 WheelsDir = Directory.Exists(wheelsDir) ? wheelsDir : null,
-                BundledInstallerRoot = installationDir,
                 StateDir = Path.Combine(persistentDataPath, "BOData", "Installation"),
                 VenvDir = ResolvePrivateVenvDir(s_hostOs, persistentDataPath),
                 PipLogPath = Path.Combine(persistentDataPath, "BOData", "pip-install.log"),
@@ -1055,19 +1041,12 @@ namespace BayesianOptimization.Scripts
             if (ctx.Token.IsCancellationRequested)
                 return SetupOutcome.Abort("Python setup was cancelled.");
 
-            bool bundledInstallAttempted = false;
             if (candidates.Count == 0)
             {
-                bundledInstallAttempted = true;
-                if (!TryInstallBundledPython(ctx, $"No Python {SupportedPythonMajor}.{MinSupportedPythonMinor} or newer was found", out string installError))
-                    return ctx.Token.IsCancellationRequested ? SetupOutcome.Abort(installError) : SetupOutcome.Fail(installError);
-                candidates = DiscoverInterpreters(ctx);
-                if (candidates.Count == 0)
-                {
-                    return SetupOutcome.Fail(
-                        $"Python {BundledPythonVersionLabel} was installed, but no usable interpreter was found afterwards. " +
-                        "Restart Unity and press Play again.");
-                }
+                return SetupOutcome.Fail(
+                    $"No Python {SupportedPythonMajor}.{MinSupportedPythonMinor} or newer was found. Install Python " +
+                    $"{SupportedPythonMajor}.{MaxTestedPythonMinor}, or enable Manually Installed Python on the optimizer manager and set " +
+                    "Path of Python Executable to an installed interpreter. Restart Play mode after installation.");
             }
 
             var failures = new List<string>();
@@ -1084,28 +1063,10 @@ namespace BayesianOptimization.Scripts
                 Debug.LogWarning($"Python {candidate.Version} at {candidate.Path} could not be prepared; trying the next interpreter. Reason: {outcome.Error}");
             }
 
-            // Only interpreters newer than the tested version were found, and none worked: fall back to the bundled 3.13.
-            if (!bundledInstallAttempted && !candidates.Any(IsTestedVersion) && IsBundledInstallSupported(ctx.Os))
-            {
-                Debug.LogWarning(
-                    $"Only Python versions newer than the tested {SupportedPythonMajor}.{MaxTestedPythonMinor} were found and none " +
-                    $"could be prepared; installing the bundled Python {BundledPythonVersionLabel}.");
-                if (TryInstallBundledPython(ctx, "No tested Python interpreter could be prepared", out string installError))
-                {
-                    PythonCandidate bundled = DiscoverInterpreters(ctx).FirstOrDefault(c => c.IsBundled);
-                    if (bundled != null)
-                    {
-                        SetupOutcome outcome = PrepareEnvironment(ctx, bundled, inPlaceAllowed: false);
-                        if (outcome.Success || outcome.Aborted)
-                            return outcome;
-                        failures.Add($"Python {bundled.Version} at {bundled.Path}: {outcome.Error}");
-                    }
-                }
-                else
-                {
-                    failures.Add(installError);
-                }
-            }
+            // Only interpreters newer than the tested version were found, and none worked.
+            if (!candidates.Any(IsTestedVersion))
+                failures.Add($"Only Python versions newer than the tested {SupportedPythonMajor}.{MaxTestedPythonMinor} were found; " +
+                             $"install Python {SupportedPythonMajor}.{MaxTestedPythonMinor}.");
 
             return SetupOutcome.Fail(failures.Count == 1
                 ? failures[0]
@@ -1780,7 +1741,7 @@ namespace BayesianOptimization.Scripts
         private static string MacArchitectureMessage(PythonCandidate candidate)
         {
             return $"this Python runs as '{candidate.Machine}', but the pinned PyTorch ships Python {SupportedPythonMajor}.{MaxTestedPythonMinor} " +
-                   "macOS wheels for arm64 (Apple Silicon) only. Use an arm64 or universal2 Python (e.g. the bundled python.org installer).";
+                   "macOS wheels for arm64 (Apple Silicon) only. Use an arm64 or universal2 Python (e.g. the python.org installer).";
         }
 
         // Unity's own architecture decides the slice a universal2 Python starts with. sysctl inherits it, so
@@ -1843,176 +1804,6 @@ namespace BayesianOptimization.Scripts
                 }
             }
             return path;
-        }
-
-        // ── Bundled Python installation (Windows/macOS) ────────────────────────────────────────
-
-        private static bool IsBundledInstallSupported(HostOs os)
-        {
-            return os == HostOs.Windows || os == HostOs.MacOS;
-        }
-
-        private static bool TryInstallBundledPython(SetupContext ctx, string reason, out string error)
-        {
-            string installer = ctx.Os == HostOs.Windows
-                ? Path.Combine(ctx.BundledInstallerRoot, "Windows", "Installation_Objects", WindowsPythonInstallerFile)
-                : ctx.Os == HostOs.MacOS
-                    ? Path.Combine(ctx.BundledInstallerRoot, "MacOs", "Data", "Installation_Objects", MacPythonPkgFile)
-                    : null;
-            if (installer == null || !File.Exists(installer))
-            {
-                error = $"No Python installer is included for this platform. Install Python {SupportedPythonMajor}.{MinSupportedPythonMinor} " +
-                        $"through {SupportedPythonMajor}.{MaxTestedPythonMinor}, enable Manually Installed Python on the optimizer manager, " +
-                        "and set Path of Python Executable to that interpreter. Restart Play mode after installation.";
-                return false;
-            }
-            // Two Unity instances (or a restart during the install) must not run the system installer twice.
-            using (InstallLock installLock = AcquireInstallLock(ctx))
-            {
-                if (installLock == null)
-                {
-                    error = ctx.Token.IsCancellationRequested
-                        ? "Python setup was cancelled."
-                        : "Timed out waiting for another Unity instance to finish installing Python.";
-                    return false;
-                }
-
-                // Another instance may have installed it while this one waited for the lock.
-                string bundledPath = GetBundledPythonPath(ctx.Os);
-                if (!string.IsNullOrEmpty(bundledPath) && File.Exists(bundledPath))
-                {
-                    error = null;
-                    return true;
-                }
-
-                return TryInstallBundledPythonUnlocked(ctx, reason, out error);
-            }
-        }
-
-        private static bool TryInstallBundledPythonUnlocked(SetupContext ctx, string reason, out string error)
-        {
-            error = null;
-            SetStatus($"{reason}. Installing bundled Python {BundledPythonVersionLabel} (may require admin confirmation)…");
-            Debug.Log($"{reason}; installing the bundled Python {BundledPythonVersionLabel}.");
-
-            switch (ctx.Os)
-            {
-                case HostOs.MacOS:
-                {
-                    string pkgPath = Path.Combine(ctx.BundledInstallerRoot, "MacOs", "Data", "Installation_Objects", MacPythonPkgFile);
-                    if (!VerifyInstaller(pkgPath, MacPythonPkgSha256, out error))
-                        break;
-                    SetStatus($"Installing bundled Python {BundledPythonVersionLabel} (a macOS administrator prompt may appear)…");
-                    ChildResult result = RunMacPkgInstallerWithAdminPrompt(ctx, pkgPath);
-                    if (!result.Succeeded)
-                    {
-                        error = $"The bundled Python installation did not complete ({DescribeChildFailure(result, "the installer")}).";
-                        break;
-                    }
-                    break;
-                }
-                case HostOs.Windows:
-                {
-                    string windowsDir = Path.Combine(ctx.BundledInstallerRoot, "Windows");
-                    string installBat = Path.Combine(windowsDir, "installation_python.bat");
-                    if (!File.Exists(installBat))
-                    {
-                        error = "The bundled Python installer script was not found: " + installBat;
-                        break;
-                    }
-                    if (!VerifyInstaller(Path.Combine(windowsDir, "Installation_Objects", WindowsPythonInstallerFile), WindowsPythonInstallerSha256, out error) ||
-                        !VerifyInstaller(Path.Combine(windowsDir, "Installation_Objects", WindowsVcRedistFile), WindowsVcRedistSha256, out error))
-                        break;
-
-                    SetStatus($"Installing bundled Python {BundledPythonVersionLabel} (a Windows UAC prompt may appear)…");
-                    // cmd strips the outer quotes: the script path stays quoted even if it contains spaces.
-                    ChildResult result = RunChild(ctx, "cmd.exe", "/c \"" + QuoteArgument(installBat) + " --unattended\"",
-                        BundledInstallTimeout, new ChildOptions(), null);
-                    if (!result.Succeeded)
-                    {
-                        error = $"The bundled Python installation did not complete ({DescribeChildFailure(result, "installation_python.bat")}).";
-                        LogChildFailure(ctx, error, result);
-                    }
-                    break;
-                }
-                default:
-                    error = "Python 3.13 cannot be installed automatically on this platform. Install Python 3.13 and " +
-                            "its venv module with your package manager, then press Play again.";
-                    break;
-            }
-
-            if (error == null && !File.Exists(GetBundledPythonPath(ctx.Os)))
-                error = "The bundled Python installer finished, but " + GetBundledPythonPath(ctx.Os) + " does not exist.";
-
-            if (error != null)
-            {
-                Debug.LogError("Bundled Python installation failed: " + error);
-                return false;
-            }
-
-            Debug.Log($"Bundled Python {BundledPythonVersionLabel} installed at {GetBundledPythonPath(ctx.Os)}.");
-            return true;
-        }
-
-        private static bool VerifyInstaller(string path, string expectedSha256, out string error)
-        {
-            error = null;
-            if (!File.Exists(path))
-            {
-                error = "The bundled installer is missing: " + path;
-                return false;
-            }
-
-            string actual;
-            try
-            {
-                using (var stream = File.OpenRead(path))
-                using (var sha = SHA256.Create())
-                    actual = ToHex(sha.ComputeHash(stream));
-            }
-            catch (Exception ex)
-            {
-                error = "Could not read the bundled installer " + path + ": " + ex.Message;
-                return false;
-            }
-
-            if (string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            long size = new FileInfo(path).Length;
-            error = $"The bundled installer {Path.GetFileName(path)} is damaged or incomplete ({size} bytes, SHA-256 {actual}, " +
-                    $"expected {expectedSha256}); it was not run. Re-download the repository (if it was cloned with Git LFS, " +
-                    "run 'git lfs pull') or install Python 3.13 yourself.";
-            return false;
-        }
-
-        private static ChildResult RunMacPkgInstallerWithAdminPrompt(SetupContext ctx, string pkgPath)
-        {
-            string tempPkgPath = Path.Combine(Path.GetTempPath(), $"bo4unity_python_{Guid.NewGuid():N}.pkg");
-            string tempScriptPath = Path.Combine(Path.GetTempPath(), $"bo4unity_install_{Guid.NewGuid():N}.applescript");
-            try
-            {
-                // Copy the payload to a neutral temp location to avoid Desktop/Documents access restrictions,
-                // and verify the copy that actually runs.
-                File.Copy(pkgPath, tempPkgPath, true);
-                if (!VerifyInstaller(tempPkgPath, MacPythonPkgSha256, out string copyError))
-                    return new ChildResult { FailedToStart = true, StartError = copyError };
-
-                string escapedTempPkgPath = tempPkgPath.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                string applescript =
-                    $"do shell script \"cd / && /usr/sbin/installer -pkg \\\"{escapedTempPkgPath}\\\" -target /\" with administrator privileges";
-                File.WriteAllText(tempScriptPath, applescript);
-                return RunChild(ctx, "/usr/bin/osascript", QuoteArgument(tempScriptPath), BundledInstallTimeout, new ChildOptions(), "/");
-            }
-            catch (Exception ex)
-            {
-                return new ChildResult { FailedToStart = true, StartError = ex.Message };
-            }
-            finally
-            {
-                TryDelete(tempScriptPath);
-                TryDelete(tempPkgPath);
-            }
         }
 
         // ── Child processes ────────────────────────────────────────────────────────────────────

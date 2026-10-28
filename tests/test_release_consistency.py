@@ -1,5 +1,5 @@
 """Files the release carries in several places agree: the version (the release workflow bumps them together) and
-the license copies in the separately installed parts."""
+the license and notice copies in the separately installed parts."""
 
 import json
 from pathlib import Path
@@ -33,9 +33,15 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(plugin["IsBetaVersion"], "-" in version)
 
     def test_license_copies_match(self):
-        for copy in ("Backend/LICENSE", "Python/LICENSE", "Unreal/Plugins/BayesianOptimization/LICENSE"):
+        for copy in ("Backend/LICENSE", "Python/LICENSE", "Unreal/Plugins/BayesianOptimization/LICENSE",
+                     "Unity/Assets/iBO/Documentation/LICENSE.txt"):
             with self.subTest(copy=copy):
                 self.assertEqual(read(copy), read("LICENSE"))
+
+    def test_third_party_notice_copies_match(self):
+        for copy in ("Unreal/THIRD-PARTY-NOTICES.txt", "Unity/Assets/iBO/Documentation/Third-Party Notices.txt"):
+            with self.subTest(copy=copy):
+                self.assertEqual(read(copy), read("THIRD-PARTY-NOTICES.txt"))
 
 
 if __name__ == "__main__":

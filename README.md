@@ -145,7 +145,6 @@ pseudonymous participant IDs.
 | `tests/` | Python tests of the backend and the release tools |
 | `docs/` | Manual, migration guide, architecture, validation, backend guides, [roadmap](docs/ibo/ROADMAP.md) |
 | `images/` | Figures of the README and the manual |
-| `release/` | The 1.0.0 package of Bayesian Optimization for Unity (historical) |
 | `.github/workflows/` | CI checks and the release workflow |
 
 ## Contributing
@@ -177,7 +176,7 @@ python -m unittest discover Python/tests
 - [Unreal guide](Unreal/README.md), [Python guide](Python/README.md)
 - [Migration guide](docs/migration-to-ibo.md) from Bayesian Optimization for Unity 1.x
 - [iBO protocol](protocol/README.md) for new integrations
-- [Architecture](docs/architecture.md), [validation record](docs/validation.md), [render pipelines](docs/render-pipeline-support.md)
+- [Architecture](docs/architecture.md), [validation record](docs/validation.md), [render pipelines](Unity/Assets/iBO/Documentation/render-pipeline-support.md)
 - Backend guides: [Dynamic BO](docs/dbo-backend.md), [MetaTAF](docs/meta-taf-student-guide.md)
 - [Roadmap](docs/ibo/ROADMAP.md), [changelog](CHANGELOG.md)
 

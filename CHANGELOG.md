@@ -26,8 +26,9 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 - Release tooling: `tools/build_packages.py` packs only files Git tracks (no local logs or IDE files); `tools/sync_backends.py` creates and checks the Unity `.meta` files of the backend copy and leaves the image-embedding cache out; the release workflow also sets the Unreal plugin's beta flag, and `tests/test_release_consistency.py` checks that the version files and license copies agree.
 
 ### Removed
-- **The bundled Python installers and the install scripts** (`Installation/Windows`, `MacOs`, `Linux`; this supersedes the install-script notes of 1.9.0): install Python 3.13 yourself; Unity still installs the Python packages on the first Play.
+- **The bundled Python installers and the install scripts** (`Installation/Windows`, `MacOs`, `Linux`; this supersedes the install-script notes of 1.9.0): install Python 3.13 yourself; Unity still installs the Python packages on the first Play. The code that ran them is gone too (the installer step of `PythonStarter` and `BoInstallationBuildPostprocessor`); without a Python 3.13, setup stops with instructions.
 - TextMesh Pro essentials from the repository (Unity imports them on demand).
+- Unused files: the 1.0.0 package in `release/`, the demo video and three unused images, two unused QuestionnaireToolkit textures and two unused sample materials; duplicate copies of the release exporter and of the validation, render-pipeline and publication documents (each now exists once).
 
 ## [1.9.1] - 2026-10-22
 

@@ -35,7 +35,6 @@ sysinfo.txt
 *.apk
 *.aab
 *.unitypackage
-!release/*.unitypackage
 ReleaseArtifacts/
 
 # Study output (the backend console log, output.txt, lives in persistentDataPath/BOData/BayesianOptimization since 1.8;
