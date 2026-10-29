@@ -1,4 +1,5 @@
-"""Generate images/ibo-overview-{light,dark}.svg for the README (icons in icons/: Simple Icons, CC0).
+"""Generate images/ibo-overview-{light,dark}.svg and the front-end logos images/front-end-*.svg for the README
+(icons in icons/: Simple Icons, CC0).
 
 Usage: python tools/readme_figures/make_overview.py
 """
@@ -31,7 +32,7 @@ def width(s, size):  # rough text width for layout
     return sum(0.62 if c.isupper() else 0.53 if c.isalnum() else 0.33 for c in s) * size
 
 def render(t):
-    W, H = 1000, 500
+    W, H = 1000, 450
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" '
          f'aria-label="iBO overview: Unity, Unreal Engine, Python and other clients talk to the iBO backend over the iBO protocol">']
     o.append(f'<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
@@ -63,18 +64,24 @@ def render(t):
         cy = y + ch / 2
         o.append(f'<line x1="352" y1="{cy}" x2="388" y2="{cy}" stroke="{t["accent"]}" stroke-width="2" '
                  f'marker-start="url(#arr)" marker-end="url(#arr)"/>')
-    # protocol band
+    # protocol band: the messages of a study in order, each arrow pointing from sender to receiver
     bh = 4 * ch + 3 * gap
     o.append(f'<rect x="390" y="{top}" width="220" height="{bh}" rx="12" fill="{t["band"]}" stroke="{t["bandstroke"]}"/>')
-    msgs = [("→", "init", "the study: parameters,", "objectives, settings"),
-            ("←", "parameters", "the next design", "to show"),
-            ("→", "objectives", "ratings, behavior,", "telemetry"),
-            ("←", "progress, finished", "hypervolume or best", "value; study done")]
-    for i, (a, kind, d1, d2) in enumerate(msgs):
-        y = top + 26 + i * 86
-        o.append(text(408, y, f"{a} {kind}", 15, t["accent"], 700))
-        o.append(text(426, y + 21, d1, 13, t["text"]))
-        o.append(text(426, y + 38, d2, 13, t["text"]))
+    o.append(text(402, top + 24, "front end", 12, t["muted"], 600))
+    o.append(text(598, top + 24, "backend", 12, t["muted"], 600, "end"))
+    lx, ly, lh = 398, top + 110, 152  # the repeated part: one design shown, one response back
+    o.append(f'<rect x="{lx}" y="{ly}" width="204" height="{lh}" rx="8" fill="none" stroke="{t["bandstroke"]}" '
+             f'stroke-width="1.2" stroke-dasharray="5 4"/>')
+    o.append(text(500, ly + 18, "repeated for every design", 12, t["muted"], 600, "middle"))
+    msgs = [(top + 62, True, "init", "parameters, objectives, settings"),
+            (ly + 50, False, "parameters", "the next design to show"),
+            (ly + 112, True, "objectives", "ratings, behavior, telemetry"),
+            (top + 320, False, "progress, finished", "hypervolume or best value")]
+    for y, to_backend, kind, detail in msgs:
+        x1, x2 = (404, 596) if to_backend else (596, 404)
+        o.append(text(500, y - 8, kind, 15, t["accent"], 700, "middle"))
+        o.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="{t["accent"]}" stroke-width="2" marker-end="url(#arr)"/>')
+        o.append(text(500, y + 19, detail, 12.5, t["text"], 400, "middle"))
     # connector band -> backend
     o.append(f'<line x1="612" y1="{top + bh/2}" x2="648" y2="{top + bh/2}" stroke="{t["accent"]}" stroke-width="2" '
              f'marker-start="url(#arr)" marker-end="url(#arr)"/>')
@@ -102,14 +109,22 @@ def render(t):
     o.append(text(x0 + 18, top + 270, "RESULTS", 11.5, t["muted"], 600))
     for i, line in enumerate(["CSV logs per participant and condition", "Pareto front and hypervolume", "warm start from earlier runs"]):
         o.append(text(x0 + 18, top + 292 + i * 20, "• " + line, 13, t["text"]))
-    # human-in-the-loop strip
-    y = top + bh + 22
-    o.append(f'<rect x="20" y="{y}" width="960" height="40" rx="20" fill="{t["card"]}" stroke="{t["stroke"]}"/>')
-    o.append(text(500, y + 25, "Human in the loop:  design  →  a person experiences it  →  ratings or behavior  →  better next design",
-                  14, t["text"], 500, "middle"))
     o.append("</svg>")
     return "\n".join(o) + "\n"
+
+def tile(name, color, label):
+    """Front-end logo for the README table: a white mark on a brand-colored tile, readable in light and dark mode."""
+    mark = (icon(name, 5, 5, 18, "#FFFFFF") if name else
+            text(14, 19, "{ }", 12, "#FFFFFF", 700, "middle", "ui-monospace, Menlo, Consolas, monospace"))
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" role="img" '
+            f'aria-label="{label}"><rect width="28" height="28" rx="6" fill="{color}"/>{mark}</svg>\n')
+
 
 for name, theme in THEMES.items():
     (OUT / f"ibo-overview-{name}.svg").write_text(render(theme), encoding="utf-8")
     print("wrote", OUT / f"ibo-overview-{name}.svg")
+# tile colors as in the README badges
+for file, ic, color, label in [("unity", "unity", "#000000", "Unity"), ("unreal", "unrealengine", "#0E1128", "Unreal Engine"),
+                               ("python", "python", "#3776AB", "Python"), ("protocol", None, "#6E7781", "iBO protocol")]:
+    (OUT / f"front-end-{file}.svg").write_text(tile(ic, color, label), encoding="utf-8")
+print("wrote", OUT / "front-end-{unity,unreal,python,protocol}.svg")

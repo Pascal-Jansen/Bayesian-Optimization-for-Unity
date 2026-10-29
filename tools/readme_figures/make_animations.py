@@ -479,41 +479,41 @@ def roles(theme):
 
     # "phase" names each step of the story; the README explains it, the figure only shows it.
     base = dict(phase="Three roles: the designer sets up a study, the participant tries the designs, iBO picks them.", setup=0)
-    frames.add(draw(base), hold=16)
+    frames.add(draw(base), hold=30)
     for i in range(1, 5):
         frames.add(draw(dict(base, setup=i, active={"designer"},
-                             phase="The designer decides what may change and what counts as good.")), hold=5)
+                             phase="The designer decides what may change and what counts as good.")), hold=10)
     setup = dict(setup=4, phase="The designer starts the study in the interactive system ...")
-    travel(dict(setup, arrow="setup", active={"designer", "system"}), 6)
+    travel(dict(setup, arrow="setup", active={"designer", "system"}), 10)
     travel(dict(setup, arrow="to_ibo", to_ibo_label="study setup", active={"system", "ibo"},
-                phase="... which hands the study to iBO."), 6)
+                phase="... which hands the study to iBO."), 10)
     learned = 0
     for k in range(n):
         detail = k == 0 or k == best
         st = dict(setup=4, learned=learned)
         travel(dict(st, arrow="next", active={"ibo", "system"}, design=k - 1 if k else None,
-                    phase=f"iBO proposes design {k + 1}; the system shows it."), 5 if detail else 2)
+                    phase=f"iBO proposes design {k + 1}; the system shows it."), 8 if detail else 4)
         frames.add(draw(dict(st, design=k, active={"system"}, phase=f"iBO proposes design {k + 1}; the system shows it.")),
-                   hold=9 if detail else 3)
+                   hold=16 if detail else 6)
         if detail:
             travel(dict(st, design=k, arrow="show", active={"system", "participant"},
-                        phase="The participant just uses the design; iBO stays in the background."), 5)
+                        phase="The participant just uses the design; iBO stays in the background."), 8)
         frames.add(draw(dict(st, design=k, response=k, active={"participant"},
-                             phase="The participant rates the design; the system also measures the task time.")), hold=12 if detail else 3)
+                             phase="The participant rates the design; the system also measures the task time.")), hold=25 if detail else 7)
         if detail:
             travel(dict(st, design=k, response=k, arrow="respond", active={"participant", "system"},
-                        phase="The participant rates the design; the system also measures the task time."), 4)
+                        phase="The participant rates the design; the system also measures the task time."), 7)
             travel(dict(st, design=k, response=k, arrow="to_ibo", active={"system", "ibo"},
-                        phase="iBO learns from the response and picks the next design on its own."), 4)
+                        phase="iBO learns from the response and picks the next design on its own."), 7)
         learned = k + 1
         frames.add(draw(dict(st, learned=learned, newest=True, design=k, response=k if detail else None, active={"ibo"},
                              phase="iBO learns from the response and picks the next design on its own." if detail else "... and the loop repeats.")),
-                   hold=6 if detail else 1)
+                   hold=14 if detail else 4)
     final = dict(setup=4, learned=n, design=best, final=True)
     travel(dict(final, arrow="result", active={"ibo", "designer"},
-                phase="At the end the designer gets the best designs and the logs of every response."), 10)
+                phase="At the end the designer gets the best designs and the logs of every response."), 14)
     frames.add(draw(dict(final, active={"designer"},
-                         phase="At the end the designer gets the best designs and the logs of every response.")), hold=45)
+                         phase="At the end the designer gets the best designs and the logs of every response.")), hold=60)
     frames.gif()
 
 if __name__ == "__main__":

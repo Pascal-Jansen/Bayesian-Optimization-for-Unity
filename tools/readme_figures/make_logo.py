@@ -10,7 +10,7 @@ from pathlib import Path
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "images"
 BLUE, VIOLET, ORANGE = "#2f81f7", "#a371f7", "#fb8f44"
-THEMES = {"light": dict(text="#1f2328", muted="#59636e"), "dark": dict(text="#e6edf3", muted="#9198a1")}
+THEMES = {"light": dict(text="#000000", muted="#59636e"), "dark": dict(text="#ffffff", muted="#9198a1")}
 
 
 def defs(prefix):

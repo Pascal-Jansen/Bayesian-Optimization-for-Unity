@@ -99,10 +99,10 @@ haptics controller. Every front end gets the same methods and the same CSV logs.
 
 | Front end | What you use | Start here |
 |---|---|---|
-| **Unity** | C# package: copy `Assets/iBO` and `Assets/StreamingAssets/BOData` into your project and set it up in the Inspector; samples; optional QuestionnaireToolkit add-on with questionnaire studies and a Fitts's law study | [Unity guide](Unity/README.md), [manual](docs/unity-manual.md) |
-| **Unreal Engine** | C++ plugin with a Blueprint component and an analytic example actor; the rest of `Unreal/` (launcher, backend copy) stays in a writable folder | [Unreal guide](Unreal/README.md) |
-| **Python programs**: scripts, PsychoPy, lab hardware | `interactive_bo`: client and server launcher | [Python guide](Python/README.md) |
-| **Your own tool**: Godot, C++, Java, Node.js, MATLAB, R, ... | Start the server (`ibo serve`) and speak the iBO protocol in any language with TCP sockets and JSON; a JSON schema is included | [Protocol](protocol/README.md) |
+| <img src="images/front-end-unity.svg" width="20" height="20" align="center" alt="">&nbsp;**Unity** | C# package: copy `Assets/iBO` and `Assets/StreamingAssets/BOData` into your project and set it up in the Inspector; samples; optional QuestionnaireToolkit add-on with questionnaire studies and a Fitts's law study | [Unity guide](Unity/README.md), [manual](docs/unity-manual.md) |
+| <img src="images/front-end-unreal.svg" width="20" height="20" align="center" alt="">&nbsp;**Unreal Engine** | C++ plugin with a Blueprint component and an analytic example actor; the rest of `Unreal/` (launcher, backend copy) stays in a writable folder | [Unreal guide](Unreal/README.md) |
+| <img src="images/front-end-python.svg" width="20" height="20" align="center" alt="">&nbsp;**Python programs**: scripts, PsychoPy, lab hardware | `interactive_bo`: client and server launcher | [Python guide](Python/README.md) |
+| <img src="images/front-end-protocol.svg" width="20" height="20" align="center" alt="">&nbsp;**Your own tool**: Godot, C++, Java, Node.js, MATLAB, R, ... | Start the server (`ibo serve`) and speak the iBO protocol in any language with TCP sockets and JSON; a JSON schema is included | [Protocol](protocol/README.md) |
 
 This is a complete study on the wire, recorded from iBO (`→` to iBO, `←` from iBO; each message is one line, the
 first is wrapped here, numbers are shortened):
@@ -134,13 +134,85 @@ from this repository (the package is not on PyPI).
 
 ## Features
 
-- Single- and multi-objective Bayesian optimization on [BoTorch](https://botorch.org), or on
-  [botorch-rust](https://github.com/M-Colley/botorch-rust), a faster Rust implementation installed with the requirements.
-- Methods for special studies: cost-aware ([CABOP](https://dl.acm.org/doi/full/10.1145/3772318.3791024)), drifting
-  preferences ([DBO](https://doi.org/10.1109/LRA.2026.3665072)), transfer from earlier participants (MetaTAF) and
-  several users, devices or environments (contextual LCE-M); see [Choosing an optimizer](#choosing-an-optimizer).
-- Explicit feedback (questionnaires; QuestionnaireToolkit add-on for Unity) and implicit feedback (telemetry, behavior).
-- CSV logging per participant and condition, warm starts, reproducible seeds, concurrent studies on separate ports.
+### What you can optimize
+
+- **Design parameters.** Any number of numeric parameters, each a range in its own units: a size in pixels, a color
+  value from 0 to 1, a delay in seconds. iBO proposes values within these ranges and normalizes them internally.
+  Parameters are continuous; for whole numbers or a fixed set of options, round or map the value in your front end.
+  CABOP can also snap proposals to a list of values that already exist, such as prototypes that were already built.
+- **Objectives.** One objective, or several that compete, such as usability against task time. Each objective has its
+  own range and direction (larger or smaller is better). With one objective, iBO searches for the best design; with
+  several, it searches for the **Pareto front**, the designs where no objective can improve without another getting
+  worse.
+- **Budget.** A study starts with **sampling** (spread-out designs for an overview; by default 2 × (number of
+  parameters + 1)) and continues with **optimization** iterations, in which the model picks each design. You set both
+  counts. A warm start from earlier data skips the sampling.
+
+### Feedback from people
+
+- **Ratings** (explicit feedback): questionnaire answers, such as a usability score or a single preference rating.
+  Several items that belong to one objective are averaged. In Unity, the optional QuestionnaireToolkit add-on shows
+  questionnaires inside the scene, on desktop and in VR, and can mark a participant's previous answer as a subtle hint.
+- **Behavior** (implicit feedback): anything your system measures, such as task time, errors, accuracy or sensor and
+  physiological signals. It is sent as an objective value, like a rating.
+- Ratings and behavior can be combined in one study, for example a rating to maximize and a task time to minimize.
+
+### Optimization methods
+
+All methods run in the same backend and are selected with one setting. [Choosing an optimizer](#choosing-an-optimizer)
+shows which one fits your study.
+
+- **BO** (one objective): a Gaussian process model with BoTorch's qLogNoisyExpectedImprovement acquisition function.
+- **MOBO** (two or more objectives): a Gaussian process per objective with qLogNoisyExpectedHypervolumeImprovement;
+  [moocore](https://github.com/multi-objective/moocore) computes the Pareto front and its hypervolume.
+- **CABOP** (cost-aware): for studies where changes cost different amounts, such as swapping a physical part versus
+  moving a slider. It weighs the expected improvement of a design against the cost of the change, groups parameters by
+  cost, can stop at a cost budget and snaps to existing prototypes. Works with one objective or several combined into
+  one score. Based on [Langerak et al., CHI 2026](https://dl.acm.org/doi/full/10.1145/3772318.3791024).
+- **DBO** (drifting preferences): for one objective that changes during a session because participants learn, adapt
+  or tire. It estimates from the data how quickly older responses lose their relevance; one switch turns it into
+  standard BO for a control condition. Based on
+  [Kim and Sergi, IEEE RA-L 2026](https://doi.org/10.1109/LRA.2026.3665072).
+- **MetaTAF** (transfer from earlier participants): for two or more objectives. Each new participant starts from
+  models of earlier participants' runs, so good designs appear after fewer evaluations. Needs the `openbo` package.
+- **Contextual optimization** (LCE-M, with BO and MOBO): one model for several users, devices or environments that
+  differ but share structure. Each context is described by an embedding that iBO learns from the data, by your own
+  feature vector, or by an image that an open_clip vision transformer (ViT-G/14 by default) turns into features.
+- **Model library:** BO, MOBO and MetaTAF run on BoTorch or on [botorch-rust](https://github.com/M-Colley/botorch-rust),
+  BoTorch's API implemented in Rust and several times faster per suggestion. DBO always uses botorch-rust.
+
+### Running a study
+
+- **Participants and conditions:** every study carries a user, condition and group ID. Each participant and condition
+  gets its own log folder, and the IDs are on every logged row, for within- and between-subject designs.
+- **Warm start:** continue from earlier data, such as a pilot study or a previous session, given as CSV files of
+  parameters and objectives.
+- **Stopping early:** a front end can stop a study at any time, and every completed evaluation stays logged. Unity can
+  also stop when a participant gives a perfect rating.
+- **Several studies at once:** each study runs in its own backend process on its own port.
+- **Reproducibility:** a fixed random seed; BO and MOBO runs also record the model library, package versions and seed.
+- **Unity study flow:** the next design starts with a button, from your own code or automatically after a delay. An
+  optional final round shows the participant the best design found, without sending it to the optimizer. Works with
+  the built-in render pipeline, URP and HDRP.
+- **Python setup in Unity:** the first Play installs the pinned packages into a private environment (Python 3.13 must
+  be installed). Labs without internet access can provide the packages as local wheel files.
+
+### Data
+
+- Semicolon-separated CSV files per participant and condition: every design with its parameter values, objective
+  values, phase (sampling or optimization) and whether it is on the Pareto front or the best so far; the hypervolume or
+  best value after each evaluation; computation times; and the backend's console output. DBO and MetaTAF add their own
+  diagnostics. See [Data and logs](#data-and-logs).
+- All data stays on the local machine.
+
+### Limits
+
+- **One design at a time:** every proposal waits for the person's response; there are no parallel batches.
+- **No constraints between parameters:** each parameter has its own range, and combinations cannot be excluded.
+- **Made for studies with people:** tens of evaluations per participant, each costing a person's time. For thousands of
+  cheap, automatic evaluations, a general optimization library is the better fit.
+- **Python backend:** it needs Python 3.13 with the pinned packages (several GB with PyTorch) and runs next to your
+  application; the engine integrations do not bundle it.
 
 ## Status
 
@@ -275,14 +347,14 @@ with people in the loop.
 
 | Year | Venue | Paper |
 |---|---|---|
-| 2026 | **IMWUT** | [**BlurDriving**: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://dl.acm.org/doi/10.1145/3831646) |
-| | **IMWUT** | [Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/10.1145/3831988) |
-| | **AutomotiveUI '26** | [Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://dl.acm.org/doi/10.1145/3828157.3828785) |
-| | **UIST '26** | [**MoTUI**: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf) |
-| | **CHI '26** | [**ProVoice**: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877) |
-| 2025 | **CHI '25** | [**OptiCarVis**: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514)<br>🏆 Best Paper Honorable Mention (top 5%) |
-| | **CHI '25** | [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187) |
-| | **CHI '25** | [**Fly Away**: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288) |
+| 2026 | **[IMWUT](https://dl.acm.org/journal/imwut)** | [**BlurDriving**: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://dl.acm.org/doi/10.1145/3831646) |
+| | **[IMWUT](https://dl.acm.org/journal/imwut)** | [Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/10.1145/3831988) |
+| | **[AutomotiveUI](https://www.auto-ui.org/26/)** | [Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://dl.acm.org/doi/10.1145/3828157.3828785) |
+| | **[UIST](https://uist.acm.org/2026/)** | [**MoTUI**: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf) |
+| | **[CHI](https://chi2026.acm.org/)** | [**ProVoice**: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877) |
+| 2025 | **[CHI](https://chi2025.acm.org/)** | [**OptiCarVis**: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514)<br>🏆 Best Paper Honorable Mention (top 5%) |
+| | **[CHI](https://chi2025.acm.org/)** | [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187) |
+| | **[CHI](https://chi2025.acm.org/)** | [**Fly Away**: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288) |
 
 IMWUT: *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10; all papers are
 published by ACM. Used iBO in your research? Open an issue or a pull request to add your paper.
