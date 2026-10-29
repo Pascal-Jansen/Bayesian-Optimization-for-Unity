@@ -9,6 +9,8 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-29
+
 ### Renamed
 - **Bayesian Optimization for Unity is now Interactive Bayesian Optimization (iBO)**: one Python optimizer for several integrations. See the [migration guide](docs/migration-to-ibo.md); scenes and prefabs keep working (unchanged GUIDs), scripts need `using BayesianOptimization...` instead of `using BOforUnity...`.
 
