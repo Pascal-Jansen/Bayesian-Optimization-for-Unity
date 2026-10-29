@@ -1,5 +1,7 @@
 """Run the iBO studies that the README animations show and store them in studies.json.
 
+The "roles" study is the button study of `ibo demo` (size and contrast; usability rating and task time).
+
 Usage: python tools/readme_figures/run_studies.py --python <interpreter with Backend/requirements.txt>
 DBO needs botorch-rust in that interpreter. make_animations.py draws the GIFs from studies.json.
 """
@@ -49,9 +51,14 @@ def main():
         print(name, len(history), "evaluations", flush=True)
         return history
 
-    results = {"bo1d": run("bo1d", Study(
+    from interactive_bo.demo import STUDY_OBJECTIVES, STUDY_PARAMETERS, simulated_participant
+    import random
+    results = {"roles": run("roles", Study(STUDY_PARAMETERS, STUDY_OBJECTIVES, sampling_iterations=4, optimization_iterations=6,
+                                           user_id="demo", condition_id="simulated"),
+                            simulated_participant(random.Random(3)))}
+    results["bo1d"] = run("bo1d", Study(
         parameters=[Parameter("x", 0.0, 1.0)], objectives=[Objective("rating", 0.0, 10.0)],
-        sampling_iterations=3, optimization_iterations=9), lambda d: {"rating": preference(d["x"])})}
+        sampling_iterations=3, optimization_iterations=9), lambda d: {"rating": preference(d["x"])})
     results["mobo"] = run("mobo", Study(
         parameters=[Parameter("x1", 0.0, 1.0), Parameter("x2", 0.0, 1.0)],
         objectives=[Objective("comfort", 0.0, 10.0), Objective("speed", 0.0, 10.0)],

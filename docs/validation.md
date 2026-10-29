@@ -2,7 +2,7 @@
 
 Validation was performed on Windows on 28 October 2026. The Unity Editor version was `6000.6.7f1`. Unreal Engine was `5.8`. URP and HDRP used version `17.6.0`. Python used the pinned requirements and OpenBO commit `43279884eb9ef6e97b998fc26b49942869c9eda1`.
 
-This record covers [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines) in the state iBO adopted, before the iBO renaming, the QuestionnaireToolkit add-on and the merge of version 1.9. The checks of iBO 2.0.0-rc.1 so far are listed at the end.
+This record covers [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines) in the state iBO adopted, before the iBO renaming, the QuestionnaireToolkit add-on and the merge of version 1.9. The checks of iBO version 2.0.0 so far are listed at the end.
 
 | Check | Result |
 | --- | --- |
@@ -29,7 +29,7 @@ Run `python -m pytest -q` with `BO_RUN_INTEGRATION_TESTS=1` for the full Python 
 
 macOS, Linux, and standalone player deployment require validation before support is advertised. Asset Store acceptance also requires the actions in [publication-status.md](../Unity/Assets/iBO/Documentation/publication-status.md).
 
-## iBO 2.0.0-rc.1
+## iBO version 2.0.0
 
 Checked on macOS (Apple Silicon) on 28 October 2026 with Python 3.13; Unity 6000.6 and Unreal Engine were not available.
 
@@ -38,6 +38,7 @@ Checked on macOS (Apple Silicon) on 28 October 2026 with Python 3.13; Unity 6000
 | Backend, packaging and standalone-bridge tests (`python -m pytest -q tests docs/standalone-bridge`, without torch) | 467 passed, 69 skipped |
 | Unreal portable tests | Passed |
 | Python client tests, including real BoTorch (single and multi-objective) and DBO studies through `ibo_server.py` | Passed; the client tests also pass on Python 3.9 |
+| Pinned stack (torch 2.15.0, BoTorch 0.18.1, botorch-rust 0.3.0, gpytorch 1.15.2, pandas 3.1.0, NumPy 2.5.4, SciPy 1.18.1) | Backend tests with real optimizers: 535 passed; Python client studies (BoTorch, MOBO, DBO) and the Unreal launcher's BO and MOBO runs passed |
 | Backend source synchronization | Both generated copies match 40 canonical files, Unity `.meta` files complete |
 | Core and add-on compiled in a fresh Unity 6000.4.7f1 project | No compiler errors or warnings |
 | Unity EditMode tests | 48 passed |

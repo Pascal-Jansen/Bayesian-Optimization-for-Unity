@@ -1,13 +1,13 @@
 {
   "FileVersion": 3,
   "Version": 2,
-  "VersionName": "2.0.0-rc.1",
+  "VersionName": "2.0.0",
   "FriendlyName": "Interactive Bayesian Optimization (iBO)",
   "Description": "Interactive Bayesian Optimization (iBO): human-in-the-loop Bayesian optimization using a local Python backend.",
   "Category": "Tools",
   "CreatedBy": "Pascal Jansen, Mark Colley",
   "CanContainContent": false,
-  "IsBetaVersion": true,
+  "IsBetaVersion": false,
   "Installed": false,
   "Modules": [
     {

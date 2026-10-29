@@ -1,4 +1,9 @@
-<h1 align="center">iBO · Interactive Bayesian Optimization</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/ibo-logo-dark.svg">
+    <img alt="iBO · Interactive Bayesian Optimization" src="images/ibo-logo-light.svg" width="460">
+  </picture>
+</h1>
 
 <p align="center">
   <b>Human-in-the-loop Bayesian optimization for any interactive system.</b><br>
@@ -17,9 +22,14 @@
 </p>
 
 <p align="center">
-  <b><a href="https://pascal-jansen.github.io">Pascal Jansen</a></b>, Ulm University ·
-  <b><a href="https://m-colley.github.io">Mark Colley</a></b>, University College London
+  <b><a href="https://pascal-jansen.github.io">Pascal Jansen</a></b><sup>1</sup>&nbsp;&nbsp;·&nbsp;&nbsp;<b><a href="https://m-colley.github.io">Mark Colley</a></b><sup>2</sup><br>
+  <sup>1</sup>Ulm University&nbsp;&nbsp;·&nbsp;&nbsp;<sup>2</sup>University College London
 </p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-roles-dark.gif">
+  <img alt="Animation of the roles in an iBO study: the designer sets up what may change and what counts as good; the interactive system shows each design; the participant uses it and rates it while their behavior is measured; iBO learns from every response and proposes the next design; at the end the designer gets the best designs and the logs." src="images/ibo-roles-light.gif">
+</picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-overview-dark.svg">
@@ -34,41 +44,52 @@ next design to show after every evaluation. It finds good designs, or the **Pare
 several objectives, with far fewer trials than manual tuning, A/B tests or grid search.
 
 iBO is not tied to an engine: the optimizer runs as its own process, and whatever shows the designs talks to it over
-a small open protocol. iBO continues *Bayesian Optimization for Unity*; if you used it, see the
-[migration guide](docs/migration-to-ibo.md).
+a small open protocol. iBO continues *Bayesian Optimization for Unity*: its last version, 1.9.1, stays
+available in the [`BOforUnity`](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/tree/BOforUnity)
+branch, and the [migration guide](docs/migration-to-ibo.md) explains the move to iBO.
 
 ## How iBO works
 
-A study is a loop. iBO proposes a design, a person experiences it, their rating or behavior is measured, and iBO
-updates its estimate of what works before it proposes the next design. The first few designs are spread out to get an
+Every study runs the loop shown at the top: iBO proposes a design, the participant uses it, and their rating and
+behavior go back to iBO, which updates its estimate of what works. The first few designs are spread out to get an
 overview (**sampling**); after that, iBO picks designs where its estimate is high or still uncertain
-(**optimization**). The animations below are recorded iBO runs with simulated participants.
+(**optimization**). All animations in this README are recorded iBO runs with simulated participants.
+
+### One parameter, one rating
+
+One design parameter, for example text size, and one rating. The dashed curve is what the participant would rate,
+which iBO never sees; the blue line is iBO's estimate and the band its uncertainty. After three spread-out designs,
+iBO found the peak with its 6th rating, then checked two regions it was still unsure about and spent the last four
+ratings on the peak.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-one-parameter-dark.gif">
   <img alt="Animation of an iBO run with one design parameter: after three spread-out designs, iBO's estimate and its uncertainty guide each next design, and the ratings settle at the best design within 12 ratings." src="images/ibo-one-parameter-light.gif">
 </picture>
 
-**One parameter, one rating** (BoTorch backend, 3 sampling and 9 optimization iterations). iBO found the peak with
-its 6th rating, then checked two regions it was still unsure about and spent the last four ratings on the peak.
+### Two goals that conflict
+
+Comfort and speed pull in different directions, so there is no single best design but a set of best trade-offs, the
+Pareto front: designs that no other design beats on both goals. The dotted line links each design iBO shows (left) to
+its result (right). With multi-objective BO, 12 of the 20 designs are best trade-offs, all close to the best possible
+ones; which compromise to use is then your decision.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-trade-offs-dark.gif">
   <img alt="Animation of a multi-objective iBO run: designs on the left are linked to their comfort and speed results on the right; the best trade-offs line up along the hidden best possible curve." src="images/ibo-trade-offs-light.gif">
 </picture>
 
-**Two goals that conflict** (multi-objective BO, 6 sampling and 14 optimization iterations). 12 of the 20 designs
-are best trade-offs, and all of them lie close to the best possible ones; which compromise to use is then your
-decision.
+### Preferences that change during a session
+
+People adapt, learn and tire, so the best design moves during a session (the gold band). Both optimizers start with
+the same spread-out designs. Dynamic BO (DBO) trusts recent ratings more and follows the moving best design: 15 of its
+20 model-guided designs land in the gold band (within 0.1 of the best design at that moment), against 7 for standard
+BO, which weighs old and new ratings alike.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/ibo-drift-dark.gif">
   <img alt="Animation comparing Dynamic BO and standard BO while the best design moves during a session: DBO's designs follow the moving best design, standard BO's designs scatter." src="images/ibo-drift-light.gif">
 </picture>
-
-**Preferences that change during a session** (DBO and the BoTorch backend with the same settings). People adapt,
-learn and tire, so the best design moves. 15 of DBO's 20 model-guided designs land in the gold band (within 0.1 of
-the best design at that moment), against 7 for standard BO.
 
 ## One optimizer, any front end
 
@@ -107,7 +128,7 @@ first is wrapped here, numbers are shortened):
 report progress and can be ignored. The optimizer behind every front end is in `Backend/`
 ([Backend](Backend/README.md), [architecture](docs/architecture.md)).
 
-From 2.0 on, every [release](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases) carries
+Every iBO [release](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases) carries
 `iBO-Unity-<version>.zip` and `iBO-Unreal-<version>.zip`. The QuestionnaireToolkit add-on and the Python package come
 from this repository (the package is not on PyPI).
 
@@ -123,12 +144,13 @@ from this repository (the package is not on PyPI).
 
 ## Status
 
-Release candidate 2.0.0-rc.1.
+Version 2.0.0. There was no iBO 1.x: the numbering continues that of Bayesian Optimization for Unity (1.0 to
+1.9.1).
 
 - Windows: [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines),
   where iBO's layout and Unreal plugin come from, was validated before the renaming with Unity 6000.6 and Unreal
   Engine 5.8.
-- macOS: for 2.0, the backend and Python client tests pass, real BO, MOBO and DBO studies ran through the Python
+- macOS: the backend and Python client tests pass, real BO, MOBO and DBO studies ran through the Python
   client, and the Unity package compiles and passes its EditMode tests in Unity 6000.4; no Play-mode run with Python yet.
 - Linux: the backend and Python client tests run in CI.
 - Not yet validated: the renamed package in Unity 6000.6 and Unreal Engine 5.8, the engine integrations on macOS and
@@ -140,7 +162,7 @@ Run the commands from the repository root. The optimizer needs **Python 3.13** w
 [`Backend/requirements.txt`](Backend/requirements.txt) (several GB with PyTorch).
 
 **Unity**: install Python 3.13; Unity installs the packages into a private environment on the first Play. Open
-`Unity/` in Unity 6000.6 (the project's version; the 2.0 package has so far been tested in 6000.4), open
+`Unity/` in Unity 6000.6 (the project's version; the iBO package has so far been tested in 6000.4), open
 `Assets/iBO/Samples/Analytic/BO-analytic-demo.unity` and press Play. The questionnaire examples (`BO-example-scene`,
 the Fitts's law study and others) are in `Assets/iBO-QuestionnaireToolkit/Samples/Scenes`.
 
@@ -167,8 +189,6 @@ the backend with `.venv/bin/python Unreal/launch_backend.py --backend botorch --
 
 **Your own tool**: start a server with `.venv/bin/ibo serve`, connect to `127.0.0.1:56001` and exchange the messages
 shown [above](#one-optimizer-any-front-end) ([protocol](protocol/README.md)).
-
-![The Unity integration in action: a questionnaire study in Unity](images/BOforUnity.gif)
 
 ## Choosing an optimizer
 
@@ -253,16 +273,16 @@ python -m unittest discover Python/tests
 **8 papers** at CHI, UIST, IMWUT and AutomotiveUI used iBO (as Bayesian Optimization for Unity) to optimize interfaces
 with people in the loop.
 
-| Year | Venue | Paper | What was optimized |
-|---|---|---|---|
-| 2026 | **IMWUT** | [**BlurDriving**: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://dl.acm.org/doi/10.1145/3831646) | Personalized blur for drivers in VR |
-| | **IMWUT** | [Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/10.1145/3831988) | Automated-vehicle communication across cultures |
-| | **AutomotiveUI '26** | [Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://dl.acm.org/doi/10.1145/3828157.3828785) | Automated-vehicle visualizations over several sessions |
-| | **UIST '26** | [**MoTUI**: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf) | Tactile in-vehicle interfaces |
-| | **CHI '26** | [**ProVoice**: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877) | Proactive voice assistants |
-| 2025 | **CHI '25** | [**OptiCarVis**: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514)<br>🏆 Best Paper Honorable Mention (top 5%) | Automated-vehicle visualizations |
-| | **CHI '25** | [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187) | External communication of automated vehicles |
-| | **CHI '25** | [**Fly Away**: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288) | Interfaces for urban air mobility |
+| Year | Venue | Paper |
+|---|---|---|
+| 2026 | **IMWUT** | [**BlurDriving**: Investigating How Personalized Blur Techniques Impact Drivers' Performance in Virtual Reality](https://dl.acm.org/doi/10.1145/3831646) |
+| | **IMWUT** | [Comparing Preferences Between Japan and Germany for External Communication of Automated Vehicles Using Bayesian Optimization](https://dl.acm.org/doi/10.1145/3831988) |
+| | **AutomotiveUI '26** | [Multi-Session User Experience Assessments of Computationally Optimized Automated Vehicle Functionality Visualizations](https://dl.acm.org/doi/10.1145/3828157.3828785) |
+| | **UIST '26** | [**MoTUI**: Personalization of In-Vehicle Tactile Interfaces for People With Vision Impairments and the Blind](https://pascal-jansen.github.io/data/publications/MoTUI.pdf) |
+| | **CHI '26** | [**ProVoice**: Designing proactive functionality for in-vehicle conversational assistants using multi-objective Bayesian optimization to enhance driver experience](https://dl.acm.org/doi/full/10.1145/3772318.3791877) |
+| 2025 | **CHI '25** | [**OptiCarVis**: Improving automated vehicle functionality visualizations using Bayesian optimization to enhance user experience](https://dl.acm.org/doi/full/10.1145/3706598.3713514)<br>🏆 Best Paper Honorable Mention (top 5%) |
+| | **CHI '25** | [Improving external communication of automated vehicles using Bayesian optimization](https://dl.acm.org/doi/full/10.1145/3706598.3714187) |
+| | **CHI '25** | [**Fly Away**: Evaluating the impact of motion fidelity on optimized user interface design via Bayesian optimization in automated urban air mobility simulations](https://dl.acm.org/doi/full/10.1145/3706598.3713288) |
 
 IMWUT: *Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies*, Vol. 10; all papers are
 published by ACM. Used iBO in your research? Open an issue or a pull request to add your paper.

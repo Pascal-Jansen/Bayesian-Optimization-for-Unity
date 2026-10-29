@@ -18,13 +18,14 @@ Release notes for versions before 1.5.0 are available on the [GitHub releases pa
 - **iBO protocol v1** (`protocol/`): the Unity <-> Python protocol written down, with a JSON schema.
 - **Python client** (`Python/`, package `interactive-bo`) and `Backend/ibo_server.py`, which picks the backend from the init message: studies from any Python program, `python -m interactive_bo demo|serve`.
 - Configurable port per study (`BO_PORT`), URP and HDRP material tools, analytic Unity example (`Tools > iBO > Create Analytic Demo`).
-- README animations of recorded iBO runs (one parameter, two conflicting goals, a drifting optimum with DBO and standard BO) and a table of the publications; `tools/readme_figures` regenerates them and the overview figure.
+- iBO logo (`images/ibo-logo-*.svg`, `images/ibo-icon.svg`). README animations of recorded iBO runs (the roles of designer, participant and iBO in a study; one parameter, two conflicting goals, a drifting optimum with DBO and standard BO) and a table of the publications; `tools/readme_figures` regenerates them, the logo and the overview figure.
 
 ### Changed
 - The Unity project moved to `Unity/`, the package folder to `Assets/iBO`, the namespaces to `BayesianOptimization.*`.
 - **QuestionnaireToolkit is an optional add-on** (`Assets/iBO-QuestionnaireToolkit`) with the questionnaire examples (`BO-example-scene`, color demo, click game, Fitts's law study). The runtime uses `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` from `BOforUnity.Shared`.
 - Questionnaires created from the add-on's `QTQuestionnaireManager` prefab, and its three showcase scenes, save their results to `Assets/StreamingAssets/BOData/LogData/` like the BO samples (was `Assets/QuestionnaireToolkit/Results/`).
-- Release tooling: `tools/build_packages.py` packs only files Git tracks (no local logs or IDE files); `tools/sync_backends.py` creates and checks the Unity `.meta` files of the backend copy and leaves the image-embedding cache out; the release workflow also sets the Unreal plugin's beta flag, and `tests/test_release_consistency.py` checks that the version files and license copies agree.
+- Release tooling: `tools/build_packages.py` packs only files Git tracks (no local logs or IDE files); `tools/sync_backends.py` creates and checks the Unity `.meta` files of the backend copy and leaves the image-embedding cache out; the release workflow also sets the Unreal plugin's pre-release flag, and `tests/test_release_consistency.py` checks that the version files and license copies agree.
+- Dependencies: `torch` 2.15.0 (was 2.14.1) and `pandas` 3.1.0 (was 3.0.6); every other pin is already the newest release. The first Play after updating installs them. As with any library change, suggestions for the same Seed can differ from earlier versions, so keep one version within a study. CI uses `actions/setup-python` v7 and also tests Python 3.15.
 
 ### Removed
 - **The bundled Python installers and the install scripts** (`Installation/Windows`, `MacOs`, `Linux`; this supersedes the install-script notes of 1.9.0): install Python 3.13 yourself; Unity still installs the Python packages on the first Play. The code that ran them is gone too (the installer step of `PythonStarter` and `BoInstallationBuildPostprocessor`); without a Python 3.13, setup stops with instructions.

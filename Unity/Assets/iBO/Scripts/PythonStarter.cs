@@ -56,7 +56,7 @@ namespace BayesianOptimization.Scripts
         private const int BundledPythonMinor = 13;
 
         // PyPI's Linux torch wheels are CUDA builds that pull several GB of nvidia-* packages; GP-sized workloads run
-        // on the CPU. With PyTorch's CPU index added, pip picks 2.14.1+cpu, which satisfies the "torch==2.14.1" pin.
+        // on the CPU. With PyTorch's CPU index added, pip picks 2.15.0+cpu, which satisfies the "torch==2.15.0" pin.
         private const string LinuxCpuTorchIndexUrl = "https://download.pytorch.org/whl/cpu";
 
         private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(30);
@@ -1481,7 +1481,7 @@ namespace BayesianOptimization.Scripts
             return Regex.Replace(name ?? string.Empty, "[-_.]+", "-").ToLowerInvariant();
         }
 
-        // PEP 440: "==2.14.1" matches "2.14.1+cpu" (local label) and "2.14.1.0" (zero padding).
+        // PEP 440: "==2.15.0" matches "2.15.0+cpu" (local label) and "2.15.0.0" (zero padding).
         private static bool PinnedVersionMatches(string pinned, string installed)
         {
             string a = StripLocalVersion(pinned);

@@ -3,12 +3,12 @@
 # Usage:
 #   1. Collect notes under "## [Unreleased]" in CHANGELOG.md while developing.
 #   2. GitHub -> Actions -> "Release" -> "Run workflow" (from main), enter the
-#      version (e.g. "2.0.0", "v2.0.0" or the pre-release "2.0.0-rc.2") and run.
+#      version (e.g. "2.0.0", "v2.0.0" or the pre-release "2.1.0-rc.1") and run.
 #
 # The workflow then:
 #   - validates the version, runs the Python test suites and checks the engine copies of Backend/,
 #   - moves the [Unreleased] changelog section under the new version heading,
-#   - bumps the version in VERSION, CITATION.cff, Python/, the Unreal plugin (and its beta flag) and Unity
+#   - bumps the version in VERSION, CITATION.cff, Python/, the Unreal plugin (and its pre-release flag) and Unity
 #     bundleVersion (tests/test_release_consistency.py checks that they agree),
 #   - commits ("Release vX.Y.Z") and pushes these version files to main,
 #   - builds the Unity and Unreal ZIP packages with tools/build_packages.py and creates a GitHub
@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. 2.0.0, v2.0.0 or 2.0.0-rc.2)"
+        description: "Release version (e.g. 2.0.0, v2.0.0 or 2.1.0-rc.1)"
         required: true
         type: string
       draft:
@@ -92,7 +92,7 @@ jobs:
           echo "Releasing $tag from $GITHUB_SHA"
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -131,7 +131,7 @@ jobs:
           fi
 
           echo "$VERSION" > VERSION
-          # Python packages write pre-releases as 2.0.0rc1 (PEP 440).
+          # Python packages write pre-releases as 2.1.0rc1 (PEP 440).
           pyversion="$(echo "$VERSION" | sed -E 's/-alpha\./a/; s/-beta\./b/; s/-rc\./rc/')"
           sed -i "s/^version = .*/version = \"$pyversion\"/" Python/pyproject.toml
           sed -i "s/^__version__ = .*/__version__ = \"$pyversion\"/" Python/interactive_bo/__init__.py

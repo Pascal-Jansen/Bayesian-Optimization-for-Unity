@@ -1,12 +1,15 @@
 # Migrating from Bayesian Optimization for Unity 1.x to iBO
 
-Interactive Bayesian Optimization (iBO) 2.0 continues Bayesian Optimization for Unity 1.9 with a shared Python backend
-and further integrations. Scenes and prefabs keep working: every script keeps its GUID, so Unity still finds the
-components. Code that references the package needs the changes below.
+Interactive Bayesian Optimization (iBO) is the successor of Bayesian Optimization for Unity 1.9, with a shared Python
+backend and further integrations. There was no iBO 1.x: iBO's version numbers continue those of Bayesian Optimization
+for Unity, so its first version is 2.0.0. Scenes and prefabs keep working: every script keeps its GUID, so Unity still finds the
+components. Code that references the package needs the changes below. Version 1.9.1 stays available in the
+[`BOforUnity`](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/tree/BOforUnity) branch and as the
+release v1.9.1.
 
 ## What changed
 
-| Area | 1.x | iBO 2.0 |
+| Area | Bayesian Optimization for Unity 1.x | iBO |
 |---|---|---|
 | Repository | Unity project at the repository root | Unity project in `Unity/`; open that folder in Unity Hub |
 | Package folder | `Assets/BOforUnity` | `Assets/iBO` (same GUIDs) |
@@ -18,9 +21,9 @@ components. Code that references the package needs the changes below.
 | Python | Installers for Windows and macOS bundled | Not bundled: install Python 3.13; the packages are still installed automatically on the first Play |
 | Optimizer source | `Assets/StreamingAssets/BOData/BayesianOptimization` | `Backend/`; `tools/sync_backends.py` writes the copies in `Unity/` and `Unreal/` |
 | Menus | | `Tools > iBO > ...` (analytic demo, rendering tools) |
-| Unity version | 6000.x | Tested with 6000.6; the package also compiles and passes its EditMode tests on 6000.4 |
+| Unity version | 6000.x | The project uses 6000.6; the iBO package has so far been compiled and tested on 6000.4 |
 
-New in 2.0: a configurable port per study (`BO_PORT`, for concurrent studies), URP and HDRP material tools, the Unreal
+New in iBO: a configurable port per study (`BO_PORT`, for concurrent studies), URP and HDRP material tools, the Unreal
 plugin, the Python client and `Backend/ibo_server.py`.
 
 ## Projects that imported the package

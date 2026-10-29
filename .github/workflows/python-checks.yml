@@ -30,6 +30,7 @@ jobs:
           - "3.12"
           - "3.13"
           - "3.14"
+          - "3.15"
 
     env:
       PYTHONDONTWRITEBYTECODE: "1"
@@ -41,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -122,7 +123,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -150,7 +151,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -163,7 +164,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Take the torch pin from requirements.txt, so a pin bump can never fall back to PyPI's
-          # multi-GB CUDA build. The CPU index serves e.g. 2.14.1+cpu, which satisfies ==2.14.1.
+          # multi-GB CUDA build. The CPU index serves e.g. 2.15.0+cpu, which satisfies ==2.15.0.
           # (Inline comments stripped; "|| true" so a missing pin reaches the error below under bash -e -o pipefail.)
           torch_pin="$(sed -E 's/#.*$//' "$REQUIREMENTS" | grep -E '^[[:space:]]*torch[[:space:]]*==' | head -n 1 | tr -d '[:space:]' || true)"
           if [[ -z "$torch_pin" ]]; then

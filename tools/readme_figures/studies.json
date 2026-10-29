@@ -1,4 +1,116 @@
 {
+ "roles": [
+  {
+   "iteration": 1,
+   "parameters": {
+    "size": 0.32323723137378696,
+    "contrast": 0.22452697157859802
+   },
+   "objectives": {
+    "usability": 1.7554649934161348,
+    "time": 8.984262434898234
+   }
+  },
+  {
+   "iteration": 2,
+   "parameters": {
+    "size": 1.3186736345291137,
+    "contrast": 0.723084001801908
+   },
+   "objectives": {
+    "usability": 79.17443256588791,
+    "time": 3.094319836804405
+   }
+  },
+  {
+   "iteration": 3,
+   "parameters": {
+    "size": 1.9301592687144875,
+    "contrast": 0.4930733321234584
+   },
+   "objectives": {
+    "usability": 4.587711156992276,
+    "time": 2.242927704964688
+   }
+  },
+  {
+   "iteration": 4,
+   "parameters": {
+    "size": 1.0476614134386182,
+    "contrast": 0.993600657209754
+   },
+   "objectives": {
+    "usability": 82.88102621623722,
+    "time": 3.4177745498076035
+   }
+  },
+  {
+   "iteration": 5,
+   "parameters": {
+    "size": 1.4020658974559426,
+    "contrast": 1.0
+   },
+   "objectives": {
+    "usability": 56.37783020403888,
+    "time": 2.9289827924085894
+   }
+  },
+  {
+   "iteration": 6,
+   "parameters": {
+    "size": 1.136436656391107,
+    "contrast": 0.5678911488684987
+   },
+   "objectives": {
+    "usability": 72.89825479604973,
+    "time": 3.19368998730314
+   }
+  },
+  {
+   "iteration": 7,
+   "parameters": {
+    "size": 1.1304610768905576,
+    "contrast": 0.8234614389803812
+   },
+   "objectives": {
+    "usability": 100.0,
+    "time": 3.0167421501356735
+   }
+  },
+  {
+   "iteration": 8,
+   "parameters": {
+    "size": 0.9361434593842719,
+    "contrast": 0.7961502381425373
+   },
+   "objectives": {
+    "usability": 90.32973614479411,
+    "time": 3.582905855605329
+   }
+  },
+  {
+   "iteration": 9,
+   "parameters": {
+    "size": 1.868101304233617,
+    "contrast": 0.0
+   },
+   "objectives": {
+    "usability": 0.0,
+    "time": 2.036554363476295
+   }
+  },
+  {
+   "iteration": 10,
+   "parameters": {
+    "size": 1.6338872478740118,
+    "contrast": 0.7636286374756726
+   },
+   "objectives": {
+    "usability": 33.44924219954126,
+    "time": 2.4823627711862097
+   }
+  }
+ ],
  "bo1d": [
   {
    "iteration": 1,

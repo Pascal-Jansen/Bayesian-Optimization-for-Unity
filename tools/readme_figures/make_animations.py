@@ -70,10 +70,9 @@ def style(ax, c):
     ax.set_axisbelow(True)
 
 
-def header(fig, c, title, phase, counter):
-    fig.text(0.03, 0.94, title, color=c["fg"], fontsize=15, fontweight="bold", va="top")
-    fig.text(0.03, 0.865, phase, color=c["muted"], fontsize=11.5, va="top")
-    fig.text(0.97, 0.94, counter, color=c["muted"], fontsize=11.5, va="top", ha="right")
+def counter(fig, c, text):
+    """The only text above a plot: the README gives each animation its title and explanation."""
+    fig.text(0.97, 0.965, text, color=c["muted"], fontsize=11, va="top", ha="right")
 
 
 def legend(fig, c, handles, ncol):
@@ -113,8 +112,8 @@ def one_parameter(theme):
     frames = Frames("ibo-one-parameter", theme)
 
     def draw(k, model, next_index, final=False, just_rated=False):
-        fig = plt.figure(figsize=(9, 4.6), dpi=100)
-        ax = fig.add_axes([0.07, 0.23, 0.9, 0.55])
+        fig = plt.figure(figsize=(9, 3.9), dpi=100)
+        ax = fig.add_axes([0.07, 0.26, 0.9, 0.64])
         style(ax, c)
         ax.plot(grid, truth, color=c["truth"], linestyle=(0, (4, 3)), linewidth=1.6)
         if model is not None:
@@ -145,13 +144,7 @@ def one_parameter(theme):
         ax.set_yticks([5, 10])
         ax.set_xlabel("Design parameter (for example, text size)", labelpad=-4)
         ax.set_ylabel("Rating")
-        if final:
-            phase = "Done: iBO settled on the best design; its last ratings cluster at the peak."
-        elif next_index is not None and next_index < sampling:
-            phase = "Phase 1, sampling: a few spread-out designs give a first overview."
-        else:
-            phase = "Phase 2, optimization: iBO tries designs where its estimate is high or still uncertain."
-        header(fig, c, "How iBO finds the best design", phase, f"{k} of {n} ratings")
+        counter(fig, c, f"{k} of {n} ratings")
         legend(fig, c, [
             Line2D([], [], color=c["truth"], linestyle=(0, (4, 3)), linewidth=1.6, label="participant's preference (hidden from iBO)"),
             Line2D([], [], color=c["accent"], linewidth=2.2, label="iBO's estimate"),
@@ -191,9 +184,9 @@ def trade_offs(theme):
     frames = Frames("ibo-trade-offs", theme)
 
     def draw(k, final=False):
-        fig = plt.figure(figsize=(9.6, 4.8), dpi=100)
-        left = fig.add_axes([0.07, 0.17, 0.37, 0.58])
-        right = fig.add_axes([0.59, 0.17, 0.37, 0.58])
+        fig = plt.figure(figsize=(9.6, 4.1), dpi=100)
+        left = fig.add_axes([0.07, 0.2, 0.37, 0.64])
+        right = fig.add_axes([0.59, 0.2, 0.37, 0.64])
         for ax in (left, right):
             style(ax, c)
         left.plot(true_set[:, 0], true_set[:, 1], color=c["truth"], linestyle=(0, (4, 3)), linewidth=1.6)
@@ -226,13 +219,7 @@ def trade_offs(theme):
         right.set_title("Its result", color=c["fg"], fontsize=11.5, loc="left")
         right.text(1.0, 1.02, f"best trade-offs found: {best}", transform=right.transAxes, ha="right", va="bottom",
                    color=c["accent"], fontsize=11, fontweight="bold")
-        if final:
-            phase = "Done: the blue designs are the best trade-offs; improving one goal further would cost the other."
-        elif k < sampling:
-            phase = "Phase 1, sampling: spread-out designs. The dotted line links each design to its result."
-        else:
-            phase = "Phase 2, optimization: iBO looks for designs that push the best trade-offs further out."
-        header(fig, c, "Two goals that conflict: finding the best trade-offs", phase, f"{k} of {n} ratings")
+        counter(fig, c, f"{k} of {n} ratings")
         legend(fig, c, [
             Line2D([], [], color=c["truth"], linestyle=(0, (4, 3)), linewidth=1.6, label="best possible (hidden from iBO)"),
             Line2D([], [], marker="o", linestyle="none", color=c["accent"], label="best trade-offs so far: no other design beats them on both goals"),
@@ -258,8 +245,8 @@ def drift(theme):
     frames = Frames("ibo-drift", theme)
 
     def draw(k, final=False):
-        fig = plt.figure(figsize=(9.6, 4.8), dpi=100)
-        axes = [fig.add_axes([0.07, 0.2, 0.4, 0.55]), fig.add_axes([0.56, 0.2, 0.4, 0.55])]
+        fig = plt.figure(figsize=(9.6, 4.1), dpi=100)
+        axes = [fig.add_axes([0.07, 0.24, 0.4, 0.6]), fig.add_axes([0.56, 0.24, 0.4, 0.6])]
         for ax, name, title in zip(axes, ("dbo", "botorch"), ("Dynamic BO (DBO)", "Standard BO")):
             style(ax, c)
             ax.grid(False)
@@ -281,13 +268,7 @@ def drift(theme):
             ax.set_xlabel("Rating number (time in the session)")
             ax.set_title(title, color=c["fg"], fontsize=11.5, loc="left", fontweight="bold")
         axes[0].set_ylabel("Design parameter", labelpad=-10)
-        if final:
-            phase = "DBO trusts recent ratings more and follows the moving best design; standard BO weighs old and new alike."
-        elif k <= sampling:
-            phase = "The participant adapts, so the best design moves (gold band). Both start with the same spread-out designs."
-        else:
-            phase = "The participant adapts, so the best design moves (gold band). Which optimizer keeps up?"
-        header(fig, c, "When the best design drifts during a session", phase, f"{k} of {n} ratings")
+        counter(fig, c, f"{k} of {n} ratings")
         legend(fig, c, [Patch(color=c["heat"], label="rated highly at that moment"),
                         Line2D([], [], marker="o", color=c["accent"], linewidth=1, label="design shown at each rating")], ncol=2)
         return fig
@@ -299,8 +280,245 @@ def drift(theme):
     frames.gif()
 
 
+# Who does what: designer, participant, interactive system, iBO ------------------------------------------------------
+ROLE_COLORS = {
+    "light": dict(card="#f6f8fa", stroke="#d0d7de", screen="#ffffff", designer="#8250df", participant="#bc4c00",
+                  control="#d0d7de", blank="#e6eaef"),
+    "dark": dict(card="#161b22", stroke="#3d444d", screen="#0d1117", designer="#a371f7", participant="#f0883e",
+                 control="#3d444d", blank="#262c36"),
+}
+
+
+def mix(a, b, t):
+    a, b = np.array(to_rgb(a)), np.array(to_rgb(b))
+    return tuple(a + (b - a) * min(1.0, max(0.0, t)))
+
+
+def roles(theme):
+    from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, Wedge
+    from matplotlib.path import Path as MplPath
+    c = dict(THEMES[theme], **ROLE_COLORS[theme])
+    runs = STUDIES["roles"]
+    n = len(runs)
+    pareto = pareto_mask([(r["objectives"]["usability"], -r["objectives"]["time"]) for r in runs])
+    best = int(np.argmax([r["objectives"]["usability"] for r in runs]))
+    frames = Frames("ibo-roles", theme)
+    arrows = {
+        "setup": [(23.2, 33.0), (29.8, 33.0)],
+        "to_ibo": [(61.2, 36.0), (68.8, 36.0)],
+        "next": [(68.8, 26.0), (61.2, 26.0)],
+        "show": [(38.0, 17.8), (38.0, 12.2)],
+        "respond": [(44.0, 12.2), (44.0, 17.8)],
+        "result": [(81.5, 44.2), (81.5, 45.9), (12.5, 45.9), (12.5, 42.2)],
+    }
+
+    def card(ax, x, y, w, h, active, color):
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=1.2", facecolor=c["card"],
+                                    edgecolor=color if active else c["stroke"], linewidth=2.2 if active else 1))
+
+    def person(ax, x, y, color, size=1.0):
+        ax.add_patch(Circle((x, y + 1.25 * size), 0.85 * size, color=color))
+        ax.add_patch(Wedge((x, y - 1.1 * size), 1.65 * size, 0, 180, color=color))
+
+    def ibo_icon(ax, x, y, size):
+        box = FancyBboxPatch((x, y), size, size, boxstyle=f"round,pad=0,rounding_size={size * 0.23}", facecolor="none",
+                             edgecolor="none")
+        ax.add_patch(box)
+        u, v = np.meshgrid(np.linspace(0, 1, 64), np.linspace(1, 0, 64))
+        g = np.clip((u + (1 - v)) / 2, 0, 1)[..., None]
+        image = (1 - g) * np.array(to_rgb("#2f81f7")) + g * np.array(to_rgb("#a371f7"))
+        ax.imshow(image, extent=(x, x + size, y, y + size), zorder=3, clip_path=box, clip_on=True)
+        k = size / 140
+        cx, cy, r = x + 70 * k, y + size - 72 * k, 46 * k
+        t = np.radians(np.linspace(-118, -118 - 292, 80))
+        ax.plot(cx + r * np.cos(t), cy + r * np.sin(t), color="white", linewidth=1.6, zorder=4, solid_capstyle="round")
+        end, tan = np.radians(-410), np.array([np.sin(np.radians(-410)), -np.cos(np.radians(-410))])
+        p1 = np.array([cx + r * np.cos(end), cy + r * np.sin(end)])
+        nrm = np.array([np.cos(end), np.sin(end)])
+        ax.add_patch(plt.Polygon([p1 + 13 * k * tan, p1 + 9 * k * nrm, p1 - 9 * k * nrm], color="white", zorder=4))
+        xs = np.linspace(38, 102, 60)
+        ax.plot(x + xs * k, y + size - (93 - 41 * np.exp(-((xs - 70) / 15) ** 2)) * k, color="white", linewidth=1.4, zorder=4)
+        ax.add_patch(Circle((cx, y + size - 51 * k), 9.5 * k, facecolor="#fb8f44", edgecolor="white", linewidth=0.8, zorder=5))
+
+    def arrow(ax, key, active, label, label_xy, ha="center", progress=None):
+        pts = arrows[key]
+        color = c["accent"] if active else c["muted"]
+        alpha = 1 if active else 0.55
+        if len(pts) == 2:
+            ax.add_patch(FancyArrowPatch(pts[0], pts[1], arrowstyle="-|>", mutation_scale=14, color=color, alpha=alpha,
+                                         linewidth=2 if active else 1.3, shrinkA=0, shrinkB=0))
+        else:
+            ax.plot([p[0] for p in pts[:-1]], [p[1] for p in pts[:-1]], color=color, alpha=alpha,
+                    linewidth=2 if active else 1.3, solid_joinstyle="round")
+            ax.add_patch(FancyArrowPatch(pts[-2], pts[-1], arrowstyle="-|>", mutation_scale=14, color=color, alpha=alpha,
+                                         linewidth=2 if active else 1.3, shrinkA=0, shrinkB=0))
+        if label:
+            ax.text(*label_xy, label, color=color, fontsize=9.5, ha=ha, va="center", fontweight="bold" if active else "normal",
+                    bbox=dict(facecolor=c["bg"], edgecolor="none", pad=1.5) if key == "result" else None)
+        if active and progress is not None:
+            seg = [np.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])]
+            d = progress * sum(seg)
+            for (a, b), length in zip(zip(pts, pts[1:]), seg):
+                if d <= length:
+                    f = d / length
+                    ax.add_patch(Circle((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f), 0.75, color=c["accent"], zorder=6))
+                    break
+                d -= length
+
+    def draw(state):
+        fig = plt.figure(figsize=(9.6, 5.4), dpi=100)
+        fig.patch.set_facecolor(c["bg"])
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.set_xlim(0, 96); ax.set_ylim(0, 54); ax.axis("off")
+        active = state.get("active", set())
+        ax.text(2.5, 51.4, "Who does what in an iBO study", color=c["fg"], fontsize=16, fontweight="bold", va="center")
+        if state.get("final"):
+            ax.text(93.5, 51.4, f"after {n} designs", color=c["muted"], fontsize=11.5, va="center", ha="right")
+        elif state.get("design") is not None:
+            ax.text(93.5, 51.4, f"design {state['design'] + 1} of {n}", color=c["muted"], fontsize=11.5, va="center", ha="right")
+
+        # designer
+        card(ax, 2, 22, 21, 20, "designer" in active, c["designer"])
+        person(ax, 5.6, 37.6, c["designer"], 1.15)
+        ax.text(8.6, 39.4, "Designer", color=c["fg"], fontsize=12.5, fontweight="bold", va="center")
+        ax.text(8.6, 37.2, "researcher, developer", color=c["muted"], fontsize=9.5, va="center")
+        lines = [("may change:", True), ("button size, contrast", False), ("counts as good:", True),
+                 ("usability rating ↑, task time ↓", False)]
+        for i, (line, bold) in enumerate(lines[:state.get("setup", 4)]):
+            ax.text(3.6, 33.2 - i * 2.35 - (0.5 if i >= 2 else 0), line, color=c["muted"] if bold else c["fg"],
+                    fontsize=9.5, fontweight="bold" if bold else "normal", va="center")
+        if state.get("final"):
+            ax.text(3.6, 23.9, "gets: best designs, logs", color=c["accent"], fontsize=9.5, fontweight="bold", va="center")
+
+        # interactive system
+        card(ax, 30, 18, 31, 26, "system" in active, c["accent"])
+        for i in range(3):
+            ax.add_patch(Circle((31.8 + i * 1.3, 42.4), 0.42, color=c["control"]))
+        ax.text(35.8, 42.4, "Interactive system", color=c["fg"], fontsize=10.5, fontweight="bold", va="center")
+        ax.add_patch(FancyBboxPatch((31.2, 22.4), 28.6, 18.4, boxstyle="round,pad=0,rounding_size=0.6", facecolor=c["screen"],
+                                    edgecolor=c["stroke"], linewidth=0.8))
+        ax.text(45.5, 39.3, "built with Unity, Unreal, Python or your own tool", color=c["muted"], fontsize=8.5, ha="center",
+                va="center", style="italic")
+        k = state.get("design")
+        if k is None:
+            ax.text(45.5, 31.6, "waiting for the first design", color=c["muted"], fontsize=9.5, ha="center", va="center", style="italic")
+        else:
+            size, contrast = runs[k]["parameters"]["size"], runs[k]["parameters"]["contrast"]
+            w = 2.6 + 6.6 * size
+            h = 1.2 + 2.0 * size
+            face = mix(c["blank"], c["accent"], contrast)
+            label = mix(c["muted"], "#ffffff", contrast)
+            ax.add_patch(FancyBboxPatch((45.5 - w / 2, 31.8 - h / 2), w, h, boxstyle=f"round,pad=0,rounding_size={min(h / 2, 1.2)}",
+                                        facecolor=face, edgecolor="none"))
+            ax.text(45.5, 31.8, "Start", color=label, fontsize=6 + 5.5 * size, ha="center", va="center", fontweight="bold")
+            ax.text(45.5, 24.2, f"size {size:.2f}  ·  contrast {contrast:.2f}", color=c["muted"], fontsize=9, ha="center", va="center")
+            if state.get("final") and k == best:
+                ax.text(45.5, 27.4, f"highest-rated design (design {k + 1})", color=c["best"], fontsize=9.5, fontweight="bold", ha="center", va="center")
+
+        # participant and the response
+        person(ax, 41, 7.2, c["participant"], 1.3)
+        ax.text(35.8, 8.2, "Participant", color=c["fg"], fontsize=12.5, fontweight="bold", va="center", ha="right")
+        ax.text(35.8, 5.9, "uses each design", color=c["muted"], fontsize=9.5, va="center", ha="right")
+        if "participant" in active:
+            ax.add_patch(Circle((41, 7.2), 3.4, facecolor="none", edgecolor=c["participant"], linewidth=1.6))
+        if state.get("response") is not None:
+            r = runs[state["response"]]["objectives"]
+            card(ax, 47.5, 2.6, 16.5, 9.2, True, c["participant"])
+            stars = int(round(r["usability"] / 20))
+            ax.text(48.8, 9.4, "rating", color=c["muted"], fontsize=9, va="center")
+            for i in range(5):
+                ax.plot(53.6 + i * 1.65, 9.4, marker="*", markersize=10, color=c["participant"] if i < stars else c["control"],
+                        markeredgewidth=0)
+            ax.text(61.9, 9.4, f"{r['usability']:.0f}", color=c["fg"], fontsize=9.5, fontweight="bold", va="center", ha="center")
+            ax.text(48.8, 6.6, "task time", color=c["muted"], fontsize=9, va="center")
+            ax.text(55.4, 6.6, f"{r['time']:.1f} s", color=c["fg"], fontsize=10.5, fontweight="bold", va="center")
+            ax.text(48.8, 4.1, "measured, not asked", color=c["muted"], fontsize=8, va="center", style="italic")
+
+        # iBO
+        card(ax, 69, 18, 25, 26, "ibo" in active, c["accent"])
+        ibo_icon(ax, 70.6, 37.8, 4.8)
+        ax.text(76.6, 41.4, "iBO", color=c["fg"], fontsize=13, fontweight="bold", va="center")
+        ax.text(76.6, 39.2, "proposes the next design", color=c["muted"], fontsize=9.5, va="center")
+        inset = fig.add_axes([0.76, 0.38, 0.19, 0.25])
+        inset.set_facecolor(c["card"])
+        for side in inset.spines.values():
+            side.set_color(c["stroke"])
+        inset.set_xticks([]); inset.set_yticks([])
+        inset.set_xlim(1.6, 9.6); inset.set_ylim(-8, 108)
+        inset.set_xlabel("task time (lower is better)", color=c["muted"], fontsize=7.5, labelpad=2)
+        inset.set_ylabel("rating (higher is better)", color=c["muted"], fontsize=7.5, labelpad=2)
+        inset.set_title("each dot: one rated design", color=c["muted"], fontsize=8, pad=3, loc="left")
+        m = state.get("learned", 0)
+        if m:
+            seen = pareto_mask([(r["objectives"]["usability"], -r["objectives"]["time"]) for r in runs[:m]])
+            for i, r in enumerate(runs[:m]):
+                o = r["objectives"]
+                inset.scatter([o["time"]], [o["usability"]], s=26 if seen[i] else 18, color=c["accent"] if seen[i] else c["muted"],
+                              zorder=3, edgecolor=c["card"], linewidth=0.6)
+            if state.get("newest"):
+                o = runs[m - 1]["objectives"]
+                inset.scatter([o["time"]], [o["usability"]], s=110, facecolor="none", edgecolor=c["fg"], linewidth=1.1, zorder=4)
+        ax.scatter([72.3], [16.4], s=26, color=c["accent"]); ax.text(73.1, 16.4, "best trade-offs", color=c["muted"], fontsize=8, va="center")
+        ax.scatter([82.6], [16.4], s=18, color=c["muted"]); ax.text(83.4, 16.4, "others", color=c["muted"], fontsize=8, va="center")
+
+        # arrows
+        go = state.get("arrow")
+        arrow(ax, "setup", go == "setup", "starts", (26.5, 34.6))
+        arrow(ax, "to_ibo", go == "to_ibo", state.get("to_ibo_label", "responses"), (65.0, 37.6))
+        arrow(ax, "next", go == "next", "next design", (65.0, 24.4))
+        arrow(ax, "show", go == "show", "shows the design", (37.2, 15.0), ha="right")
+        arrow(ax, "respond", go == "respond", "rating, behavior", (44.8, 15.0), ha="left")
+        arrow(ax, "result", go == "result", "best designs and logs", (46.0, 45.9), progress=state.get("progress"))
+        if go in ("setup", "to_ibo", "next", "show", "respond"):
+            arrow(ax, go, True, None, (0, 0), progress=state.get("progress"))
+        return fig
+
+    def travel(state, steps):
+        for s in range(1, steps + 1):
+            frames.add(draw(dict(state, progress=s / steps)))
+
+    # "phase" names each step of the story; the README explains it, the figure only shows it.
+    base = dict(phase="Three roles: the designer sets up a study, the participant tries the designs, iBO picks them.", setup=0)
+    frames.add(draw(base), hold=16)
+    for i in range(1, 5):
+        frames.add(draw(dict(base, setup=i, active={"designer"},
+                             phase="The designer decides what may change and what counts as good.")), hold=5)
+    setup = dict(setup=4, phase="The designer starts the study in the interactive system ...")
+    travel(dict(setup, arrow="setup", active={"designer", "system"}), 6)
+    travel(dict(setup, arrow="to_ibo", to_ibo_label="study setup", active={"system", "ibo"},
+                phase="... which hands the study to iBO."), 6)
+    learned = 0
+    for k in range(n):
+        detail = k == 0 or k == best
+        st = dict(setup=4, learned=learned)
+        travel(dict(st, arrow="next", active={"ibo", "system"}, design=k - 1 if k else None,
+                    phase=f"iBO proposes design {k + 1}; the system shows it."), 5 if detail else 2)
+        frames.add(draw(dict(st, design=k, active={"system"}, phase=f"iBO proposes design {k + 1}; the system shows it.")),
+                   hold=9 if detail else 3)
+        if detail:
+            travel(dict(st, design=k, arrow="show", active={"system", "participant"},
+                        phase="The participant just uses the design; iBO stays in the background."), 5)
+        frames.add(draw(dict(st, design=k, response=k, active={"participant"},
+                             phase="The participant rates the design; the system also measures the task time.")), hold=12 if detail else 3)
+        if detail:
+            travel(dict(st, design=k, response=k, arrow="respond", active={"participant", "system"},
+                        phase="The participant rates the design; the system also measures the task time."), 4)
+            travel(dict(st, design=k, response=k, arrow="to_ibo", active={"system", "ibo"},
+                        phase="iBO learns from the response and picks the next design on its own."), 4)
+        learned = k + 1
+        frames.add(draw(dict(st, learned=learned, newest=True, design=k, response=k if detail else None, active={"ibo"},
+                             phase="iBO learns from the response and picks the next design on its own." if detail else "... and the loop repeats.")),
+                   hold=6 if detail else 1)
+    final = dict(setup=4, learned=n, design=best, final=True)
+    travel(dict(final, arrow="result", active={"ibo", "designer"},
+                phase="At the end the designer gets the best designs and the logs of every response."), 10)
+    frames.add(draw(dict(final, active={"designer"},
+                         phase="At the end the designer gets the best designs and the logs of every response.")), hold=45)
+    frames.gif()
+
 if __name__ == "__main__":
     for theme in THEMES:
+        roles(theme)
         one_parameter(theme)
         trade_offs(theme)
         drift(theme)
