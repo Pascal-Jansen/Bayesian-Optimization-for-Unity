@@ -18,7 +18,7 @@
   <a href="https://botorch.org"><img alt="BoTorch 0.18" src="https://img.shields.io/badge/BoTorch-0.18-EE4C2C?logo=pytorch&amp;logoColor=white"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
   <a href="https://doi.org/10.5281/zenodo.19786494"><img alt="DOI 10.5281/zenodo.19786494" src="https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg"></a>
-  <a href="https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/actions/workflows/python-checks.yml"><img alt="Python checks" src="https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/actions/workflows/python-checks.yml/badge.svg"></a>
+  <a href="https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/actions/workflows/python-checks.yml"><img alt="Python checks" src="https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/actions/workflows/python-checks.yml/badge.svg"></a>
 </p>
 
 <p align="center">
@@ -45,7 +45,7 @@ several objectives, with far fewer trials than manual tuning, A/B tests or grid 
 
 iBO is not tied to an engine: the optimizer runs as its own process, and whatever shows the designs talks to it over
 a small open protocol. iBO continues *Bayesian Optimization for Unity*: its last version, 1.9.1, stays
-available in the [`BOforUnity`](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/tree/BOforUnity)
+available in the [`BOforUnity`](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/tree/BOforUnity)
 branch, and the [migration guide](docs/migration-to-ibo.md) explains the move to iBO.
 
 ## How iBO works
@@ -128,7 +128,7 @@ first is wrapped here, numbers are shortened):
 report progress and can be ignored. The optimizer behind every front end is in `Backend/`
 ([Backend](Backend/README.md), [architecture](docs/architecture.md)).
 
-Every iBO [release](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases) carries
+Every iBO [release](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/releases) carries
 `iBO-Unity-<version>.zip` and `iBO-Unreal-<version>.zip`. The QuestionnaireToolkit add-on and the Python package come
 from this repository (the package is not on PyPI).
 
@@ -228,7 +228,7 @@ pseudonymous participant IDs.
 
 ## Contributing
 
-Report bugs and ideas in the [issues](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/issues); pull
+Report bugs and ideas in the [issues](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/issues); pull
 requests are welcome. Change the optimizer only in `Backend/`, then regenerate and verify the engine copies and run the
 tests, as CI does. They need Python 3.13 with numpy, pandas, pytest and jsonschema. Tests that run real optimizers
 need the full stack of `Backend/requirements.txt`: the backend tests use it when it is installed, the Python client's
