@@ -5,7 +5,7 @@
 > [migration guide](migration-to-ibo.md). The screenshots show the 1.8 inspector; since then the Python Settings
 > gained **Optimizer TCP Port** and the optimizer settings a **Model Library** field (both described below).
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg)](https://doi.org/10.5281/zenodo.19786494)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16849778.svg)](https://doi.org/10.5281/zenodo.16849778)
 
 **[Pascal Jansen](https://pascal-jansen.github.io)**, Ulm University
 
@@ -1359,8 +1359,8 @@ If you use this software, please cite:
   author    = {Pascal Jansen and Mark Colley},
   title     = {Interactive Bayesian Optimization (iBO), formerly Bayesian Optimization for Unity},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.19786494},
-  url       = {https://doi.org/10.5281/zenodo.19786494}
+  doi       = {10.5281/zenodo.16849778},
+  url       = {https://doi.org/10.5281/zenodo.16849778}
 }
 ```
 

@@ -17,7 +17,7 @@
   <a href="protocol/README.md"><img alt="iBO protocol: JSON over TCP" src="https://img.shields.io/badge/iBO%20protocol-JSON%20over%20TCP-6E7781"></a>
   <a href="https://botorch.org"><img alt="BoTorch 0.18" src="https://img.shields.io/badge/BoTorch-0.18-EE4C2C?logo=pytorch&amp;logoColor=white"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
-  <a href="https://doi.org/10.5281/zenodo.19786494"><img alt="DOI 10.5281/zenodo.19786494" src="https://zenodo.org/badge/DOI/10.5281/zenodo.19786494.svg"></a>
+  <a href="https://doi.org/10.5281/zenodo.16849778"><img alt="DOI 10.5281/zenodo.16849778" src="https://zenodo.org/badge/DOI/10.5281/zenodo.16849778.svg"></a>
   <a href="https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/actions/workflows/python-checks.yml"><img alt="Python checks" src="https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/actions/workflows/python-checks.yml/badge.svg"></a>
 </p>
 
@@ -297,8 +297,8 @@ If you use iBO in research, please cite it:
   title     = {Interactive Bayesian Optimization (iBO), formerly Bayesian Optimization for Unity},
   publisher = {Zenodo},
   year      = {2026},
-  doi       = {10.5281/zenodo.19786494},
-  url       = {https://doi.org/10.5281/zenodo.19786494}
+  doi       = {10.5281/zenodo.16849778},
+  url       = {https://doi.org/10.5281/zenodo.16849778}
 }
 ```
 
