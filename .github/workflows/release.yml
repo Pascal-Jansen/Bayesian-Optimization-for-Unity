@@ -3,15 +3,21 @@
 # Usage:
 #   1. Collect notes under "## [Unreleased]" in CHANGELOG.md while developing.
 #   2. GitHub -> Actions -> "Release" -> "Run workflow" (from main), enter the
-#      version (e.g. "1.5.0" or "v1.5.0") and run.
+#      version (e.g. "2.0.0", "v2.0.0" or the pre-release "2.1.0-rc.1") and run.
 #
 # The workflow then:
-#   - validates the version and runs the Python unit tests,
+#   - validates the version, runs the Python test suites and checks the engine copies of Backend/,
 #   - moves the [Unreleased] changelog section under the new version heading,
-#   - bumps bundleVersion in ProjectSettings/ProjectSettings.asset,
+#   - bumps the version in VERSION, CITATION.cff, Python/, the Unreal plugin (and its pre-release flag) and Unity
+#     bundleVersion (tests/test_release_consistency.py checks that they agree),
 #   - commits ("Release vX.Y.Z") and pushes these version files to main,
-#   - creates a GitHub release using the changelog section as notes
-#     (falls back to auto-generated notes if the section is empty).
+#   - builds the Unity and Unreal ZIP packages with tools/build_packages.py and creates a GitHub
+#     release with them, using the changelog section as notes (auto-generated notes if it is empty);
+#     versions with a suffix (-rc.N, -beta.N, -alpha.N) become pre-releases.
+#
+# The Unity .unitypackage needs a licensed Unity editor, which this workflow does not have: build it
+# locally with `python tools/build_packages.py --version X --output DIR --unity-editor <Unity>` and
+# upload it to the release.
 #
 # By default the release is a DRAFT: review it, then click "Publish release".
 # Publishing creates the git tag and triggers the Zenodo archive/DOI.
@@ -23,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. 1.5.0 or v1.5.0)"
+        description: "Release version (e.g. 2.0.0, v2.0.0 or 2.1.0-rc.1)"
         required: true
         type: string
       draft:
@@ -64,8 +70,8 @@ jobs:
 
           version="${RAW_VERSION#v}"
           version="${version// /}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Version '$RAW_VERSION' is not a semantic version (expected X.Y.Z)."
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "::error::Version '$RAW_VERSION' is not a semantic version (expected X.Y.Z or X.Y.Z-rc.N, -beta.N, -alpha.N)."
             exit 1
           fi
 
@@ -86,7 +92,7 @@ jobs:
           echo "Releasing $tag from $GITHUB_SHA"
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -94,12 +100,17 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy pandas
+          python -m pip install numpy pandas pytest jsonschema
 
-      - name: Run Python unit tests
-        run: python -m unittest discover tests
+      - name: Run Python tests and check the engine copies of Backend/
+        run: |
+          python -m unittest discover tests
+          python -m pytest docs/standalone-bridge -p no:cacheprovider -q
+          python tools/sync_backends.py --check
+          python -m unittest discover -s Unreal/tests
+          python -m unittest discover Python/tests
 
-      - name: Roll changelog and bump bundleVersion
+      - name: Roll changelog and bump the version
         id: versionfiles
         shell: bash
         env:
@@ -119,11 +130,22 @@ jobs:
             echo "::warning::CHANGELOG.md has no [Unreleased] section; skipping changelog roll."
           fi
 
-          if [[ -f ProjectSettings/ProjectSettings.asset ]]; then
-            sed -i "s/^\(  bundleVersion: \).*/\1$VERSION/" ProjectSettings/ProjectSettings.asset
-            grep '^  bundleVersion: ' ProjectSettings/ProjectSettings.asset
+          echo "$VERSION" > VERSION
+          # Python packages write pre-releases as 2.1.0rc1 (PEP 440).
+          pyversion="$(echo "$VERSION" | sed -E 's/-alpha\./a/; s/-beta\./b/; s/-rc\./rc/')"
+          sed -i "s/^version = .*/version = \"$pyversion\"/" Python/pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"$pyversion\"/" Python/interactive_bo/__init__.py
+          sed -i "s/\"VersionName\": \"[^\"]*\"/\"VersionName\": \"$VERSION\"/" Unreal/Plugins/BayesianOptimization/BayesianOptimization.uplugin
+          if [[ "$VERSION" == *-* ]]; then beta=true; else beta=false; fi
+          sed -i "s/\"IsBetaVersion\": [a-z]*/\"IsBetaVersion\": $beta/" Unreal/Plugins/BayesianOptimization/BayesianOptimization.uplugin
+          if [[ -f CITATION.cff ]]; then
+            sed -i "s/^version: .*/version: \"$VERSION\"/" CITATION.cff
+          fi
+          if [[ -f Unity/ProjectSettings/ProjectSettings.asset ]]; then
+            sed -i "s/^\(  bundleVersion: \).*/\1$VERSION/" Unity/ProjectSettings/ProjectSettings.asset
+            grep '^  bundleVersion: ' Unity/ProjectSettings/ProjectSettings.asset
           else
-            echo "::warning::ProjectSettings/ProjectSettings.asset not found; skipping bundleVersion bump."
+            echo "::warning::Unity/ProjectSettings/ProjectSettings.asset not found; skipping bundleVersion bump."
           fi
 
           # Extract this version's changelog section for the release notes.
@@ -151,7 +173,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md ProjectSettings/ProjectSettings.asset 2>/dev/null || true
+          git add CHANGELOG.md VERSION CITATION.cff Python/pyproject.toml Python/interactive_bo/__init__.py Unreal/Plugins/BayesianOptimization/BayesianOptimization.uplugin Unity/ProjectSettings/ProjectSettings.asset 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No version file changes to commit."
           else
@@ -159,16 +181,25 @@ jobs:
             git push origin "HEAD:$GITHUB_REF_NAME"
           fi
 
+      - name: Build engine packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: python tools/build_packages.py --version "$VERSION" --output ReleaseArtifacts
+
       - name: Create GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
           DRAFT: ${{ inputs.draft }}
           NOTES_SOURCE: ${{ steps.versionfiles.outputs.notes_source }}
         run: |
           target="$(git rev-parse HEAD)"
           args=(--target "$target" --title "$TAG")
+          if [[ "$VERSION" == *-* ]]; then
+            args+=(--prerelease)
+          fi
           if [[ "$NOTES_SOURCE" == "changelog" ]]; then
             args+=(--notes-file release_notes.md)
           else
@@ -177,7 +208,7 @@ jobs:
           if [[ "$DRAFT" == "true" ]]; then
             args+=(--draft)
           fi
-          url="$(gh release create "$TAG" "${args[@]}")"
+          url="$(gh release create "$TAG" "${args[@]}" ReleaseArtifacts/*)"
           echo "release_url=$url" >> "$GITHUB_ENV"
 
       - name: Write summary

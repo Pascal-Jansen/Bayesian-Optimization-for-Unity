@@ -1,0 +1,14 @@
+﻿using System;
+
+namespace QuestionnaireToolkit.Scripts.MemberReflection.Reflection
+{
+	/// <summary>
+	/// An exception thrown by the member reflection utilities (adapted from Ludiq's Reflection plugin).
+	/// </summary>
+	public class UnityReflectionException : Exception
+	{
+		public UnityReflectionException() : base() { }
+		public UnityReflectionException(string message) : base(message) { }
+		public UnityReflectionException(string message, Exception innerException) : base(message, innerException) { }
+	}
+}

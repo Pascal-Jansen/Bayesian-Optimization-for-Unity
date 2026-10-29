@@ -7,7 +7,7 @@ break an integration.
 The transport tests (framing, port policy, save-path checks) need no torch. The
 optimiser tests need ``dbo_torch`` and its torch/botorch stack: they use an
 installed ``dbo_torch`` if there is one, otherwise BOforUnity's vendored copy in
-``Assets/StreamingAssets/BOData/BayesianOptimization``, and are skipped when
+``Backend``, and are skipped when
 neither imports.
 """
 
@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 _HERE = Path(__file__).resolve().parent
-_VENDORED = _HERE.parents[1] / "Assets" / "StreamingAssets" / "BOData" / "BayesianOptimization"
+_VENDORED = _HERE.parents[1] / "Backend"
 
 sys.path.insert(0, str(_HERE))
 from unity_bridge import DBOServer, main, resolve_save_path  # noqa: E402 - sibling module, not a package
@@ -49,6 +49,22 @@ def _import_dbo() -> bool:
 
 HAVE_DBO = _import_dbo()
 needs_dbo = pytest.mark.skipif(not HAVE_DBO, reason="dbo_torch (torch/botorch) is not importable")
+_REAL_MODULE_ROOTS = ("torch", "botorch", "botorch_rs", "gpytorch", "linear_operator")
+_REAL_MODULES = {
+    name: module for name, module in sys.modules.items()
+    if HAVE_DBO and name.split(".")[0] in _REAL_MODULE_ROOTS and module is not None
+}
+
+
+@pytest.fixture(autouse=True)
+def restore_optimizer_modules():
+    """Keep the bridge independent of backend tests that install numerical stubs."""
+    sys.modules.update(_REAL_MODULES)
+    if HAVE_DBO:
+        for name in list(sys.modules):
+            if name.split(".")[0] in _REAL_MODULE_ROOTS and name not in _REAL_MODULES:
+                if getattr(sys.modules[name], "__spec__", None) is None:
+                    del sys.modules[name]
 
 
 @pytest.fixture

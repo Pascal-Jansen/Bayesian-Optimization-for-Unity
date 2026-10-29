@@ -1,4 +1,4 @@
-# Unity generated folders
+# Engine-generated folders (Unity project in Unity/, Unreal plugin hosts)
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -6,6 +6,10 @@
 [Bb]uilds/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
 
 # IDE and generated solution files
 .vs/
@@ -21,37 +25,54 @@
 *.pdb
 *.mdb
 
-# Unity crash/debug output
+# Crash/debug output
 sysinfo.txt
 *.stackdump
+*.log
 .DS_Store
 
-# Unity build/package output
+# Build and package output
 *.apk
 *.aab
 *.unitypackage
-!release/*.unitypackage
+ReleaseArtifacts/
 
-# BO runtime output
-# (the backend console log, output.txt, lives in persistentDataPath/BOData/BayesianOptimization since 1.8;
-# the entries below keep copies written by older versions out of the repository)
-Assets/StreamingAssets/BOData/LogData/
-Assets/StreamingAssets/BOData/output.txt
-Assets/StreamingAssets/BOData/output.txt.meta
-Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
-Assets/StreamingAssets/BOData/BayesianOptimization/output.txt.meta
+# Study output (the backend console log, output.txt, lives in persistentDataPath/BOData/BayesianOptimization since 1.8;
+# the output.txt entries keep copies written by older versions out of the repository)
+Unity/Assets/StreamingAssets/BOData/LogData/
+Unity/Assets/StreamingAssets/BOData/LogData.meta
+Unity/Assets/StreamingAssets/BOData/output.txt
+Unity/Assets/StreamingAssets/BOData/output.txt.meta
+Unity/Assets/StreamingAssets/BOData/BayesianOptimization/output.txt
+Unity/Assets/StreamingAssets/BOData/BayesianOptimization/output.txt.meta
+Unreal/runs/
+Unreal/LogData/
+# The Python client's default log root (./LogData) when run from the repository root or Backend/
+/LogData/
+Backend/LogData/
+tools/readme_figures/runs/
 
-# Offline wheel cache for the dependency install (README 8.5): local, can be several GB
-Assets/StreamingAssets/BOData/Installation/wheels/
-Assets/StreamingAssets/BOData/Installation/wheels.meta
-Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache/
-Assets/StreamingAssets/BOData/InitData/ContextEmbeddingCache.meta
+# Left over in clones of the 1.x layout, where the Unity project was the repository root (see docs/migration-to-ibo.md)
+/Assets/
+/Packages/
+/ProjectSettings/
 
-# Python generated caches
+# Offline wheel cache for the dependency install: local, can be several GB
+Unity/Assets/StreamingAssets/BOData/Installation/wheels/
+Unity/Assets/StreamingAssets/BOData/Installation/wheels.meta
+# Image-embedding cache the backends write next to their InitData
+**/InitData/ContextEmbeddingCache/
+**/InitData/ContextEmbeddingCache.meta
+
+# Unity editor recovery scenes
+Unity/Assets/_Recovery/
+
+# Python
+.venv/
 __pycache__/
 __pycache__.meta
 *.py[cod]
 *$py.class
-
-# Unity editor recovery scenes
-Assets/_Recovery/
+*.egg-info/
+dist/
+.pytest_cache/

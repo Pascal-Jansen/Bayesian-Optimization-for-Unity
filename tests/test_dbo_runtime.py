@@ -24,7 +24,7 @@ import uuid
 from unittest import mock
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BACKEND_DIR = REPO_ROOT / "Backend"
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TESTS_DIR not in sys.path:

@@ -240,25 +240,22 @@ def default_backend_path():
     override = os.environ.get("BOFORUNITY_BODATA")
     if override:
         return Path(override) / "BayesianOptimization" / "dbo.py"
-    # tests/dbo_protocol_check.py -> <repo>/Assets/StreamingAssets/BOData/...
+    # Shared source is exercised directly; engine mirrors are verified by sync_backends.py.
     repo = Path(__file__).resolve().parents[1]
-    return (repo / "Assets" / "StreamingAssets" / "BOData"
-            / "BayesianOptimization" / "dbo.py")
+    return repo / "Backend" / "dbo.py"
 
 
 def assert_port_free():
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.settimeout(1.0)
-    try:
-        probe.connect((HOST, PORT))
-    except OSError:
-        return
-    finally:
-        probe.close()
-    raise ProtocolError(
-        f"Something is already listening on {HOST}:{PORT}. Stop the stale optimizer "
-        "process (or Unity) and re-run."
-    )
+    # A connection probe would consume another study's only accepted client.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((HOST, PORT))
+        except OSError as error:
+            raise ProtocolError(f"Port {HOST}:{PORT} is unavailable. Select a different --port.") from error
 
 
 def start_backend(backend, log_root):
@@ -269,6 +266,7 @@ def start_backend(backend, log_root):
     # Redirect the run logs into a scratch directory so the test never writes
     # into the Unity project. Everything else about the launch is unchanged.
     env["BO_LOG_ROOT"] = str(log_root)
+    env["BO_PORT"] = str(PORT)
     env["BO_ACCEPT_TIMEOUT_SEC"] = str(int(CONNECT_TIMEOUT_SEC))
     env["BO_SOCKET_TIMEOUT_SEC"] = str(int(SOCKET_TIMEOUT_SEC))
 
@@ -577,10 +575,20 @@ def vendored_dbo_torch_version():
 
 
 def main():
+    global PORT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend", type=Path, default=default_backend_path(),
                         help="path to dbo.py inside the BOforUnity project")
+    parser.add_argument("--port", type=int, default=0, help="Loopback port; 0 selects an available port for this test")
     args = parser.parse_args()
+    if not 0 <= args.port <= 65535:
+        parser.error("--port must be from 0 to 65535")
+    if args.port:
+        PORT = args.port
+    else:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind((HOST, 0))
+            PORT = probe.getsockname()[1]
 
     backend = args.backend.resolve()
     if not backend.exists():

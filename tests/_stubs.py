@@ -20,7 +20,7 @@ import types
 import numpy as np
 
 BACKEND_DIR = (
-    pathlib.Path(__file__).resolve().parents[1] / "Assets/StreamingAssets/BOData/BayesianOptimization"
+    pathlib.Path(__file__).resolve().parents[1] / "Backend"
 )
 
 
@@ -476,7 +476,7 @@ def run_main_recording_listener(module, init_msg, execute_attr, main_args=()):
 
 def assert_hardened_listener(testcase, socket_module, server, listening_during_run):
     """Loopback only, exclusive port where the OS supports it, no listening once connected."""
-    testcase.assertEqual(server.bound, ("127.0.0.1", 56001))
+    testcase.assertEqual(server.bound, ("127.0.0.1", protocol_module().PORT))
     testcase.assertEqual(listening_during_run, [False])
     options = {optname for _, optname, _ in server.sockopt_calls}
     if hasattr(socket_module, "SO_EXCLUSIVEADDRUSE"):

@@ -31,7 +31,7 @@ from _stubs import (  # noqa: E402
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BO_PATH = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/bo.py"
+BO_PATH = REPO_ROOT / "Backend/bo.py"
 
 
 def load_bo_module():
@@ -624,9 +624,19 @@ class BoTests(unittest.TestCase):
         return sobol_calls
 
     def test_stop_during_sampling_finalizes_isbest_flags(self):
+        bo = load_bo_module()
+        self._assert_interrupted_sampling_flags(
+            bo, _json_line({"type": "stop", "reason": "perfect_rating"}), bo.StopRequested
+        )
+
+    def test_failed_sampling_finalizes_isbest_flags(self):
+        for final_chunk in (b"", b"malformed json\n"):
+            with self.subTest(final_chunk=final_chunk):
+                self._assert_interrupted_sampling_flags(load_bo_module(), final_chunk, RuntimeError)
+
+    def _assert_interrupted_sampling_flags(self, bo, final_chunk, exception):
         # A perfect-rating stop in the sampling phase used to leave the provisional best-so-far
         # flags (2, 5, 8 -> TRUE, TRUE, TRUE) in the log, which FinalDesignSelector reads.
-        bo = load_bo_module()
         with tempfile.TemporaryDirectory() as tmp:
             bo.PROJECT_PATH = tmp
             bo.USER_ID, bo.CONDITION_ID, bo.GROUP_ID = "u", "c", "g"
@@ -640,10 +650,10 @@ class BoTests(unittest.TestCase):
             bo.draw_sobol_samples = lambda bounds, n, q, seed: FakeTensor([[[0.1]], [[0.2]], [[0.3]], [[0.4]]])
             conn = _FakeConn(
                 [_json_line({"type": "objectives", "values": {"o0": v}}) for v in (2.0, 5.0, 8.0)]
-                + [_json_line({"type": "stop", "reason": "perfect_rating"})]
+                + [final_chunk]
             )
             with mock.patch.object(bo, "send_json_line", lambda c, payload: None):
-                with self.assertRaises(bo.StopRequested):
+                with self.assertRaises(exception):
                     bo.generate_initial_data(conn, n_samples=4, metric_values=[])
             with open(pathlib.Path(tmp) / "ObservationsPerEvaluation.csv", newline="", encoding="utf-8") as f:
                 rows = list(csv.DictReader(f, delimiter=";"))

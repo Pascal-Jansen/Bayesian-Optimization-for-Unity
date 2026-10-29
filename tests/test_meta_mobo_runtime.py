@@ -43,7 +43,7 @@ from _stubs import (  # noqa: E402
 )
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BO_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BO_DIR = REPO_ROOT / "Backend"
 RUNTIME_PATH = BO_DIR / "meta_mobo_runtime.py"
 FINGERPRINT_PATH = BO_DIR / "meta_fingerprint.py"
 TRAIN_PATH = BO_DIR / "meta_train.py"

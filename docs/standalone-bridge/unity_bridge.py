@@ -7,7 +7,7 @@ C# client is ``DboClient.cs`` in this folder.
 
 Run it from this folder, with ``dbo_torch`` importable (a dbo-torch checkout or
 installation, or BOforUnity's vendored copy: add
-``Assets/StreamingAssets/BOData/BayesianOptimization`` to ``PYTHONPATH``)::
+``Backend`` to ``PYTHONPATH``)::
 
     python unity_bridge.py --host 127.0.0.1 --port 8756 --save-dir runs
 
@@ -342,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
     except ImportError as exc:
         parser.error(
             f"dbo_torch is not importable ({exc}). Install dbo-torch, or add BOforUnity's "
-            "Assets/StreamingAssets/BOData/BayesianOptimization folder to PYTHONPATH."
+            "Backend folder to PYTHONPATH."
         )
 
     try:

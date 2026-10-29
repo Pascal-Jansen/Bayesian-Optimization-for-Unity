@@ -473,7 +473,7 @@ class _BackendMixin:
             module.SEED = 11
             module.write_run_info()
             info = json.loads((pathlib.Path(tmp) / "RunInfo.json").read_text(encoding="utf-8"))
-        self.assertEqual(info["generator"], f"Assets/StreamingAssets/BOData/BayesianOptimization/{self.MODULE}.py")
+        self.assertEqual(info["generator"], f"Backend/{self.MODULE}.py")
         self.assertEqual(info["seed"], 11)
         self.assertEqual((info["model_library"]["library"], info["model_library"]["version"]), ("botorch_rs", "4.5.6"))
 

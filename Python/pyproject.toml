@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "interactive-bo"
+version = "2.0.0"
+description = "Interactive Bayesian Optimization (iBO): client and server launcher for human-in-the-loop Bayesian optimization studies"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Pascal Jansen" }, { name = "Mark Colley" }]
+keywords = ["bayesian optimization", "human-in-the-loop", "botorch", "user study", "hci"]
+# The client is standard library only. The server's optimizer stack (torch, botorch, ...) is listed in
+# Backend/requirements.txt.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity"
+
+[project.scripts]
+ibo = "interactive_bo.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["interactive_bo*"]

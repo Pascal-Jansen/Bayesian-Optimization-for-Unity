@@ -50,7 +50,7 @@ def load_protocol_copy(env):
     spec = importlib.util.spec_from_file_location(name, BACKEND_DIR / "bo_protocol.py")
     module = importlib.util.module_from_spec(spec)
     with mock.patch.dict(os.environ, env):
-        for key in ("BO_MAX_RECV_BUF_BYTES", "BO_SOCKET_TIMEOUT_SEC", "BO_ACCEPT_TIMEOUT_SEC"):
+        for key in ("BO_MAX_RECV_BUF_BYTES", "BO_SOCKET_TIMEOUT_SEC", "BO_ACCEPT_TIMEOUT_SEC", "BO_PORT"):
             if key not in env:
                 os.environ.pop(key, None)
         spec.loader.exec_module(module)
@@ -221,6 +221,15 @@ class ReceiveLimitTests(_ProtocolTestCase):
         with mock.patch.object(self.p, "SOCKET_MAX_RECV_BUF_BYTES", 10):
             with self.assertRaisesRegex(RuntimeError, "exceeded 10 bytes"):
                 self.p.recv_json_message(FakeConn([b'{"k":"', "ääää".encode("utf-8"), b'"}\n']))
+
+    def test_limit_also_applies_when_the_line_completes_in_the_chunk(self):
+        for chunks in ([b'{"key":"too long"}\n'], [b'{"key":', b'"too long"}\n']):
+            with self.subTest(chunks=chunks):
+                self.p.reset_receive_state()
+                with mock.patch.object(self.p, "SOCKET_MAX_RECV_BUF_BYTES", 12):
+                    with self.assertRaisesRegex(RuntimeError, "exceeded 12 bytes"):
+                        self.p.recv_json_message(FakeConn(chunks))
+                self.assertEqual(self.p.pending_receive_buffer(), "")
 
     def test_init_with_large_context_embeddings_is_received(self):
         # 300 manual 1280-d embeddings: ~4 MB, four times the former 1 MiB limit.
@@ -408,6 +417,16 @@ class LogWriterTests(_ProtocolTestCase):
 
 # -------------------- init helpers --------------------
 class InitHelperTests(_ProtocolTestCase):
+    def test_loopback_port_configuration(self):
+        self.assertEqual(load_protocol_copy({}).PORT, 56001)
+        for port in ("1", "56321", "65535"):
+            with self.subTest(port=port):
+                self.assertEqual(load_protocol_copy({"BO_PORT": port}).PORT, int(port))
+        for port in ("0", "65536", "-1", "1.5", "", "nan", "true"):
+            with self.subTest(port=port):
+                with self.assertRaisesRegex(ValueError, "BO_PORT must be an integer"):
+                    load_protocol_copy({"BO_PORT": port})
+
     def test_parameter_bounds(self):
         self.p.validate_parameter_bounds(["a", "b"], [(0.0, 1.0), (-2.0, 3.0, "group")], "BoTorch")
         cases = [
@@ -423,9 +442,23 @@ class InitHelperTests(_ProtocolTestCase):
     def test_objective_bounds(self):
         self.p.validate_objective_bounds(["o"], [(1.0, 1.0, 0)])  # a fixed objective scale is allowed
         for info, message in [((0.0, float("nan"), 0), "finite"), ((2.0, 1.0, 1), "invalid bounds"),
-                              ((0.0, 1.0, 2), "minimize flag")]:
+                              ((0.0, 1.0, 2), "minimize flag"),
+                              ((0.0, 1.0, 0.5), "minimize flag")]:
             with self.assertRaisesRegex(ValueError, message):
                 self.p.validate_objective_bounds(["o"], [info])
+
+    def test_fractional_minimize_flag_is_rejected_before_it_can_be_truncated(self):
+        for value in ({"low": 0, "high": 1, "minimize": 0.5}, "0,1,0.5"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "integer"):
+                    self.p.parse_obj_init(value)
+
+    def test_integer_config_rejects_fractions_and_nonfinite_values(self):
+        for value in (2.5, float("inf"), float("nan")):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "must be an integer"):
+                    self.p.get_cfg_int({"n": value}, "n")
+        self.assertEqual(self.p.get_cfg_int({"n": 2.0}, "n"), 2)
 
     def test_raw_samples_must_cover_the_restarts(self):
         self.p.validate_raw_samples(10, 10)

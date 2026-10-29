@@ -1,0 +1,18 @@
+{
+    "name": "BOforUnity.Runtime",
+    "rootNamespace": "BayesianOptimization",
+    "references": [
+        "Unity.TextMeshPro",
+        "UnityEngine.UI",
+        "BOforUnity.Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

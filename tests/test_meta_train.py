@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BO_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BO_DIR = REPO_ROOT / "Backend"
 TRAIN_PATH = BO_DIR / "meta_train.py"
 
 

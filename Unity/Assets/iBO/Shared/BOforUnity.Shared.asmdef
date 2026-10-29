@@ -1,0 +1,14 @@
+{
+    "name": "BOforUnity.Shared",
+    "rootNamespace": "BayesianOptimization.Integration",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

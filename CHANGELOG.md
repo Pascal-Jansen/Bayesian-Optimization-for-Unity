@@ -3,11 +3,34 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-How releasing works: collect notes under `## [Unreleased]` while developing. The [Release workflow](.github/workflows/release.yml) (Actions -> Release -> Run workflow) moves them under the new version heading, bumps `ProjectSettings/ProjectSettings.asset` `bundleVersion`, commits, and creates the GitHub release using that section as release notes.
+How releasing works: collect notes under `## [Unreleased]` while developing. The [Release workflow](.github/workflows/release.yml) (Actions -> Release -> Run workflow) moves them under the new version heading, bumps `Unity/ProjectSettings/ProjectSettings.asset` `bundleVersion`, `VERSION` and `CITATION.cff`, commits, and creates the GitHub release using that section as release notes.
 
 Release notes for versions before 1.5.0 are available on the [GitHub releases page](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases).
 
 ## [Unreleased]
+
+### Renamed
+- **Bayesian Optimization for Unity is now Interactive Bayesian Optimization (iBO)**: one Python optimizer for several integrations. See the [migration guide](docs/migration-to-ibo.md); scenes and prefabs keep working (unchanged GUIDs), scripts need `using BayesianOptimization...` instead of `using BOforUnity...`.
+
+### Added
+- **Shared backend and multi-engine layout** (from [Bayesian-Optimization-for-Game-Engines](https://github.com/M-Colley/Bayesian-Optimization-for-Game-Engines)): `Backend/` is the optimizer source; `tools/sync_backends.py` writes the copies in `Unity/` and `Unreal/`, and CI checks them.
+- **Unreal Engine plugin** (`Unreal/`): C++ component with Blueprint events, analytic example actor and Python launcher.
+- **iBO protocol v1** (`protocol/`): the Unity <-> Python protocol written down, with a JSON schema.
+- **Python client** (`Python/`, package `interactive-bo`) and `Backend/ibo_server.py`, which picks the backend from the init message: studies from any Python program, `python -m interactive_bo demo|serve`.
+- Configurable port per study (`BO_PORT`), URP and HDRP material tools, analytic Unity example (`Tools > iBO > Create Analytic Demo`).
+- iBO logo (`images/ibo-logo-*.svg`, `images/ibo-icon.svg`). README animations of recorded iBO runs (the roles of designer, participant and iBO in a study; one parameter, two conflicting goals, a drifting optimum with DBO and standard BO) and a table of the publications; `tools/readme_figures` regenerates them, the logo and the overview figure.
+
+### Changed
+- The Unity project moved to `Unity/`, the package folder to `Assets/iBO`, the namespaces to `BayesianOptimization.*`.
+- **QuestionnaireToolkit is an optional add-on** (`Assets/iBO-QuestionnaireToolkit`) with the questionnaire examples (`BO-example-scene`, color demo, click game, Fitts's law study). The runtime uses `IStudyQuestionnaire` and `IQuestionnaireOptimizationBridge` from `BOforUnity.Shared`.
+- Questionnaires created from the add-on's `QTQuestionnaireManager` prefab, and its three showcase scenes, save their results to `Assets/StreamingAssets/BOData/LogData/` like the BO samples (was `Assets/QuestionnaireToolkit/Results/`).
+- Release tooling: `tools/build_packages.py` packs only files Git tracks (no local logs or IDE files); `tools/sync_backends.py` creates and checks the Unity `.meta` files of the backend copy and leaves the image-embedding cache out; the release workflow also sets the Unreal plugin's pre-release flag, and `tests/test_release_consistency.py` checks that the version files and license copies agree.
+- Dependencies: `torch` 2.15.0 (was 2.14.1) and `pandas` 3.1.0 (was 3.0.6); every other pin is already the newest release. The first Play after updating installs them. As with any library change, suggestions for the same Seed can differ from earlier versions, so keep one version within a study. CI uses `actions/setup-python` v7 and also tests Python 3.15.
+
+### Removed
+- **The bundled Python installers and the install scripts** (`Installation/Windows`, `MacOs`, `Linux`; this supersedes the install-script notes of 1.9.0): install Python 3.13 yourself; Unity still installs the Python packages on the first Play. The code that ran them is gone too (the installer step of `PythonStarter` and `BoInstallationBuildPostprocessor`); without a Python 3.13, setup stops with instructions.
+- TextMesh Pro essentials from the repository (Unity imports them on demand).
+- Unused files: the 1.0.0 package in `release/`, the demo video and three unused images, two unused QuestionnaireToolkit textures and two unused sample materials; duplicate copies of the release exporter and of the validation, render-pipeline and publication documents (each now exists once).
 
 ## [1.9.1] - 2026-10-22
 

@@ -24,7 +24,7 @@ if _TESTS_DIR not in sys.path:
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 FINGERPRINT_PATH = (
-    REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization/meta_fingerprint.py"
+    REPO_ROOT / "Backend/meta_fingerprint.py"
 )
 
 
@@ -62,6 +62,10 @@ class CanonicalFrameTests(unittest.TestCase):
         self.assertEqual([p[0] for p in f["params"]], PARAM_NAMES)
         self.assertEqual([o[0] for o in f["objs"]], OBJ_NAMES)
         self.assertEqual([o[3] for o in f["objs"]], [0, 1])
+
+    def test_fractional_minimize_flag_cannot_be_stamped_as_an_integer(self):
+        with self.assertRaisesRegex(ValueError, "minimize flag must be 0 or 1"):
+            self.frame(objectives_info=[(0.0, 100.0, 0.5), OBJS_INFO[1]])
 
     def test_identical_frames_are_compatible(self):
         self.assertTrue(self.fp.frames_compatible(self.frame(), self.frame()))

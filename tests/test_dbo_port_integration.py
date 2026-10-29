@@ -33,6 +33,38 @@ class DboPortIntegrationTests(unittest.TestCase):
         )
         return X, (3 * X[:, :1]).sin()
 
+    def test_nonfinite_domains_seeds_and_observations_are_rejected(self):
+        for bounds in ([], [(0.0, float("inf"))], [(float("-inf"), 1.0)],
+                       [(0.0, float("nan"))]):
+            with self.subTest(bounds=bounds):
+                with self.assertRaises(ValueError):
+                    self.dbo.DynamicBO(bounds)
+
+        for seed in (float("nan"), float("inf"), -0.1, 1.1):
+            with self.subTest(seed=seed):
+                with self.assertRaises(ValueError):
+                    self.dbo.DynamicBO(
+                        [(0.0, 1.0)], self.dbo.DBOConfig(seed_points=[[seed]])
+                    )
+
+        optimizers = (
+            (self.dbo.DynamicBO([(0.0, 1.0)]), 0.3),
+            (self.dbo.DynamicMOBO([(0.0, 1.0)], [2.0, 2.0]), [0.3, 0.4]),
+        )
+        for optimizer, outcome in optimizers:
+            point = optimizer.suggest()
+            pending = optimizer._pending
+            for value in (float("inf"), float("nan")):
+                with self.subTest(kind=type(optimizer).__name__, value=value):
+                    with self.assertRaisesRegex(ValueError, "Input values must be finite"):
+                        optimizer.observe([value], outcome)
+                    with self.assertRaisesRegex(ValueError, "Observation time must be finite"):
+                        optimizer.observe(point, outcome, time=value)
+                    self.assertEqual(optimizer.num_observations, 0)
+                    self.assertIs(optimizer._pending, pending)
+            optimizer.observe(point, outcome)
+            self.assertEqual(optimizer.num_observations, 1)
+
     def test_cooperative_model_preserves_actual_kernel_likelihood_and_decay_graph(self):
         from botorch_rs.acquisition import LogExpectedImprovement
         from botorch_rs.mlls import ExactMarginalLogLikelihood

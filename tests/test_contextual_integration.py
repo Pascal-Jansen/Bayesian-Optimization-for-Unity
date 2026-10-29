@@ -35,7 +35,7 @@ if _TESTS_DIR not in sys.path:
 from _stubs import reset_protocol_state  # noqa: E402
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-BACKEND_DIR = REPO_ROOT / "Assets/StreamingAssets/BOData/BayesianOptimization"
+BACKEND_DIR = REPO_ROOT / "Backend"
 
 _REAL_MODULE_ROOTS = ("torch", "botorch", "gpytorch", "linear_operator", "moocore", "pandas", "botorch_rs", "openbo")
 

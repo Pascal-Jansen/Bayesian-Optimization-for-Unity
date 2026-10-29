@@ -1,0 +1,13 @@
+Third Party Notices
+
+Interactive Bayesian Optimization (iBO), formerly Bayesian Optimization for Unity, is distributed under the MIT license by Pascal Jansen. The complete notice is retained in LICENSE. The engine integration changes retain that license.
+
+CABOP is vendored from https://github.com/aalto-ui/CABOP. Copyright (c) 2026 Computational Behavior Lab @ Aalto University. Its MIT license is retained in Backend/cabop/LICENSE and the generated engine copies.
+
+DynamicBO is vendored from https://github.com/M-Colley/dbo-torch. Its BSD 3 Clause license and provenance are retained in Backend/dbo_torch/LICENSE and Backend/dbo_torch/PROVENANCE.md, including the generated engine copies. Those files preserve notices for Mark Colley and the acknowledged GilHwan contribution.
+
+Python dependencies are installed separately. PyTorch, BoTorch, botorch-rust, GPyTorch, NumPy, SciPy, pandas, matplotlib, moocore, scikit-learn, and loguru retain their package licenses. Optional OpenBO and image encoder packages also retain their licenses.
+
+The Unity wrapper uses Unity's UGUI, TextMesh Pro APIs, and Newtonsoft.Json registry package. The Unreal plugin uses Epic Games engine APIs. Engine implementations and installed dependency packages are not vendored here.
+
+QuestionnaireToolkit, StandaloneFileBrowser, Ookii.Dialogs, questionnaire artwork, and unrelated TextMesh Pro sample assets are excluded from the releases.

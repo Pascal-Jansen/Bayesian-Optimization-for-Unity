@@ -1,0 +1,66 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace BayesianOptimization.Scripts
+{
+    [UnityEngine.Scripting.APIUpdating.MovedFrom(true, sourceNamespace: "BOforUnity.Scripts", sourceAssembly: "BOforUnity.Runtime", sourceClassName: "MainThreadDispatcher")]
+    public class MainThreadDispatcher : MonoBehaviour
+    {
+        private static readonly Queue<Action> ExecutionQueue = new Queue<Action>();
+
+        // The queue is static: with domain reload disabled ("Enter Play Mode Options"), actions queued by the
+        // previous session's socket thread (e.g. a connection failure during play mode exit) would otherwise run
+        // against the next session's manager.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticState()
+        {
+            lock (ExecutionQueue)
+            {
+                ExecutionQueue.Clear();
+            }
+        }
+
+        private void Update()
+        {
+            // Dequeue outside the lock so background Execute() calls are not
+            // blocked while actions run, and isolate action failures so one
+            // throwing action cannot abort the rest of this frame's queue.
+            while (true)
+            {
+                Action action;
+                lock (ExecutionQueue)
+                {
+                    if (ExecutionQueue.Count == 0)
+                        break;
+                    action = ExecutionQueue.Dequeue();
+                }
+
+                try
+                {
+                    action.Invoke();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+            }
+        }
+
+        public static void Execute(Action action)
+        {
+            lock (ExecutionQueue)
+            {
+                ExecutionQueue.Enqueue(action);
+            }
+        }
+
+        public static void Execute<T>(Action<T> action, T param)
+        {
+            lock (ExecutionQueue)
+            {
+                ExecutionQueue.Enqueue(() => action(param));
+            }
+        }
+    }
+}

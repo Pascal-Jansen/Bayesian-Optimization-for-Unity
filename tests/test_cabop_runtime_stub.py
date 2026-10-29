@@ -248,6 +248,14 @@ class ParetoTests(CabopStubTestCase):
 
 
 class LogAndInitTests(CabopStubTestCase):
+    def test_enabled_context_is_rejected_before_sampling(self):
+        message = init_msg()
+        message["context"] = {"enabled": True}
+        with self.assertRaisesRegex(ValueError, "Contextual optimization is not supported"):
+            self.start(message)
+        message["context"] = {"enabled": False}
+        self.start(message)
+
     def test_observation_log_keeps_ten_significant_digits(self):
         runtime = self.start(init_msg(sampling=2, optimization=0, param_range=(0.0, 0.004),
                                       objectives=[("o0", 0.0, 0.004, 1)]))

@@ -25,6 +25,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 namespace DboTorch
@@ -74,8 +75,19 @@ namespace DboTorch
         private sealed class PendingRequest
         {
             public string Payload;
-            public Action<string> OnResult;
+            public Action<BridgeReply> OnResult;
             public Action<string> OnError;
+            public ReplyKind ExpectedReply;
+        }
+
+        private enum ReplyKind { Acknowledgment, Suggestion, Prediction }
+
+        private sealed class BridgeReply
+        {
+            public bool Ok;
+            public string Error;
+            public DboSuggestion Suggestion;
+            public DboPrediction Prediction;
         }
 
         // Work queued back onto the Unity main thread.
@@ -163,7 +175,7 @@ namespace DboTorch
         public void Suggest(Action<DboSuggestion> onResult, Action<string> onError = null)
         {
             Send("{\"cmd\":\"suggest\"}",
-                 reply => onResult?.Invoke(ParseSuggestion(reply)), onError);
+                 reply => onResult?.Invoke(reply.Suggestion), onError, ReplyKind.Suggestion);
         }
 
         /// <summary>
@@ -173,7 +185,7 @@ namespace DboTorch
         public void SuggestValidation(Action<DboSuggestion> onResult, Action<string> onError = null)
         {
             Send("{\"cmd\":\"suggest_validation\"}",
-                 reply => onResult?.Invoke(ParseSuggestion(reply)), onError);
+                 reply => onResult?.Invoke(reply.Suggestion), onError, ReplyKind.Suggestion);
         }
 
         /// <summary>Report the measured cost for an input.</summary>
@@ -190,12 +202,7 @@ namespace DboTorch
             float[] x, Action<DboPrediction> onResult, Action<string> onError = null)
         {
             Send("{\"cmd\":\"predict\",\"x\":" + Json(x) + "}",
-                 reply => onResult?.Invoke(new DboPrediction
-                 {
-                     Mean = FieldF(reply, "mean"),
-                     StdDev = FieldF(reply, "std"),
-                 }),
-                 onError);
+                 reply => onResult?.Invoke(reply.Prediction), onError, ReplyKind.Prediction);
         }
 
         /// <summary>
@@ -212,7 +219,8 @@ namespace DboTorch
         // Transport
         // ---------------------------------------------------------------
 
-        private void Send(string payload, Action<string> onResult, Action<string> onError)
+        private void Send(string payload, Action<BridgeReply> onResult, Action<string> onError,
+            ReplyKind expectedReply = ReplyKind.Acknowledgment)
         {
             lock (_queueLock)
             {
@@ -222,7 +230,10 @@ namespace DboTorch
                     return;
                 }
 
-                _queue.Enqueue(new PendingRequest { Payload = payload, OnResult = onResult, OnError = onError });
+                _queue.Enqueue(new PendingRequest
+                {
+                    Payload = payload, OnResult = onResult, OnError = onError, ExpectedReply = expectedReply
+                });
                 if (_worker == null || !_worker.IsAlive)
                 {
                     _worker = new Thread(ProcessQueue) { IsBackground = true, Name = "DboClient" };
@@ -253,6 +264,7 @@ namespace DboTorch
         private void Execute(PendingRequest request)
         {
             string reply;
+            BridgeReply parsed;
             try
             {
                 lock (_ioLock)
@@ -268,9 +280,11 @@ namespace DboTorch
                     throw new IOException("Server closed the connection.");
                 if (LogTraffic) Debug.Log("[DBO] <- " + reply);
 
-                if (!FieldB(reply, "ok"))
+                // Validate before queueing the main thread success callback.
+                parsed = ParseReply(reply, request.ExpectedReply);
+                if (!parsed.Ok)
                 {
-                    var msg = FieldS(reply, "error") ?? "unknown server error";
+                    var msg = parsed.Error;
                     _mainThread.Enqueue(() => Fail(request.OnError, msg));
                     return;
                 }
@@ -283,7 +297,7 @@ namespace DboTorch
                 return;
             }
 
-            _mainThread.Enqueue(() => request.OnResult?.Invoke(reply));
+            _mainThread.Enqueue(() => request.OnResult?.Invoke(parsed));
         }
 
         // Stops the worker and drops queued calls. Closing the socket without taking
@@ -309,11 +323,8 @@ namespace DboTorch
         }
 
         // ---------------------------------------------------------------
-        // Minimal JSON helpers
-        //
-        // The server's replies are flat and machine-generated, so a full JSON
-        // parser would be overkill. JsonUtility is not used because it cannot
-        // handle top-level arrays of primitives.
+        // Request formatting and strict reply parsing.
+        // Requires Unity's com.unity.nuget.newtonsoft-json package.
         // ---------------------------------------------------------------
 
         private static string Num(float v) =>
@@ -345,86 +356,58 @@ namespace DboTorch
             return sb.Append(']').ToString();
         }
 
-        private static string FieldS(string json, string key)
+        private static BridgeReply ParseReply(string json, ReplyKind kind)
         {
-            int i = json.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
-            if (i < 0) return null;
-            i = json.IndexOf(':', i);
-            if (i < 0) return null;
-            i++;
-            while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
-            if (i >= json.Length || json[i] != '"') return null;
-            var sb = new StringBuilder();
-            for (i++; i < json.Length && json[i] != '"'; i++)
+            var root = JObject.Parse(json, new JsonLoadSettings
             {
-                if (json[i] == '\\' && i + 1 < json.Length) i++;
-                sb.Append(json[i]);
-            }
-            return sb.ToString();
-        }
-
-        private static bool FieldB(string json, string key)
-        {
-            // RawField tolerates whitespace after the colon; Python's
-            // json.dumps emits '": true' with a space, so an offset-based
-            // check would reject every server reply.
-            return RawField(json, key) == "true";
-        }
-
-        private static float FieldF(string json, string key)
-        {
-            var raw = RawField(json, key);
-            return raw != null && float.TryParse(
-                raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var f) ? f : float.NaN;
-        }
-
-        private static int FieldI(string json, string key)
-        {
-            var raw = RawField(json, key);
-            return raw != null && int.TryParse(
-                raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : -1;
-        }
-
-        private static string RawField(string json, string key)
-        {
-            int i = json.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
-            if (i < 0) return null;
-            i = json.IndexOf(':', i);
-            if (i < 0) return null;
-            int start = ++i;
-            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
-            int end = start;
-            while (end < json.Length && json[end] != ',' && json[end] != '}' && json[end] != ']') end++;
-            return json.Substring(start, end - start).Trim();
-        }
-
-        private static float[] FieldFArray(string json, string key)
-        {
-            int i = json.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
-            if (i < 0) return Array.Empty<float>();
-            int open = json.IndexOf('[', i);
-            int close = json.IndexOf(']', open + 1);
-            if (open < 0 || close < 0) return Array.Empty<float>();
-
-            var body = json.Substring(open + 1, close - open - 1).Trim();
-            if (body.Length == 0) return Array.Empty<float>();
-
-            var parts = body.Split(',');
-            var result = new List<float>(parts.Length);
-            foreach (var p in parts)
+                DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error
+            });
+            if (root["ok"]?.Type != JTokenType.Boolean)
+                throw new InvalidDataException("Reply must contain a boolean 'ok' field.");
+            var reply = new BridgeReply { Ok = root["ok"].Value<bool>() };
+            if (!reply.Ok)
             {
-                if (float.TryParse(p.Trim(), NumberStyles.Float,
-                                   CultureInfo.InvariantCulture, out var f))
-                    result.Add(f);
+                reply.Error = root["error"]?.Type == JTokenType.String
+                    ? root["error"].Value<string>() : "unknown server error";
+                return reply;
             }
-            return result.ToArray();
+            if (kind == ReplyKind.Suggestion)
+            {
+                if (!(root["x"] is JArray values) || values.Count == 0)
+                    throw new InvalidDataException("Suggestion must contain a nonempty numeric 'x' array.");
+                var x = new float[values.Count];
+                for (int i = 0; i < values.Count; i++)
+                    x[i] = ReadFiniteFloat(values[i], "x[" + i + "]");
+                if (root["iteration"]?.Type != JTokenType.Integer ||
+                    !int.TryParse(root["iteration"].ToString(), NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out int iteration) || iteration < 0)
+                    throw new InvalidDataException("Suggestion must contain a nonnegative integer 'iteration'.");
+                if (root["is_validation"]?.Type != JTokenType.Boolean)
+                    throw new InvalidDataException("Suggestion must contain a boolean 'is_validation'.");
+                reply.Suggestion = new DboSuggestion
+                {
+                    X = x, Iteration = iteration, IsValidation = root["is_validation"].Value<bool>()
+                };
+            }
+            else if (kind == ReplyKind.Prediction)
+            {
+                float mean = ReadFiniteFloat(root["mean"], "mean");
+                float std = ReadFiniteFloat(root["std"], "std");
+                if (std < 0f)
+                    throw new InvalidDataException("Prediction standard deviation must be nonnegative.");
+                reply.Prediction = new DboPrediction { Mean = mean, StdDev = std };
+            }
+            return reply;
         }
 
-        private static DboSuggestion ParseSuggestion(string reply) => new DboSuggestion
+        private static float ReadFiniteFloat(JToken token, string name)
         {
-            X = FieldFArray(reply, "x"),
-            Iteration = FieldI(reply, "iteration"),
-            IsValidation = FieldB(reply, "is_validation"),
-        };
+            if (token == null || (token.Type != JTokenType.Integer && token.Type != JTokenType.Float))
+                throw new InvalidDataException("Reply field '" + name + "' must be a finite number.");
+            double value = token.Value<double>();
+            if (double.IsNaN(value) || double.IsInfinity(value) || value < -float.MaxValue || value > float.MaxValue)
+                throw new InvalidDataException("Reply field '" + name + "' exceeds the finite float range.");
+            return (float)value;
+        }
     }
 }
