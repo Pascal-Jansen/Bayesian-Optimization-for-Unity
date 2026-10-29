@@ -20,7 +20,7 @@ Choose `Tools > iBO > Create Analytic Demo` to create `Assets/iBO/Samples/Analyt
 
 ## Validation
 
-The isolated validation fixture is in `docs/rendering-validation` of the [iBO repository](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity). It creates a disposable project, installs the selected Unity SRP dependency through that project's manifest, and uses a GPU render target to inspect the example colors. The package itself never installs packages or changes the consumer project's pipeline.
+The isolated validation fixture is in `docs/rendering-validation` of the [iBO repository](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization). It creates a disposable project, installs the selected Unity SRP dependency through that project's manifest, and uses a GPU render target to inspect the example colors. The package itself never installs packages or changes the consumer project's pipeline.
 
 Run `python docs/rendering-validation/validate.py --unity <Unity executable> --pipeline Universal` for URP. Select `HighDefinition` for HDRP or `BuiltIn` for a project without either package. Add `--both-packages` to check compilation with both optional packages installed. Add `--full-package` to compile the optimizer without QT, convert its shipped rendering sample, and verify the analytic objective and generated scene. The fixture records `render-validation.json`, a preview PNG, and the editor log in the temporary project. It uses Unity 6000.6.7f1 and SRP 17.6.0. HDRP receives an initial render request to initialize its resources before the image assertions.
 
