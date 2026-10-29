@@ -64,9 +64,9 @@ jobs:
             ":(exclude)**/*.meta"
           )
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git diff --check "${{ github.event.pull_request.base.sha }}" HEAD -- "${pathspecs[@]}"
+            git diff --check -M "${{ github.event.pull_request.base.sha }}" HEAD -- "${pathspecs[@]}"
           else
-            git diff-tree --check --no-commit-id --root -r HEAD -- "${pathspecs[@]}"
+            git diff-tree --check -M --no-commit-id --root -r HEAD -- "${pathspecs[@]}"
           fi
 
       - name: Check generated Python caches are not tracked
