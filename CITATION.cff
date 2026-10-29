@@ -4,7 +4,7 @@ title: "Interactive Bayesian Optimization (iBO)"
 abstract: "Human-in-the-loop Bayesian optimization for any interactive system: integrations for Unity, Unreal Engine and Python, and an open protocol for other tools. Formerly Bayesian Optimization for Unity."
 version: "2.0.0"
 doi: 10.5281/zenodo.19786494
-repository-code: "https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity"
+repository-code: "https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization"
 license: MIT
 authors:
   - family-names: Jansen

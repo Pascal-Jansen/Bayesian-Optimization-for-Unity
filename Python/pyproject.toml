@@ -16,7 +16,7 @@ keywords = ["bayesian optimization", "human-in-the-loop", "botorch", "user study
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity"
+Homepage = "https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization"
 
 [project.scripts]
 ibo = "interactive_bo.__main__:main"

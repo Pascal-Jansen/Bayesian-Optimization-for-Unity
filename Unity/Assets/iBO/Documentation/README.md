@@ -1,7 +1,7 @@
 # iBO for Unity
 
 This folder is the Unity package of iBO (Interactive Bayesian Optimization). The repository with the manual, the
-other integrations and the releases: https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity
+other integrations and the releases: https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization
 
 ## Requirements
 
@@ -11,7 +11,7 @@ other integrations and the releases: https://github.com/Pascal-Jansen/Bayesian-O
 - Python 3.13. On the first Play, iBO installs the pinned packages of `requirements.txt` into a private virtual
   environment in `<persistentDataPath>/BOData/python-venv` (needs internet; with PyTorch this can take several GB).
   If Python is not found automatically, select it under **Python Settings > Manually Installed Python**
-  ([manual 8.5](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/unity-manual.md#85-python-settings)).
+  ([manual 8.5](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/blob/main/docs/unity-manual.md#85-python-settings)).
 
 ## Try it
 
@@ -31,10 +31,10 @@ Copy into your project's `Assets` folder (from this project or from the `iBO-Uni
 - `Assets/iBO-QuestionnaireToolkit` if you need questionnaires; the add-on is only available from the repository.
 
 Then put a `BoForUnityManager` and its companion components on an object
-([manual section 4](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/unity-manual.md#4-integration-checklist)), set the parameter keys and bounds and
+([manual section 4](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/blob/main/docs/unity-manual.md#4-integration-checklist)), set the parameter keys and bounds and
 the objective keys, bounds and directions, apply each suggested design, and report every objective before the next
 iteration. The analytic sample is the smallest complete example. Projects that used Bayesian Optimization for Unity
-1.x follow the [migration guide](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/migration-to-ibo.md).
+1.x follow the [migration guide](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/blob/main/docs/migration-to-ibo.md).
 
 ## Notes
 
@@ -44,7 +44,7 @@ iteration. The analytic sample is the smallest complete example. Projects that u
   sample materials for the active pipeline ([render pipeline support](render-pipeline-support.md)).
 - **Optimizer TCP Port** (default 56001) reaches Python as `BO_PORT`; give concurrent studies different ports.
 - Logs go to `Assets/StreamingAssets/BOData/LogData/<User ID>/<Condition ID>/run/`, or below `persistentDataPath`
-  when StreamingAssets is read-only ([manual 8.12](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/unity-manual.md#812-output-files-and-metrics)).
+  when StreamingAssets is read-only ([manual 8.12](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/blob/main/docs/unity-manual.md#812-output-files-and-metrics)).
 
-See also the [validation record](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/blob/main/docs/validation.md), [render pipeline support](render-pipeline-support.md) and the
+See also the [validation record](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/blob/main/docs/validation.md), [render pipeline support](render-pipeline-support.md) and the
 [publication assessment](publication-status.md).

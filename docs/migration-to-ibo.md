@@ -4,7 +4,7 @@ Interactive Bayesian Optimization (iBO) is the successor of Bayesian Optimizatio
 backend and further integrations. There was no iBO 1.x: iBO's version numbers continue those of Bayesian Optimization
 for Unity, so its first version is 2.0.0. Scenes and prefabs keep working: every script keeps its GUID, so Unity still finds the
 components. Code that references the package needs the changes below. Version 1.9.1 stays available in the
-[`BOforUnity`](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/tree/BOforUnity) branch and as the
+[`BOforUnity`](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/tree/BOforUnity) branch and as the
 release v1.9.1.
 
 ## What changed
