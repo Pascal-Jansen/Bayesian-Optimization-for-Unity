@@ -1,8 +1,6 @@
 <h1 align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="images/ibo-logo-dark.svg">
-    <img alt="iBO · Interactive Bayesian Optimization" src="images/ibo-logo-light.svg" width="460">
-  </picture>
+  <img alt="iBO · Interactive Bayesian Optimization" src="images/ibo-logo-light.svg#gh-light-mode-only" width="460">
+  <img alt="iBO · Interactive Bayesian Optimization" src="images/ibo-logo-dark.svg#gh-dark-mode-only" width="460">
 </h1>
 
 <p align="center">
@@ -26,15 +24,15 @@
   <sup>1</sup>Ulm University&nbsp;&nbsp;·&nbsp;&nbsp;<sup>2</sup>University College London
 </p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-roles-dark.gif">
-  <img alt="Animation of the roles in an iBO study: the designer sets up what may change and what counts as good; the interactive system shows each design; the participant uses it and rates it while their behavior is measured; iBO learns from every response and proposes the next design; at the end the designer gets the best designs and the logs." src="images/ibo-roles-light.gif">
-</picture>
+<p>
+  <img alt="Animation of the roles in an iBO study: the designer sets up what may change and what counts as good; the interactive system shows each design; the participant uses it and rates it while their behavior is measured; iBO learns from every response and proposes the next design; at the end the designer gets the best designs and the logs." src="images/ibo-roles-light.gif#gh-light-mode-only">
+  <img alt="Animation of the roles in an iBO study: the designer sets up what may change and what counts as good; the interactive system shows each design; the participant uses it and rates it while their behavior is measured; iBO learns from every response and proposes the next design; at the end the designer gets the best designs and the logs." src="images/ibo-roles-dark.gif#gh-dark-mode-only">
+</p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-overview-dark.svg">
-  <img alt="iBO overview: any front end (Unity, Unreal Engine, Python or your own tool) exchanges designs and objectives with the iBO backend over the iBO protocol; the backend offers BO, MOBO, CABOP, DBO, contextual LCE-M and MetaTAF" src="images/ibo-overview-light.svg">
-</picture>
+<p>
+  <img alt="iBO overview: any front end (Unity, Unreal Engine, Python or your own tool) exchanges designs and objectives with the iBO backend over the iBO protocol; the backend offers BO, MOBO, CABOP, DBO, contextual LCE-M and MetaTAF" src="images/ibo-overview-light.svg#gh-light-mode-only">
+  <img alt="iBO overview: any front end (Unity, Unreal Engine, Python or your own tool) exchanges designs and objectives with the iBO backend over the iBO protocol; the backend offers BO, MOBO, CABOP, DBO, contextual LCE-M and MetaTAF" src="images/ibo-overview-dark.svg#gh-dark-mode-only">
+</p>
 
 ## What iBO does
 
@@ -62,10 +60,10 @@ which iBO never sees; the blue line is iBO's estimate and the band its uncertain
 iBO found the peak with its 6th rating, then checked two regions it was still unsure about and spent the last four
 ratings on the peak.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-one-parameter-dark.gif">
-  <img alt="Animation of an iBO run with one design parameter: after three spread-out designs, iBO's estimate and its uncertainty guide each next design, and the ratings settle at the best design within 12 ratings." src="images/ibo-one-parameter-light.gif">
-</picture>
+<p>
+  <img alt="Animation of an iBO run with one design parameter: after three spread-out designs, iBO's estimate and its uncertainty guide each next design, and the ratings settle at the best design within 12 ratings." src="images/ibo-one-parameter-light.gif#gh-light-mode-only">
+  <img alt="Animation of an iBO run with one design parameter: after three spread-out designs, iBO's estimate and its uncertainty guide each next design, and the ratings settle at the best design within 12 ratings." src="images/ibo-one-parameter-dark.gif#gh-dark-mode-only">
+</p>
 
 ### Two goals that conflict
 
@@ -74,10 +72,10 @@ Pareto front: designs that no other design beats on both goals. The dotted line 
 its result (right). With multi-objective BO, 12 of the 20 designs are best trade-offs, all close to the best possible
 ones; which compromise to use is then your decision.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-trade-offs-dark.gif">
-  <img alt="Animation of a multi-objective iBO run: designs on the left are linked to their comfort and speed results on the right; the best trade-offs line up along the hidden best possible curve." src="images/ibo-trade-offs-light.gif">
-</picture>
+<p>
+  <img alt="Animation of a multi-objective iBO run: designs on the left are linked to their comfort and speed results on the right; the best trade-offs line up along the hidden best possible curve." src="images/ibo-trade-offs-light.gif#gh-light-mode-only">
+  <img alt="Animation of a multi-objective iBO run: designs on the left are linked to their comfort and speed results on the right; the best trade-offs line up along the hidden best possible curve." src="images/ibo-trade-offs-dark.gif#gh-dark-mode-only">
+</p>
 
 ### Preferences that change during a session
 
@@ -86,10 +84,10 @@ the same spread-out designs. Dynamic BO (DBO) trusts recent ratings more and fol
 20 model-guided designs land in the gold band (within 0.1 of the best design at that moment), against 7 for standard
 BO, which weighs old and new ratings alike.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/ibo-drift-dark.gif">
-  <img alt="Animation comparing Dynamic BO and standard BO while the best design moves during a session: DBO's designs follow the moving best design, standard BO's designs scatter." src="images/ibo-drift-light.gif">
-</picture>
+<p>
+  <img alt="Animation comparing Dynamic BO and standard BO while the best design moves during a session: DBO's designs follow the moving best design, standard BO's designs scatter." src="images/ibo-drift-light.gif#gh-light-mode-only">
+  <img alt="Animation comparing Dynamic BO and standard BO while the best design moves during a session: DBO's designs follow the moving best design, standard BO's designs scatter." src="images/ibo-drift-dark.gif#gh-dark-mode-only">
+</p>
 
 ## One optimizer, any front end
 
