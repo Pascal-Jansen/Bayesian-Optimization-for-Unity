@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 How releasing works: collect notes under `## [Unreleased]` while developing. The [Release workflow](.github/workflows/release.yml) (Actions -> Release -> Run workflow) moves them under the new version heading, bumps `Unity/ProjectSettings/ProjectSettings.asset` `bundleVersion`, `VERSION` and `CITATION.cff`, commits, and creates the GitHub release using that section as release notes.
 
-Release notes for versions before 1.5.0 are available on the [GitHub releases page](https://github.com/Pascal-Jansen/Bayesian-Optimization-for-Unity/releases).
+Release notes for versions before 1.5.0 are available on the [GitHub releases page](https://github.com/Pascal-Jansen/Interactive-Bayesian-Optimization/releases).
 
 ## [Unreleased]
 
